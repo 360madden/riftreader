@@ -1,18 +1,17 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "status": "blocked-target-drift",
-  "lastUpdatedUtc": "2026-05-23T06:47:00Z",
+  "status": "current-target-proofonly-passed",
+  "lastUpdatedUtc": "2026-05-23T05:38:15.769116+00:00",
   "target": {
     "processName": "rift_x64",
     "processId": 28248,
     "targetWindowHandle": "0x2302BC"
   },
   "currentTruthClassification": {
-    "classification": "stale-target-drift-blocker",
-    "movementAllowed": false,
-    "sourceOfTruth": "coordinate_recovery_status.py and ChromaLink freshness checks after live target drift/no live RIFT process",
-    "staleProtection": "PID 28248 / HWND 0x2302BC proof remains historical only; do not use as current proof or movement truth after target drift/process exit.",
+    "classification": "current-live-target-proof-anchor",
+    "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
+    "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
     "savedVariablesUsedAsLiveTruth": false,
     "noCheatEngine": true
   },
@@ -37,8 +36,8 @@
     ]
   },
   "latestValidation": {
-    "status": "blocked-target-drift",
-    "movementAllowed": false,
+    "status": "valid",
+    "movementAllowed": true,
     "movementSent": false,
     "noCheatEngine": true,
     "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-28248-readback-summary-20260523-013808.json",
@@ -51,16 +50,7 @@
       "z": 2997.306884765625,
       "recordedAtUtc": "2026-05-23T05:38:15.0120140Z"
     },
-    "generatedAtUtc": "2026-05-23T05:38:15.4379880+00:00",
-    "blockers": [
-      "artifact-target-pid-not-running:artifact=28248;live=none",
-      "provider-stale",
-      "player-position-missing",
-      "rift-process-missing"
-    ],
-    "checkedAtUtc": "2026-05-23T06:43:52Z",
-    "coordinateRecoveryStatus": "blocked at 2026-05-23T06:43:26Z",
-    "chromalinkFreshnessSummary": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\AddOns\\ChromaLink\\artifacts\\diagnostics\\chromalink-ensure-fresh-20260523T064352Z\\summary.json"
+    "generatedAtUtc": "2026-05-23T05:38:15.4379880+00:00"
   },
   "latestProofOnly": {
     "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-28248-20260523-053152-550559\\07-proofonly\\live-test-ProofOnly-20260523-053732\\run-summary.json",
@@ -83,33 +73,6 @@
   },
   "notes": [
     "Auto-written after ProofOnly passed for the exact current target.",
-    "PID 28248 / HWND 0x2302BC proof passed earlier, but the target is no longer live and this pointer is now a drift blocker.",
-    "Use only as historical reacquisition evidence until a new same-target ProofOnly pass updates this file."
-  ],
-  "staleProofPointer": {
-    "statusBeforeDrift": "current-target-proofonly-passed",
-    "archivedAt": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "target": {
-      "processName": "rift_x64",
-      "processId": 28248,
-      "targetWindowHandle": "0x2302BC"
-    },
-    "candidateAddressHex": "0x2D409F3BBE0",
-    "latestProofOnly": {
-      "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-28248-20260523-053152-550559\\07-proofonly\\live-test-ProofOnly-20260523-053732\\run-summary.json",
-      "status": "passed-proof-only",
-      "generatedAtUtc": "2026-05-23T05:38:15.760506+00:00",
-      "movementSent": false,
-      "movementAttempted": false,
-      "currentCoordinate": {
-        "x": 7371.4150390625,
-        "y": 868.0927124023438,
-        "z": 2997.306884765625,
-        "recordedAtUtc": "2026-05-23T05:38:15.0120140Z"
-      },
-      "coordinateDelta": null,
-      "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-28248-readback-summary-20260523-013808.json"
-    },
-    "reusePolicy": "historical-audit-only; do-not-use-as-current-proof-or-movement-truth-after-target-drift"
-  }
+    "This file is a current pointer, not an immutable historical record."
+  ]
 }

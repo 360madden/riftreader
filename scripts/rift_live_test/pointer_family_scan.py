@@ -258,13 +258,14 @@ def rank_summaries(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_markdown(summary: dict[str, Any]) -> str:
+    target = summary.get("target") if isinstance(summary.get("target"), dict) else {}
     lines = [
         "# Pointer family scan",
         "",
         f"- Status: `{summary.get('status')}`",
         f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
-        f"- Target PID: `{summary.get('target', {}).get('pid')}`",
-        f"- Target HWND: `{summary.get('target', {}).get('hwndHex')}`",
+        f"- Target PID: `{target.get('pid')}`",
+        f"- Target HWND: `{target.get('hwndHex')}`",
         f"- Seed count: `{summary.get('counts', {}).get('seedCount')}`",
         f"- Scanned target count: `{summary.get('counts', {}).get('scannedTargetCount')}`",
         f"- Candidate-only: `{str(summary.get('safety', {}).get('candidateOnly')).lower()}`",

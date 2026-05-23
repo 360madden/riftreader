@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-23T06:47:00Z",
-  "status": "blocked_no_live_rift_target_pid28248_proof_historical_after_target_drift",
+  "updatedAtUtc": "2026-05-23T06:28:30Z",
+  "status": "current_pid_28248_proof_anchor_passed_riftscan_readiness_ready_x64dbg_attach_blocked_actor_static_chain_not_promoted",
   "target": {
     "processName": "rift_x64",
     "processId": 28248,
@@ -10,11 +10,11 @@
     "windowTitle": "RIFT",
     "processStartUtc": "2026-05-23T04:33:26.7814151Z",
     "moduleBase": "0x7FF747730000",
-    "live": false,
-    "status": "historical-stale-target-not-running-after-pid28248-proof",
-    "lastVerifiedUtc": "2026-05-23T06:43:52Z",
-    "verificationSource": "coordinate_recovery_status.py blocked with artifact PID 28248 not running; ChromaLink freshness gate blocked provider-stale/player-position-missing/rift-process-missing; Get-Process later showed no live rift_x64 process.",
-    "inWorld": false,
+    "live": true,
+    "status": "in-world-current-proof-anchor-passed-riftscan-readiness-ready-static-chain-not-promoted",
+    "lastVerifiedUtc": "2026-05-23T06:25:48Z",
+    "verificationSource": "ChromaLink fresh world-state, recover_current_pid_coord_anchor_fast.py, current-proof-anchor-readback.json, riftscan_milestone_review.py, coordinate_proof_readiness_gate.py, x64dbg_attach_environment_probe.py, x64dbg_live_access_capture.py attach retry, and coordinate_recovery_status.py",
+    "inWorld": true,
     "previousTargetEpoch": {
       "processName": "rift_x64",
       "processId": 67680,
@@ -28,15 +28,13 @@
       "historicalArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-23-pid67680-hwnd120CBE-historical-before-pid28248-proof-refresh.json",
       "historicalArchiveMarkdown": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-23-pid67680-hwnd120CBE-historical-before-pid28248-proof-refresh.md",
       "reusePolicy": "historical target/audit context only; do not use for current coordinate proof or movement truth"
-    },
-    "historicalArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "reusePolicy": "historical target/audit context only; do not use as current coordinate proof or movement truth"
+    }
   },
   "liveReferenceSurface": {
-    "authoritative": false,
-    "status": "blocked-target-drift-no-live-rift-provider-stale",
+    "authoritative": true,
+    "status": "current-proof-anchor-passed-riftscan-readiness-ready-x64dbg-attach-blocked",
     "source": "ChromaLink world-state/API-now reference plus same-target read-only memory readback",
-    "view": "No current in-world live target; PID 28248 proof anchor is historical after target drift/process exit.",
+    "view": "In-world live target PID 28248 / HWND 0x2302BC; current proof anchor passed ProofOnly; actor static chain is not promoted",
     "savedVariablesUse": "none",
     "currentCoordinate": {
       "x": 7371.4150390625,
@@ -56,9 +54,13 @@
     "movementSentByRecovery": true,
     "movementSentByCurrentTruthUpdate": false,
     "notes": [
-      "PID 28248 proof/readiness was valid earlier in this session, but it is now historical because the target PID is not running.",
-      "ChromaLink freshness is blocked/provider-stale and player.position is not currently usable as API-now truth.",
-      "No movement, game input, debugger attach, breakpoints/watchpoints, memory writes, provider writes, staging, or push were used for this stale-target update."
+      "A bounded x64dbg stop-context attach retry was attempted after the proof/readiness refresh; every attach command variant was rejected before a debug session started.",
+      "The failed x64dbg retry did not set breakpoints/watchpoints, did not write target memory, and did not send movement or game input; coordinate recovery status still passed afterward.",
+      "The proof anchor is current movement-safety evidence for the exact PID/HWND, not a promoted player actor static chain.",
+      "The 2026-05-23 recovery used bounded approved W movement to prove displaced poses before promotion; the final ProofOnly sent no movement.",
+      "RiftScan milestone/readiness gates now accept the current proof pointer candidate file as read-only evidence; they do not grant movement permission.",
+      "SavedVariables were not used as live truth.",
+      "No successful x64dbg attach, CE, memory writes, provider writes, staging, or commit were used for this update."
     ],
     "x64dbgAttachAttempt": {
       "status": "failed-before-debug-session-start",
@@ -80,10 +82,10 @@
     }
   },
   "movementGate": {
-    "allowed": false,
-    "status": "blocked-target-drift-no-live-rift-target",
+    "allowed": true,
+    "status": "current-target-proofonly-passed-no-movement-sent-final-pass",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
-    "reason": "The same-target proof pointer is now historical because PID 28248 / HWND 0x2302BC is not live; a new same-target recovery/ProofOnly pass is required before movement can be considered.",
+    "reason": "Same-target ProofOnly passed for PID 28248 / HWND 0x2302BC and current proof anchor 0x2D409F3BBE0. This does not promote the player actor static chain and does not authorize blind movement; live input still requires immediate per-run target/visual/safety gates.",
     "movementSentByCurrentPass": false,
     "movementSentByRecovery": true,
     "staticPlayerActorChainPromoted": false
@@ -93,7 +95,7 @@
     "addressHex": "0x2D409F3BBE0",
     "candidateFile": "scripts/captures/family-scan-currentpid-28248-20260523-053403-077701/api-family-vec3-candidates.jsonl",
     "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-28248-readback-summary-20260523-013808.json",
-    "status": "historical-candidate-stale-target-drift",
+    "status": "current-pid-proof-anchor-passed-static-chain-not-promoted",
     "classification": "direct-current-coordinate-proof-anchor",
     "axisOrder": "xyz",
     "directMaxAbsDelta": 0.006518554687431788,
@@ -109,22 +111,22 @@
       "y": 868.0927124023438,
       "z": 2997.306884765625
     },
-    "truthReadiness": "blocked_target_drift_historical_candidate_only",
+    "truthReadiness": "movement_grade_current_pid_proof_anchor_not_static_actor_chain",
     "ownerBase": null,
     "coordOffsetFromOwner": null,
     "promotionEligible": false,
     "candidateOnly": true,
     "proofSupportCount": 3,
-    "reusePolicy": "historical reacquisition hint only; do not use as current proof after target drift/no live RIFT target"
+    "reusePolicy": "current-PID proof anchor only; do not treat heap address as restart-stable actor chain after target drift"
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "status": "blocked-target-drift",
+    "status": "current-target-proofonly-passed",
     "lastUpdatedUtc": "2026-05-23T05:38:15.769116+00:00",
     "latestValidationStatus": "valid",
     "latestProofOnlyStatus": "passed-proof-only",
     "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-28248-20260523-053152-550559\\07-proofonly\\live-test-ProofOnly-20260523-053732\\run-summary.json",
-    "movementAllowed": false,
+    "movementAllowed": true,
     "movementSent": false,
     "movementAttempted": false,
     "noCheatEngine": true,
@@ -135,9 +137,7 @@
     "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260523-054443.json",
     "coordinateProofReadinessGate": "scripts/captures/coordinate-proof-readiness-gate-20260523-054451-435504/summary.json",
     "x64dbgAttachRetry": "scripts/captures/x64dbg-live-access-capture-20260523-062455-703468/summary.json",
-    "x64dbgAttachStatus": "failed-before-debug-session-start-before-later-target-drift",
-    "staleProofArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "coordinateRecoveryStatusAfterDrift": "blocked: artifact-target-pid-not-running:artifact=28248;live=28496"
+    "x64dbgAttachStatus": "failed-before-debug-session-start"
   },
   "staleOrInvalid": [
     {
@@ -262,9 +262,6 @@
     }
   ],
   "currentBlockers": [
-    "No live rift_x64/RIFT target was detected after PID 28248 target drift; current proof pointer is historical only.",
-    "ChromaLink provider is stale and player position is missing/unusable as current API-now truth.",
-    "A new same-target recovery and ProofOnly pass is required before movement or proof promotion.",
     "Static player actor coordinate chain is not promoted for current PID 28248: access/static provenance is missing under the current no-debugger authorization.",
     "Actor candidate readback is not passed for current PID 28248; prior actor-like PID 67680 evidence is historical and must not be reused as current actor-chain truth.",
     "Bounded x64dbg stop-context attach retry for current PID 28248 failed before debug session start; attach command variants were rejected, so access/static provenance is still missing.",
@@ -401,10 +398,7 @@
     "x64dbgAttachRetry": "scripts/captures/x64dbg-live-access-capture-20260523-062455-703468/summary.json",
     "x64dbgManualAttachRetryDiagnostic": "scripts/captures/x64dbg-manual-attach-retry-diagnostic-20260523-021754/summary.json",
     "x64dbgCommandLineAttachDiagnostic": "scripts/captures/x64dbg-commandline-pid-attach-diagnostic-20260523-021930/summary.json",
-    "currentPidNoDebugScanBatch": "scripts/captures/coordinate-scan-plan-batch-currentpid-28248-20260523-060339-224933/summary.json",
-    "historicalPid28248ProofPointer": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "historicalPid28248CurrentTruthJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "pointerFamilyScanBlockedAfterDrift": "scripts/captures/pointer-family-scan-20260523-064638-227102/summary.json"
+    "currentPidNoDebugScanBatch": "scripts/captures/coordinate-scan-plan-batch-currentpid-28248-20260523-060339-224933/summary.json"
   },
   "nextRecommendedAction": "Use the current proof anchor/readiness as the safe coordinate baseline; if continuing actor-chain work, first reacquire a current-PID actor/static-chain candidate without debugger/CE or request explicit approval for a bounded access-provenance step.",
   "historicalState": {
@@ -597,7 +591,7 @@
   },
   "staticChainStatus": {
     "classification": "current-pid-proof-anchor-current-static-actor-chain-not-promoted",
-    "status": "blocked-target-drift-no-live-rift-target",
+    "status": "blocked-x64dbg-attach-rejected-no-static-actor-chain-current-pid",
     "moduleBase": "0x7FF747730000",
     "target": {
       "processName": "rift_x64",
@@ -608,8 +602,6 @@
     "ownerBase": null,
     "coordOffsetFromOwner": null,
     "blockers": [
-      "provider-stale-player-position-missing",
-      "target-drift-no-live-rift-target",
       "blocked-no-debugger-access-provenance",
       "no-module-rva-static-owner-resolver-promoted",
       "not-restart-validated",
@@ -619,11 +611,11 @@
       "no-debug-scan-batch-found-only-proof-anchor-current-pid-28248"
     ],
     "safety": {
-      "movementSent": false,
-      "inputSent": false,
+      "movementSent": true,
+      "inputSent": true,
       "noCheatEngine": true,
       "x64dbgAttach": false,
-      "targetMemoryRead": false,
+      "targetMemoryRead": true,
       "targetMemoryWritten": false,
       "providerWrites": false,
       "x64dbgAttachAttempted": true,
@@ -691,39 +683,5 @@
       "same-target-proofonly-not-run-by-scope",
       "movement-remains-blocked"
     ]
-  },
-  "latestTargetDrift": {
-    "status": "blocked-no-live-rift-target",
-    "detectedAtUtc": "2026-05-23T06:43:52Z",
-    "previousTarget": {
-      "processName": "rift_x64",
-      "processId": 28248,
-      "targetWindowHandle": "0x2302BC",
-      "moduleBase": "0x7FF747730000"
-    },
-    "brieflyObservedReplacement": {
-      "processName": "rift_x64",
-      "processId": 28496,
-      "targetWindowHandle": "0x9121A",
-      "moduleBase": "0x7FF7A3830000",
-      "processStartUtc": "2026-05-23T06:40:40.099749Z",
-      "status": "briefly-observed-before-provider-readiness-reported-rift-process-missing"
-    },
-    "coordinateRecoveryStatus": {
-      "status": "blocked",
-      "blocker": "artifact-target-pid-not-running:artifact=28248;live=28496",
-      "checkedAtUtc": "2026-05-23T06:43:26Z"
-    },
-    "chromalinkFreshness": {
-      "status": "blocked",
-      "summaryJson": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\AddOns\\ChromaLink\\artifacts\\diagnostics\\chromalink-ensure-fresh-20260523T064352Z\\summary.json",
-      "blockers": [
-        "provider-stale",
-        "player-position-missing",
-        "rift-process-missing"
-      ]
-    },
-    "staleProofArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json",
-    "staleTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json"
   }
 }

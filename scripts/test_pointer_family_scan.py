@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import unittest
 
-from rift_live_test.pointer_family_scan import build_parser, module_for_address, parse_targets, rank_summaries, summarize_scan
+from rift_live_test.pointer_family_scan import (
+    build_markdown,
+    build_parser,
+    module_for_address,
+    parse_targets,
+    rank_summaries,
+    summarize_scan,
+)
 
 
 class PointerFamilyScanTests(unittest.TestCase):
@@ -71,6 +78,23 @@ class PointerFamilyScanTests(unittest.TestCase):
 
         self.assertEqual(args.max_total_targets, 12)
         self.assertEqual(args.max_elapsed_seconds, 30)
+
+    def test_build_markdown_handles_blocked_missing_target(self) -> None:
+        markdown = build_markdown(
+            {
+                "status": "blocked",
+                "generatedAtUtc": "2026-05-23T00:00:00Z",
+                "target": None,
+                "counts": {"seedCount": 1, "scannedTargetCount": 0},
+                "safety": {"candidateOnly": True},
+                "rankedTargets": [],
+                "blockers": ["target-window-not-found"],
+                "warnings": [],
+            }
+        )
+
+        self.assertIn("Target PID: `None`", markdown)
+        self.assertIn("`target-window-not-found`", markdown)
 
 
 if __name__ == "__main__":
