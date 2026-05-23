@@ -291,6 +291,93 @@ def install_minimized_x64dbg_launch(client_class: Any, summary: dict[str, Any]) 
     return True
 
 
+def attach_x64dbg_with_diagnostics(
+    client: Any,
+    *,
+    target_pid: int,
+    summary: dict[str, Any],
+    wait_timeout: int = 10,
+) -> int:
+    """Launch x64dbg, attach to target_pid, and retain command-level failure evidence."""
+    diagnostics: dict[str, Any] = summary.setdefault("attachDiagnostics", {})
+    diagnostics.update(
+        {
+            "attempted": True,
+            "status": "started",
+            "sessionPid": None,
+            "debuggerVersion": None,
+            "commands": [],
+            "terminatedAfterFailedAttach": False,
+            "errors": [],
+        }
+    )
+
+    client._launch_x64dbg()
+    session_pid = getattr(client, "session_pid", None)
+    diagnostics["sessionPid"] = session_pid
+    if isinstance(summary.get("x64dbg"), dict):
+        summary["x64dbg"]["sessionPid"] = session_pid
+
+    try:
+        diagnostics["debuggerVersion"] = client.get_debugger_version()
+    except Exception as exc:  # noqa: BLE001
+        diagnostics["errors"].append(f"get-debugger-version:{type(exc).__name__}:{exc}")
+
+    pid_hex = f"{int(target_pid):x}"
+    attach_commands = [
+        {
+            "label": "x64dbg-automate-default-hex-prefix",
+            "command": f"attach 0x{pid_hex}",
+        },
+        {
+            "label": "documented-attach-hex",
+            "command": f"attach {pid_hex}",
+        },
+        {
+            "label": "documented-attachdebugger-hex",
+            "command": f"AttachDebugger {pid_hex}",
+        },
+    ]
+
+    for command_spec in attach_commands:
+        record: dict[str, Any] = {
+            "label": command_spec["label"],
+            "command": command_spec["command"],
+            "cmdAccepted": False,
+            "waitUntilDebugging": False,
+            "debuggeePid": None,
+            "errors": [],
+        }
+        diagnostics["commands"].append(record)
+        try:
+            record["cmdAccepted"] = bool(client.cmd_sync(command_spec["command"]))
+        except Exception as exc:  # noqa: BLE001
+            record["errors"].append(f"cmd-sync:{type(exc).__name__}:{exc}")
+            continue
+
+        if not record["cmdAccepted"]:
+            continue
+        try:
+            record["waitUntilDebugging"] = bool(client.wait_until_debugging(wait_timeout))
+        except Exception as exc:  # noqa: BLE001
+            record["errors"].append(f"wait-until-debugging:{type(exc).__name__}:{exc}")
+        try:
+            record["debuggeePid"] = client.debugee_pid()
+        except Exception as exc:  # noqa: BLE001
+            record["errors"].append(f"debuggee-pid:{type(exc).__name__}:{exc}")
+        if record["waitUntilDebugging"]:
+            diagnostics["status"] = "attached"
+            return int(session_pid)
+
+    diagnostics["status"] = "failed"
+    try:
+        client.terminate_session()
+        diagnostics["terminatedAfterFailedAttach"] = True
+    except Exception as exc:  # noqa: BLE001
+        diagnostics["errors"].append(f"terminate-after-failed-attach:{type(exc).__name__}:{exc}")
+    raise RuntimeError("Failed to attach to process")
+
+
 def window_pid_thread(user32: Any, hwnd: int) -> tuple[int, int]:
     pid = wintypes.DWORD()
     thread_id = int(user32.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(pid)))
@@ -920,6 +1007,7 @@ def run_post_detach_recovery(args: argparse.Namespace, repo_root: Path, summary:
 def build_markdown(summary: dict[str, Any]) -> str:
     event = summary.get("event") if isinstance(summary.get("event"), dict) else {}
     candidate = summary.get("candidate") if isinstance(summary.get("candidate"), dict) else {}
+    attach_diagnostics = summary.get("attachDiagnostics") if isinstance(summary.get("attachDiagnostics"), dict) else {}
     lines = [
         "# x64dbg live access capture",
         "",
@@ -930,6 +1018,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"- Target HWND: `{summary.get('target', {}).get('hwnd')}`",
         f"- Candidate: `{candidate.get('address')}`",
         f"- x64dbg session PID: `{summary.get('x64dbg', {}).get('sessionPid')}`",
+        f"- Attach diagnostic status: `{attach_diagnostics.get('status')}`",
         f"- Event status: `{event.get('status')}`",
         f"- Detach attempted: `{str(summary.get('detach', {}).get('attempted')).lower()}`",
         f"- Detach succeeded: `{str(summary.get('detach', {}).get('succeeded')).lower()}`",
@@ -948,6 +1037,18 @@ def build_markdown(summary: dict[str, Any]) -> str:
     if summary.get("errors"):
         lines.extend(["", "## Errors"])
         lines.extend(f"- `{error}`" for error in summary["errors"])
+    attach_commands = attach_diagnostics.get("commands")
+    if isinstance(attach_commands, list) and attach_commands:
+        lines.extend(["", "## Attach diagnostics"])
+        for command in attach_commands:
+            if not isinstance(command, dict):
+                continue
+            lines.append(
+                "- "
+                f"`{command.get('label')}` "
+                f"accepted=`{str(command.get('cmdAccepted')).lower()}` "
+                f"debugging=`{str(command.get('waitUntilDebugging')).lower()}`"
+            )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -1016,6 +1117,15 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         "x64dbg": {
             "path": str(args.x64dbg_path),
             "sessionPid": None,
+        },
+        "attachDiagnostics": {
+            "attempted": False,
+            "status": None,
+            "sessionPid": None,
+            "debuggerVersion": None,
+            "commands": [],
+            "terminatedAfterFailedAttach": False,
+            "errors": [],
         },
         "x64dbgWindowManagement": {
             "minimizeRequested": not bool(args.no_minimize_x64dbg_windows),
@@ -1109,8 +1219,11 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
         client = X64DbgClient(x64dbg_path=str(args.x64dbg_path))
         stimulus_thread = None
         stimulus_holder: dict[str, Any] = {"result": None}
-        session_pid = client.start_session_attach(int(args.target_pid))
-        summary["x64dbg"]["sessionPid"] = session_pid
+        session_pid = attach_x64dbg_with_diagnostics(
+            client,
+            target_pid=int(args.target_pid),
+            summary=summary,
+        )
         session_started = session_pid is not None
         if not args.no_minimize_x64dbg_windows:
             summary["x64dbgWindowManagement"]["result"] = minimize_windows_for_process(

@@ -50,7 +50,14 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _write_pointer(path: Path, *, match_file: Path, pid: int = 123, hwnd: str = "0xABC") -> None:
+    def _write_pointer(
+        path: Path,
+        *,
+        match_file: Path,
+        pid: int = 123,
+        hwnd: str = "0xABC",
+        candidate_id: str = "rift-addon-coordinate-candidate-000001",
+    ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
@@ -66,7 +73,7 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                     "riftscanCandidateSource": {
                         "riftScanRoot": "C:/Riftscan",
                         "matchFile": str(match_file),
-                        "candidateId": "rift-addon-coordinate-candidate-000001",
+                        "candidateId": candidate_id,
                         "sourceBaseAddressHex": "0x10000000",
                         "sourceOffsetHex": "0x120",
                         "sourceAbsoluteAddressHex": "0x10000120",
@@ -74,6 +81,37 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                     },
                 }
             ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_api_family_single_object_candidate(
+        path: Path,
+        *,
+        pid: int = 123,
+        hwnd: str = "0xABC",
+        candidate_id: str = "api-family-hit-000001",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "riftreader.api_family_vec3_candidate.v1",
+                    "candidate_id": candidate_id,
+                    "base_address_hex": "0x10000000",
+                    "offset_hex": "0x120",
+                    "x_offset_hex": "0x120",
+                    "y_offset_hex": "0x124",
+                    "z_offset_hex": "0x128",
+                    "absolute_address_hex": "0x10000120",
+                    "axis_order": "xyz",
+                    "support_count": 3,
+                    "best_max_abs_distance": 0.003,
+                    "process_id": pid,
+                    "target_window_handle": hwnd,
+                }
+            )
+            + "\n",
             encoding="utf-8",
         )
 
@@ -388,6 +426,40 @@ class RiftScanMilestoneReviewTests(unittest.TestCase):
                 if check["severity"] == "blocker" and check["status"] == "fail"
             ]
             self.assertEqual(failed_blockers, [])
+
+    def test_review_accepts_single_object_api_family_candidate_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "RiftReader"
+            riftscan = Path(temp) / "Riftscan"
+            match = (
+                root
+                / "scripts"
+                / "captures"
+                / "family-scan-currentpid-123-demo"
+                / "api-family-vec3-candidates.jsonl"
+            )
+            pointer = root / "docs" / "recovery" / "current-proof-anchor-readback.json"
+            self._write_api_family_single_object_candidate(match)
+            self._write_pointer(
+                pointer,
+                match_file=match,
+                candidate_id="api-family-hit-000001",
+            )
+            self._write_latest_live_pointer(root)
+
+            review = build_milestone_review(
+                repo_root=root,
+                riftscan_root=riftscan,
+                current_proof_pointer=pointer,
+                process_id=123,
+                target_window_handle="0xABC",
+                process_name="rift_x64",
+            )
+
+            self.assertEqual(review["status"], "ready-for-read-only-proof")
+            self.assertEqual(review["selectedCandidate"]["source"], "current-proof-pointer")
+            self.assertEqual(review["selectedCandidate"]["candidateId"], "api-family-hit-000001")
+            self.assertNotIn("no_supported_candidate_schema", review["issues"])
 
     def test_review_blocks_on_pointer_target_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

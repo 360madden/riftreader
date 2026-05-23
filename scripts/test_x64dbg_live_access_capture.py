@@ -5,6 +5,7 @@ import unittest
 
 from rift_live_test.x64dbg_live_access_capture import (
     INPUT,
+    attach_x64dbg_with_diagnostics,
     build_key_lparam,
     clear_all_hardware_breakpoints,
     clear_all_memory_breakpoints,
@@ -62,6 +63,35 @@ class FakeClient:
 
 class FakeProcess:
     pid = 4242
+
+
+class FakeAttachClient:
+    def __init__(self, *, accepted_commands: set[str], wait_result: bool = True) -> None:
+        self.accepted_commands = accepted_commands
+        self.wait_result = wait_result
+        self.session_pid = 5555
+        self.commands: list[str] = []
+        self.terminated = False
+
+    def _launch_x64dbg(self) -> None:
+        self.launched = True
+
+    def get_debugger_version(self) -> int:
+        return 25
+
+    def cmd_sync(self, command: str) -> bool:
+        self.commands.append(command)
+        return command in self.accepted_commands
+
+    def wait_until_debugging(self, timeout: int) -> bool:
+        self.wait_timeout = timeout
+        return self.wait_result
+
+    def debugee_pid(self) -> int | None:
+        return 12345 if self.wait_result else None
+
+    def terminate_session(self) -> None:
+        self.terminated = True
 
 
 class X64DbgLiveAccessCaptureTests(unittest.TestCase):
@@ -194,6 +224,37 @@ class X64DbgLiveAccessCaptureTests(unittest.TestCase):
         self.assertEqual(calls[0]["kwargs"]["executable"], "C:/Tools/x64dbg.exe")
         self.assertEqual(calls[0]["kwargs"]["startupinfo"], "minimized")
         self.assertTrue(summary["x64dbgWindowManagement"]["launchMinimizedPatchInstalled"])
+
+    def test_attach_x64dbg_with_diagnostics_tries_documented_attach_fallback(self) -> None:
+        client = FakeAttachClient(accepted_commands={"attach 3039"})
+        summary = {"x64dbg": {"sessionPid": None}}
+
+        session_pid = attach_x64dbg_with_diagnostics(client, target_pid=12345, summary=summary)
+
+        self.assertEqual(session_pid, 5555)
+        self.assertFalse(client.terminated)
+        self.assertEqual(summary["x64dbg"]["sessionPid"], 5555)
+        diagnostics = summary["attachDiagnostics"]
+        self.assertEqual(diagnostics["status"], "attached")
+        self.assertEqual([item["command"] for item in diagnostics["commands"][:2]], ["attach 0x3039", "attach 3039"])
+        self.assertFalse(diagnostics["commands"][0]["cmdAccepted"])
+        self.assertTrue(diagnostics["commands"][1]["cmdAccepted"])
+
+    def test_attach_x64dbg_with_diagnostics_terminates_after_all_attach_commands_fail(self) -> None:
+        client = FakeAttachClient(accepted_commands=set())
+        summary = {"x64dbg": {"sessionPid": None}}
+
+        with self.assertRaisesRegex(RuntimeError, "Failed to attach to process"):
+            attach_x64dbg_with_diagnostics(client, target_pid=12345, summary=summary)
+
+        self.assertTrue(client.terminated)
+        diagnostics = summary["attachDiagnostics"]
+        self.assertEqual(diagnostics["status"], "failed")
+        self.assertTrue(diagnostics["terminatedAfterFailedAttach"])
+        self.assertEqual(
+            [item["command"] for item in diagnostics["commands"]],
+            ["attach 0x3039", "attach 3039", "AttachDebugger 3039"],
+        )
 
 
 if __name__ == "__main__":

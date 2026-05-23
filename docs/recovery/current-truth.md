@@ -1,114 +1,81 @@
-# Current RIFT live truth — PID 67680 proof anchor current, actor chain candidate-only
+# Current RIFT live truth — PID 28248 proof anchor current, x64dbg attach blocked, static actor chain not promoted
 
-Updated UTC: `2026-05-21T16:30:46Z`
+Updated UTC: `2026-05-23T06:28:30Z`
 Repo: `C:\RIFT MODDING\RiftReader`
 
 ## Verdict
 
-The current RIFT target is **in-world and proof-anchor current** for PID `67680` / HWND `0x120CBE`. Same-target `ProofOnly` passed for proof anchor `0x242D3DEF010`.
+The current RIFT target is **in-world and proof-anchor current** for PID `28248` / HWND `0x2302BC`. Same-target `ProofOnly` passed for proof anchor `0x2D409F3BBE0`, and the read-only RiftScan/RiftReader milestone gate now reports `ready-for-read-only-proof`.
 
-The player actor static coordinate chain is **not promoted**. The best actor-like lead is `0x242E9932F70` under owner `0x242E9932D70 + 0x200`, and it remains **candidate-only** until access/static provenance, resolver validation, restart/relog validation, and final ProofOnly gates pass.
+The player actor static coordinate chain is **not promoted**. The current proof anchor is valid current-PID movement-safety evidence, but it is still a heap address and must be reacquired after target drift/restart. A bounded x64dbg stop-context attach retry was attempted after the proof/readiness refresh; it failed before a debug session started, so no access/static provenance was captured.
 
 ## Current target
 
 | Field | Value |
 |---|---|
 | Process | `rift_x64` |
-| PID | `67680` |
-| HWND | `0x120CBE` |
-| Process start UTC | `2026-05-21T14:38:42.127583Z` |
-| Module base | `0x7FF6A24B0000` |
-| Proof anchor | `0x242D3DEF010` |
+| PID | `28248` |
+| HWND | `0x2302BC` |
+| Process start UTC | `2026-05-23T04:33:26.7814151Z` |
+| Module base | `0x7FF747730000` |
+| Proof anchor | `0x2D409F3BBE0` |
 | Proof status | `current-target-proofonly-passed` |
-| Latest proof coordinate | `X=7371.48876953125`, `Y=868.26171875`, `Z=2997.662109375` |
+| Latest proof coordinate | `X=7371.4150390625`, `Y=868.0927124023438`, `Z=2997.306884765625` |
 | Proof artifact | `docs/recovery/current-proof-anchor-readback.json` |
 
-## Actor-chain candidate status
+## Current coordinate proof status
 
 | Field | Value |
 |---|---|
-| Candidate | `0x242E9932F70` |
 | Candidate ID | `api-family-hit-000001` |
-| Classification | `offset-corrected-current-coordinate-candidate` |
-| Owner hypothesis | `0x242E9932D70` |
-| Coord offset from owner | `+0x200` |
-| Fresh API reference | `X=7365.830078`, `Y=870.959961`, `Z=3001.300049` |
-| Candidate memory value | `X=7365.82958984375`, `Y=872.4995727539062`, `Z=3001.297607421875` |
-| Direct max abs delta | `1.5396117539062288` |
-| Offset-corrected max abs delta | `0.004650953124837542` |
-| Promotion | `candidate-only`, `promotionEligible=false` |
-| Readback artifact | `scripts/captures/candidate-readback-currentpid-67680-20260521-160728-953877/candidate-readback-summary.json` |
+| Candidate file | `scripts/captures/family-scan-currentpid-28248-20260523-053403-077701/api-family-vec3-candidates.jsonl` |
+| Readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-28248-readback-summary-20260523-013808.json` |
+| ProofOnly run | `C:\RIFT MODDING\RiftReader\scripts\captures\recover-currentpid-coord-anchor-fast-execute-28248-20260523-053152-550559\07-proofonly\live-test-ProofOnly-20260523-053732\run-summary.json` |
+| Recovery summary | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-28248-20260523-053152-550559/summary.json` |
+| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260523-054443.json` |
+| Coordinate readiness gate | `scripts/captures/coordinate-proof-readiness-gate-20260523-054451-435504/summary.json` |
+| Actor-chain no-debug status | `scripts/captures/actor-chain-no-debug-status-20260523-055040-185416/summary.json` |
+| Current-PID no-debug scan batch | `scripts/captures/coordinate-scan-plan-batch-currentpid-28248-20260523-060339-224933/summary.json` |
+| x64dbg environment probe | `scripts/captures/x64dbg-attach-environment-probe-20260523-061423-261651/summary.json` |
+| x64dbg attach retry | `scripts/captures/x64dbg-live-access-capture-20260523-062455-703468/summary.json` |
+| Proof support count | `3` |
+| Best max abs distance | `0.006518554687431788` |
+| Movement gate | `allowed=true`, but per-run preflight still required |
 
 ## Static-chain blockers
 
-- `blocked-no-debugger-access-provenance`: current authorization allows read-only process reads, but no debugger/watchpoint evidence.
+- `blocked-no-debugger-access-provenance`: no debugger/watchpoint evidence captured.
+- `x64dbg-stop-context-attach-command-rejected-current-pid-28248`: bounded stop-context attach retry failed before debug session start; commands `attach 0x6e58`, `attach 6e58`, and `AttachDebugger 6e58` were rejected.
 - `no-module-rva-static-owner-resolver-promoted`: no restart-stable resolver exists yet.
-- `not-restart-validated`: current-PID evidence has not survived restart/relog.
-- `riftscan-milestone-review-blocked-no-supported-candidate`: RiftScan provider lane has no supported selected candidate artifact for this target.
+- `not-restart-validated`: no actor/static resolver has survived restart/relog validation.
+- `actor-static-chain-not-reacquired-for-current-pid-28248`: the prior PID `67680` actor-like candidate is now historical.
+- `actor-candidate-readback-not-passed`: no current-PID actor-chain candidate readback has been promoted.
 - Actor yaw/facing remains blocked until current-target behavior-backed proof is separately revalidated.
-
-
-## No-debug priority parent-lane result
-
-| Field | Value |
-|---|---|
-| Pointer-family scan | `scripts/captures/pointer-family-scan-20260521-161945-968614/summary.json` |
-| Scanned targets | `2` |
-| Targets with hits | `1` |
-| Module hits | `0` |
-| rift_x64 hits | `0` |
-| Exhaustion report | `scripts/captures/priority-scan-exhaustion-report-20260521-162011-122035/summary.json` |
-| Verdict | `priority-lane-exhausted-no-static-root` |
-
-Interpretation: the current no-debug priority parent lead does not produce module/static-root evidence. This narrows the safe no-debug lane but does not promote or invalidate the actor-like candidate.
-
-
-## Broadened no-debug root-lane result
-
-| Scan | Targets | Targets with hits | Module hits | rift_x64 hits | Verdict |
-|---|---:|---:|---:|---:|---|
-| Priority parent leads | `2` | `1` | `0` | `0` | `priority-lane-exhausted-no-static-root` |
-| Non-priority parent leads | `6` | `3` | `0` | `0` | `priority-lane-exhausted-no-static-root` |
-| Owner + coord-storage addresses | `12` | `0` | `0` | `0` | `no owner/static reference hits` |
-
-Artifacts:
-
-| Artifact | Path |
-|---|---|
-| Non-priority parent scan | `scripts/captures/pointer-family-scan-20260521-162245-598545/summary.json` |
-| Non-priority exhaustion report | `scripts/captures/priority-scan-exhaustion-report-20260521-162331-293407/summary.json` |
-| Owner/coord-storage scan | `scripts/captures/pointer-family-scan-20260521-162400-107887/summary.json` |
-
-Interpretation: the current no-debug parent/owner root lanes are exhausted for this evidence set. The actor-like coordinate candidate remains useful candidate evidence, but these scans do not yield a module/RVA/static-owner resolver.
 
 ## Safety ledger for latest update
 
 | Operation | Used? |
 |---|---:|
 | Read-only target discovery | Yes |
-| Read-only API/reference scan | Yes |
+| Fresh ChromaLink/API reference | Yes |
 | Read-only process memory read | Yes |
-| x64dbg/debugger attach | No |
+| Approved bounded movement for displacement proof | Yes |
+| Final ProofOnly movement/input | No |
+| x64dbg/debugger attach | Attempted; failed before debug session start |
 | Breakpoints/watchpoints | No |
 | Cheat Engine | No |
-| Movement/input | No |
 | Memory writes | No |
 | Provider writes | No |
 | Git mutation | No |
 
-## Current artifacts
+## Historical rollover
 
-| Artifact | Path |
-|---|---|
-| Current proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
-| Latest handoff | `docs/handoffs/2026-05-21-1211-readonly-actor-chain-currentpid-67680-handoff.md` |
-| Actor candidate readback | `scripts/captures/candidate-readback-currentpid-67680-20260521-160728-953877/candidate-readback-summary.json` |
-| Owner neighborhood | `scripts/captures/pointer-owner-neighborhood-inspector-20260521-160610-600819/summary.json` |
-| Root-signature sweep | `scripts/captures/root-signature-module-hint-sweep-20260521-160610-674508/summary.json` |
-| Root-family classifier | `scripts/captures/root-signature-family-classifier-20260521-160834-290054/summary.json` |
-| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260521-163007.json` |
-| Actor-chain no-debug status | `scripts/captures/actor-chain-no-debug-status-20260521-162848-574766/summary.json` |
+The prior current-truth PID `67680` / HWND `0x120CBE` state was archived before this update:
+
+- `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-23-pid67680-hwnd120CBE-historical-before-pid28248-proof-refresh.json`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-23-pid67680-hwnd120CBE-historical-before-pid28248-proof-refresh.md`
+- `docs/recovery/historical/current-proof-anchor-readback-2026-05-23-pid67680-hwnd120CBE-historical.json`
 
 ## Required next step
 
-Use `python .\scripts\actor_chain_no_debug_status.py --json` as the first no-debug status gate in the next session. Promotion remains blocked until access/static provenance, resolver validation, restart/relog validation, and final ProofOnly gates pass. Do not promote the actor static chain until resolver, multi-pose API-now vs chain-now, restart/relog, and final ProofOnly gates pass.
+Use the current proof anchor/readiness as the safe coordinate baseline. The immediate x64dbg attach route is currently blocked by command rejection before debug session start, so the next practical actor-chain path is either no-debug/read-only reacquisition or environment-level attach diagnosis without breakpoints/watchpoints. Do not promote an actor static chain until resolver, multi-pose API-now vs chain-now, restart/relog, and final ProofOnly gates pass.

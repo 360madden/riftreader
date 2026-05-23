@@ -153,6 +153,33 @@ def summarize_match_file(path: Path) -> dict[str, Any]:
             "candidate_count": len(jsonl_candidates),
             "candidates": jsonl_candidates,
         }
+    else:
+        single_candidate = summarize_candidate(data)
+        if single_candidate.get("schemaSupported") and not isinstance(data.get("candidates"), list):
+            data = {
+                "schemaVersion": first_present(
+                    data,
+                    "result_schema_version",
+                    "schema_version",
+                    "schemaVersion",
+                ),
+                "mode": data.get("mode") or "riftreader-api-family-vec3-candidates-jsonl",
+                "success": True,
+                "process_id": first_present(
+                    data,
+                    "process_id",
+                    "processId",
+                    "ProcessId",
+                ),
+                "target_window_handle": first_present(
+                    data,
+                    "target_window_handle",
+                    "targetWindowHandle",
+                    "TargetWindowHandle",
+                ),
+                "candidate_count": 1,
+                "candidates": [data],
+            }
 
     candidates_raw = data.get("candidates")
     candidates = [
