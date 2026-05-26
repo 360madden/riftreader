@@ -142,6 +142,7 @@ internal static class Program
             options.ScanInt32.HasValue ||
             options.ScanFloat.HasValue ||
             options.ScanDouble.HasValue ||
+            options.ScanFloatTriplet is not null ||
             options.ScanReaderBridgePlayerName ||
             options.ScanReaderBridgePlayerCoords ||
             options.ScanReaderBridgePlayerSignature ||
