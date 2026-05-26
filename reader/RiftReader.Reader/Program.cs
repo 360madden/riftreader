@@ -2638,6 +2638,31 @@ internal static class Program
             return 0;
         }
 
+        if (options.ScanFloatTriplet is not null)
+        {
+            var values = options.ScanFloatTriplet;
+            var sequenceResult = ProcessFloatSequenceScanner.ScanFloatTriplet(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                "float-triplet",
+                values.First,
+                values.Second,
+                values.Third,
+                options.ScanContextBytes,
+                options.MaxHits,
+                options.ScanTolerance);
+
+            if (options.JsonOutput)
+            {
+                Console.WriteLine(JsonOutput.Serialize(sequenceResult));
+                return 0;
+            }
+
+            Console.WriteLine(FloatSequenceScanTextFormatter.Format(sequenceResult));
+            return 0;
+        }
+
         if (options.ScanReaderBridgePlayerCoords)
         {
             var readerBridgeDocument = ReaderBridgeSnapshotLoader.TryLoad(options.ReaderBridgeSnapshotFile, out var loadError);

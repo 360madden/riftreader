@@ -38,6 +38,7 @@ public sealed record ReaderOptions(
     int? ScanInt32,
     float? ScanFloat,
     double? ScanDouble,
+    FloatTripletScanValues? ScanFloatTriplet,
     double ScanTolerance,
     int PointerWidth,
     StringScanEncoding ScanEncoding,
@@ -99,3 +100,8 @@ public sealed record ReaderOptions(
     double? TomTomArrivalRadius = null,
     string? TomTomPace = null,
     string? NavigationRunSummaryFile = null);
+
+public sealed record FloatTripletScanValues(
+    float First,
+    float Second,
+    float Third);

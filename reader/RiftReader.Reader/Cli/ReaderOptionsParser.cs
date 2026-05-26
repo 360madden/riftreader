@@ -36,6 +36,7 @@ Usage:
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-double <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-float-triplet <x,y,z> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-name [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-coords [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-signature [--scan-context <bytes>] [--max-hits <count>]
@@ -76,7 +77,7 @@ Notes:
   - Use --telemetry-proof-anchor-file to preload a freshly validated proof coord anchor cache so the host can publish memory-backed coords immediately when available.
   - Use --session-marker-input-file with --record-session when you want manual or script-driven markers appended during the live recording window.
   - Use --scan-string to search process memory for a text value.
-  - Use --scan-int32, --scan-float, or --scan-double to search process memory for numeric values.
+  - Use --scan-int32, --scan-float, --scan-double, or --scan-float-triplet to search process memory for numeric values.
   - Use --scan-tolerance with floating-point scans when the stored value may differ slightly from the printed decimal.
   - Use --scan-readerbridge-player-name to load the latest ReaderBridge export and scan the process for the current player name.
   - Use --scan-readerbridge-player-coords to load the latest ReaderBridge export and scan for a contiguous float triplet of the current player coordinates. Add --scan-tolerance when the stored values may differ slightly from the exported decimals.
@@ -115,6 +116,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-string Atank --scan-encoding both --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float-triplet "7389.71,849.5,6292.2" --scan-tolerance 0.01 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-name --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-coords --scan-tolerance 0.05 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-signature --scan-context 96 --max-hits 12
@@ -192,6 +194,7 @@ Examples:
         int? scanInt32 = null;
         float? scanFloat = null;
         double? scanDouble = null;
+        FloatTripletScanValues? scanFloatTriplet = null;
         var scanTolerance = 0d;
         var pointerWidth = IntPtr.Size;
         var scanEncoding = StringScanEncoding.Both;
@@ -1085,6 +1088,19 @@ Examples:
                     scanDouble = parsedDouble;
                     break;
 
+                case "--scan-float-triplet":
+                    if (!TryReadNext(args, ref index, out var scanFloatTripletValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-float-triplet.", UsageText);
+                    }
+
+                    if (!TryParseFloatTriplet(scanFloatTripletValue, out scanFloatTriplet))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid float triplet value '{scanFloatTripletValue}'. Use x,y,z.", UsageText);
+                    }
+
+                    break;
+
                 case "--scan-tolerance":
                     if (!TryReadNext(args, ref index, out var scanToleranceValue))
                     {
@@ -1212,7 +1228,8 @@ Examples:
             scanPointer.HasValue ||
             scanInt32.HasValue ||
             scanFloat.HasValue ||
-            scanDouble.HasValue;
+            scanDouble.HasValue ||
+            scanFloatTriplet is not null;
 
         var explicitOperationRequested =
             sessionSummary ||
@@ -1259,10 +1276,11 @@ Examples:
         if (scanInt32.HasValue) scanTargetCount++;
         if (scanFloat.HasValue) scanTargetCount++;
         if (scanDouble.HasValue) scanTargetCount++;
+        if (scanFloatTriplet is not null) scanTargetCount++;
 
         if (scanTargetCount > 1)
         {
-            return ReaderOptionsParseResult.Fail("Choose only one scan target: --scan-string, --scan-int32, --scan-float, --scan-double, --scan-readerbridge-player-name, --scan-readerbridge-player-coords, --scan-readerbridge-player-signature, --scan-readerbridge-identity, or --scan-pointer.", UsageText);
+            return ReaderOptionsParseResult.Fail("Choose only one scan target: --scan-string, --scan-int32, --scan-float, --scan-double, --scan-float-triplet, --scan-readerbridge-player-name, --scan-readerbridge-player-coords, --scan-readerbridge-player-signature, --scan-readerbridge-identity, or --scan-pointer.", UsageText);
         }
 
         var tomTomImportOptionProvided =
@@ -1354,6 +1372,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: scanTolerance,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -1407,9 +1426,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("--plan-navigation-route cannot be combined with other reader, snapshot, scan, navigation movement, telemetry, or raw memory modes.", UsageText);
         }
 
-        if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue && !scanReaderBridgePlayerCoords)
+        if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue && scanFloatTriplet is null && !scanReaderBridgePlayerCoords)
         {
-            return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float, --scan-double, or --scan-readerbridge-player-coords.", UsageText);
+            return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float, --scan-double, --scan-float-triplet, or --scan-readerbridge-player-coords.", UsageText);
         }
 
         if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryProofAnchorFile is not null || telemetryDiagnostics) && !runTelemetryHost && !telemetryPreflight)
@@ -1583,6 +1602,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: 0d,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -1659,6 +1679,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: 0d,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -1740,6 +1761,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: 0d,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -1801,6 +1823,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: 0d,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -1862,6 +1885,7 @@ Examples:
                     ScanInt32: null,
                     ScanFloat: null,
                     ScanDouble: null,
+                    ScanFloatTriplet: null,
                     ScanTolerance: 0d,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
@@ -2504,6 +2528,7 @@ Examples:
                     ScanInt32: scanInt32,
                     ScanFloat: scanFloat,
                     ScanDouble: scanDouble,
+                    ScanFloatTriplet: scanFloatTriplet,
                     ScanTolerance: scanTolerance,
                     PointerWidth: pointerWidth,
                     ScanEncoding: scanEncoding,
@@ -2641,6 +2666,31 @@ Examples:
                 encoding = StringScanEncoding.Both;
                 return false;
         }
+    }
+
+    private static bool TryParseFloatTriplet(string value, out FloatTripletScanValues? triplet)
+    {
+        triplet = null;
+        var parts = value
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length != 3)
+        {
+            return false;
+        }
+
+        if (!float.TryParse(parts[0], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var first) ||
+            !float.TryParse(parts[1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var second) ||
+            !float.TryParse(parts[2], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var third) ||
+            !float.IsFinite(first) ||
+            !float.IsFinite(second) ||
+            !float.IsFinite(third))
+        {
+            return false;
+        }
+
+        triplet = new FloatTripletScanValues(first, second, third);
+        return true;
     }
 }
 

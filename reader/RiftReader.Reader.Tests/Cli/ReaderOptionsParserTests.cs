@@ -199,6 +199,44 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
+    public void Parse_AcceptsGenericFloatTripletScanTolerance()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--scan-float-triplet", "8.45803,55.9203,11.5675",
+            "--scan-tolerance", "0.001",
+            "--scan-context", "64",
+            "--max-hits", "32",
+            "--json"
+        ]);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.NotNull(options.ScanFloatTriplet);
+        Assert.Equal(8.45803f, options.ScanFloatTriplet.First);
+        Assert.Equal(55.9203f, options.ScanFloatTriplet.Second);
+        Assert.Equal(11.5675f, options.ScanFloatTriplet.Third);
+        Assert.Equal(0.001d, options.ScanTolerance);
+        Assert.Equal(64, options.ScanContextBytes);
+        Assert.Equal(32, options.MaxHits);
+        Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsInvalidGenericFloatTriplet()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--scan-float-triplet", "1,2"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Invalid float triplet value", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Parse_AcceptsNavigateWaypointsWithAutoTurnOptions()
     {
         var result = ReaderOptionsParser.Parse(
