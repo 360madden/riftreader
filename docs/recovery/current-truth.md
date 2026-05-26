@@ -9,6 +9,8 @@ The previously recovered PID `28248` / HWND `0x2302BC` proof anchor is now **his
 
 ChromaLink is also **provider-stale** and cannot currently provide API-now player position truth. Movement/proof promotion is blocked until a new live in-world PID/HWND passes same-target recovery and final `ProofOnly`.
 
+API-now vs memory-now is not currently established. PID/HWND checks are targeting preflight only; they are not coordinate freshness proof and must not be treated as live truth without a same-target API-now vs memory-now comparison.
+
 ## Last valid historical target
 
 | Field | Value |
@@ -20,7 +22,7 @@ ChromaLink is also **provider-stale** and cannot currently provide API-now playe
 | Module base | `0x7FF747730000` |
 | Proof anchor | `0x2D409F3BBE0` |
 | Historical ProofOnly status | `passed-proof-only` |
-| Latest historical coordinate | `X=7371.4150390625`, `Y=868.0927124023438`, `Z=2997.306884765625` |
+| Latest recorded coordinate snapshot | `X=7371.4150390625`, `Y=868.0927124023438`, `Z=2997.306884765625`; do not present this value as current-now |
 | Historical proof archive | `docs/recovery/historical/current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json` |
 | Historical truth archive | `docs/recovery/historical/current-truth-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json` |
 
@@ -31,7 +33,7 @@ ChromaLink is also **provider-stale** and cannot currently provide API-now playe
 | Coordinate recovery status | Blocked at `2026-05-23T06:43:26Z`: `artifact-target-pid-not-running:artifact=28248;live=28496` |
 | Brief replacement observation | PID `28496`, HWND `0x9121A`, module base `0x7FF7A3830000`, start UTC `2026-05-23T06:40:40.099749Z` |
 | ChromaLink freshness | Blocked: `provider-stale`, `player-position-missing`, `rift-process-missing` |
-| ChromaLink artifact | `C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\ChromaLink\artifacts\diagnostics\chromalink-ensure-fresh-20260523T064352Z\summary.json` |
+| ChromaLink artifact | `%USERPROFILE%\OneDrive\Documents\RIFT\Interface\AddOns\ChromaLink\artifacts\diagnostics\chromalink-ensure-fresh-20260523T064352Z\summary.json` |
 | Pointer-family scan retry | Blocked cleanly with `target-window-not-found`: `scripts/captures/pointer-family-scan-20260523-064638-227102/summary.json` |
 
 ## Current blockers
