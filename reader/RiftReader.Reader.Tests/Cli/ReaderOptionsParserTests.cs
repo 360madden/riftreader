@@ -205,6 +205,8 @@ public sealed class ReaderOptionsParserTests
         [
             "--process-name", "rift_x64",
             "--scan-float-triplet", "8.45803,55.9203,11.5675",
+            "--scan-region-base", "0x1C90E752000",
+            "--scan-region-size", "4096",
             "--scan-tolerance", "0.001",
             "--scan-context", "64",
             "--max-hits", "32",
@@ -217,10 +219,27 @@ public sealed class ReaderOptionsParserTests
         Assert.Equal(8.45803f, options.ScanFloatTriplet.First);
         Assert.Equal(55.9203f, options.ScanFloatTriplet.Second);
         Assert.Equal(11.5675f, options.ScanFloatTriplet.Third);
+        Assert.Equal((nint)new IntPtr(1963042611200L), options.ScanRegionBase);
+        Assert.Equal(4096, options.ScanRegionSize);
         Assert.Equal(0.001d, options.ScanTolerance);
         Assert.Equal(64, options.ScanContextBytes);
         Assert.Equal(32, options.MaxHits);
         Assert.True(options.JsonOutput);
+    }
+
+    [Fact]
+    public void Parse_RejectsScanRegionWithoutFloatTriplet()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--scan-float", "8.45803",
+            "--scan-region-base", "0x1000",
+            "--scan-region-size", "4096"
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("can only be used with --scan-float-triplet", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

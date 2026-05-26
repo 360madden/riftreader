@@ -40,6 +40,8 @@ public sealed record ReaderOptions(
     double? ScanDouble,
     FloatTripletScanValues? ScanFloatTriplet,
     double ScanTolerance,
+    nint? ScanRegionBase,
+    long? ScanRegionSize,
     int PointerWidth,
     StringScanEncoding ScanEncoding,
     int ScanContextBytes,

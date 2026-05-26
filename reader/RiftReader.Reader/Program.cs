@@ -2641,17 +2641,31 @@ internal static class Program
         if (options.ScanFloatTriplet is not null)
         {
             var values = options.ScanFloatTriplet;
-            var sequenceResult = ProcessFloatSequenceScanner.ScanFloatTriplet(
-                reader,
-                target.ProcessId,
-                target.ProcessName,
-                "float-triplet",
-                values.First,
-                values.Second,
-                values.Third,
-                options.ScanContextBytes,
-                options.MaxHits,
-                options.ScanTolerance);
+            var sequenceResult = options.ScanRegionBase.HasValue && options.ScanRegionSize.HasValue
+                ? ProcessFloatSequenceScanner.ScanFloatTripletInRange(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    "float-triplet-range",
+                    options.ScanRegionBase.Value,
+                    options.ScanRegionSize.Value,
+                    values.First,
+                    values.Second,
+                    values.Third,
+                    options.ScanContextBytes,
+                    options.MaxHits,
+                    options.ScanTolerance)
+                : ProcessFloatSequenceScanner.ScanFloatTriplet(
+                    reader,
+                    target.ProcessId,
+                    target.ProcessName,
+                    "float-triplet",
+                    values.First,
+                    values.Second,
+                    values.Third,
+                    options.ScanContextBytes,
+                    options.MaxHits,
+                    options.ScanTolerance);
 
             if (options.JsonOutput)
             {

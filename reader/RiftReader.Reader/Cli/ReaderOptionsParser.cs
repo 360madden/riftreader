@@ -36,7 +36,7 @@ Usage:
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-double <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
-  RiftReader.Reader --process-name <name> --scan-float-triplet <x,y,z> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-float-triplet <x,y,z> [--scan-region-base <address> --scan-region-size <bytes>] [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-name [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-coords [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-readerbridge-player-signature [--scan-context <bytes>] [--max-hits <count>]
@@ -117,6 +117,7 @@ Examples:
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-int32 17027 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float 7389.71 --scan-tolerance 0.01 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float-triplet "7389.71,849.5,6292.2" --scan-tolerance 0.01 --scan-context 32 --max-hits 16
+  dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-float-triplet "7389.71,849.5,6292.2" --scan-region-base 0x1C90E752000 --scan-region-size 4096 --json
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-name --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-coords --scan-tolerance 0.05 --scan-context 32 --max-hits 16
   dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-readerbridge-player-signature --scan-context 96 --max-hits 12
@@ -196,6 +197,8 @@ Examples:
         double? scanDouble = null;
         FloatTripletScanValues? scanFloatTriplet = null;
         var scanTolerance = 0d;
+        nint? scanRegionBase = null;
+        long? scanRegionSize = null;
         var pointerWidth = IntPtr.Size;
         var scanEncoding = StringScanEncoding.Both;
         var scanContextBytes = 0;
@@ -1166,6 +1169,34 @@ Examples:
 
                     break;
 
+                case "--scan-region-base":
+                    if (!TryReadNext(args, ref index, out var scanRegionBaseValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-region-base.", UsageText);
+                    }
+
+                    if (!TryParseAddress(scanRegionBaseValue, out var parsedScanRegionBase))
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid scan-region-base value '{scanRegionBaseValue}'.", UsageText);
+                    }
+
+                    scanRegionBase = parsedScanRegionBase;
+                    break;
+
+                case "--scan-region-size":
+                    if (!TryReadNext(args, ref index, out var scanRegionSizeValue))
+                    {
+                        return ReaderOptionsParseResult.Fail("Missing value for --scan-region-size.", UsageText);
+                    }
+
+                    if (!long.TryParse(scanRegionSizeValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedScanRegionSize) || parsedScanRegionSize <= 0)
+                    {
+                        return ReaderOptionsParseResult.Fail($"Invalid scan-region-size value '{scanRegionSizeValue}'.", UsageText);
+                    }
+
+                    scanRegionSize = parsedScanRegionSize;
+                    break;
+
                 case "--scan-readerbridge-player-name":
                     scanReaderBridgePlayerName = true;
                     break;
@@ -1374,6 +1405,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: scanTolerance,
+                    ScanRegionBase: scanRegionBase,
+                    ScanRegionSize: scanRegionSize,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -1429,6 +1462,16 @@ Examples:
         if (scanTolerance > 0d && !scanFloat.HasValue && !scanDouble.HasValue && scanFloatTriplet is null && !scanReaderBridgePlayerCoords)
         {
             return ReaderOptionsParseResult.Fail("--scan-tolerance can only be used with --scan-float, --scan-double, --scan-float-triplet, or --scan-readerbridge-player-coords.", UsageText);
+        }
+
+        if (scanRegionBase.HasValue != scanRegionSize.HasValue)
+        {
+            return ReaderOptionsParseResult.Fail("Specify --scan-region-base and --scan-region-size together.", UsageText);
+        }
+
+        if (scanRegionBase.HasValue && scanFloatTriplet is null)
+        {
+            return ReaderOptionsParseResult.Fail("--scan-region-base/--scan-region-size can only be used with --scan-float-triplet.", UsageText);
         }
 
         if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryProofAnchorFile is not null || telemetryDiagnostics) && !runTelemetryHost && !telemetryPreflight)
@@ -1604,6 +1647,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: 0d,
+                    ScanRegionBase: null,
+                    ScanRegionSize: null,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -1681,6 +1726,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: 0d,
+                    ScanRegionBase: null,
+                    ScanRegionSize: null,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -1763,6 +1810,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: 0d,
+                    ScanRegionBase: null,
+                    ScanRegionSize: null,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -1825,6 +1874,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: 0d,
+                    ScanRegionBase: null,
+                    ScanRegionSize: null,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -1887,6 +1938,8 @@ Examples:
                     ScanDouble: null,
                     ScanFloatTriplet: null,
                     ScanTolerance: 0d,
+                    ScanRegionBase: null,
+                    ScanRegionSize: null,
                     PointerWidth: IntPtr.Size,
                     ScanEncoding: StringScanEncoding.Both,
                     ScanContextBytes: 0,
@@ -2530,6 +2583,8 @@ Examples:
                     ScanDouble: scanDouble,
                     ScanFloatTriplet: scanFloatTriplet,
                     ScanTolerance: scanTolerance,
+                    ScanRegionBase: scanRegionBase,
+                    ScanRegionSize: scanRegionSize,
                     PointerWidth: pointerWidth,
                     ScanEncoding: scanEncoding,
                     ScanContextBytes: scanContextBytes,

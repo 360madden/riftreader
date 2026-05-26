@@ -82,6 +82,85 @@ public static class ProcessFloatSequenceScanner
                 : hits);
     }
 
+    public static FloatSequenceScanResult ScanFloatTripletInRange(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        string searchLabel,
+        nint rangeBaseAddress,
+        long rangeSize,
+        float first,
+        float second,
+        float third,
+        int contextBytes,
+        int maxHits,
+        double tolerance = 0d)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        if (rangeBaseAddress == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rangeBaseAddress), "Range base address must be non-zero.");
+        }
+
+        if (rangeSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rangeSize), "Range size must be greater than zero.");
+        }
+
+        if (!float.IsFinite(first) || !float.IsFinite(second) || !float.IsFinite(third))
+        {
+            throw new ArgumentOutOfRangeException(nameof(first), "Float triplet values must be finite.");
+        }
+
+        if (contextBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(contextBytes), "Context bytes must be zero or greater.");
+        }
+
+        if (maxHits <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxHits), "Max hits must be greater than zero.");
+        }
+
+        if (double.IsNaN(tolerance) || double.IsInfinity(tolerance) || tolerance < 0d)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tolerance), "Tolerance must be a finite zero-or-greater value.");
+        }
+
+        var pattern = BuildPattern(first, second, third);
+        var hits = new List<FloatSequenceScanHit>(Math.Min(maxHits, 64));
+        var region = new ProcessMemoryRegion(
+            BaseAddress: rangeBaseAddress,
+            RegionSize: rangeSize,
+            State: 0,
+            Protect: 0,
+            Type: 0);
+
+        if (tolerance > 0d)
+        {
+            ScanRegionTolerant(reader, region, first, second, third, tolerance, hits, maxHits);
+        }
+        else
+        {
+            ScanRegion(reader, region, pattern, first, second, third, hits, maxHits);
+        }
+
+        return new FloatSequenceScanResult(
+            Mode: "float-sequence-range-scan",
+            ProcessId: processId,
+            ProcessName: processName,
+            SearchLabel: $"{searchLabel} (0x{rangeBaseAddress.ToInt64():X}+0x{rangeSize:X})",
+            SearchValues: FormatValues(first, second, third),
+            Tolerance: tolerance > 0d ? tolerance.ToString("G9", CultureInfo.InvariantCulture) : null,
+            ContextBytes: contextBytes,
+            MaxHits: maxHits,
+            HitCount: hits.Count,
+            Hits: contextBytes > 0
+                ? EnrichHitsWithContext(reader, hits, contextBytes, pattern.Length)
+                : hits);
+    }
+
     private static byte[] BuildPattern(float first, float second, float third)
     {
         var bytes = GC.AllocateUninitializedArray<byte>(sizeof(float) * 3);
