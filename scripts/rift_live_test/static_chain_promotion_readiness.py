@@ -489,7 +489,18 @@ def build_next_steps(
     process_name = target.get("processName") or "rift_x64"
     module_base = target.get("moduleBase")
     pending_settings_repair = bool(reference_recovery.get("pendingSettingsRepairApproval"))
+    scan_diagnostics_command = ["python", ".\\scripts\\rrapicoord_scan_diagnostics.py", "--json"]
+    if target_pid not in (None, ""):
+        scan_diagnostics_command[2:2] = ["--target-pid", str(target_pid)]
     steps: list[dict[str, Any]] = [
+        {
+            "key": "rrapicoord-scan-diagnostics",
+            "description": "Classify the newest RRAPICOORD raw scan artifacts before addon-state/readiness decisions.",
+            "command": scan_diagnostics_command,
+            "requiresApproval": False,
+            "mutatesExternalState": False,
+            "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+        },
         {
             "key": "rrapicoord-addon-state-diagnostics",
             "description": "Re-check whether the RRAPICOORD runtime marker is visible before changing anything.",

@@ -242,7 +242,11 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertTrue(summary["freshnessGate"]["referenceRecoveryDiagnostics"]["pendingSettingsRepairApproval"])
         self.assertIn("Approval required", summary["next"]["recommendedAction"])
         self.assertFalse(summary["promotionGates"]["freshApiNowVsChainNowCurrent"])
+        step_keys = [step["key"] for step in summary["next"]["steps"]]
+        self.assertLess(step_keys.index("rrapicoord-scan-diagnostics"), step_keys.index("rrapicoord-addon-state-diagnostics"))
         steps = {step["key"]: step for step in summary["next"]["steps"]}
+        self.assertFalse(steps["rrapicoord-scan-diagnostics"]["requiresApproval"])
+        self.assertIn("--target-pid", steps["rrapicoord-scan-diagnostics"]["command"])
         self.assertTrue(steps["apply-rrapicoord-addon-settings-repair"]["requiresApproval"])
         self.assertTrue(steps["refresh-live-addon-runtime"]["requiresApproval"])
         self.assertEqual(steps["refresh-live-addon-runtime"]["knownReloaduiAction"]["slot"], "-")
