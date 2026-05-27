@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "static-chain-offline-targeted-owner-analysis/v1",
+  "generatedDate": "2026-05-26",
+  "repo": "360madden/riftreader",
+  "analysisMode": "offline-repository-evidence-only",
+  "safety": {
+    "liveProcessRead": false,
+    "x64dbgAttach": false,
+    "watchpoints": false,
+    "breakpoints": false,
+    "movementInput": false,
+    "cheatEngine": false,
+    "memoryWrites": false,
+    "providerWrites": false,
+    "candidateOnly": true
+  },
+  "verdict": {
+    "staticChainSolved": false,
+    "moduleStaticRootFound": false,
+    "restartStable": false,
+    "movementNavigationEligibleFromStaticChain": false,
+    "bestSingleFutureAccessProvenanceTarget": "current-PID coordinate-bearing field matching historical owner +0x320/+0x324/+0x328 shape",
+    "primaryOfflineConclusion": "Historical PID 63412 owner shape 0x20005B304E0 with coordinates at +0x320/+0x324/+0x328 is the best owner-layout template, but it is stale and not promoted."
+  },
+  "currentTruthConstraint": {
+    "currentInWorldTargetAvailable": false,
+    "apiNowFreshness": "blocked-provider-stale",
+    "latestProofAnchorStatus": "historical-only",
+    "actorStaticChainCurrentPidReacquired": false,
+    "source": "docs/recovery/current-truth.md"
+  },
+  "candidates": [
+    {
+      "id": "historical-owner-shape-pid63412",
+      "addressOrFamily": "0x20005B304E0 + 0x320/+0x324/+0x328 -> 0x20005B30800",
+      "epoch": "PID 63412 historical",
+      "classification": "actor-like owner candidate",
+      "score": 78,
+      "evidence": "access-proven coordinate owner/base relationship",
+      "limitation": "historical after logout/relog; no current-PID reacquisition; no module/static root"
+    },
+    {
+      "id": "moving-slot-family-pid60628",
+      "addressOrFamily": "0x1FF94EC0000 family; slots 0x1FF94EC8B80 -> 0x1FF94EC8DC0 -> 0x1FF94EC93D0",
+      "epoch": "PID 60628 historical",
+      "classification": "moving-slot family",
+      "score": 70,
+      "evidence": "support 3; track max error 6.0937500165891834e-05",
+      "limitation": "heap refs only; no module hits; no static root"
+    },
+    {
+      "id": "exact-three-pose-pid60628",
+      "addressOrFamily": "0x1FF08502BC8",
+      "epoch": "PID 60628 historical",
+      "classification": "actor-like/scene-object candidate",
+      "score": 58,
+      "evidence": "support 3; track max error 0.004333593749834108",
+      "limitation": "likely UI/scene-object metadata path; not proven player actor owner"
+    },
+    {
+      "id": "proof-anchor-pid42508",
+      "addressOrFamily": "0x1FD21900420",
+      "epoch": "PID 42508 historical/current-proof at commit time",
+      "classification": "proof/API buffer",
+      "score": 42,
+      "evidence": "support 3; ProofOnly passed for epoch",
+      "limitation": "movement-grade proof anchor only; stale after process epoch change"
+    },
+    {
+      "id": "historical-proof-anchor-pid28248",
+      "addressOrFamily": "0x2D409F3BBE0",
+      "epoch": "PID 28248 historical",
+      "classification": "proof/API buffer",
+      "score": 25,
+      "evidence": "historical ProofOnly passed",
+      "limitation": "current-truth marks it historical only; no current actor/static-chain candidate"
+    },
+    {
+      "id": "proof-anchor-pid27552",
+      "addressOrFamily": "0x27B1ED850C0",
+      "epoch": "PID 27552 historical",
+      "classification": "proof/API buffer",
+      "score": 36,
+      "evidence": "support 6; ProofOnly/current anchor valid for epoch",
+      "limitation": "not static actor-chain truth; no static root"
+    },
+    {
+      "id": "destination-copy-family-pid60628",
+      "addressOrFamily": "0x1FF07570000 family / 0x1FF07574839 / 0x1FF07575346 / 0x1FF0757215A",
+      "epoch": "PID 60628 historical",
+      "classification": "destination/copy-page family",
+      "score": 45,
+      "evidence": "unaligned copy/destination evidence",
+      "limitation": "needs grouped snapshots and stride-1 review; no module root"
+    },
+    {
+      "id": "source-copy-pid60628",
+      "addressOrFamily": "0x1FF6D600020 + 0x28",
+      "epoch": "PID 60628 historical",
+      "classification": "source-copy buffer",
+      "score": 40,
+      "evidence": "around rift_x64.exe+0x47D408; shape clue",
+      "limitation": "heap-local/source-copy clue only"
+    }
+  ],
+  "negativeEvidenceReuse": {
+    "broadPointerFamilyScan": {
+      "seedCount": 14,
+      "scannedTargetCount": 67,
+      "totalModuleHits": 0,
+      "totalRiftExeHits": 0,
+      "result": "heap refs only",
+      "recommendation": "do not repeat same broad scan shape; pivot to owner-layout/access-provenance analysis"
+    }
+  },
+  "futureAccessProvenanceTarget": {
+    "target": "current-PID coordinate-bearing field matching historical owner +0x320/+0x324/+0x328 shape",
+    "preferredWatchWindow": "12-byte XYZ",
+    "scalarFallback": "X field only",
+    "doNotPrimaryWatch": [
+      "0x1FD21900420",
+      "0x27B1ED850C0",
+      "0x2D409F3BBE0"
+    ],
+    "requiredEventData": [
+      "instruction pointer",
+      "module/RVA",
+      "disassembly",
+      "register context",
+      "memory operand",
+      "derived owner/base pointer",
+      "field offset",
+      "access type",
+      "API-now coordinate",
+      "memory-now coordinate"
+    ]
+  },
+  "validation": {
+    "localCommandsRunByChatGPT": false,
+    "commandsRequiredBeforePromotion": [
+      "python -m py_compile scripts/*.py",
+      "python scripts/rift_workflow.py generated-output-guard",
+      "git diff --check"
+    ]
+  }
+}
