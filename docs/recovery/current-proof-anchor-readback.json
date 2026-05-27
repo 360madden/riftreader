@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mode": "current-proof-anchor-readback-pointer",
-  "status": "current-target-proofonly-passed",
+  "status": "historical-stale-superseded-by-promoted-static-resolver",
   "lastUpdatedUtc": "2026-05-27T14:04:33.368018+00:00",
   "target": {
     "processName": "rift_x64",
@@ -9,11 +9,12 @@
     "targetWindowHandle": "0x640C0C"
   },
   "currentTruthClassification": {
-    "classification": "current-live-target-proof-anchor",
-    "sourceOfTruth": "scripts/captures/telemetry-proof-coord-anchor.json plus latest ProofOnly readback",
-    "staleProtection": "This pointer is updated only from same-PID/HWND ProofOnly success; mismatched PID/HWND artifacts are historical-only.",
+    "classification": "historical-stale-proof-anchor-superseded-by-promoted-static-resolver",
+    "sourceOfTruth": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json",
+    "staleProtection": "Do not use PID 12148 absolute proof pointer as current truth after PID/HWND/process-start drift. Use promoted static resolver with fresh same-target readback instead.",
     "savedVariablesUsedAsLiveTruth": false,
-    "noCheatEngine": true
+    "noCheatEngine": true,
+    "demotedAtUtc": "2026-05-27T22:50:24Z"
   },
   "riftscanCandidateSource": {
     "sourceKind": "current-proof-anchor-candidate-file",
@@ -33,11 +34,13 @@
     "notes": [
       "Candidate evidence is movement-grade only through same-PID/HWND proof-anchor/readback gates.",
       "Do not treat this pointer as valid after a client restart unless target metadata still matches."
-    ]
+    ],
+    "currentUseAllowed": false,
+    "currentUseBlocker": "historical-stale-superseded-by-promoted-static-resolver"
   },
   "latestValidation": {
-    "status": "valid",
-    "movementAllowed": true,
+    "status": "historical-stale-target-epoch",
+    "movementAllowed": false,
     "movementSent": false,
     "noCheatEngine": true,
     "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-100423.json",
@@ -50,11 +53,12 @@
       "z": 2986.61669921875,
       "recordedAtUtc": "2026-05-27T14:04:32.2921724Z"
     },
-    "generatedAtUtc": "2026-05-27T14:04:32.8904342+00:00"
+    "generatedAtUtc": "2026-05-27T14:04:32.8904342+00:00",
+    "supersededBy": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json"
   },
   "latestProofOnly": {
     "runSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\live-test-ProofOnly-20260527-140342\\run-summary.json",
-    "status": "passed-proof-only",
+    "status": "historical-stale-target-epoch",
     "generatedAtUtc": "2026-05-27T14:04:33.356403+00:00",
     "movementSent": false,
     "movementAttempted": false,
@@ -65,15 +69,17 @@
       "recordedAtUtc": "2026-05-27T14:04:32.2921724Z"
     },
     "coordinateDelta": null,
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-100423.json"
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-100423.json",
+    "supersededBy": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json"
   },
   "runtimePointers": {
     "latestRuntimePointer": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\latest-live-test-run.json",
     "proofCoordAnchorCacheFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json"
   },
   "notes": [
-    "Auto-written after ProofOnly passed for the exact current target.",
-    "This file is a current pointer, not an immutable historical record."
+    "This file is retained for historical proof-anchor audit only after PID 12148 became stale.",
+    "The current coordinate truth is the promoted static resolver [rift_x64+0x32EBC80]+0x320/+0x324/+0x328.",
+    "No new proof anchor is fabricated here; this update demotes stale proof state and points to the promoted resolver evidence."
   ],
   "historicalSupersededPointer": {
     "path": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
@@ -84,5 +90,21 @@
       "targetWindowHandle": "0x2302BC"
     },
     "reusePolicy": "do-not-use-as-current-proof; preserve for audit/reacquire hints only"
-  }
+  },
+  "supersededByPromotedStaticResolver": {
+    "status": "superseded",
+    "supersededAtUtc": "2026-05-27T22:50:24Z",
+    "promotionJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json",
+    "promotionMarkdown": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.md",
+    "promotedResolver": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "target": {
+      "processName": "rift_x64",
+      "processId": 34176,
+      "targetWindowHandle": "0x3D1544",
+      "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+      "moduleBase": "0x7FF77AF40000"
+    },
+    "reusePolicy": "historical audit/reacquisition context only; never current movement/API proof for PID 34176"
+  },
+  "demotedAtUtc": "2026-05-27T22:50:24Z"
 }
