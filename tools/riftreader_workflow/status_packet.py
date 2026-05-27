@@ -54,6 +54,7 @@ DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
 DEFAULT_LAUNCHER_INSPECTION_DIR = Path(".riftreader-local") / "launcher-inspection"
 DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR = Path(".riftreader-local") / "character-login-supervisor"
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
+DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 DEFAULT_OPENCODE_VARIANT = "xhigh"
 
@@ -341,6 +342,49 @@ def freshness_summary(
         "maxAgeSeconds": max_age_seconds,
         "observedAtUtc": observed_at_utc,
     }
+
+
+def _proof_timestamp_candidates(
+    current_proof: dict[str, Any],
+    latest_validation: dict[str, Any],
+    latest_proofonly: dict[str, Any],
+) -> list[tuple[str, Any]]:
+    validation_coordinate = (
+        latest_validation.get("currentCoordinate") if isinstance(latest_validation.get("currentCoordinate"), dict) else {}
+    )
+    proofonly_coordinate = (
+        latest_proofonly.get("currentCoordinate") if isinstance(latest_proofonly.get("currentCoordinate"), dict) else {}
+    )
+    return [
+        ("latestValidation.generatedAtUtc", latest_validation.get("generatedAtUtc")),
+        ("latestProofOnly.generatedAtUtc", latest_proofonly.get("generatedAtUtc")),
+        ("lastUpdatedUtc", current_proof.get("lastUpdatedUtc")),
+        ("latestValidation.currentCoordinate.recordedAtUtc", validation_coordinate.get("recordedAtUtc")),
+        ("latestProofOnly.currentCoordinate.recordedAtUtc", proofonly_coordinate.get("recordedAtUtc")),
+    ]
+
+
+def proof_anchor_freshness_summary(
+    current_proof: dict[str, Any],
+    latest_validation: dict[str, Any],
+    latest_proofonly: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    max_age_seconds: int = DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
+    parsed: list[tuple[datetime, str, Any]] = []
+    for source, value in _proof_timestamp_candidates(current_proof, latest_validation, latest_proofonly):
+        observed = parse_utc_datetime(value)
+        if observed is not None:
+            parsed.append((observed, source, value))
+    if not parsed:
+        freshness = freshness_summary(None, now=now, max_age_seconds=max_age_seconds)
+        freshness["observedSource"] = None
+        return freshness
+    _, source, value = max(parsed, key=lambda item: item[0])
+    freshness = freshness_summary(value, now=now, max_age_seconds=max_age_seconds)
+    freshness["observedSource"] = source
+    return freshness
 
 
 def latest_launcher_inspection(repo_root: Path, errors: list[str], warnings: list[str]) -> dict[str, Any]:
@@ -638,7 +682,7 @@ def summarize_current_truth(current_truth: dict[str, Any] | None) -> dict[str, A
     }
 
 
-def summarize_current_proof(current_proof: dict[str, Any] | None) -> dict[str, Any]:
+def summarize_current_proof(current_proof: dict[str, Any] | None, *, now: datetime | None = None) -> dict[str, Any]:
     current_proof = current_proof or {}
     target = current_proof.get("target") if isinstance(current_proof.get("target"), dict) else {}
     latest_validation = current_proof.get("latestValidation") if isinstance(current_proof.get("latestValidation"), dict) else {}
@@ -663,13 +707,21 @@ def summarize_current_proof(current_proof: dict[str, Any] | None) -> dict[str, A
             "movementAllowed": latest_validation.get("movementAllowed"),
             "movementSent": latest_validation.get("movementSent"),
             "currentCoordinate": latest_validation.get("currentCoordinate"),
+            "generatedAtUtc": latest_validation.get("generatedAtUtc"),
         },
         "latestProofOnly": {
             "status": latest_proofonly.get("status"),
             "movementSent": latest_proofonly.get("movementSent"),
             "movementAttempted": latest_proofonly.get("movementAttempted"),
             "currentCoordinate": latest_proofonly.get("currentCoordinate"),
+            "generatedAtUtc": latest_proofonly.get("generatedAtUtc"),
         },
+        "proofFreshness": proof_anchor_freshness_summary(
+            current_proof,
+            latest_validation,
+            latest_proofonly,
+            now=now,
+        ),
         "staleAnchor": {
             "candidateId": preserved_source.get("candidateId"),
             "addressHex": preserved_source.get("sourceAbsoluteAddressHex"),
@@ -747,6 +799,74 @@ def apply_live_target_overlay(
     return filtered
 
 
+def apply_proof_freshness_overlay(
+    *,
+    current_truth_summary: dict[str, Any],
+    current_proof_summary: dict[str, Any],
+    blockers: list[str],
+    warnings: list[str],
+) -> None:
+    """Fail closed when current-truth movement status outlives proof-anchor freshness."""
+
+    movement_gate = current_truth_summary.get("movementGate")
+    if not isinstance(movement_gate, dict) or movement_gate.get("allowed") is not True:
+        return
+
+    latest_validation = current_proof_summary.get("latestValidation")
+    latest_proofonly = current_proof_summary.get("latestProofOnly")
+    proof_status = str(current_proof_summary.get("status") or "")
+    validation_movement_allowed = (
+        isinstance(latest_validation, dict) and latest_validation.get("movementAllowed") is True
+    )
+    proofonly_passed = (
+        isinstance(latest_proofonly, dict) and str(latest_proofonly.get("status") or "") == "passed-proof-only"
+    )
+    if not (validation_movement_allowed or proof_status == "current-target-proofonly-passed" or proofonly_passed):
+        return
+
+    freshness = current_proof_summary.get("proofFreshness")
+    if not isinstance(freshness, dict):
+        return
+
+    freshness_status = str(freshness.get("status") or "unknown")
+    if freshness_status == "fresh":
+        return
+
+    age = freshness.get("ageSeconds")
+    max_age = freshness.get("maxAgeSeconds")
+    if freshness_status == "stale":
+        blocked_status = "blocked-proof-anchor-age-out-of-range"
+        blocker = f"proof-anchor-stale-for-movement:ageSeconds={age};maxAgeSeconds={max_age}"
+        reason = (
+            "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+            f"is now outside the movement preflight freshness budget ({age}s > {max_age}s). "
+            "Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+        )
+    elif freshness_status == "future-clock-skew":
+        blocked_status = "blocked-proof-anchor-clock-skew"
+        blocker = f"proof-anchor-clock-skew-for-movement:ageSeconds={age};maxAgeSeconds={max_age}"
+        reason = (
+            "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+            "appears to be in the future. Recheck clock/target state and rerun same-target ProofOnly before movement."
+        )
+    else:
+        blocked_status = "blocked-proof-anchor-freshness-unknown"
+        blocker = "proof-anchor-freshness-unknown-for-movement"
+        reason = (
+            "Current-truth movement status was historically allowed, but no parseable proof-anchor/readback freshness "
+            "timestamp is available. Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+        )
+
+    movement_gate["baseAllowedBeforeProofFreshnessOverlay"] = True
+    movement_gate["allowed"] = False
+    movement_gate["status"] = blocked_status
+    movement_gate["reason"] = reason
+    movement_gate["proofFreshness"] = freshness
+    movement_gate["newMovementStillRequiresPreflightAndApproval"] = True
+    blockers.append(blocker)
+    warnings.append(f"movement-gate-overridden-by-proof-freshness:{freshness_status}")
+
+
 def collect_git(repo_root: Path, commit_count: int, ref_count: int, errors: list[str]) -> dict[str, Any]:
     commands: list[dict[str, Any]] = []
     status_env = run_command("git-status", ["git", "--no-pager", "status", "--short", "--branch"], repo_root)
@@ -818,6 +938,7 @@ def build_status_packet(
     run_coordinate_status: bool = True,
     check_opencode: bool = False,
     collect_git_state: bool = True,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -834,7 +955,7 @@ def build_status_packet(
     current_proof = read_json(current_proof_path, errors, warnings, "current-proof-json")
 
     current_truth_summary = summarize_current_truth(current_truth)
-    current_proof_summary = summarize_current_proof(current_proof)
+    current_proof_summary = summarize_current_proof(current_proof, now=now)
     launcher_summary = latest_launcher_inspection(repo_root, errors, warnings)
     supervisor_summary = latest_character_login_supervisor(repo_root, errors, warnings)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
@@ -842,6 +963,13 @@ def build_status_packet(
     proof_status = current_proof_summary.get("status")
     if isinstance(proof_status, str) and proof_status.startswith("blocked"):
         blockers.append(f"current-proof-status:{proof_status}")
+
+    apply_proof_freshness_overlay(
+        current_truth_summary=current_truth_summary,
+        current_proof_summary=current_proof_summary,
+        blockers=blockers,
+        warnings=warnings,
+    )
 
     movement_allowed = (current_truth_summary.get("movementGate") or {}).get("allowed")
     movement_status = (current_truth_summary.get("movementGate") or {}).get("status")
@@ -939,6 +1067,7 @@ def build_status_packet(
     status = "failed" if errors else ("blocked" if blockers else "passed")
     live_target = summarize_live_target(coordinate_status)
     next_action = current_truth_summary.get("nextRecommendedAction")
+    movement_gate = current_truth_summary.get("movementGate") if isinstance(current_truth_summary.get("movementGate"), dict) else {}
     if live_target.get("artifactPidStale"):
         blockers = apply_live_target_overlay(
             current_truth_summary=current_truth_summary,
@@ -951,6 +1080,11 @@ def build_status_packet(
             f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
             "Keep movement blocked, do not reuse stale proof, and run safe current-target reacquisition/status refresh "
             "before ProofOnly or movement."
+        )
+    elif str(movement_gate.get("status") or "").startswith("blocked-proof-anchor-"):
+        next_action = (
+            "Movement is proof-anchor freshness blocked. Continue no-input artifact/status diagnostics if useful, "
+            "or request explicit same-target ProofOnly/proof-anchor refresh approval before any new movement."
         )
     if not next_action and blockers:
         next_action = "Resolve the listed blocker(s) before attempting live movement or proof promotion."
@@ -1003,6 +1137,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     launcher = packet.get("launcher") or {}
     supervisor = packet.get("characterLoginSupervisor") or {}
     stale_anchor = proof.get("staleAnchor") or {}
+    proof_freshness = proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {}
     handoff = packet.get("latestHandoff") or {}
     opencode = packet.get("opencode") or {}
     artifacts = packet.get("artifacts") or {}
@@ -1017,6 +1152,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- HEAD: `{head.get('hash')}` `{head.get('subject')}`",
         f"- Latest handoff: `{handoff.get('path')}`",
         f"- Current proof: `{proof.get('status')}`",
+        f"- Proof freshness: `{proof_freshness.get('status')}` age `{proof_freshness.get('ageSeconds')}`s / max `{proof_freshness.get('maxAgeSeconds')}`s",
         f"- Movement allowed: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Target: PID `{target.get('processId')}`, HWND `{target.get('targetWindowHandle')}`, process `{target.get('processName')}`",
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
@@ -1105,6 +1241,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "targetHwnd": (proof.get("target") or {}).get("targetWindowHandle")
             if isinstance(proof.get("target"), dict)
             else None,
+            "proofFreshness": proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {},
             "staleCandidateId": stale_anchor.get("candidateId"),
             "staleAddressHex": stale_anchor.get("addressHex"),
             "reusePolicy": stale_anchor.get("reusePolicy"),
@@ -1198,6 +1335,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Branch: `{git.get('branch')}`; clean `{git.get('isClean')}`",
         f"- HEAD: `{head.get('hash')}` {head.get('subject')}",
         f"- Proof: `{proof.get('status')}` target PID `{proof.get('targetPid')}` HWND `{proof.get('targetHwnd')}`",
+        f"- Proof freshness: `{(proof.get('proofFreshness') or {}).get('status')}` age `{(proof.get('proofFreshness') or {}).get('ageSeconds')}`s / max `{(proof.get('proofFreshness') or {}).get('maxAgeSeconds')}`s",
         f"- Live target: `{live_target.get('verdict')}` live PIDs `{live_target.get('livePids')}`",
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Launcher: `{launcher.get('state')}` Glyph PIDs `{launcher.get('launcherPids')}` RIFT PIDs `{launcher.get('riftPids')}`",
