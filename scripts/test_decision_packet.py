@@ -416,8 +416,9 @@ class DecisionPacketTests(unittest.TestCase):
         safe_next = decision_packet.build_safe_next_action(lane, target_epoch, git_state, truth_summary)
 
         self.assertEqual(lane, "actor-chain")
-        self.assertEqual(safe_next["key"], "actor-chain-no-debug-status")
-        self.assertIn("static owner-coordinate resolver candidate exists", safe_next["why"])
+        self.assertEqual(safe_next["key"], "static-chain-promotion-readiness")
+        self.assertEqual(safe_next["command"], ["python", ".\\scripts\\static_chain_promotion_readiness.py", "--json"])
+        self.assertIn("fresh-reference gate", safe_next["why"])
 
     def test_actor_chain_candidate_only_blocks_promotion(self) -> None:
         result = decision_packet.summarize_truth(

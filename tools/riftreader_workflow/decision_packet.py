@@ -607,12 +607,19 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "Run fixture-only decision packet self-test.",
             )
         )
-    if lane == "actor-chain" or any("actor_chain" in path for path in lower_paths):
+    if lane == "actor-chain" or any("actor_chain" in path or "static_chain_promotion_readiness" in path for path in lower_paths):
         commands.append(
             command_spec(
                 "actor-chain-status-tests",
                 ["python", "-m", "unittest", "scripts.test_actor_chain_no_debug_status"],
                 "Validate actor-chain no-debug status helper behavior.",
+            )
+        )
+        commands.append(
+            command_spec(
+                "static-chain-promotion-readiness-tests",
+                ["python", "-m", "unittest", "scripts.test_static_chain_promotion_readiness"],
+                "Validate static-chain promotion readiness blocks stale API/reference reuse.",
             )
         )
     if not retired_paths and any("opencode_bridge" in path or "test_opencode" in path for path in lower_paths):
@@ -812,11 +819,11 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
     static_resolver = safe_mapping(actor.get("staticResolver"))
     if static_resolver.get("complete") and not static_resolver.get("promoted"):
         return {
-            "key": "actor-chain-no-debug-status",
-            "command": ["python", ".\\scripts\\actor_chain_no_debug_status.py", "--json"],
+            "key": "static-chain-promotion-readiness",
+            "command": ["python", ".\\scripts\\static_chain_promotion_readiness.py", "--json"],
             "why": (
-                "A static owner-coordinate resolver candidate exists but is not promoted; continue the no-debug "
-                "static-chain lane instead of falling back to stale proof-anchor recovery."
+                "A static owner-coordinate resolver candidate exists but is not promoted; check the promotion "
+                "readiness/fresh-reference gate without falling back to stale proof-anchor recovery."
             ),
         }
     if target_epoch.get("status") == "stale":
