@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T19:41:52Z",
-  "status": "current_pid_34176_static_owner_chain_promotion_review_ready_status_helpers_prepared_not_promoted",
+  "updatedAtUtc": "2026-05-27T20:04:30Z",
+  "status": "current_pid_34176_static_owner_chain_no_debug_discovery_extended_promotion_review_ready_not_promoted",
   "target": {
     "processName": "rift_x64",
     "processId": 34176,
@@ -142,6 +142,31 @@
         "python -m unittest scripts.test_coordinate_recovery_status"
       ],
       "doesNotPromote": true
+    },
+    "latestNoDebugStaticOwnerDiscovery": {
+      "status": "passed-candidate-only-not-promoted",
+      "handoff": "docs/handoffs/2026-05-27-2004-no-debug-static-owner-chain-discovery.md",
+      "staticOwnerReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-200107-566800\\summary.json",
+      "ownerNeighborhoodSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-owner-neighborhood-inspector-20260527-200201-853835\\summary.json",
+      "ownerPointerFamilySummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200236-877935\\summary.json",
+      "coordinateFieldPointerFamilySummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200328-634938\\summary.json",
+      "rootModuleHit": {
+        "address": "0x7FF77E22BC80",
+        "module": "rift_x64.exe",
+        "rva": "0x32EBC80",
+        "pointsTo": "0x278C3830010"
+      },
+      "ownerNeighborhoodCounts": {
+        "regionMatchCount": 255,
+        "modulePointerCount": 177,
+        "ownerWindowModulePointerCount": 12,
+        "exactOwnerSelfRefs": 7
+      },
+      "coordinateFieldPointerHits": 0,
+      "promotionAllowed": false,
+      "doesNotPromote": true,
+      "ownerLayoutComparisonPacket": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-layout-comparison-packet-20260527-200911-671622\\summary.json",
+      "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json"
     }
   },
   "latestPointerEvidence": {
@@ -189,7 +214,7 @@
     "movementValidationBatchSummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json",
     "fastRecoverySummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json",
     "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
-    "latestHandoff": "docs/handoffs/2026-05-27-0304-currentpid-12148-debugactiveprocessstop-access-denied.md",
+    "latestHandoff": "docs/handoffs/2026-05-27-2004-no-debug-static-owner-chain-discovery.md",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
     "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json",
     "preNavigationProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
@@ -219,9 +244,16 @@
     "staticOwnerChainPromotionReviewReport": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promotion-review-2026-05-27.md",
     "staticOwnerChainPromotionReviewReportJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promotion-review-2026-05-27.json",
     "finalFreshPromotionApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-34176-20260527-193250.json",
-    "finalFreshPromotionStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-193319-122219\\summary.json"
+    "finalFreshPromotionStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-193319-122219\\summary.json",
+    "latestStaticOwnerNoDebugDiscoveryHandoff": "docs/handoffs/2026-05-27-2004-no-debug-static-owner-chain-discovery.md",
+    "latestStaticOwnerNoDebugReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-200107-566800\\summary.json",
+    "latestStaticOwnerNeighborhoodInspector": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-owner-neighborhood-inspector-20260527-200201-853835\\summary.json",
+    "latestStaticOwnerPointerFamilyScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200236-877935\\summary.json",
+    "latestStaticCoordinateFieldPointerFamilyScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200328-634938\\summary.json",
+    "latestOwnerLayoutComparisonPacket": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-layout-comparison-packet-20260527-200911-671622\\summary.json",
+    "latestRiftScanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json"
   },
-  "nextRecommendedAction": "If approved, promote [rift_x64+0x32EBC80]+0x320/+0x324/+0x328 as the static player-coordinate resolver; decision/status helpers are now prepared to stop treating stale PID 12148 proof as the active target only after promotionAllowed becomes true.",
+  "nextRecommendedAction": "If continuing no-debug discovery, rerun fresh API-now vs static-chain-now immediately before any promotion review and keep stale PID 12148 proof-family evidence separate from the current static resolver. If approved separately, promote [rift_x64+0x32EBC80]+0x320/+0x324/+0x328 as the static player-coordinate resolver; decision/status helpers are prepared to use it only after promotionAllowed becomes true.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",

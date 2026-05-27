@@ -1,6 +1,6 @@
 # Current RIFT live truth — static owner chain promotion-review ready, not promoted
 
-Updated UTC: `2026-05-27T19:35:09Z`
+Updated UTC: `2026-05-27T20:04:30Z`
 
 ## Verdict
 
@@ -42,6 +42,29 @@ Max absolute axis delta: `0.004167578` within tolerance `0.25`.
 - Reboot/relogin survival: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-survived-reboot-2026-05-27.md`
 - Dynamic displacement validation: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-displacement-validation-2026-05-27.md`
 - API-now validation: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-api-now-validation-2026-05-27.md`
+- No-debug static-owner discovery extension: `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-27-2004-no-debug-static-owner-chain-discovery.md`
+
+## Latest no-debug static-owner discovery
+
+| Check | Result |
+|---|---|
+| Static owner-chain readback | `passed`; root `rift_x64+0x32EBC80` still resolves owner `0x278C3830010` and coordinate field `0x278C3830330` |
+| Owner neighborhood inspection | `passed`; `255` interesting matches, `177` module pointers, `12` owner-window module pointers, `7` exact owner self refs |
+| Owner pointer-family scan | `passed`; `26` hits to owner and `1` `rift_x64.exe` module hit at `0x7FF77E22BC80` |
+| Coordinate-field pointer scan | `passed`; `0` direct pointer hits to `0x278C3830330`, consistent with embedded owner `+0x320` field |
+| Owner-layout comparison packet | `blocked` only on promotion/proof gates; now recognizes the current static owner resolver instead of routing solely through stale PID `12148` proof-family artifacts |
+| RiftScan milestone review | `blocked`; confirms stale PID `12148` proof pointer / no current selected RiftScan candidate for PID `34176` |
+
+Artifacts:
+
+- `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260527-200107-566800\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\pointer-owner-neighborhood-inspector-20260527-200201-853835\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\pointer-family-scan-20260527-200236-877935\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\pointer-family-scan-20260527-200328-634938\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\owner-layout-comparison-packet-20260527-200911-671622\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260527-200952.json`
+
+This extension is candidate evidence only and does **not** promote the chain.
 
 ## Status-helper readiness
 
@@ -82,5 +105,7 @@ This helper wiring **does not promote** the chain.
 | Git mutation | Not done |
 
 ## Next recommended action
+
+If continuing no-debug discovery, rerun fresh API-now vs static-chain-now immediately before any promotion review and keep stale PID `12148` proof-family evidence separate from the current static resolver.
 
 If explicitly approved, promote `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` as the static player-coordinate resolver. Decision/status helpers are now prepared to stop treating stale PID `12148` proof as the active target **only after** `staticChainStatus.promotionAllowed=true` is set by that approved promotion.

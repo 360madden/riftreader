@@ -310,27 +310,118 @@ def summarize_owner_batch(path: Path | None) -> dict[str, Any] | None:
     }
 
 
+def summarize_static_resolver(current_truth: Mapping[str, Any]) -> dict[str, Any] | None:
+    static_status = safe_mapping(current_truth.get("staticChainStatus"))
+    primary = safe_mapping(static_status.get("primaryCandidate"))
+    latest_discovery = safe_mapping(static_status.get("latestNoDebugStaticOwnerDiscovery"))
+    owner_address = norm_hex(primary.get("ownerAddress"))
+    coordinate_address = norm_hex(primary.get("coordinateAddress"))
+    root_address = norm_hex(primary.get("rootAddress"))
+    root_rva = norm_hex(primary.get("rootRva"))
+    chain = primary.get("chain") or static_status.get("chain")
+    complete = bool(static_status.get("complete", bool(owner_address and coordinate_address and root_rva and chain)))
+    if not complete:
+        return None
+    owner_int = parse_int(owner_address)
+    coordinate_int = parse_int(coordinate_address)
+    return {
+        "status": static_status.get("status"),
+        "promotionAllowed": bool(static_status.get("promotionAllowed")),
+        "promoted": bool(static_status.get("promoted") or static_status.get("promotionAllowed")),
+        "complete": complete,
+        "chain": chain,
+        "rootModule": primary.get("rootModule"),
+        "rootRva": root_rva,
+        "rootAddress": root_address,
+        "ownerAddress": owner_address,
+        "coordinateAddress": coordinate_address,
+        "coordinateOffset": hex_int(coordinate_int - owner_int) if owner_int is not None and coordinate_int is not None else None,
+        "coordinate": primary.get("coordinate"),
+        "restartRelogSurvived": bool(primary.get("restartRelogSurvived")),
+        "apiNowValidationStatus": safe_mapping(static_status.get("latestApiNowValidation")).get("status"),
+        "promotionReviewStatus": safe_mapping(static_status.get("promotionReview")).get("status"),
+        "latestNoDebugDiscovery": dict(latest_discovery) if latest_discovery else None,
+        "classification": "current-static-owner-resolver-candidate",
+        "promotionEligible": False,
+    }
+
+
 def build_classification(
     *,
     candidate: Mapping[str, Any],
     pointer_family: Mapping[str, Any] | None,
     ref_storage: Mapping[str, Any] | None,
     owner_batch: Mapping[str, Any] | None = None,
+    static_resolver: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    static = safe_mapping(static_resolver)
+    static_complete = bool(static.get("complete"))
+    static_latest = safe_mapping(static.get("latestNoDebugDiscovery"))
+    static_counts = safe_mapping(static_latest.get("ownerNeighborhoodCounts"))
+    static_root = safe_mapping(static_latest.get("rootModuleHit"))
     pointer_module_hits = int(safe_mapping(pointer_family).get("moduleHitCount") or 0)
     pointer_rift_hits = int(safe_mapping(pointer_family).get("riftModuleHitCount") or 0)
     ref_module_count = int(safe_mapping(ref_storage).get("ownerWindowModulePointerCount") or 0)
     batch_counts = safe_mapping(safe_mapping(owner_batch).get("counts"))
     batch_module_hint_count = int(batch_counts.get("moduleRvaHintCount") or 0)
-    static_root_status = "candidate-hints-present-not-root" if batch_module_hint_count else "absent"
-    static_root_evidence = [
-        f"pointerFamily.moduleHitCount={pointer_module_hits}",
-        f"pointerFamily.riftModuleHitCount={pointer_rift_hits}",
-        f"refStorage.ownerWindowModulePointerCount={ref_module_count}",
-    ]
-    if batch_module_hint_count:
+    static_root_status = (
+        "supported-current-static-root-candidate"
+        if static_complete
+        else "candidate-hints-present-not-root"
+        if batch_module_hint_count
+        else "absent"
+    )
+    static_root_evidence = []
+    if static_complete:
+        static_root_evidence.extend(
+            [
+                f"{static.get('chain')}",
+                f"root {static.get('rootAddress')} ({static.get('rootModule')}+{static.get('rootRva')}) points to owner {static.get('ownerAddress')}",
+                f"coordinate field {static.get('coordinateAddress')} at owner+{static.get('coordinateOffset')}",
+            ]
+        )
+        if static_root:
+            static_root_evidence.append(
+                f"latest no-debug owner pointer scan found module hit {static_root.get('address')} rva {static_root.get('rva')}"
+            )
+    else:
+        static_root_evidence.extend(
+            [
+                f"pointerFamily.moduleHitCount={pointer_module_hits}",
+                f"pointerFamily.riftModuleHitCount={pointer_rift_hits}",
+                f"refStorage.ownerWindowModulePointerCount={ref_module_count}",
+            ]
+        )
+    if static_complete and batch_module_hint_count:
+        static_root_evidence.append(
+            f"legacy proof-family ownerBatch.moduleRvaHintCount={batch_module_hint_count} remains separate from the current static root"
+        )
+    elif batch_module_hint_count:
         static_root_evidence.append(f"ownerBatch.moduleRvaHintCount={batch_module_hint_count}")
         static_root_evidence.append("module RVA hints are owner-window hints only; no resolver or restart-stable root is proven")
+    actor_status = "supported-current-static-owner-offset" if static_complete else "not-proven-current"
+    actor_evidence = (
+        [
+            f"current owner {static.get('ownerAddress')} has coordinate field {static.get('coordinateAddress')}",
+            f"current owner-to-coordinate offset is {static.get('coordinateOffset')}",
+        ]
+        if static_complete
+        else ["no current owner base + coordinate offset relation like owner+0x320 is present in reviewed artifacts"]
+    )
+    owner_status = "supported-current-static-owner-layout" if static_complete else "historical-template-only"
+    owner_evidence = (
+        [
+            f"current static resolver status={static.get('status')}",
+            f"owner neighborhood module pointers={static_counts.get('modulePointerCount')}",
+            f"owner-window module pointers={static_counts.get('ownerWindowModulePointerCount')}",
+            f"exact owner self refs={static_counts.get('exactOwnerSelfRefs')}",
+        ]
+        if static_complete
+        else [
+            "historical PID 63412 owner 0x20005B304E0 with coordinate offsets +0x320/+0x324/+0x328",
+            "no current-PID owner-layout match found in reviewed artifacts",
+        ]
+    )
     return [
         {
             "class": "proof-api-buffer",
@@ -360,17 +451,14 @@ def build_classification(
         },
         {
             "class": "actor-like-offset-candidate",
-            "status": "not-proven-current",
-            "evidence": ["no current owner base + coordinate offset relation like owner+0x320 is present in reviewed artifacts"],
+            "status": actor_status,
+            "evidence": actor_evidence,
             "promotionEligible": False,
         },
         {
             "class": "owner-layout-candidate",
-            "status": "historical-template-only",
-            "evidence": [
-                "historical PID 63412 owner 0x20005B304E0 with coordinate offsets +0x320/+0x324/+0x328",
-                "no current-PID owner-layout match found in reviewed artifacts",
-            ],
+            "status": owner_status,
+            "evidence": owner_evidence,
             "promotionEligible": False,
         },
         {
@@ -382,7 +470,11 @@ def build_classification(
     ]
 
 
-def relationship_offsets(candidate: Mapping[str, Any], pointer_family: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+def relationship_offsets(
+    candidate: Mapping[str, Any],
+    pointer_family: Mapping[str, Any] | None,
+    static_resolver: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     candidate_address = parse_int(candidate.get("addressHex"))
     source_base = parse_int(candidate.get("sourceBaseAddressHex"))
     rows: list[dict[str, Any]] = []
@@ -407,6 +499,20 @@ def relationship_offsets(candidate: Mapping[str, Any], pointer_family: Mapping[s
                 "to": hex_int(candidate_address),
                 "offset": hex_int(candidate_address - ref_address),
                 "templateMatch": "pointer-edge-not-owner-coordinate-field",
+                "promotionEligible": False,
+            }
+        )
+    static = safe_mapping(static_resolver)
+    owner_address = parse_int(static.get("ownerAddress"))
+    coordinate_address = parse_int(static.get("coordinateAddress"))
+    if owner_address is not None and coordinate_address is not None:
+        rows.append(
+            {
+                "relationship": "current-static-owner-to-coordinate-field",
+                "from": hex_int(owner_address),
+                "to": hex_int(coordinate_address),
+                "offset": hex_int(coordinate_address - owner_address),
+                "templateMatch": "current-owner-shape-match",
                 "promotionEligible": False,
             }
         )
@@ -497,32 +603,65 @@ def build_summary(
     pointer_family = summarize_pointer_family(pointer_family_path, candidate_address)
     ref_storage = summarize_ref_storage(ref_storage_path)
     owner_batch = summarize_owner_batch(owner_batch_path)
+    static_resolver = summarize_static_resolver(current_truth)
     classifications = build_classification(
         candidate=candidate,
         pointer_family=pointer_family,
         ref_storage=ref_storage,
         owner_batch=owner_batch,
+        static_resolver=static_resolver,
     )
-    offsets = relationship_offsets(candidate, pointer_family)
+    offsets = relationship_offsets(candidate, pointer_family, static_resolver)
 
     blockers = [
         "actor-static-chain-not-promoted",
         "no-static-resolver-promoted",
-        "not-restart-validated-for-static-actor-chain",
-        "blocked-no-debugger-access-provenance",
-        "x64dbg-attach-blocked-existing-debug-object",
-        "debugactiveprocessstop-access-denied-winerr-5",
-        "module-rva-static-owner-root-absent-in-reviewed-artifacts",
-        "module-rva-hints-are-not-static-resolver",
-        "current-owner-plus-0x320-shape-not-found",
+        "explicit-promotion-approval-not-given",
+        "same-target-proofonly-not-current-for-current-static-target",
     ]
+    if not static_resolver:
+        blockers.extend(
+            [
+                "not-restart-validated-for-static-actor-chain",
+                "blocked-no-debugger-access-provenance",
+                "x64dbg-attach-blocked-existing-debug-object",
+                "debugactiveprocessstop-access-denied-winerr-5",
+                "module-rva-static-owner-root-absent-in-reviewed-artifacts",
+                "module-rva-hints-are-not-static-resolver",
+                "current-owner-plus-0x320-shape-not-found",
+            ]
+        )
     target = safe_mapping(current_truth.get("target"))
+    negative_evidence = [
+        "Current proof anchor is proof/API-family evidence and must not be treated as player actor ownership.",
+        "Historical PID 63412 and PID 28248 absolute addresses are stale templates or audit history only.",
+        "Broad heap-only pointer scans should not be repeated unchanged.",
+    ]
+    if static_resolver:
+        negative_evidence.extend(
+            [
+                "Current static owner resolver remains candidate-only until explicit promotion approval.",
+                "Coordinate field pointer-family scan found no direct pointer refs; this supports an embedded owner field, not a separate promoted pointer.",
+                "Stale PID 12148 proof pointer still blocks movement/proof reuse until the promoted static resolver or a fresh proof gate replaces it.",
+            ]
+        )
+    else:
+        negative_evidence[0:0] = [
+            "Reviewed current pointer-family evidence has zero module and zero rift_x64 hits.",
+            "The exact ref-storage hit is heap-local and is not a static root.",
+            "Current proof source +0x40 and ref-storage pointer distance +0x9A50 do not establish the historical owner+0x320 coordinate-field shape.",
+            "Owner-window module RVA hints from targeted expansion remain candidate-only and do not form a resolver.",
+        ]
     return {
         "schemaVersion": SCHEMA_VERSION,
         "mode": "owner-layout-comparison-packet",
         "generatedAtUtc": utc_iso(),
         "status": "blocked",
-        "verdict": "candidate-only-no-current-owner-layout-root",
+        "verdict": (
+            "candidate-only-current-static-owner-root-found-not-promoted"
+            if static_resolver
+            else "candidate-only-no-current-owner-layout-root"
+        ),
         "repoRoot": str(repo_root),
         "target": {
             "processName": target.get("processName") or safe_mapping(pointer.get("target")).get("processName"),
@@ -547,6 +686,7 @@ def build_summary(
             "pointerFamily": pointer_family,
             "refStorage": ref_storage,
             "ownerBatch": owner_batch,
+            "staticResolver": static_resolver,
         },
         "relationshipOffsets": offsets,
         "historicalTemplates": {
@@ -554,15 +694,7 @@ def build_summary(
             "comparisonCandidates": HISTORICAL_COMPARISON_CANDIDATES,
         },
         "classificationMatrix": classifications,
-        "negativeEvidence": [
-            "Reviewed current pointer-family evidence has zero module and zero rift_x64 hits.",
-            "The exact ref-storage hit is heap-local and is not a static root.",
-            "Current proof source +0x40 and ref-storage pointer distance +0x9A50 do not establish the historical owner+0x320 coordinate-field shape.",
-            "Owner-window module RVA hints from targeted expansion remain candidate-only and do not form a resolver.",
-            "Current proof anchor is proof/API-family evidence and must not be treated as player actor ownership.",
-            "Historical PID 63412 and PID 28248 absolute addresses are stale templates or audit history only.",
-            "Broad heap-only pointer scans should not be repeated unchanged.",
-        ],
+        "negativeEvidence": negative_evidence,
         "blockers": blockers,
         "warnings": [
             "This packet reads existing artifacts only and does not perform discovery scans.",
@@ -572,9 +704,14 @@ def build_summary(
         "safety": safety_ledger(),
         "next": {
             "singleBestStep": (
-                "If continuing no-debug, run a targeted current-PID owner/ref-storage structure expansion around "
-                "0x23863A1D400 and the 0x23863A26E50 candidate region, explicitly searching for an owner+0x320-like "
-                "coordinate-bearing shape or module/RVA/static-owner hints; stop if evidence remains heap-only."
+                "If continuing no-debug, rerun fresh API-now vs static-chain-now immediately before any promotion review "
+                "and keep stale PID 12148 proof separate from current static resolver evidence."
+                if static_resolver
+                else (
+                    "If continuing no-debug, run a targeted current-PID owner/ref-storage structure expansion around "
+                    "0x23863A1D400 and the 0x23863A26E50 candidate region, explicitly searching for an owner+0x320-like "
+                    "coordinate-bearing shape or module/RVA/static-owner hints; stop if evidence remains heap-only."
+                )
             ),
             "requiresApprovalBefore": [
                 "live input or movement",
@@ -595,6 +732,7 @@ def render_markdown(summary: Mapping[str, Any]) -> str:
     pointer_family = safe_mapping(evidence.get("pointerFamily"))
     ref_storage = safe_mapping(evidence.get("refStorage"))
     owner_batch = safe_mapping(evidence.get("ownerBatch"))
+    static_resolver = safe_mapping(evidence.get("staticResolver"))
     owner_batch_counts = safe_mapping(owner_batch.get("counts"))
     lines = [
         "# Owner-layout comparison packet",
@@ -625,6 +763,11 @@ def render_markdown(summary: Mapping[str, Any]) -> str:
         (
             f"| Targeted owner batch | inspected owners `{owner_batch_counts.get('inspectedOwnerCount')}`, "
             f"module RVA hints `{owner_batch_counts.get('moduleRvaHintCount')}` | `false` |"
+        ),
+        (
+            f"| Static owner resolver | status `{static_resolver.get('status')}`, "
+            f"chain `{static_resolver.get('chain')}`, root `{static_resolver.get('rootAddress')}`, "
+            f"owner `{static_resolver.get('ownerAddress')}`, coordinate `{static_resolver.get('coordinateAddress')}` | `false` |"
         ),
         "",
         "## Relationship offsets",
