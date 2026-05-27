@@ -256,6 +256,12 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         scan_diagnostics = summary["freshnessGate"]["referenceRecoveryDiagnostics"]["rrapicoordScanDiagnostics"]
         self.assertEqual(scan_diagnostics["counts"]["usableMarkerCount"], 0)
         self.assertIn("Approval required", summary["next"]["recommendedAction"])
+        approval = summary["next"]["approvalRequest"]
+        self.assertTrue(approval["required"])
+        self.assertIn("actionbar 1 slot '-'", approval["approvalText"])
+        self.assertFalse(approval["safety"]["movementAllowed"])
+        self.assertEqual(approval["liveRefresh"]["slot"], "-")
+        self.assertEqual(approval["addonSettingsRepairs"][0]["statusBefore"], "missing")
         self.assertFalse(summary["promotionGates"]["freshApiNowVsChainNowCurrent"])
         step_keys = [step["key"] for step in summary["next"]["steps"]]
         self.assertLess(step_keys.index("rrapicoord-scan-diagnostics"), step_keys.index("rrapicoord-addon-state-diagnostics"))
@@ -274,6 +280,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         markdown = build_markdown(summary)
         self.assertIn("RRAPICOORD scan diagnostic", markdown)
         self.assertIn("usable=0", markdown)
+        self.assertIn("Approval request", markdown)
 
     def test_no_pending_settings_repair_omits_external_write_step(self) -> None:
         summary = build_summary_from_documents(

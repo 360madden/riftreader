@@ -630,6 +630,62 @@ def build_next_steps(
     return steps
 
 
+def build_approval_request(
+    *,
+    target: Mapping[str, Any],
+    reference_recovery: Mapping[str, Any],
+    static_resolver: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    repair_dry_run = safe_mapping(reference_recovery.get("addonSettingsRepairDryRun"))
+    pending_repairs = [safe_mapping(item) for item in safe_list(repair_dry_run.get("pendingRepairs"))]
+    runtime_refresh_required = bool(reference_recovery.get("runtimeRefreshRequiredAfterRepair"))
+    if not pending_repairs and not runtime_refresh_required:
+        return None
+
+    target_pid = first_nonempty(target.get("processId"), target.get("pid"))
+    target_hwnd = first_nonempty(target.get("targetWindowHandle"), target.get("hwnd"))
+    return {
+        "required": True,
+        "reason": "fresh-api-reference-unavailable-requires-rrapicoord-settings-repair-and-live-runtime-refresh",
+        "approvalText": (
+            "Approve applying the selected RRAPICOORD AddonSettings repair and exact-window actionbar 1 slot '-' "
+            f"reloadUI for RIFT PID {target_pid} HWND {target_hwnd}; no movement, no proof promotion, no actor-chain promotion."
+        ),
+        "target": {
+            "processName": target.get("processName") or "rift_x64",
+            "processId": target_pid,
+            "targetWindowHandle": target_hwnd,
+            "processStartUtc": target.get("processStartUtc"),
+            "moduleBase": target.get("moduleBase"),
+        },
+        "staticChain": static_resolver.get("chain"),
+        "addonSettingsRepairs": pending_repairs,
+        "liveRefresh": {
+            "method": "actionbar-reloadui",
+            "actionbar": 1,
+            "slot": "-",
+            "requiresExactWindowTarget": True,
+            "requiresVisualBaseline": True,
+            "requiresFrameChangeVerification": True,
+        },
+        "postApprovalEvidence": [
+            "rerun-rrapicoord-scan-diagnostics",
+            "capture-fresh-rrapicoord-api-now",
+            "read-static-chain-now",
+            "rerun-static-chain-promotion-readiness",
+        ],
+        "safety": {
+            "movementAllowed": False,
+            "proofPromotionAllowed": False,
+            "actorChainPromotionAllowed": False,
+            "debuggerAllowed": False,
+            "cheatEngineAllowed": False,
+            "providerWritesAllowed": False,
+        },
+        "doesNotPromote": True,
+    }
+
+
 def build_summary_from_documents(
     *,
     repo_root: Path,
@@ -766,6 +822,11 @@ def build_summary_from_documents(
                 if status == "blocked"
                 else "Static-chain promotion gates are passed; keep movement gated until the promoted resolver is written and validated."
             ),
+            "approvalRequest": build_approval_request(
+                target=target,
+                reference_recovery=reference_recovery_summary,
+                static_resolver=static_resolver,
+            ),
             "steps": build_next_steps(target=target, reference_recovery=reference_recovery_summary, static_resolver=static_resolver),
         },
     }
@@ -853,6 +914,19 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     next_section = safe_mapping(summary.get("next"))
     if next_section.get("recommendedAction"):
         lines.extend(["", "## Recommended next action", "", str(next_section.get("recommendedAction"))])
+    approval_request = safe_mapping(next_section.get("approvalRequest"))
+    if approval_request.get("required"):
+        lines.extend(
+            [
+                "",
+                "## Approval request",
+                "",
+                str(approval_request.get("approvalText")),
+                "",
+                f"- Live refresh: `actionbar {safe_mapping(approval_request.get('liveRefresh')).get('actionbar')} slot {safe_mapping(approval_request.get('liveRefresh')).get('slot')}`",
+                f"- Static chain: `{approval_request.get('staticChain')}`",
+            ]
+        )
     if next_section.get("steps"):
         lines.extend(["", "## Next command plan", "", "| Step | Approval | Command/action |", "|---|---|---|"])
         for step in safe_list(next_section.get("steps")):
