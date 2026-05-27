@@ -19,13 +19,15 @@ from typing import Any, Iterable
 
 try:
     from .common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
+    from .status_packet import proof_anchor_freshness_summary
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
+    from riftreader_workflow.status_packet import proof_anchor_freshness_summary
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.2"
+HELPER_VERSION = "0.1.3"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -373,13 +375,20 @@ def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | 
     }
 
 
-def summarize_truth(truth: dict[str, Any] | None, proof: dict[str, Any] | None) -> dict[str, Any]:
+def summarize_truth(
+    truth: dict[str, Any] | None,
+    proof: dict[str, Any] | None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     truth = safe_mapping(truth)
     proof = safe_mapping(proof)
     best_candidate = safe_mapping(truth.get("bestCurrentCandidate"))
     static_status = safe_mapping(truth.get("staticChainStatus"))
+    movement_gate = safe_mapping(truth.get("movementGate"))
     proof_latest_validation = safe_mapping(proof.get("latestValidation"))
     proof_latest_proofonly = safe_mapping(proof.get("latestProofOnly"))
+    proof_freshness = proof_anchor_freshness_summary(proof, proof_latest_validation, proof_latest_proofonly, now=now)
     candidate_only = bool(best_candidate.get("candidateOnly") or "candidate" in str(best_candidate.get("status") or "").lower())
     promotion_allowed = bool(best_candidate.get("promotionEligible") or static_status.get("promotionAllowed"))
     actor_blockers = [str(item) for item in safe_list(static_status.get("blockers"))]
@@ -392,13 +401,60 @@ def summarize_truth(truth: dict[str, Any] | None, proof: dict[str, Any] | None) 
         actor_status = "promoted"
     elif best_candidate:
         actor_status = "candidate-only" if candidate_only else "blocked"
+    proof_status = str(proof.get("status") or "")
+    validation_movement_allowed = proof_latest_validation.get("movementAllowed") is True
+    proofonly_passed = str(proof_latest_proofonly.get("status") or "") == "passed-proof-only"
+    movement_allowed = movement_gate.get("allowed")
+    movement_status = movement_gate.get("status")
+    movement_reason = movement_gate.get("reason")
+    movement_blockers: list[str] = []
+    if (
+        movement_allowed is True
+        and (validation_movement_allowed or proof_status == "current-target-proofonly-passed" or proofonly_passed)
+        and proof_freshness.get("status") != "fresh"
+    ):
+        age = proof_freshness.get("ageSeconds")
+        max_age = proof_freshness.get("maxAgeSeconds")
+        if proof_freshness.get("status") == "stale":
+            movement_status = "blocked-proof-anchor-age-out-of-range"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+                f"is now outside the movement preflight freshness budget ({age}s > {max_age}s). "
+                "Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+            )
+            movement_blockers.append(f"proof-anchor-stale-for-movement:ageSeconds={age};maxAgeSeconds={max_age}")
+        elif proof_freshness.get("status") == "future-clock-skew":
+            movement_status = "blocked-proof-anchor-clock-skew"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+                "appears to be in the future. Recheck clock/target state and rerun same-target ProofOnly before movement."
+            )
+            movement_blockers.append(f"proof-anchor-clock-skew-for-movement:ageSeconds={age};maxAgeSeconds={max_age}")
+        else:
+            movement_status = "blocked-proof-anchor-freshness-unknown"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but no parseable proof-anchor/readback freshness "
+                "timestamp is available. Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+            )
+            movement_blockers.append("proof-anchor-freshness-unknown-for-movement")
+        movement_allowed = False
+    elif movement_allowed is False:
+        movement_blockers.append(f"movement-not-allowed:{movement_status or 'unknown'}")
     return {
         "proofAnchor": {
-            "status": proof.get("status"),
+            "status": proof_status or None,
             "movementAllowed": proof_latest_validation.get("movementAllowed"),
             "movementSent": proof_latest_validation.get("movementSent") or proof_latest_proofonly.get("movementSent"),
             "candidateAddressHex": safe_mapping(proof.get("riftscanCandidateSource")).get("sourceAbsoluteAddressHex"),
+            "proofFreshness": proof_freshness,
             "candidateOnly": False,
+        },
+        "movementGate": {
+            "allowed": movement_allowed,
+            "status": movement_status,
+            "reason": movement_reason,
+            "proofFreshness": proof_freshness,
+            "blockers": sorted(set(movement_blockers)),
         },
         "actorChain": {
             "status": actor_status,
@@ -894,6 +950,7 @@ def build_decision_packet(
     proof_json: Path | None = None,
     use_cache: bool = False,
     cache_dir: Path = DEFAULT_OUTPUT_DIR,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     build_started = time.monotonic()
     truth_path = repo_root / (truth_json or DEFAULT_CURRENT_TRUTH_JSON)
@@ -939,7 +996,7 @@ def build_decision_packet(
             "blockers": sorted(set(safe_list(target_epoch.get("blockers")) + malformed_blockers)),
             "proofUseAllowed": False,
         }
-    truth_summary = summarize_truth(truth, proof)
+    truth_summary = summarize_truth(truth, proof, now=now)
     lane = classify_lane(git_state, target_epoch, truth_summary)
     risk = classify_risk(lane, git_state, target_epoch)
     blockers: list[str] = []
@@ -947,6 +1004,7 @@ def build_decision_packet(
     if retired_paths:
         blockers.append(str(retired_guardrail.get("blocker")))
     blockers.extend(str(item) for item in target_epoch.get("blockers") or [])
+    blockers.extend(str(item) for item in safe_mapping(truth_summary.get("movementGate")).get("blockers") or [])
     blockers.extend(str(item) for item in safe_mapping(truth_summary.get("actorChain")).get("blockers") or [] if lane == "actor-chain")
     agent_plan = build_agent_plan()
     errors.extend(validate_agent_plan(agent_plan))

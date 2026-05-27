@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -193,6 +194,90 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertEqual(result["processPresence"], "not-checked-process-presence-is-not-proof")
         self.assertIn(result["status"], {"in-world-unproven", "unknown"})
+
+    def test_summarize_truth_blocks_stale_proof_freshness_for_movement(self) -> None:
+        truth = {
+            "movementGate": {
+                "allowed": True,
+                "status": "allowed-current-target-proofonly-passed-route-smoke-passed",
+                "reason": "historically allowed",
+            }
+        }
+        proof = {
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": "2026-05-27T07:00:00Z",
+            "latestValidation": {
+                "status": "valid",
+                "movementAllowed": True,
+                "movementSent": False,
+                "generatedAtUtc": "2026-05-27T07:00:00Z",
+            },
+        }
+
+        summary = decision_packet.summarize_truth(
+            truth,
+            proof,
+            now=datetime(2026, 5, 27, 7, 2, tzinfo=timezone.utc),
+        )
+
+        movement_gate = summary["movementGate"]
+        self.assertFalse(movement_gate["allowed"])
+        self.assertEqual(movement_gate["status"], "blocked-proof-anchor-age-out-of-range")
+        self.assertEqual(movement_gate["proofFreshness"]["ageSeconds"], 120)
+        self.assertIn("proof-anchor-stale-for-movement:ageSeconds=120;maxAgeSeconds=60", movement_gate["blockers"])
+        self.assertIn("same-target ProofOnly/proof-anchor refresh", movement_gate["reason"])
+
+    def test_build_decision_packet_includes_stale_proof_movement_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 100,
+                        "targetWindowHandle": "0xABC",
+                        "processStartUtc": "2026-05-27T07:00:00Z",
+                        "moduleBase": "0x1000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "movementGate": {
+                        "allowed": True,
+                        "status": "allowed-current-target-proofonly-passed-route-smoke-passed",
+                        "reason": "historically allowed",
+                    },
+                },
+            )
+            write_json(
+                root / "docs" / "recovery" / "current-proof-anchor-readback.json",
+                {
+                    "status": "current-target-proofonly-passed",
+                    "lastUpdatedUtc": "2026-05-27T07:00:00Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 100,
+                        "targetWindowHandle": "0xABC",
+                        "processStartUtc": "2026-05-27T07:00:00Z",
+                        "moduleBase": "0x1000",
+                    },
+                    "latestValidation": {
+                        "status": "valid",
+                        "movementAllowed": True,
+                        "movementSent": False,
+                        "generatedAtUtc": "2026-05-27T07:00:00Z",
+                    },
+                },
+            )
+
+            packet = decision_packet.build_decision_packet(
+                root,
+                now=datetime(2026, 5, 27, 7, 2, tzinfo=timezone.utc),
+            )
+
+        self.assertIn("proof-anchor-stale-for-movement:ageSeconds=120;maxAgeSeconds=60", packet["blockers"])
+        self.assertEqual(packet["truth"]["movementGate"]["status"], "blocked-proof-anchor-age-out-of-range")
 
     def test_visible_rift_process_with_stale_proof_is_not_current_truth(self) -> None:
         truth = {
