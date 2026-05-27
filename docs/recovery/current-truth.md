@@ -1,64 +1,93 @@
-# Current RIFT live truth — no live target; PID 28248 proof is historical
+# Current RIFT live truth — PID 12148 ProofOnly passed
 
-Updated UTC: `2026-05-23T06:47:00Z`
+Updated UTC: `2026-05-27T06:15:00Z`
 Repo: `C:\RIFT MODDING\RiftReader`
 
 ## Verdict
 
-The previously recovered PID `28248` / HWND `0x2302BC` proof anchor is now **historical only**. After the local milestone commit, the live target drifted: `coordinate_recovery_status.py --json` blocked with `artifact-target-pid-not-running:artifact=28248;live=28496`, and a later process check found no live `rift_x64` process.
+The current live target is **PID `12148` / HWND `0x640C0C`**. Current-PID coordinate recovery found and validated proof-anchor candidate `api-family-hit-000001` at `0x23863A26E50`, then same-target `ProofOnly` passed at `2026-05-27T06:11:31Z`.
 
-ChromaLink is also **provider-stale** and cannot currently provide API-now player position truth. Movement/proof promotion is blocked until a new live in-world PID/HWND passes same-target recovery and final `ProofOnly`.
+This is current proof-anchor truth for the live target. It is **not** player actor static-chain truth and does not promote a restart-stable actor resolver.
 
-API-now vs memory-now is not currently established. PID/HWND checks are targeting preflight only; they are not coordinate freshness proof and must not be treated as live truth without a same-target API-now vs memory-now comparison.
-
-## Last valid historical target
+## Current target
 
 | Field | Value |
 |---|---|
 | Process | `rift_x64` |
-| PID | `28248` |
-| HWND | `0x2302BC` |
-| Process start UTC | `2026-05-23T04:33:26.7814151Z` |
-| Module base | `0x7FF747730000` |
-| Proof anchor | `0x2D409F3BBE0` |
-| Historical ProofOnly status | `passed-proof-only` |
-| Latest recorded coordinate snapshot | `X=7371.4150390625`, `Y=868.0927124023438`, `Z=2997.306884765625`; do not present this value as current-now |
-| Historical proof archive | `docs/recovery/historical/current-proof-anchor-readback-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json` |
-| Historical truth archive | `docs/recovery/historical/current-truth-2026-05-23-pid28248-hwnd2302BC-historical-after-target-drift.json` |
+| PID | `12148` |
+| HWND | `0x640C0C` |
+| Process start UTC | `2026-05-27T01:17:01.2653526Z` |
+| Module base | `0x7FF77AF40000` |
+| Proof anchor | `0x23863A26E50` |
+| ProofOnly status | `passed-proof-only` |
+| Latest coordinate | `X=7260.705078125`, `Y=821.42822265625`, `Z=2996.458251953125` |
+| Coordinate recorded UTC | `2026-05-27T06:11:30.5486225Z` |
 
-## Drift / closure evidence
+## Proof evidence
 
-| Check | Result |
+| Artifact | Path |
 |---|---|
-| Coordinate recovery status | Blocked at `2026-05-23T06:43:26Z`: `artifact-target-pid-not-running:artifact=28248;live=28496` |
-| Brief replacement observation | PID `28496`, HWND `0x9121A`, module base `0x7FF7A3830000`, start UTC `2026-05-23T06:40:40.099749Z` |
-| ChromaLink freshness | Blocked: `provider-stale`, `player-position-missing`, `rift-process-missing` |
-| ChromaLink artifact | `%USERPROFILE%\OneDrive\Documents\RIFT\Interface\AddOns\ChromaLink\artifacts\diagnostics\chromalink-ensure-fresh-20260523T064352Z\summary.json` |
-| Pointer-family scan retry | Blocked cleanly with `target-window-not-found`: `scripts/captures/pointer-family-scan-20260523-064638-227102/summary.json` |
+| Current proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
+| ProofOnly run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proofonly-currentpid-12148-20260527-0208\live-test-ProofOnly-20260527-061052\run-summary.json` |
+| Proof-anchor readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-12148-readback-summary-20260527-021125.json` |
+| Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-12148-20260527-060224-849853\api-family-vec3-candidates.jsonl` |
+| Movement validation batch | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json` |
+| Fast recovery summary | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json` |
+| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260527-061154.json` |
 
-## Current blockers
+## Movement gate
 
-- `target-drift-no-live-rift-target`: no current in-world PID/HWND proof surface is live.
-- `provider-stale-player-position-missing`: ChromaLink is stale and player position is not usable as API-now truth.
-- `blocked-target-drift`: `docs/recovery/current-proof-anchor-readback.json` now records the PID `28248` proof as stale/historical.
-- `actor-static-chain-not-reacquired-for-current-pid`: no current-PID actor/static-chain candidate exists.
-- `no-static-resolver-promoted` / `not-restart-validated`: no restart-stable actor resolver exists.
+| Field | Value |
+|---|---|
+| Gate | `allowed-current-target-proofonly-passed` |
+| Movement allowed by proof pointer | `true` |
+| Movement sent by ProofOnly | `false` |
+| Movement sent by recovery validation | `true` |
+| Cheat Engine | `not used` |
+| x64dbg/debugger attach | `not used` |
+| SavedVariables live truth | `not used` |
+
+Any new live movement still requires exact PID/HWND preflight and the normal live-input gate. The passed proof anchor only means the current coordinate gate is no longer blocked by stale PID/HWND drift.
+
+## Actor/static-chain status
+
+| Item | Status |
+|---|---|
+| Actor static-chain resolver | `not promoted` |
+| Static owner chain | `not restart-validated` |
+| Current candidate role | `proof-anchor coordinate candidate only` |
+| Navigation/route smoke after refresh | `not run` |
+
+Current blockers:
+
+- `actor-static-chain-not-promoted`
+- `no-static-resolver-promoted`
+- `not-restart-validated-for-static-actor-chain`
+- `route-navigation-smoke-not-run-after-current-proof-refresh`
+
+## Historical superseded target
+
+PID `28248` / HWND `0x2302BC` is now historical-only and was superseded by the PID `12148` ProofOnly pass.
+
+| Historical artifact | Path |
+|---|---|
+| Historical proof pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json` |
+| Historical current-truth JSON | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json` |
+| Historical current-truth Markdown | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.md` |
 
 ## Safety ledger for latest update
 
 | Operation | Used? |
 |---|---:|
-| Read-only process/window checks | Yes |
-| ChromaLink freshness/status check | Yes |
-| Pointer-family scan retry | Attempted; blocked before scan because target was not found |
-| Movement/game input | No |
-| x64dbg/debugger attach | No new attach after drift |
-| Breakpoints/watchpoints | No |
+| Current-PID movement validation | Yes, bounded `w` 750 ms before promotion |
+| Same-target ProofOnly | Yes, no movement sent |
+| Current-truth doc/data update | Yes |
 | Cheat Engine | No |
+| x64dbg/debugger attach | No |
 | Memory writes | No |
 | Provider writes | No |
 | Git push | No |
 
 ## Required next step
 
-Restore a live RIFT in-world target and ChromaLink freshness first. Once a live PID/HWND is present at supported geometry, run a new current-target recovery/ProofOnly pass before any movement, actor-chain scan, or proof promotion. Treat all PID `28248` addresses as historical reacquisition hints only.
+Keep the proof-anchor gate green. If continuing live movement/navigation work, run exact-target preflight immediately before input and keep actor static-chain recovery separate from this proof-anchor candidate.
