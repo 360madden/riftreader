@@ -21,10 +21,14 @@ The correct recovery path is a **broad current-PID coordinate-family scan**:
 6. scan the current process memory broadly for matching float32 XYZ triplets;
 7. if exact/current copies drift between scans, scan the **entire family** and include `--scan-stride 1` to catch unaligned payloads;
 8. write a candidate family file such as `api-family-vec3-candidates.jsonl`;
-9. validate candidates with no-CE readback across at least two poses;
-10. promote only after cross-pose evidence proves the same candidate/source family;
-11. run fresh same-target `ProofOnly`;
-12. update `current-proof-anchor-readback.json` to a proof-passed pointer and update `current-truth.md` only after proof passes.
+9. validate candidates first with no-CE/no-input readback in the current pose;
+10. recommend controlled displacement stimulus testing only after a candidate
+    file exists and initial API-now vs memory-now deltas are within tolerance;
+11. validate candidates across at least two poses when movement/displacement is
+    explicitly approved;
+12. promote only after cross-pose evidence proves the same candidate/source family;
+13. run fresh same-target `ProofOnly` only after separate approval;
+14. update `current-proof-anchor-readback.json` to a proof-passed pointer and update `current-truth.md` only after proof passes and truth update is separately approved.
 
 This policy exists to prevent regression into narrow stale-pointer probing after a restart or target drift.
 
@@ -48,6 +52,32 @@ actor static chain, and never keep broad-scanning proof-anchor families when the
 active task is to prove static actor provenance for an already-selected
 actor-like candidate.
 
+## No-movement proof-recovery lane
+
+After the operator resumes or authorizes current-target proof recovery, the
+assistant may continue the no-movement lane without asking again for each step.
+This lane is intentionally stronger than "status only" but still weaker than
+movement, debugger, or proof promotion:
+
+| Allowed step | Boundary |
+|---|---|
+| Discover or confirm current PID/HWND/process start | Fail closed on target drift, duplicates, or missing visible RIFT window. |
+| Run target-control/visual checks | Allowed only when the helper sends no input and changes no game state. |
+| Capture ChromaLink/RRAPICOORD/API-now reference | Read-only provider/API use only. |
+| Inventory current process memory regions | Read-only process inspection only. |
+| Run scan-plan batches, current-PID family scans, snapshots, or readbacks | No memory writes, no CE, no x64dbg, no breakpoints/watchpoints. |
+| Write candidate files, summaries, and handoffs under RiftReader | Allowed as repo-owned evidence; do not write provider repos. |
+
+The lane stops and asks for explicit approval before any of these:
+
+| Gated action | Required approval |
+|---|---|
+| Movement/displacement stimulus or any game input | `--movement-approved` or equivalent current-turn approval. |
+| Current-truth/proof-anchor write | `--allow-current-truth-update` or equivalent current-turn approval. |
+| `ProofOnly` | `--run-proofonly` or equivalent current-turn approval. |
+| x64dbg, Cheat Engine, breakpoints, or watchpoints | Explicit debugger/CE approval with risk context. |
+| Provider repo write or Git remote mutation | Separate current-turn approval. |
+
 ## Stale-data invariant
 
 Once the current PID/HWND is known, that live target identity wins over every
@@ -63,7 +93,8 @@ Required stale-pointer behavior:
 | A helper needs a candidate ID | Prefer an explicit current candidate file or same-target proof anchor; otherwise fall back to profile config. Never read `candidateId` from a mismatched pointer. |
 | A helper needs a match file | Only use a match file from a same-target pointer, an explicit candidate file, or a same-PID current scan. |
 | Old pointer contains useful family hints | Copy them into `staleProofPointer.preservedEvidence` or handoff notes as reacquisition hints only. |
-| Movement/navigation is requested | Block until fresh same-target `ProofOnly` replaces the blocker with a proof-passed pointer. |
+| Movement/navigation use is requested | Block until fresh same-target `ProofOnly` replaces the blocker with a proof-passed pointer. |
+| Displacement stimulus is needed to validate candidates | Recommend it only after a current candidate file and initial API-now vs memory-now match exist; still require explicit movement approval before sending input. |
 
 ## Trigger conditions
 
@@ -88,13 +119,29 @@ These are forbidden as default recovery behavior:
 | Probe only the old address and nearby offsets | The valid family may relocate far away. |
 | Treat SavedVariables / `ReaderBridgeExport.lua` as live truth | SavedVariables are post-save snapshots, not live IPC. |
 | Run `ProofOnly` repeatedly without refreshing candidates | It will continue to block on target drift or stale pointer state. |
-| Run movement to test whether coordinates are right | Movement is blocked until target-control, visual gate, proof preflight, and fresh proof all pass. |
+| Run movement before current-PID candidate evidence exists | Underpowered and risky; first obtain a fresh API reference, candidate file, and initial API-now vs memory-now match. |
+| Treat displacement stimulus as movement/navigation truth | Displacement is a bounded validation stimulus only and still requires explicit movement approval. |
 | Promote a single-pose match | A single pose is candidate evidence only, not proof. |
 | Use Cheat Engine as a fallback without explicit current authorization | Current no-CE lane must fail closed unless CE is re-authorized. |
 
 ## Required command shape
 
-After discovering the current PID/HWND and passing target-control + visual gate, run the broad scan helper:
+After discovering the current PID/HWND and passing no-movement target-control +
+visual gate checks, prefer the fast recovery/scan-plan helper when it can build
+a bounded current-memory plan:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader"
+python .\scripts\recover_current_pid_coord_anchor_fast.py --pid <PID> --hwnd <HWND> --process-name rift_x64 --scan-stride 1 --scan-tolerance 2.0 --scan-plan-top-count 80 --execute --json
+Write-Host "RIFTREADER_FAST_CURRENT_PID_RECOVERY_DONE"
+```
+
+The fast helper must remain in the no-movement lane unless explicit gated flags
+are added by the operator. It should block with
+`movement-approval-required-for-displaced-pose-validation` after producing a
+credible single-pose candidate, instead of silently promoting it.
+
+If the fast/scan-plan lane has no credible hit, run the broader scan helper:
 
 ```powershell
 cd "C:\RIFT MODDING\RiftReader"
@@ -102,7 +149,9 @@ python .\scripts\scan_current_pid_coordinate_family.py --pid <PID> --hwnd <HWND>
 Write-Host "RIFTREADER_FULL_FAMILY_SCAN_DONE"
 ```
 
-The helper is read-only. It sends no movement, no key input, no `/reloadui`, no screenshot-key input, and uses no Cheat Engine.
+Both helpers are read-only unless explicitly approved gated flags are provided.
+They send no movement, no key input, no `/reloadui`, no screenshot-key input,
+and use no Cheat Engine in the default lane.
 
 When a broad current-family window is already known, preserve the entire family shape instead of only the closest offsets:
 
@@ -126,7 +175,10 @@ The scan result is only the first stage. A passing scan must provide:
 | fresh reference coordinate | The scan was anchored to a current runtime/API coordinate. |
 | safety flags | `movementSent=false`, `inputSent=false`, `noCheatEngine=true`. |
 
-A candidate file does **not** authorize movement. It only authorizes the next no-input validation stage.
+A candidate file does **not** authorize movement. It authorizes the next no-input
+readback/classification stage and, if API-now vs memory-now deltas are within
+tolerance, justifies recommending controlled displacement stimulus testing for
+operator approval.
 
 ## May 13 update: unaligned copy-family discovery
 
@@ -155,7 +207,8 @@ Durable artifacts:
 After the scan produces candidates:
 
 1. read back the top candidates against the current fresh coordinate;
-2. manually displace the character between poses when required;
+2. manually or scriptedly displace the character between poses only after
+   explicit movement/displacement approval;
 3. re-read candidates after displacement;
 4. require the same candidate/family to match across poses;
 5. promote only after multi-pose evidence validates the candidate;
@@ -188,11 +241,12 @@ This precedent is the model for future PID/HWND drift recovery.
 | Target-control blocked | Fix target/focus/window state first. |
 | Visual gate blocked | Restore capture/focus state first. |
 | `ProofOnly` blocked by target drift | Run full current-PID coordinate-family scan. |
-| Family scan passes | Proceed to no-input candidate readback / multi-pose validation. |
+| Family scan passes | Proceed to no-input candidate readback/classification. |
 | Family scan has no hits | Increase scan budget or investigate alternate coordinate family strategy. |
+| Candidate matches API-now vs memory-now in current pose | Recommend controlled displacement stimulus testing; do not send movement without approval. |
 | Candidate validates across poses | Promote proof anchor, then run same-target `ProofOnly`. |
-| `ProofOnly` passes | Update current proof pointer and current truth. |
-| Any movement requested before proof passes | Block it. |
+| `ProofOnly` passes | Update current proof pointer and current truth only when truth update is separately approved. |
+| Movement/navigation use is requested before proof passes | Block it. |
 
 ## Assistant behavior rule
 

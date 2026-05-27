@@ -68,13 +68,31 @@ Ask for explicit approval before any of these:
 
 | Hard gate | Required behavior |
 |---|---|
-| Live RIFT input, movement, target-control, visual gate, or ProofOnly | Stop and request approval. |
+| Live RIFT input, movement, displacement stimulus, target-control/visual gates that send input or change game state, or ProofOnly | Stop and request approval. |
 | x64dbg, Cheat Engine, debugger attach, breakpoints, or watchpoints | Stop and request approval with risk context. |
 | Provider repo writes | Stop unless explicitly authorized in the current turn. |
 | Proof promotion or actor-chain promotion | Stop and cite required gates. |
 | Git push, branch rewrite, destructive cleanup/delete, or remote mutation | Stop and ask; local commits remain explicit-path only. |
 | Unexpected validation failure | Diagnose narrowly before broadening or continuing. |
 | Ambiguous scope with high blast radius | Ask the smallest concrete approval question. |
+
+### No-movement current-PID proof recovery is not a hard gate
+
+After the user resumes or authorizes current-target proof recovery, the agent may
+continue no-movement recovery steps without repeated approval when all of these
+are true:
+
+| Check | Required behavior |
+|---|---|
+| Exact target | Bind and recheck current PID/HWND/process start; fail closed on drift. |
+| No input | No movement, no target selection, no `/reloadui`, no screenshot-key input, and no displacement stimulus. |
+| Read-only live process | Memory reads and current-PID coordinate-family scans/readbacks are allowed; memory writes are not. |
+| Read-only providers | ChromaLink/RiftScan may be queried only through explicit read surfaces. |
+| No proof/truth promotion | Do not run `ProofOnly`, pass `--allow-current-truth-update`, or promote a proof/actor chain without separate approval. |
+
+When a candidate file exists and fresh API-now vs memory-now deltas are within
+tolerance, recommend movement/displacement stimulus testing as the optimal next
+proof step, but still stop for approval before sending movement.
 
 ### Default autonomous execution loop
 

@@ -50,7 +50,8 @@ manifest.
 1. Run current target discovery.
 2. Require exactly one visible/responding `rift_x64` window.
 3. Bind exact PID/HWND/process start/module base.
-4. Abort on duplicate clients, minimized target, target mismatch, or missing visible RIFT window.
+4. No-input target-control/visual checks may run in the no-movement recovery lane.
+5. Abort on duplicate clients, minimized target, target mismatch, or missing visible RIFT window.
 
 Output: `target.json`, baseline screenshot, no movement/input.
 
@@ -58,15 +59,23 @@ Output: `target.json`, baseline screenshot, no movement/input.
 
 1. Run `python .\scripts\coordinate_recovery_status.py --json`.
 2. If same-target proof anchor is current, keep it as a safety gate only.
-3. If target drift exists, run current-PID coordinate-family recovery.
-4. Do not use a proof/API-family anchor as actor static-chain truth.
+3. If target drift exists, run current-PID coordinate-family recovery through
+   the no-movement lane first.
+4. Recommend displacement stimulus only after a current candidate file and
+   initial API-now vs memory-now match exist; movement still requires explicit
+   approval.
+5. Keep `ProofOnly`, current-truth updates, debugger/CE, provider writes, and
+   chain promotion as separate explicit gates.
+6. Do not use a proof/API-family anchor as actor static-chain truth.
 
 Output: `proof-status.json`, stale/current proof verdict.
 
 ## Phase 3 — Actor-like candidate selection
 
 1. Prefer existing current-PID actor-like candidate evidence if it matches the current target epoch.
-2. If no credible current actor-like family exists, run broad value scan once to find candidate families.
+2. If no credible current actor-like family exists, use the no-movement
+   recovery/scan-plan lane first; run a broad value scan once only when needed
+   to find candidate families.
 3. Classify candidates semantically: API/proof buffer, copy family, actor-like offset, owner-layout candidate.
 4. Freeze the best actor-like candidate before debugger work.
 

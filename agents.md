@@ -54,13 +54,37 @@ cross a gated boundary:
 
 | Hard stop | Rule |
 |---|---|
-| Live RIFT input, movement, target-control, visual gate, or ProofOnly | Ask first; never infer approval from autonomy. |
+| Live RIFT input, movement, displacement stimulus, target-control/visual gates that send input or change game state, or ProofOnly | Ask first; never infer approval from autonomy. |
 | x64dbg, Cheat Engine, debugger attach, breakpoints, or watchpoints | Ask first and state crash/risk context. |
 | Provider repo writes to RiftScan/ChromaLink or other external repos | Ask first unless explicitly authorized in the current turn. |
 | Proof promotion or actor-chain promotion | Ask first and cite the required proof gates. |
 | Git push, branch rewrite, destructive cleanup/delete, or remote mutation | Ask first; local commits are allowed only for coherent validated slices. |
 | Validation failure | Diagnose narrowly before continuing; do not paper over the failure. |
 | Ambiguous scope with live/game/repo-history blast radius | Stop, state the ambiguity, and ask the smallest concrete approval question. |
+
+### No-movement current-PID proof-recovery lane
+
+When the user has authorized or resumed current-target proof recovery, continue
+without repeated approval through the no-movement recovery lane only while every
+helper remains exact-target and declares or proves:
+
+| Required condition | Rule |
+|---|---|
+| Exact target identity | Bind the current PID/HWND/process start and fail closed on drift or duplicates. |
+| No game-state mutation | `movementSent=false`, `inputSent=false`, no `/reloadui`, no screenshot-key input, no target selection, and no displacement stimulus. |
+| No debugger/CE | Do not attach x64dbg, use CE, set breakpoints, or watchpoints in this lane. |
+| No provider writes | ChromaLink/RiftScan and other provider repos stay read-only unless separately authorized. |
+| No truth/proof promotion | Do not pass `--allow-current-truth-update`, run `ProofOnly`, or promote an actor/proof chain without separate approval. |
+| Repo-owned artifacts only | Writing RiftReader-owned captures, summaries, current-session candidate files, and handoffs is allowed. |
+
+Allowed no-movement recovery work includes current target discovery, no-input
+target-control/visual verification, fresh API/runtime coordinate capture,
+memory-region inventory, read-only current-PID coordinate-family scans or scan
+plan batches, no-input candidate readback/classification, and durable
+JSON/Markdown summaries. After a current-PID candidate file exists and initial
+API-now vs memory-now deltas are within tolerance, recommend controlled
+movement/displacement stimulus testing as the next evidence step, but still ask
+before sending it.
 
 ### Default continuation loop
 
@@ -586,10 +610,18 @@ Required behavior:
 4. refuse to use the stale pointer's `candidateId`, `matchFile`, absolute
    address, or `movementAllowed=true` fields except as historical
    reacquisition hints;
-5. run target-control and visual gate for the current target;
-6. use the broad `scripts/scan_current_pid_coordinate_family.py` workflow;
-7. validate candidates across poses before promotion;
-8. block movement until same-target `ProofOnly` passes.
+5. run no-movement target-control and visual gate checks for the current target
+   when they send no input and change no game state;
+6. use the no-movement current-PID recovery lane: fresh API/runtime reference,
+   memory inventory, scan-plan batch or broad coordinate-family scan, and
+   candidate JSONL/readback artifacts;
+7. after a candidate matches API-now vs memory-now in the current pose,
+   recommend controlled displacement stimulus testing, but do not send it
+   without explicit approval;
+8. validate candidates across poses before promotion;
+9. keep `--movement-approved`, `--allow-current-truth-update`, and
+   `--run-proofonly` as separate explicit gates;
+10. block movement/navigation use until same-target `ProofOnly` passes.
 
 Never describe an old absolute proof address, stale proof-pointer candidate,
 nearby offset probe, SavedVariables snapshot, or single-pose candidate as

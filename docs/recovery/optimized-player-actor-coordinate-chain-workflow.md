@@ -35,6 +35,13 @@ target lock
 Regression to avoid: treating a dynamic/API-family proof anchor as the player
 actor chain just because it currently matches API coordinates.
 
+Current proof-anchor recovery may proceed through the no-movement lane
+(exact-target lock, no-input visual/target checks, fresh API reference, memory
+inventory, read-only scans/readbacks, and candidate summaries) without repeated
+approval after the operator resumes that lane. Movement/displacement stimulus,
+`ProofOnly`, current-truth updates, debugger/CE use, provider writes, and chain
+promotion remain separate explicit gates.
+
 ## Optimized state model
 
 | State | Meaning | Allowed next action |
@@ -55,6 +62,7 @@ Any state before `promoted-player-actor-chain` is candidate evidence only.
 | Rule | Reason |
 |---|---|
 | Use broad value scans only until the first credible actor-like family exists | Repeating broad scans after that wastes time and finds more copies |
+| Use no-movement recovery before asking for stimulus | A candidate JSONL plus initial API-now vs memory-now match is the right point to recommend displacement testing |
 | Freeze the best actor-like candidate and owner hypothesis before x64dbg | Keeps debugger work bounded and targeted |
 | Prefer access provenance over more pointer sweeps | The instruction/register context answers who owns or updates the field |
 | Use one bounded watchpoint attempt at a time | Prevents accidental debugger scanning and crash-prone loops |
