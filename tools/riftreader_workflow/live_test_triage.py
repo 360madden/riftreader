@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,43 @@ def _first_blocked_stage(stage_timings: Any) -> dict[str, Any] | None:
         if status in {"blocked", "failed", "error"}:
             return stage
     return None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _recovery_profile_is_stale(
+    recovery_profile: dict[str, Any],
+    *,
+    current_proof: dict[str, Any],
+    proof: dict[str, Any],
+    current_truth: dict[str, Any],
+) -> bool:
+    profile_time = _parse_utc(recovery_profile.get("generatedAtUtc"))
+    if profile_time is None:
+        return False
+    proof_times = [
+        _parse_utc(current_proof.get("lastUpdatedUtc")),
+        _parse_utc(proof.get("lastUpdatedUtc")),
+        _parse_utc(proof.get("proofOnlyGeneratedAtUtc")),
+        _parse_utc(current_truth.get("updatedAtUtc")),
+    ]
+    newest_current_time = max((value for value in proof_times if value is not None), default=None)
+    if newest_current_time is None:
+        return False
+    return profile_time < newest_current_time
 
 
 def _live_target_next_action(live_verdict: str, live_target: dict[str, Any]) -> str:
@@ -72,7 +110,13 @@ def classify_packet(packet: dict[str, Any]) -> dict[str, Any]:
     latest_proofonly = current_proof.get("latestProofOnly") if isinstance(current_proof.get("latestProofOnly"), dict) else {}
     proof_status = str(current_proof.get("status") or proof.get("status") or "")
     live_verdict = str(live_target.get("verdict") or "")
-    blocked_stage = _first_blocked_stage(recovery_profile.get("stageTimings"))
+    profile_stale = _recovery_profile_is_stale(
+        recovery_profile,
+        current_proof=current_proof,
+        proof=proof,
+        current_truth=current_truth,
+    )
+    blocked_stage = None if profile_stale else _first_blocked_stage(recovery_profile.get("stageTimings"))
 
     if errors:
         return {
@@ -251,13 +295,86 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--write", action="store_true")
+    parser.add_argument("--self-test", action="store_true", help="Run deterministic classifier self-test without live repo inspection.")
     parser.add_argument("--include-status-packet", action="store_true")
     parser.add_argument("--output-dir", default=None)
     return parser
 
 
+def run_self_test() -> dict[str, Any]:
+    stale_profile_packet = {
+        "blockers": ["actor-static-chain-not-promoted"],
+        "errors": [],
+        "currentProof": {
+            "summary": {
+                "status": "current-target-proofonly-passed",
+                "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
+            }
+        },
+        "currentTruth": {
+            "summary": {
+                "updatedAtUtc": "2026-05-27T07:03:30Z",
+                "movementGate": {"allowed": True, "status": "passed"},
+            }
+        },
+        "coordinateRecoveryStatus": {
+            "liveTarget": {"verdict": "artifact-pid-running", "livePids": [12148]},
+            "proof": {
+                "status": "current-target-proofonly-passed",
+                "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
+            },
+            "recoveryProfile": {
+                "generatedAtUtc": "2026-05-15T06:01:59.323577Z",
+                "stageTimings": [
+                    {"label": "reference-chromalink-fast-path", "phase": "reference", "status": "blocked"}
+                ],
+            },
+        },
+    }
+    live_target_packet = {
+        "blockers": ["coordinate-status:live-target-not-running:rift_x64"],
+        "errors": [],
+        "currentProof": {"summary": {"status": "blocked-target-drift"}},
+        "currentTruth": {"summary": {"movementGate": {"allowed": False, "status": "blocked"}}},
+        "coordinateRecoveryStatus": {"liveTarget": {"verdict": "no-live-process", "livePids": []}},
+    }
+    checks = [
+        {
+            "name": "stale-profile-does-not-mask-current-proof",
+            "expectedFailedStage": "unknown-blocker",
+            "actual": classify_packet(stale_profile_packet),
+        },
+        {
+            "name": "live-target-blocker-has-priority",
+            "expectedFailedStage": "live-target",
+            "actual": classify_packet(live_target_packet),
+        },
+    ]
+    failures = [
+        check
+        for check in checks
+        if check["actual"].get("failedStage") != check["expectedFailedStage"]
+    ]
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-live-test-triage-self-test",
+        "status": "failed" if failures else "passed",
+        "checkCount": len(checks),
+        "failures": failures,
+        "safety": safety_flags(),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.self_test:
+        report = run_self_test()
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"status={report['status']}")
+            print(f"checkCount={report['checkCount']}")
+        return 0 if report["status"] == "passed" else 1
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     triage = build_triage(repo_root, write_status_packet=args.include_status_packet)
     if args.write:

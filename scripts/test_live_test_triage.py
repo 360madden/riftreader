@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 
@@ -114,6 +116,81 @@ class LiveTestTriageTests(unittest.TestCase):
 
         self.assertEqual(result["failedStage"], "reference")
         self.assertEqual(result["blockerCategory"], "blocked")
+
+    def test_ignores_stale_recovery_profile_when_current_proof_is_newer(self) -> None:
+        packet = {
+            "blockers": ["actor-static-chain-not-promoted"],
+            "errors": [],
+            "currentProof": {
+                "summary": {
+                    "status": "current-target-proofonly-passed",
+                    "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
+                }
+            },
+            "currentTruth": {
+                "summary": {
+                    "updatedAtUtc": "2026-05-27T07:03:30Z",
+                    "movementGate": {"allowed": True, "status": "passed"},
+                }
+            },
+            "coordinateRecoveryStatus": {
+                "liveTarget": {"verdict": "artifact-pid-running", "livePids": [12148]},
+                "proof": {
+                    "status": "current-target-proofonly-passed",
+                    "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
+                },
+                "recoveryProfile": {
+                    "generatedAtUtc": "2026-05-15T06:01:59.323577Z",
+                    "stageTimings": [
+                        {"label": "reference-chromalink-fast-path", "phase": "reference", "status": "blocked"}
+                    ],
+                },
+            },
+        }
+
+        result = live_test_triage.classify_packet(packet)
+
+        self.assertEqual(result["failedStage"], "unknown-blocker")
+        self.assertEqual(result["blockerCategory"], "generic-blocker")
+        self.assertIn("actor-static-chain-not-promoted", result["reason"])
+
+    def test_uses_newer_blocked_recovery_profile(self) -> None:
+        packet = {
+            "blockers": [],
+            "errors": [],
+            "currentProof": {
+                "summary": {
+                    "status": "current-target-proofonly-passed",
+                    "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
+                }
+            },
+            "currentTruth": {
+                "summary": {
+                    "updatedAtUtc": "2026-05-27T07:03:30Z",
+                    "movementGate": {"allowed": True, "status": "passed"},
+                }
+            },
+            "coordinateRecoveryStatus": {
+                "liveTarget": {"verdict": "artifact-pid-running", "livePids": [12148]},
+                "recoveryProfile": {
+                    "generatedAtUtc": "2026-05-27T07:04:00Z",
+                    "stageTimings": [
+                        {"label": "reference-chromalink-fast-path", "phase": "reference", "status": "blocked"}
+                    ],
+                },
+            },
+        }
+
+        result = live_test_triage.classify_packet(packet)
+
+        self.assertEqual(result["failedStage"], "reference")
+        self.assertEqual(result["blockerCategory"], "blocked")
+
+    def test_main_self_test_passes_without_live_repo_inspection(self) -> None:
+        with redirect_stdout(StringIO()):
+            code = live_test_triage.main(["--self-test", "--json"])
+
+        self.assertEqual(code, 0)
 
     def test_write_outputs_uses_ignored_live_triage_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
