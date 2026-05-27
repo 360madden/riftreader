@@ -318,6 +318,86 @@ class DecisionPacketTests(unittest.TestCase):
             "absolute heap addresses are historical hints only after PID/HWND/process-start/module-base drift",
         )
 
+    def test_promoted_static_resolver_supersedes_stale_proof_epoch(self) -> None:
+        truth = {
+            "target": {
+                "processName": "rift_x64",
+                "processId": 200,
+                "targetWindowHandle": "0xBEEF",
+                "processStartUtc": "2026-05-21T15:00:00Z",
+                "moduleBase": "0x2000",
+                "inWorld": True,
+                "live": True,
+            },
+            "staticChainStatus": {
+                "status": "promoted",
+                "promotionAllowed": True,
+                "primaryCandidate": {
+                    "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                    "rootModule": "rift_x64.exe",
+                    "rootRva": "0x32EBC80",
+                },
+                "latestApiNowValidation": {"status": "passed"},
+            },
+        }
+        proof = {
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": "2026-05-21T14:00:00Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 100,
+                "targetWindowHandle": "0xCAFE",
+                "processStartUtc": "2026-05-21T14:00:00Z",
+                "moduleBase": "0x1000",
+            },
+        }
+
+        result = decision_packet.classify_target_epoch(truth, proof)
+
+        self.assertEqual(result["status"], "current-static-resolver")
+        self.assertEqual(result["blockers"], [])
+        self.assertIn("proof-anchor-stale-superseded-by-promoted-static-resolver", result["warnings"])
+        self.assertTrue(result["staticResolver"]["promoted"])
+        self.assertEqual(result["staticResolver"]["rootRva"], "0x32EBC80")
+
+    def test_unpromoted_static_resolver_does_not_supersede_stale_proof_epoch(self) -> None:
+        truth = {
+            "target": {
+                "processName": "rift_x64",
+                "processId": 200,
+                "targetWindowHandle": "0xBEEF",
+                "processStartUtc": "2026-05-21T15:00:00Z",
+                "moduleBase": "0x2000",
+                "inWorld": True,
+                "live": True,
+            },
+            "staticChainStatus": {
+                "status": "promotion-review-ready-not-promoted",
+                "promotionAllowed": False,
+                "primaryCandidate": {
+                    "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                    "rootRva": "0x32EBC80",
+                },
+            },
+        }
+        proof = {
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": "2026-05-21T14:00:00Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 100,
+                "targetWindowHandle": "0xCAFE",
+                "processStartUtc": "2026-05-21T14:00:00Z",
+                "moduleBase": "0x1000",
+            },
+        }
+
+        result = decision_packet.classify_target_epoch(truth, proof)
+
+        self.assertEqual(result["status"], "stale")
+        self.assertIn("target-epoch-pid-drift", result["blockers"])
+        self.assertFalse(result["staticResolver"]["promoted"])
+
     def test_actor_chain_candidate_only_blocks_promotion(self) -> None:
         result = decision_packet.summarize_truth(
             {

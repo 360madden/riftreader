@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-static-owner-coordinate-chain-survived-reboot-report",
+  "generatedAtUtc": "2026-05-27T18:18:00Z",
+  "status": "candidate-not-promoted",
+  "verdict": "static-owner-coordinate-chain-survived-reboot-relogin",
+  "chain": {
+    "rootModule": "rift_x64.exe",
+    "rootRva": "0x32EBC80",
+    "rootAddressAtModuleBase0x7FF77AF40000": "0x7FF77E22BC80",
+    "coordinateOffsets": [
+      "0x320",
+      "0x324",
+      "0x328"
+    ],
+    "expression": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "historicalShapeMatch": "owner+0x320/+0x324/+0x328"
+  },
+  "epochs": {
+    "preReboot": {
+      "pid": 12148,
+      "hwnd": "0x640C0C",
+      "processStartUtc": "2026-05-27T01:17:01.265352Z",
+      "moduleBase": "0x7FF77AF40000",
+      "ownerAddress": "0x238679C06A0",
+      "coordinateAddress": "0x238679C09C0",
+      "coordinate": {
+        "x": 7259.5908203125,
+        "y": 821.5345458984375,
+        "z": 2988.985107421875
+      },
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-175915-451509\\summary.json"
+    },
+    "postReboot": {
+      "pid": 34176,
+      "hwnd": "0x3D1544",
+      "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+      "moduleBase": "0x7FF77AF40000",
+      "ownerAddress": "0x278C3830010",
+      "coordinateAddress": "0x278C3830330",
+      "coordinate": {
+        "x": 7259.5908203125,
+        "y": 821.5345458984375,
+        "z": 2988.985107421875
+      },
+      "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-180907-440028\\summary.json"
+    }
+  },
+  "promotion": {
+    "promoted": false,
+    "promotionAllowed": false,
+    "remainingGates": [
+      "fresh-api-now-vs-chain-now",
+      "current-truth-proof-target-refresh",
+      "explicit-promotion-approval"
+    ],
+    "currentApiNowBlockers": [
+      "world-state-not-healthy",
+      "world-state-player-position-not-fresh",
+      "world-state-player-position-stale",
+      "world-state-navigation-player-position-unavailable"
+    ]
+  },
+  "primaryReadbackCommand": [
+    "python",
+    ".\\scripts\\static_owner_coordinate_chain_readback.py",
+    "--pid",
+    "34176",
+    "--hwnd",
+    "0x3D1544",
+    "--module-base",
+    "0x7FF77AF40000",
+    "--expected-proof-anchor",
+    "",
+    "--json"
+  ],
+  "safety": {
+    "noCheatEngine": true,
+    "debugActiveProcessStopCalledForThisChain": false,
+    "liveInputMovementDuringReacquisition": false,
+    "providerWrites": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "gitMutation": false
+  },
+  "latestDynamicValidation": {
+    "status": "passed-not-promoted",
+    "generatedAtUtc": "2026-05-27T18:44:55Z",
+    "reportJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-displacement-validation-2026-05-27.json",
+    "reportMarkdown": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-displacement-validation-2026-05-27.md",
+    "baselineToForwardPlanarXz": 2.8857847362292564,
+    "forwardToReversePlanarXz": 1.4495978258064,
+    "movementSent": true,
+    "inputSent": true,
+    "promotionAllowed": false,
+    "apiNowStatus": "blocked"
+  }
+}

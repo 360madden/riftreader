@@ -917,6 +917,44 @@ def resume_if_stopped(client: Any, summary: dict[str, Any], *, reason: str) -> b
     return running_after
 
 
+def resume_for_detach_recovery(client: Any, summary: dict[str, Any], *, reason: str) -> bool | None:
+    """Best-effort no-input resume used only after a detach failure.
+
+    This intentionally does not consume the normal go-attempt budget: once
+    detach has already failed, leaving the target stopped is riskier than one
+    explicit recovery resume before a final detach retry.
+    """
+    detach = summary.setdefault("detach", {})
+    detach["recoveryGoAttempted"] = True
+    try:
+        running = bool(client.is_running())
+    except Exception as exc:  # noqa: BLE001
+        detach["recoveryGoError"] = f"is-running-failed:{type(exc).__name__}:{exc}"
+        return None
+    if running:
+        detach["recoveryGoSucceeded"] = True
+        detach["recoveryGoSkippedReason"] = "target-already-running"
+        return True
+    try:
+        go_result = bool(client.go(pass_exceptions=False, swallow_exceptions=False))
+    except Exception as exc:  # noqa: BLE001
+        detach["recoveryGoSucceeded"] = False
+        detach["recoveryGoError"] = f"go-failed:{type(exc).__name__}:{exc}"
+        return False
+    if not go_result:
+        detach["recoveryGoSucceeded"] = False
+        detach["recoveryGoError"] = "go-returned-false"
+        return False
+    try:
+        running_after = bool(client.wait_until_running(timeout=2))
+    except Exception as exc:  # noqa: BLE001
+        detach["recoveryGoSucceeded"] = None
+        detach["recoveryGoError"] = f"wait-until-running-failed:{type(exc).__name__}:{exc}"
+        return None
+    detach["recoveryGoSucceeded"] = running_after
+    return running_after
+
+
 def exact_target_snapshot(*, process_name: str, target_pid: int, target_hwnd: str) -> dict[str, Any] | None:
     expected_hwnd = normalize_hwnd(target_hwnd)
     for target in enumerate_window_targets(process_name=process_name, title_contains="RIFT"):
@@ -1402,6 +1440,17 @@ def run_capture(args: argparse.Namespace) -> dict[str, Any]:
                     summary["detach"]["succeeded"] = bool(client.detach(wait_timeout=args.detach_timeout_seconds))
                 except Exception as exc:  # noqa: BLE001
                     summary["warnings"].append(f"detach-failed:{type(exc).__name__}:{exc}")
+                if not summary["detach"]["succeeded"]:
+                    try:
+                        clear_all_hardware_breakpoints(client, summary, reason="before-detach-retry")
+                        clear_all_memory_breakpoints(client, summary, reason="before-detach-retry")
+                        resume_for_detach_recovery(client, summary, reason="before-detach-retry")
+                        summary["detach"]["retryAttempted"] = True
+                        summary["detach"]["retrySucceeded"] = bool(client.detach(wait_timeout=args.detach_timeout_seconds))
+                        if summary["detach"]["retrySucceeded"]:
+                            summary["detach"]["succeeded"] = True
+                    except Exception as exc:  # noqa: BLE001
+                        summary["warnings"].append(f"detach-retry-failed:{type(exc).__name__}:{exc}")
                 if summary["detach"]["succeeded"]:
                     try:
                         summary["detach"]["terminateSessionAttempted"] = True

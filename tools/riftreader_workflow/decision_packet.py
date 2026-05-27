@@ -313,6 +313,7 @@ def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | 
     proof = safe_mapping(proof)
     truth_target = target_from_document(truth)
     proof_target = target_from_document(proof)
+    static_resolver = promoted_static_resolver_summary(truth)
     blockers: list[str] = []
     warnings: list[str] = []
     stale_fields: list[str] = []
@@ -349,7 +350,14 @@ def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | 
         if proof_updated and process_start and proof_updated < process_start:
             stale_fields.append("proofLastUpdatedUtc")
             blockers.append("proof-older-than-process-start")
-        if stale_fields or str(proof_status or "").startswith("blocked-target-drift"):
+        if static_resolver.get("promoted") and truth_target.get("pid"):
+            status = "current-static-resolver" if truth_target.get("inWorld") is not False else "in-world-unproven"
+            if status == "in-world-unproven":
+                blockers.append("target-not-confirmed-in-world")
+            if stale_fields or str(proof_status or "").startswith("blocked-target-drift"):
+                warnings.append("proof-anchor-stale-superseded-by-promoted-static-resolver")
+            blockers = [item for item in blockers if not str(item).startswith(("target-epoch-", "proof-older-than-process-start"))]
+        elif stale_fields or str(proof_status or "").startswith("blocked-target-drift"):
             status = "stale"
         elif proof_status in {"current-target-proofonly-passed", "passed-proof-only", "valid", "passed"}:
             status = "current" if truth_target.get("inWorld") is not False else "in-world-unproven"
@@ -367,12 +375,46 @@ def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | 
         "target": truth_target,
         "proofTarget": proof_target,
         "proofStatus": proof_status,
+        "staticResolver": static_resolver,
         "staleFields": stale_fields,
         "blockers": sorted(set(blockers)),
         "warnings": warnings,
         "processPresence": "not-checked-process-presence-is-not-proof",
         "staleAddressPolicy": "absolute heap addresses are historical hints only after PID/HWND/process-start/module-base drift",
     }
+
+
+def promoted_static_resolver_summary(truth: dict[str, Any] | None) -> dict[str, Any]:
+    truth = safe_mapping(truth)
+    static_status = safe_mapping(truth.get("staticChainStatus"))
+    best_candidate = safe_mapping(truth.get("bestCurrentCandidate"))
+    primary_candidate = safe_mapping(static_status.get("primaryCandidate"))
+    latest_validation = safe_mapping(static_status.get("latestApiNowValidation"))
+    promotion_review = safe_mapping(static_status.get("promotionReview"))
+    api_validation = latest_validation or promotion_review
+    chain = first_nonempty(primary_candidate.get("chain"), best_candidate.get("chain"))
+    root_rva = first_nonempty(primary_candidate.get("rootRva"), best_candidate.get("rootRva"))
+    promoted = bool(static_status.get("promotionAllowed") or best_candidate.get("promotionEligible"))
+    complete = bool(chain and root_rva)
+    return {
+        "promoted": bool(promoted and complete),
+        "promotionAllowed": promoted,
+        "complete": complete,
+        "status": static_status.get("status"),
+        "chain": chain,
+        "rootModule": first_nonempty(primary_candidate.get("rootModule"), best_candidate.get("rootModule")),
+        "rootRva": root_rva,
+        "latestApiNowValidationStatus": api_validation.get("status"),
+        "source": "current-truth.staticChainStatus",
+        "doesNotPromote": True,
+    }
+
+
+def first_nonempty(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
 
 
 def summarize_truth(
@@ -389,6 +431,7 @@ def summarize_truth(
     proof_latest_validation = safe_mapping(proof.get("latestValidation"))
     proof_latest_proofonly = safe_mapping(proof.get("latestProofOnly"))
     proof_freshness = proof_anchor_freshness_summary(proof, proof_latest_validation, proof_latest_proofonly, now=now)
+    static_resolver = promoted_static_resolver_summary(truth)
     candidate_only = bool(best_candidate.get("candidateOnly") or "candidate" in str(best_candidate.get("status") or "").lower())
     promotion_allowed = bool(best_candidate.get("promotionEligible") or static_status.get("promotionAllowed"))
     actor_blockers = [str(item) for item in safe_list(static_status.get("blockers"))]
@@ -464,6 +507,7 @@ def summarize_truth(
             "candidateOnly": candidate_only,
             "blockers": sorted(set(actor_blockers)),
             "reusePolicy": best_candidate.get("reusePolicy"),
+            "staticResolver": static_resolver,
         },
     }
 

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-static-owner-coordinate-chain-api-now-validation",
+  "generatedAtUtc": "2026-05-27T18:50:27Z",
+  "status": "passed-not-promoted",
+  "verdict": "fresh-api-now-matches-static-chain-now-within-tolerance",
+  "chain": {
+    "rootModule": "rift_x64.exe",
+    "rootRva": "0x32EBC80",
+    "rootAddress": "0x7FF77E22BC80",
+    "expression": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "ownerAddress": "0x278C3830010",
+    "ownerVtable": "0x7FF77D58CEB8",
+    "ownerVtableRva": "0x264CEB8",
+    "coordinateOffsets": [
+      "0x320",
+      "0x324",
+      "0x328"
+    ],
+    "classification": "static-owner-layout-coordinate-chain-candidate-api-now-validated-current-session"
+  },
+  "target": {
+    "processName": "rift_x64",
+    "processId": 34176,
+    "targetWindowHandle": "0x3D1544",
+    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "moduleBase": "0x7FF77AF40000"
+  },
+  "apiNow": {
+    "source": "rrapicoord1-memory-scan",
+    "referenceKind": "rrapicoord1-marker",
+    "capturedAtUtc": "2026-05-27T18:47:58.7923345Z",
+    "tolerance": 0.25,
+    "coordinate": {
+      "x": 7259.9497,
+      "y": 821.44,
+      "z": 2990.3799
+    },
+    "referenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-34176-20260527-184750.json",
+    "scanFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-scan-currentpid-34176-20260527-184750.json",
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "chainNow": {
+    "capturedAtUtc": "2026-05-27T18:48:09.257030+00:00",
+    "coordinate": {
+      "x": 7259.94970703125,
+      "y": 821.4375610351562,
+      "z": 2990.375732421875
+    },
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-184809-256384\\summary.json"
+  },
+  "comparison": {
+    "deltasChainMinusApi": {
+      "x": 7.031249879219104e-06,
+      "y": -0.0024389648438045697,
+      "z": -0.004167578124906868
+    },
+    "absDeltas": {
+      "x": 7.031249879219104e-06,
+      "y": 0.0024389648438045697,
+      "z": 0.004167578124906868
+    },
+    "maxAbsDelta": 0.004167578124906868,
+    "tolerance": 0.25,
+    "withinTolerance": true
+  },
+  "supportingEvidence": {
+    "survivedRebootReportMarkdown": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-survived-reboot-2026-05-27.md",
+    "survivedRebootReportJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-survived-reboot-2026-05-27.json",
+    "dynamicDisplacementReportMarkdown": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-displacement-validation-2026-05-27.md",
+    "dynamicDisplacementReportJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-displacement-validation-2026-05-27.json"
+  },
+  "promotion": {
+    "promoted": false,
+    "promotionAllowed": false,
+    "promotionReadiness": "evidence-ready-needs-explicit-promotion-approval-and-final-policy-gate",
+    "remainingGates": [
+      "explicit-promotion-approval",
+      "update-current-proof/static-resolver surface intentionally rather than silently",
+      "optional second fresh API-now readback if operator wants additional redundancy"
+    ]
+  },
+  "safety": {
+    "movementSentEarlierInThisValidationSlice": true,
+    "apiNowCaptureMovementSent": false,
+    "chainNowReadbackMovementSent": false,
+    "inputSentEarlierInThisValidationSlice": true,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debugActiveProcessStopCalled": false,
+    "targetMemoryBytesRead": true,
+    "targetMemoryBytesWritten": false,
+    "providerWrites": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "gitMutation": false
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-static-owner-coordinate-chain-displacement-validation",
+  "generatedAtUtc": "2026-05-27T18:44:55Z",
+  "status": "passed-not-promoted",
+  "verdict": "static-owner-coordinate-chain-responded-to-targeted-displacement",
+  "chain": {
+    "rootModule": "rift_x64.exe",
+    "rootRva": "0x32EBC80",
+    "rootAddress": "0x7FF77E22BC80",
+    "expression": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "ownerAddress": "0x278C3830010",
+    "coordinateOffsets": [
+      "0x320",
+      "0x324",
+      "0x328"
+    ],
+    "classification": "static-owner-layout-coordinate-chain-candidate-current-session-dynamic-validated"
+  },
+  "target": {
+    "processName": "rift_x64",
+    "processId": 34176,
+    "targetWindowHandle": "0x3D1544",
+    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "moduleBase": "0x7FF77AF40000"
+  },
+  "stimulus": {
+    "approvedEarlierInConversation": true,
+    "inputMethod": "rift_game MCP send_key window-message",
+    "sequence": [
+      {
+        "keyChord": "w",
+        "holdMilliseconds": 450,
+        "allowMovementKeys": true,
+        "visualChangePercent": 25.5139
+      },
+      {
+        "keyChord": "s",
+        "holdMilliseconds": 450,
+        "allowMovementKeys": true,
+        "visualChangePercent": 21.7778
+      }
+    ],
+    "baselineScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-144111-648.png",
+    "afterForwardScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-144144-370.png",
+    "afterReverseScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-144212-152.png"
+  },
+  "poses": {
+    "baseline": {
+      "label": "pre-stimulus",
+      "generatedAtUtc": "2026-05-27T18:41:29.912236+00:00",
+      "coordinate": {
+        "x": 7259.5908203125,
+        "y": 821.5345458984375,
+        "z": 2988.985107421875
+      },
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-184129-911623\\summary.json"
+    },
+    "afterForward": {
+      "label": "after-w-450ms",
+      "generatedAtUtc": "2026-05-27T18:41:51.669633+00:00",
+      "coordinate": {
+        "x": 7260.31494140625,
+        "y": 821.42138671875,
+        "z": 2991.778564453125
+      },
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-184151-668697\\summary.json"
+    },
+    "afterReverse": {
+      "label": "after-s-450ms",
+      "generatedAtUtc": "2026-05-27T18:42:19.347592+00:00",
+      "coordinate": {
+        "x": 7259.94970703125,
+        "y": 821.4375610351562,
+        "z": 2990.375732421875
+      },
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-184219-347008\\summary.json"
+    }
+  },
+  "deltas": {
+    "baselineToForward": {
+      "dx": 0.72412109375,
+      "dy": -0.1131591796875,
+      "dz": 2.79345703125,
+      "planarXz": 2.8857847362292564,
+      "euclidean": 2.888002517970043
+    },
+    "forwardToReverse": {
+      "dx": -0.365234375,
+      "dy": 0.01617431640625,
+      "dz": -1.40283203125,
+      "planarXz": 1.4495978258064,
+      "euclidean": 1.4496880578572244
+    },
+    "baselineToReverse": {
+      "dx": 0.35888671875,
+      "dy": -0.09698486328125,
+      "dz": 1.390625,
+      "planarXz": 1.436188555698778,
+      "euclidean": 1.43945949273532
+    }
+  },
+  "independentApiNow": {
+    "status": "blocked",
+    "latestAttemptSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-183942-813019\\summary.json",
+    "blockers": [
+      "world-state-not-healthy",
+      "world-state-player-position-not-fresh",
+      "world-state-player-position-stale",
+      "world-state-navigation-player-position-unavailable"
+    ]
+  },
+  "promotion": {
+    "promoted": false,
+    "promotionAllowed": false,
+    "remainingGates": [
+      "fresh-api-now-vs-chain-now",
+      "multi-pose-current-truth-proof-target-refresh-or-equivalent-independent-live-reference",
+      "explicit-promotion-approval"
+    ]
+  },
+  "safety": {
+    "movementSent": true,
+    "inputSent": true,
+    "inputScope": "two bounded displacement stimuli: w 450ms and s 450ms",
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debugActiveProcessStopCalled": false,
+    "targetMemoryBytesRead": true,
+    "targetMemoryBytesWritten": false,
+    "providerWrites": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "gitMutation": false
+  }
+}

@@ -243,6 +243,132 @@ class CoordinateRecoveryStatusTests(unittest.TestCase):
         self.assertEqual(result["processes"][0]["pid"], 1234)
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
+    def test_promoted_static_resolver_uses_current_truth_target_for_live_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            current_truth = root / "current-truth.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 100,
+                            "targetWindowHandle": "0xCAFE",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(
+                json.dumps({"target": {"processName": "rift_x64", "pid": 100, "hwnd": "0xCAFE"}}),
+                encoding="utf-8",
+            )
+            current_truth.write_text(
+                json.dumps(
+                    {
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 200,
+                            "targetWindowHandle": "0xBEEF",
+                        },
+                        "staticChainStatus": {
+                            "status": "promoted",
+                            "promotionAllowed": True,
+                            "primaryCandidate": {
+                                "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                                "rootRva": "0x32EBC80",
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = status_tool.build_status(
+                root,
+                proof,
+                profile,
+                current_truth,
+                live_target_check=True,
+                live_process_snapshot={
+                    "checkedAtUtc": "2026-05-27T19:40:00Z",
+                    "status": "passed",
+                    "processes": [{"imageName": "rift_x64.exe", "pid": 200}],
+                },
+            )
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["target"]["pid"], 200)
+        self.assertEqual(result["liveTarget"]["artifactPid"], 200)
+        self.assertEqual(result["liveTarget"]["verdict"], "artifact-pid-running")
+        self.assertTrue(result["staticResolver"]["promoted"])
+        self.assertIn("proof-anchor-status-superseded-by-promoted-static-resolver", result["warnings"])
+
+    def test_unpromoted_static_resolver_keeps_stale_proof_target_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = root / "current-proof-anchor-readback.json"
+            profile = root / "coordinate-recovery-profile.json"
+            current_truth = root / "current-truth.json"
+            proof.write_text(
+                json.dumps(
+                    {
+                        "status": "current-target-proofonly-passed",
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 100,
+                            "targetWindowHandle": "0xCAFE",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            profile.write_text(
+                json.dumps({"target": {"processName": "rift_x64", "pid": 100, "hwnd": "0xCAFE"}}),
+                encoding="utf-8",
+            )
+            current_truth.write_text(
+                json.dumps(
+                    {
+                        "target": {
+                            "processName": "rift_x64",
+                            "processId": 200,
+                            "targetWindowHandle": "0xBEEF",
+                        },
+                        "staticChainStatus": {
+                            "status": "promotion-review-ready-not-promoted",
+                            "promotionAllowed": False,
+                            "primaryCandidate": {
+                                "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                                "rootRva": "0x32EBC80",
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = status_tool.build_status(
+                root,
+                proof,
+                profile,
+                current_truth,
+                live_target_check=True,
+                live_process_snapshot={
+                    "checkedAtUtc": "2026-05-27T19:40:00Z",
+                    "status": "passed",
+                    "processes": [{"imageName": "rift_x64.exe", "pid": 200}],
+                },
+            )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["target"]["pid"], 100)
+        self.assertFalse(result["staticResolver"]["promoted"])
+        self.assertIn("artifact-target-pid-not-running:artifact=100;live=200", result["blockers"])
+
 
 if __name__ == "__main__":
     unittest.main()

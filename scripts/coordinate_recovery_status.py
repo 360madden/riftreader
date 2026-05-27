@@ -18,6 +18,7 @@ from typing import Any
 
 DEFAULT_PROOF_PATH = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_PROFILE_PATH = Path("docs") / "recovery" / "coordinate-recovery-profile.json"
+DEFAULT_CURRENT_TRUTH_PATH = Path("docs") / "recovery" / "current-truth.json"
 
 
 def utc_iso() -> str:
@@ -64,6 +65,50 @@ def compact_coordinate(value: Any) -> dict[str, Any] | None:
         "y": first_present(value.get("y"), value.get("Y")),
         "z": first_present(value.get("z"), value.get("Z")),
         "recordedAtUtc": first_present(value.get("recordedAtUtc"), value.get("RecordedAtUtc")),
+    }
+
+
+def summarize_static_resolver(truth: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(truth, dict):
+        return {"promoted": False, "status": None, "source": "current-truth.staticChainStatus"}
+    static_status = truth.get("staticChainStatus") if isinstance(truth.get("staticChainStatus"), dict) else {}
+    best_candidate = truth.get("bestCurrentCandidate") if isinstance(truth.get("bestCurrentCandidate"), dict) else {}
+    primary_candidate = (
+        static_status.get("primaryCandidate") if isinstance(static_status.get("primaryCandidate"), dict) else {}
+    )
+    latest_api_validation = (
+        static_status.get("latestApiNowValidation") if isinstance(static_status.get("latestApiNowValidation"), dict) else {}
+    )
+    promotion_review = static_status.get("promotionReview") if isinstance(static_status.get("promotionReview"), dict) else {}
+    chain = first_present(primary_candidate.get("chain"), best_candidate.get("chain"))
+    root_rva = first_present(primary_candidate.get("rootRva"), best_candidate.get("rootRva"))
+    promotion_allowed = bool(static_status.get("promotionAllowed") or best_candidate.get("promotionEligible"))
+    complete = bool(chain and root_rva)
+    return {
+        "promoted": bool(promotion_allowed and complete),
+        "promotionAllowed": promotion_allowed,
+        "complete": complete,
+        "status": static_status.get("status"),
+        "chain": chain,
+        "rootModule": first_present(primary_candidate.get("rootModule"), best_candidate.get("rootModule")),
+        "rootRva": root_rva,
+        "rootAddress": first_present(primary_candidate.get("rootAddress"), best_candidate.get("rootAddress")),
+        "ownerAddress": first_present(primary_candidate.get("ownerAddress"), best_candidate.get("currentOwnerAddress")),
+        "coordinateAddress": first_present(
+            primary_candidate.get("coordinateAddress"), best_candidate.get("currentCoordinateAddress")
+        ),
+        "apiNowValidationStatus": first_present(latest_api_validation.get("status"), promotion_review.get("status")),
+        "source": "current-truth.staticChainStatus",
+        "doesNotPromote": True,
+    }
+
+
+def truth_target_summary(truth: dict[str, Any] | None) -> dict[str, Any]:
+    target = truth.get("target") if isinstance(truth, dict) and isinstance(truth.get("target"), dict) else {}
+    return {
+        "processName": target.get("processName"),
+        "pid": target.get("processId"),
+        "hwnd": target.get("targetWindowHandle"),
     }
 
 
@@ -198,6 +243,7 @@ def build_status(
     repo_root: Path,
     proof_path: Path,
     profile_path: Path,
+    current_truth_path: Path | None = None,
     *,
     live_target_check: bool = False,
     live_process_snapshot: dict[str, Any] | None = None,
@@ -206,6 +252,8 @@ def build_status(
     warnings: list[str] = []
     proof = load_json(proof_path, blockers, warnings, "current-proof")
     profile = load_json(profile_path, blockers, warnings, "restart-profile")
+    truth = load_json(current_truth_path, blockers, warnings, "current-truth") if current_truth_path else None
+    static_resolver = summarize_static_resolver(truth)
 
     target = {}
     proof_anchor = {}
@@ -262,6 +310,14 @@ def build_status(
         "pid": first_present(target.get("processId"), profile_target.get("pid")),
         "hwnd": first_present(target.get("targetWindowHandle"), profile_target.get("hwnd")),
     }
+    if static_resolver.get("promoted"):
+        resolver_target = truth_target_summary(truth)
+        summary_target = {
+            "processName": first_present(resolver_target.get("processName"), summary_target.get("processName")),
+            "pid": first_present(resolver_target.get("pid"), summary_target.get("pid")),
+            "hwnd": first_present(resolver_target.get("hwnd"), summary_target.get("hwnd")),
+        }
+        warnings.append("proof-anchor-status-superseded-by-promoted-static-resolver")
     live_target = {"enabled": False, "verdict": "not-checked"}
     if live_target_check:
         live_target = evaluate_live_target(summary_target, blockers, warnings, live_process_snapshot)
@@ -278,6 +334,7 @@ def build_status(
         "paths": {
             "currentProofAnchorReadback": str(proof_path),
             "coordinateRecoveryProfile": str(profile_path),
+            "currentTruth": str(current_truth_path) if current_truth_path else None,
         },
         "target": summary_target,
         "liveTarget": live_target,
@@ -320,6 +377,7 @@ def build_status(
             },
             "stageTimings": stage_timings,
         },
+        "staticResolver": static_resolver,
         "safety": {
             "noCheatEngine": True,
             "x64dbgMode": "offline-read-only",
@@ -336,6 +394,7 @@ def render_text(status: dict[str, Any]) -> str:
     proof = status.get("proof") or {}
     anchor = proof.get("anchor") or {}
     profile = status.get("recoveryProfile") or {}
+    static_resolver = status.get("staticResolver") or {}
     best_range = profile.get("bestScanRange") or {}
     target = status.get("target") or {}
     live_target = status.get("liveTarget") or {}
@@ -348,6 +407,7 @@ def render_text(status: dict[str, Any]) -> str:
         f"- Proof: `{proof.get('status')}` / ProofOnly `{proof.get('proofOnlyStatus')}`",
         f"- Anchor: `{anchor.get('addressHex')}` (`{anchor.get('candidateId')}`), support `{anchor.get('supportCount')}`",
         f"- Coordinate: `{proof.get('currentCoordinate')}`",
+        f"- Static resolver: promoted `{static_resolver.get('promoted')}`, chain `{static_resolver.get('chain')}`, root `{static_resolver.get('rootRva')}`",
         f"- Profile provider: `{profile.get('referenceProvider')}`, profileScanUsed `{profile.get('profileScanUsed')}`",
         f"- Best range: rank `{best_range.get('rank')}`, `{best_range.get('minAddressHex')}` -> `{best_range.get('maxAddressHex')}`, hits `{best_range.get('hitCount')}`, seconds `{best_range.get('durationSeconds')}`",
         "",
@@ -384,6 +444,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--proof-path", default=str(DEFAULT_PROOF_PATH))
     parser.add_argument("--profile-path", default=str(DEFAULT_PROFILE_PATH))
+    parser.add_argument("--current-truth-path", default=str(DEFAULT_CURRENT_TRUTH_PATH))
     parser.add_argument(
         "--skip-live-target-check",
         action="store_true",
@@ -398,12 +459,21 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     proof_path = Path(args.proof_path)
     profile_path = Path(args.profile_path)
+    current_truth_path = Path(args.current_truth_path)
     if not proof_path.is_absolute():
         proof_path = (repo_root / proof_path).resolve()
     if not profile_path.is_absolute():
         profile_path = (repo_root / profile_path).resolve()
+    if not current_truth_path.is_absolute():
+        current_truth_path = (repo_root / current_truth_path).resolve()
 
-    status = build_status(repo_root, proof_path, profile_path, live_target_check=not args.skip_live_target_check)
+    status = build_status(
+        repo_root,
+        proof_path,
+        profile_path,
+        current_truth_path,
+        live_target_check=not args.skip_live_target_check,
+    )
     if args.json:
         print(json.dumps(status, indent=2))
     else:

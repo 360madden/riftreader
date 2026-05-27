@@ -1,175 +1,86 @@
-# Current RIFT live truth — PID 12148 route smoke passed, x64dbg detach blocked
+# Current RIFT live truth — static owner chain promotion-review ready, not promoted
 
-Updated UTC: `2026-05-27T07:03:30Z`
-Repo: `C:\RIFT MODDING\RiftReader`
+Updated UTC: `2026-05-27T19:35:09Z`
 
 ## Verdict
 
-The current live target is **PID `12148` / HWND `0x640C0C`**. Current-PID coordinate recovery validated proof-anchor candidate `api-family-hit-000001` at `0x23863A26E50`; post-waypoint `ProofOnly` passed at `2026-05-27T06:36:08.616053+00:00` after a bounded observed-forward route smoke.
+The best current player-coordinate static-chain candidate is:
 
-This is current proof-anchor and route-smoke truth for the live target. It is **not** player actor static-chain truth and does not promote a restart-stable actor resolver.
+`[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
 
-The bounded x64dbg access-provenance lane was approved and attempted after
-no-attach readiness passed, but the `stop-context` attach failed before a debug
-session started. Read-only target recovery then found an existing debug
-object/debug port on PID `12148`. A separately approved
-`DebugActiveProcessStop` recovery attempt then failed with `winerr=5`
-(`Access denied`), so x64dbg provenance remains blocked.
+It is **promotion-review ready** but **not promoted**.
 
 ## Current target
 
 | Field | Value |
 |---|---|
-| Process | `rift_x64` |
-| PID | `12148` |
-| HWND | `0x640C0C` |
-| Process start UTC | `2026-05-27T01:17:01.2653526Z` |
+| Process | `rift_x64.exe` |
+| PID | `34176` |
+| HWND | `0x3D1544` |
+| Process start UTC | `2026-05-27T18:06:53.0701460Z` |
 | Module base | `0x7FF77AF40000` |
-| Proof anchor | `0x23863A26E50` |
-| ProofOnly status | `passed-proof-only` |
-| Latest coordinate | `X=7261.8330078125`, `Y=821.7017822265625`, `Z=3003.057861328125` |
-| Coordinate recorded UTC | `2026-05-27T06:36:07.8790417Z` |
+| Static root | `rift_x64+0x32EBC80` = `0x7FF77E22BC80` |
+| Owner | `0x278C3830010` |
+| Latest chain coordinate | `7259.949707031, 821.437561035, 2990.375732422` |
 
-## Coordinate freshness invariant
+## Final fresh API-now vs chain-now sample
 
-PID/HWND matching is a **targeting preflight only**; it is not coordinate
-freshness proof by itself. Future coordinate-driven work must re-check
-**API-now vs memory-now** with a fresh API/runtime coordinate, immediate memory
-readback, per-axis deltas, tolerance, and an explicit verdict before treating a
-coordinate as current.
+| Source | Coordinate | Artifact |
+|---|---|---|
+| RRAPICOORD API-now | `7259.949700000, 821.440000000, 2990.379900000` | `C:\RIFT MODDING\RiftReader\scripts\captures\rift-api-reference-currentpid-34176-20260527-193250.json` |
+| Static chain-now | `7259.949707031, 821.437561035, 2990.375732422` | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260527-193319-122219\summary.json` |
 
-Latest recorded coordinate snapshot:
-`X=7261.8330078125`, `Y=821.7017822265625`, `Z=3003.057861328125`, recorded at
-`2026-05-27T06:36:07.8790417Z`. This snapshot is evidence for the recorded
-ProofOnly/route-smoke epoch; **do not present this value as current-now** for a
-later capture, route, proof, or recovery decision without a fresh
-API-now vs memory-now check.
+Max absolute axis delta: `0.004167578` within tolerance `0.25`.
 
-## Proof evidence
+## Promotion review packet
 
-| Artifact | Path |
+- `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promotion-review-2026-05-27.md`
+- `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promotion-review-2026-05-27.json`
+
+## Evidence already captured
+
+- Reboot/relogin survival: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-survived-reboot-2026-05-27.md`
+- Dynamic displacement validation: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-displacement-validation-2026-05-27.md`
+- API-now validation: `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-api-now-validation-2026-05-27.md`
+
+## Status-helper readiness
+
+Decision/status helpers are now **static-resolver aware**, but the activation
+gate is still closed because the chain has **not** been promoted.
+
+| Helper | Prepared behavior | Activation gate |
+|---|---|---|
+| `tools\riftreader_workflow\decision_packet.py` | Can treat a promoted static resolver as the current target epoch instead of the stale PID `12148` proof pointer | `staticChainStatus.promotionAllowed=true` after explicit promotion approval |
+| `scripts\coordinate_recovery_status.py` | Can use the current-truth target for live PID checks when a complete static resolver is promoted | `staticChainStatus.promotionAllowed=true` after explicit promotion approval |
+
+Validation added:
+
+- `python -m unittest scripts.test_decision_packet`
+- `python -m unittest scripts.test_coordinate_recovery_status`
+
+This helper wiring **does not promote** the chain.
+
+## Remaining blockers
+
+| Blocker | Meaning |
 |---|---|
-| Current proof pointer | `docs/recovery/current-proof-anchor-readback.json` |
-| Post-waypoint ProofOnly run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\navigation-smoke-currentpid-12148-20260527-0227\post-waypoint-proofonly\live-test-ProofOnly-20260527-063521\run-summary.json` |
-| Proof-anchor readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json` |
-| Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-12148-20260527-060224-849853\api-family-vec3-candidates.jsonl` |
-| Movement validation batch | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json` |
-| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260527-065906.json` |
+| `explicit-promotion-approval-not-given` | Do not silently promote resolver/proof state |
+| `no-static-resolver-promoted` | No approved static resolver has been marked promoted |
+| `decision-status-helpers-static-resolver-aware-but-unpromoted-chain-still-blocks` | Existing gates still correctly block until explicit promotion flips the resolver gate |
 
-## Route/navigation smoke
+## Safety ledger
 
-| Field | Value |
+| Boundary | Status |
 |---|---|
-| Status | `success` |
-| Route type | `observed-forward-no-turn waypoint smoke` |
-| Route file | `scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/smoke-test-waypoints-2m-observed-forward.json` |
-| Run summary | `scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/navigate-waypoints-run-summary.json` |
-| Movement backend | `native-window-message` |
-| ForwardSeries3x250 result | `passed`, `3/3` pulses, planar `5.024164820532755` m |
-| Initial route distance | `1.999999999999778` m |
-| Final route distance | `0.32886291685124763` m |
-| Pulse count | `1` |
-| Stop reason | `arrived` |
-| Visual frame change | ForwardSeries `35.5972%`; route smoke `27.9722%` |
-| Post-smoke ProofOnly | `passed-proof-only`, no movement sent |
+| Movement/input in latest sample | None |
+| Cheat Engine | Not used |
+| x64dbg attach | Not used |
+| DebugActiveProcessStop | Not called |
+| Provider writes | None |
+| Proof promotion | Not done |
+| Actor/static-chain promotion | Not done |
+| Git mutation | Not done |
 
-## Movement gate
+## Next recommended action
 
-| Field | Value |
-|---|---|
-| Gate | `allowed-current-target-proofonly-passed-route-smoke-passed` |
-| Movement allowed by proof pointer | `true` |
-| ForwardSeries movement sent | `true` |
-| Waypoint smoke movement sent | `true` |
-| Movement sent by post-smoke ProofOnly | `false` |
-| Cheat Engine | `not used` |
-| x64dbg/debugger attach | `attempted stop-context; failed before debug session` |
-| SavedVariables live truth | `not used` |
-
-Any new live movement still requires exact PID/HWND preflight and the normal live-input gate. The passed proof anchor and route smoke mean current-coordinate navigation is green for this process epoch only.
-
-## Actor/static-chain status
-
-| Item | Status |
-|---|---|
-| Actor static-chain resolver | `not promoted` |
-| Static owner chain | `not restart-validated` |
-| Current candidate role | `proof-anchor coordinate candidate only` |
-| Navigation/route smoke after refresh | `passed` |
-| x64dbg no-attach readiness | `passed` |
-| x64dbg stop-context attach | `failed-before-debug-session` |
-| Debug object/debug port | `present on PID 12148` |
-| DebugActiveProcessStop | `failed`, `winerr=5` |
-
-## x64dbg attach evidence
-
-| Evidence | Path |
-|---|---|
-| No-attach readiness packet | `scripts/captures/x64dbg-no-attach-readiness-packet-20260527-065241-005785/summary.json` |
-| Attach environment probe | `scripts/captures/x64dbg-attach-environment-probe-20260527-065315-816903/summary.json` |
-| Stop-context attempt summary | `scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json` |
-| Target recovery/debug-state summary | `scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json` |
-| DebugActiveProcessStop attempt | `scripts/captures/x64dbg-target-recovery-20260527-070222-981745/summary.json` |
-| Post-stop target recovery | `scripts/captures/x64dbg-target-recovery-20260527-070256-151533/summary.json` |
-
-Stop-context result:
-
-- Attach command variants were rejected before debug session start:
-  - `attach 0x2f74`
-  - `attach 2f74`
-  - `AttachDebugger 2f74`
-- No breakpoint/watchpoint was set.
-- No target memory was written.
-- No game input or movement was sent.
-- Post-attempt preflight still passed for PID `12148` / HWND `0x640C0C`.
-- Read-only recovery reported `processDebugPort=0xFFFFFFFFFFFFFFFF`,
-  `processDebugFlags=0`, `processDebugObjectHandle=0x250`, and
-  `debuggerLikelyAttached=true`.
-- The subsequent `DebugActiveProcessStop` attempt failed with `winerr=5`; the
-  target stayed visible/responding and post-stop recovery still reported an
-  existing debug object/debug port.
-
-Current blockers:
-
-- `actor-static-chain-not-promoted`
-- `blocked-no-debugger-access-provenance`
-- `x64dbg-attach-blocked-existing-debug-object`
-- `debugactiveprocessstop-access-denied-winerr-5`
-- `no-static-resolver-promoted`
-- `not-restart-validated-for-static-actor-chain`
-
-## Historical superseded target
-
-PID `28248` / HWND `0x2302BC` is historical-only and was superseded by the PID `12148` proof/route-smoke pass.
-
-| Historical artifact | Path |
-|---|---|
-| Historical proof pointer | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json` |
-| Historical current-truth JSON | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json` |
-| Historical current-truth Markdown | `C:\RIFT MODDING\RiftReader\docs\recovery\historical\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.md` |
-
-## Safety ledger for latest update
-
-| Operation | Used? |
-|---|---:|
-| Fresh exact-target ProofOnly before movement | Yes |
-| ForwardSeries3x250 observed-forward movement | Yes, bounded `3 x 250 ms` |
-| 2m observed-forward waypoint smoke | Yes, arrived in `1` pulse |
-| Post-waypoint ProofOnly | Yes, no movement sent |
-| Current-truth doc/data update | Yes |
-| Cheat Engine | No |
-| x64dbg/debugger attach | Attempted, blocked before debug session |
-| DebugActiveProcessStop | Attempted once, failed with `winerr=5` |
-| Breakpoints/watchpoints | No |
-| Memory writes | No |
-| Provider writes | No |
-| Git push | No |
-
-## Required next step
-
-Route smoke is green. Keep the proof-anchor gate fresh before any further live
-movement. Actor/static-chain recovery remains separate and is currently blocked
-at x64dbg attach by the existing debug object/debug port plus
-`DebugActiveProcessStop` access denial. Do not loop the same attach/detach path;
-continue no-debug actor/static evidence work unless a new live-debug tactic is
-explicitly approved.
+If explicitly approved, promote `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` as the static player-coordinate resolver. Decision/status helpers are now prepared to stop treating stale PID `12148` proof as the active target **only after** `staticChainStatus.promotionAllowed=true` is set by that approved promotion.
