@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T06:15:00Z",
-  "status": "current_pid_12148_proofonly_passed_static_actor_chain_not_promoted",
+  "updatedAtUtc": "2026-05-27T06:38:00Z",
+  "status": "current_pid_12148_route_smoke_passed_static_actor_chain_not_promoted",
   "target": {
     "processName": "rift_x64",
     "processId": 12148,
@@ -14,27 +14,27 @@
     "live": true,
     "inWorld": true,
     "status": "current-target-proofonly-passed",
-    "lastVerifiedUtc": "2026-05-27T06:11:53Z",
-    "verificationSource": "ProofOnly passed for exact PID/HWND after current-PID multi-pose coordinate recovery."
+    "lastVerifiedUtc": "2026-05-27T06:36:08Z",
+    "verificationSource": "Post-waypoint ProofOnly passed after exact-target ForwardSeries3x250 and 2m observed-forward route smoke."
   },
   "liveReferenceSurface": {
     "authoritative": true,
-    "status": "current-target-proofonly-passed",
+    "status": "current-target-proofonly-passed-route-smoke-passed",
     "source": "ChromaLink API-now reference plus current-PID memory readback and same-target ProofOnly",
-    "view": "Live in-world PID 12148 / HWND 0x640C0C has a current proof-anchor pointer and ProofOnly pass. Actor static-chain truth remains unpromoted.",
+    "view": "Live in-world PID 12148 / HWND 0x640C0C has a current proof-anchor pointer, post-waypoint ProofOnly pass, and a bounded 2m observed-forward waypoint smoke pass. Actor static-chain truth remains unpromoted.",
     "savedVariablesUse": "none",
     "currentCoordinate": {
-      "x": 7260.705078125,
-      "y": 821.42822265625,
-      "z": 2996.458251953125,
-      "recordedAtUtc": "2026-05-27T06:11:30.5486225Z"
+      "x": 7261.8330078125,
+      "y": 821.7017822265625,
+      "z": 3003.057861328125,
+      "recordedAtUtc": "2026-05-27T06:36:07.8790417Z"
     },
     "latestProofOnlyStatus": "passed-proof-only",
-    "latestProofOnlyGeneratedAtUtc": "2026-05-27T06:11:31.291671+00:00",
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proofonly-currentpid-12148-20260527-0208\\live-test-ProofOnly-20260527-061052\\run-summary.json",
-    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-021125.json",
+    "latestProofOnlyGeneratedAtUtc": "2026-05-27T06:36:08.616053+00:00",
+    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-12148-20260527-0227\\post-waypoint-proofonly\\live-test-ProofOnly-20260527-063521\\run-summary.json",
+    "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
     "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-061154.json",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
     "noCheatEngine": true,
     "movementSentByLatestProofOnly": false,
     "movementSentByRecovery": true,
@@ -42,38 +42,46 @@
     "notes": [
       "PID 12148 / HWND 0x640C0C replaced the stale PID 28248 proof epoch after fresh recovery.",
       "Same-address multi-pose evidence validated api-family-hit-000001 at 0x23863A26E50 before ProofOnly.",
-      "SavedVariables files were not used as live truth."
+      "SavedVariables files were not used as live truth.",
+      "ForwardSeries3x250 passed with 3/3 exact-target W pulses and 5.024164820532755m planar displacement.",
+      "A 2m observed-forward waypoint smoke passed: Status=success, StopReason=arrived, PulseCount=1, FinalPlanarDistance=0.32886291685124763m.",
+      "Post-waypoint ProofOnly passed with no movement and no CE after the route smoke."
     ]
   },
   "movementGate": {
     "allowed": true,
-    "status": "allowed-current-target-proofonly-passed",
+    "status": "allowed-current-target-proofonly-passed-route-smoke-passed",
     "proofArtifact": "docs/recovery/current-proof-anchor-readback.json",
-    "reason": "Current PID 12148 / HWND 0x640C0C has same-target ProofOnly passed with no CE and no movement during ProofOnly. New movement actions still require exact-target preflight and explicit live-input gate handling.",
+    "reason": "Current PID 12148 / HWND 0x640C0C has same-target post-waypoint ProofOnly passed after a bounded observed-forward route smoke. New movement actions still require exact-target preflight and explicit live-input gate handling.",
     "movementSentByCurrentPass": false,
     "movementSentByRecovery": true,
     "staticPlayerActorChainPromoted": false,
-    "newMovementStillRequiresPreflightAndApproval": true
+    "newMovementStillRequiresPreflightAndApproval": true,
+    "latestRouteSmokePassed": true,
+    "latestRouteSmokeSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/navigate-waypoints-run-summary.json",
+    "latestRouteSmokeStopReason": "arrived",
+    "latestRouteSmokeFinalPlanarDistance": 0.32886291685124763,
+    "latestRouteSmokePulseCount": 1
   },
   "bestCurrentCandidate": {
     "candidateId": "api-family-hit-000001",
     "addressHex": "0x23863A26E50",
     "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-12148-20260527-060224-849853\\api-family-vec3-candidates.jsonl",
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-021125.json",
-    "status": "proof-anchor-current-target-proofonly-passed",
+    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
+    "status": "proof-anchor-current-target-proofonly-passed-route-smoke-passed",
     "classification": "direct-current-coordinate-proof-anchor",
     "axisOrder": "xyz",
     "directMaxAbsDelta": 0.007741699218740905,
     "stableOffset": null,
     "memoryValue": {
-      "x": 7260.705078125,
-      "y": 821.42822265625,
-      "z": 2996.458251953125
+      "x": 7261.8330078125,
+      "y": 821.7017822265625,
+      "z": 3003.057861328125
     },
     "reference": {
-      "x": 7260.705078125,
-      "y": 821.42822265625,
-      "z": 2996.458251953125
+      "x": 7261.8330078125,
+      "y": 821.7017822265625,
+      "z": 3003.057861328125
     },
     "truthReadiness": "current_target_proofonly_passed_for_proof_anchor",
     "ownerBase": null,
@@ -91,27 +99,26 @@
     "blockers": [
       "actor-static-chain-not-promoted",
       "no-static-resolver-promoted",
-      "not-restart-validated-for-static-actor-chain",
-      "route-navigation-smoke-not-run-after-current-proof-refresh"
+      "not-restart-validated-for-static-actor-chain"
     ],
     "reusePolicy": "Proof-anchor candidate must not be promoted as actor static chain without separate owner/static resolver evidence."
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
     "status": "current-target-proofonly-passed",
-    "lastUpdatedUtc": "2026-05-27T06:11:31.303685+00:00",
+    "lastUpdatedUtc": "2026-05-27T06:36:08.644691+00:00",
     "latestValidationStatus": "valid",
     "latestProofOnlyStatus": "passed-proof-only",
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proofonly-currentpid-12148-20260527-0208\\live-test-ProofOnly-20260527-061052\\run-summary.json",
+    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-12148-20260527-0227\\post-waypoint-proofonly\\live-test-ProofOnly-20260527-063521\\run-summary.json",
     "movementAllowed": true,
     "movementSent": false,
     "movementAttempted": false,
     "noCheatEngine": true,
     "candidateId": "api-family-hit-000001",
     "candidateAddressHex": "0x23863A26E50",
-    "proofSupportCount": 3,
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-021125.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-061154.json",
+    "proofSupportCount": 6,
+    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json"
   },
   "staleOrInvalid": [
@@ -129,21 +136,61 @@
   "currentBlockers": [
     "actor-static-chain-not-promoted",
     "no-static-resolver-promoted",
-    "not-restart-validated-for-static-actor-chain",
-    "route-navigation-smoke-not-run-after-current-proof-refresh"
+    "not-restart-validated-for-static-actor-chain"
   ],
   "canonicalArtifacts": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
-    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proofonly-currentpid-12148-20260527-0208\\live-test-ProofOnly-20260527-061052\\run-summary.json",
-    "proofAnchorReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-021125.json",
+    "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-12148-20260527-0227\\post-waypoint-proofonly\\live-test-ProofOnly-20260527-063521\\run-summary.json",
+    "proofAnchorReadbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
     "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
     "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-12148-20260527-060224-849853\\api-family-vec3-candidates.jsonl",
     "movementValidationBatchSummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json",
     "fastRecoverySummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-061154.json",
-    "latestHandoff": "docs/handoffs/2026-05-27-0158-currentpid-12148-candidate-reconfirmed-movement-gate.md",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
+    "latestHandoff": "docs/handoffs/2026-05-27-0238-currentpid-12148-route-smoke-passed.md",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
-    "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json"
+    "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json",
+    "preNavigationProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
+    "forwardSeriesRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/forward-series/live-test-ForwardSeries3x250-20260527-062854/run-summary.json",
+    "postSeriesProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-series-proofonly/live-test-ProofOnly-20260527-063304/run-summary.json",
+    "navigationSmokeRoute": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/smoke-test-waypoints-2m-observed-forward.json",
+    "navigationSmokeRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/navigate-waypoints-run-summary.json",
+    "postWaypointProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-waypoint-proofonly/live-test-ProofOnly-20260527-063521/run-summary.json"
   },
-  "nextRecommendedAction": "Keep current proof-anchor gate green; if continuing live work, run exact-target preflight before any movement and keep actor static-chain recovery separate."
+  "nextRecommendedAction": "Route smoke is green. Keep current proof-anchor gate fresh for any further live movement; actor/static-chain truth remains separate and still requires new static evidence or a separately approved debugger access-provenance step.",
+  "navigationSmoke": {
+    "status": "passed",
+    "kind": "observed-forward-no-turn-waypoint-smoke",
+    "approved": true,
+    "processId": 12148,
+    "targetWindowHandle": "0x640C0C",
+    "preProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
+    "forwardSeriesRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/forward-series/live-test-ForwardSeries3x250-20260527-062854/run-summary.json",
+    "postSeriesProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-series-proofonly/live-test-ProofOnly-20260527-063304/run-summary.json",
+    "routeFile": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/smoke-test-waypoints-2m-observed-forward.json",
+    "routeSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/navigate-waypoints-run-summary.json",
+    "postWaypointProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-waypoint-proofonly/live-test-ProofOnly-20260527-063521/run-summary.json",
+    "movementBackend": "native-window-message",
+    "forwardSeriesPlanarDistance": 5.024164820532755,
+    "routeInitialPlanarDistance": 1.999999999999778,
+    "routeFinalPlanarDistance": 0.32886291685124763,
+    "pulseCount": 1,
+    "stopReason": "arrived",
+    "visualFrameChange": {
+      "forwardSeriesChanged": true,
+      "forwardSeriesChangePercent": 35.5972,
+      "beforeForwardSeriesScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-022845-818.png",
+      "afterForwardSeriesScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-023255-316.png",
+      "routeChanged": true,
+      "routeChangePercent": 27.9722,
+      "beforeRouteScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-023441-879.png",
+      "afterRouteScreenshot": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-023508-924.png"
+    },
+    "safety": {
+      "noCheatEngine": true,
+      "savedVariablesUsedAsLiveTruth": false,
+      "providerWrites": false,
+      "exactTarget": true
+    }
+  }
 }
