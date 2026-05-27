@@ -103,6 +103,38 @@ def summarize_exhaustion(path: str, document: Mapping[str, Any]) -> dict[str, An
     }
 
 
+def summarize_static_resolver(truth: Mapping[str, Any]) -> dict[str, Any]:
+    static_status = safe_mapping(truth.get("staticChainStatus"))
+    primary = safe_mapping(static_status.get("primaryCandidate"))
+    latest_api = safe_mapping(static_status.get("latestApiNowValidation"))
+    latest_api_refresh = safe_mapping(static_status.get("latestFreshApiSourceRefreshAttempt"))
+    latest_extended = safe_mapping(static_status.get("latestExtendedStaticRootDiscovery"))
+    chain = primary.get("chain")
+    root_rva = primary.get("rootRva")
+    owner_address = primary.get("ownerAddress")
+    coordinate_address = primary.get("coordinateAddress")
+    complete = bool(chain and root_rva and owner_address and coordinate_address)
+    promoted = bool(complete and static_status.get("promotionAllowed"))
+    return {
+        "status": static_status.get("status"),
+        "complete": complete,
+        "promoted": promoted,
+        "promotionAllowed": bool(static_status.get("promotionAllowed")),
+        "chain": chain,
+        "rootModule": primary.get("rootModule"),
+        "rootRva": root_rva,
+        "rootAddress": primary.get("rootAddress"),
+        "ownerAddress": owner_address,
+        "coordinateAddress": coordinate_address,
+        "restartValidated": bool(primary.get("restartRelogSurvived")),
+        "latestApiNowValidationStatus": latest_api.get("status"),
+        "latestFreshApiSourceRefreshStatus": latest_api_refresh.get("status"),
+        "latestExtendedRootDiscoveryStatus": latest_extended.get("status"),
+        "candidateOnly": not promoted,
+        "promotionEligible": False,
+    }
+
+
 def display_artifact_path(path: str) -> str:
     artifact_path = Path(path)
     if artifact_path.name.lower() == "summary.json" and artifact_path.parent.name:
@@ -166,23 +198,32 @@ def build_summary_from_documents(
     total_rift_hits = sum(item["riftModuleHitCount"] for item in scan_summaries)
     current_proof = proof_doc.get("status") == "current-target-proofonly-passed"
     candidate_passed = readback_doc.get("status") == "passed" and bool(best_readback)
-    static_resolver = bool(safe_mapping(truth.get("staticChainStatus")).get("promotedResolver") or safe_mapping(truth.get("staticChainStatus")).get("currentPlayerActorChain"))
-    no_debug_roots_exhausted = bool(scan_summaries) and total_module_hits == 0 and total_rift_hits == 0
-    promotion_allowed = bool(current_proof and candidate_passed and static_resolver)
+    static_resolver = summarize_static_resolver(truth)
+    static_resolver_found = bool(static_resolver.get("complete"))
+    static_resolver_promoted = bool(static_resolver.get("promoted"))
+    no_debug_roots_exhausted = bool(scan_summaries) and total_module_hits == 0 and total_rift_hits == 0 and not static_resolver_found
+    promotion_allowed = bool(current_proof and candidate_passed and static_resolver_promoted)
     blockers: list[str] = []
     if missing_artifacts:
         blockers.extend(f"artifact-missing:{path}" for path in missing_artifacts)
     if not current_proof:
         blockers.append("current-proof-anchor-not-passed")
-    if not candidate_passed:
+    if not candidate_passed and not static_resolver_found:
         blockers.append("actor-candidate-readback-not-passed")
-    if not static_resolver:
+    if static_resolver_found and not static_resolver_promoted:
+        blockers.append("static-resolver-candidate-not-promoted")
+    if not static_resolver_found:
         blockers.append("no-static-resolver-promoted")
     if no_debug_roots_exhausted:
         blockers.append("no-debug-root-lanes-exhausted")
     if "blocked-no-debugger-access-provenance" in list(safe_mapping(truth.get("staticChainStatus")).get("blockers") or []):
         blockers.append("blocked-no-debugger-access-provenance")
-    verdict = "promoted-static-chain-ready" if promotion_allowed else "candidate-only-no-debug-root-blocked"
+    if promotion_allowed:
+        verdict = "promoted-static-chain-ready"
+    elif static_resolver_found:
+        verdict = "static-resolver-candidate-found-not-promoted"
+    else:
+        verdict = "candidate-only-no-debug-root-blocked"
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "actor-chain-no-debug-status",
@@ -212,6 +253,7 @@ def build_summary_from_documents(
             "ownerFamilyCount": family_counts.get("ownerFamilyCount"),
             "priorityParentLeadCount": family_counts.get("priorityParentLeadCount"),
         },
+        "staticResolver": static_resolver,
         "noDebugRootSearch": {
             "pointerScans": scan_summaries,
             "exhaustionReports": exhaustion_summaries,
@@ -222,9 +264,10 @@ def build_summary_from_documents(
         "promotionGates": {
             "currentProofAnchorPassed": current_proof,
             "actorCandidateReadbackPassed": candidate_passed,
+            "staticResolverCandidateFound": static_resolver_found,
             "accessProvenancePresent": False,
-            "staticResolverPromoted": static_resolver,
-            "restartValidated": False,
+            "staticResolverPromoted": static_resolver_promoted,
+            "restartValidated": bool(static_resolver.get("restartValidated")),
             "promotionAllowed": promotion_allowed,
         },
         "blockers": sorted(set(blockers)),
@@ -242,7 +285,11 @@ def build_summary_from_documents(
             "gitMutation": False,
         },
         "next": {
-            "recommendedAction": "Keep the actor chain candidate-only; broaden only with new static evidence, or request explicit approval for one bounded debugger access-provenance step."
+            "recommendedAction": (
+                "Static resolver candidate exists; restore a fresh API/reference source and rerun API-now vs static-chain-now before promotion review."
+                if static_resolver_found and not static_resolver_promoted
+                else "Keep the actor chain candidate-only; broaden only with new static evidence, or request explicit approval for one bounded debugger access-provenance step."
+            )
         },
     }
 
@@ -316,6 +363,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
 def build_markdown(summary: Mapping[str, Any]) -> str:
     candidate = safe_mapping(summary.get("actorCandidate"))
     gates = safe_mapping(summary.get("promotionGates"))
+    static_resolver = safe_mapping(summary.get("staticResolver"))
     root = safe_mapping(summary.get("noDebugRootSearch"))
     lines = [
         "# Actor-chain no-debug status",
@@ -325,13 +373,15 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         f"- Candidate: `{candidate.get('candidateId')}` / `{candidate.get('addressHex')}`",
         f"- Candidate classification: `{candidate.get('classification')}`",
         f"- Offset-corrected max abs delta: `{candidate.get('offsetCorrectedMaxAbsDelta')}`",
+        f"- Static resolver: `{static_resolver.get('chain')}`",
+        f"- Static resolver status: `{static_resolver.get('status')}`",
         "",
         "## Promotion gates",
         "",
         "| Gate | Value |",
         "|---|---:|",
     ]
-    for key in ("currentProofAnchorPassed", "actorCandidateReadbackPassed", "accessProvenancePresent", "staticResolverPromoted", "restartValidated", "promotionAllowed"):
+    for key in ("currentProofAnchorPassed", "actorCandidateReadbackPassed", "staticResolverCandidateFound", "accessProvenancePresent", "staticResolverPromoted", "restartValidated", "promotionAllowed"):
         lines.append(f"| `{key}` | `{str(gates.get(key)).lower()}` |")
     lines.extend([
         "",

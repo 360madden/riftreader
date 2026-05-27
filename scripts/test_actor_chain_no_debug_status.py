@@ -60,6 +60,55 @@ class ActorChainNoDebugStatusTests(unittest.TestCase):
         self.assertIn("no-static-resolver-promoted", summary["blockers"])
         self.assertIn("no-debug-root-lanes-exhausted", summary["blockers"])
 
+    def test_build_summary_recognizes_static_resolver_candidate_without_promotion(self) -> None:
+        summary = build_summary_from_documents(
+            repo_root=Path("."),
+            truth={
+                "target": {"processName": "rift_x64", "processId": 34176, "targetWindowHandle": "0x3D1544"},
+                "staticChainStatus": {
+                    "status": "promotion-review-ready-not-promoted",
+                    "promotionAllowed": False,
+                    "primaryCandidate": {
+                        "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                        "rootModule": "rift_x64.exe",
+                        "rootRva": "0x32EBC80",
+                        "rootAddress": "0x7FF77E22BC80",
+                        "ownerAddress": "0x278C3830010",
+                        "coordinateAddress": "0x278C3830330",
+                        "restartRelogSurvived": True,
+                    },
+                    "latestApiNowValidation": {"status": "passed"},
+                    "latestFreshApiSourceRefreshAttempt": {"status": "blocked"},
+                    "latestExtendedStaticRootDiscovery": {"status": "passed-candidate-only-not-promoted"},
+                },
+            },
+            proof={"status": "current-target-proofonly-passed", "riftscanCandidateSource": {"sourceAbsoluteAddressHex": "0x1"}},
+            candidate_readback=None,
+            root_sweep=None,
+            root_family=None,
+            pointer_scans=[
+                (
+                    "scan.json",
+                    {
+                        "status": "passed",
+                        "counts": {"scannedTargetCount": 20},
+                        "rankedTargets": [{"hitCount": 20, "moduleHitCount": 1, "riftModuleHitCount": 1}],
+                    },
+                )
+            ],
+            exhaustion_reports=[],
+            missing_artifacts=[],
+        )
+
+        self.assertEqual(summary["verdict"], "static-resolver-candidate-found-not-promoted")
+        self.assertTrue(summary["promotionGates"]["staticResolverCandidateFound"])
+        self.assertFalse(summary["promotionGates"]["staticResolverPromoted"])
+        self.assertTrue(summary["promotionGates"]["restartValidated"])
+        self.assertEqual(summary["staticResolver"]["rootRva"], "0x32EBC80")
+        self.assertIn("static-resolver-candidate-not-promoted", summary["blockers"])
+        self.assertNotIn("actor-candidate-readback-not-passed", summary["blockers"])
+        self.assertIn("restore a fresh API/reference source", summary["next"]["recommendedAction"])
+
     def test_build_markdown_includes_scan_context_and_next_action(self) -> None:
         markdown = build_markdown(
             {

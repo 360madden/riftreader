@@ -398,6 +398,27 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("target-epoch-pid-drift", result["blockers"])
         self.assertFalse(result["staticResolver"]["promoted"])
 
+    def test_unpromoted_static_resolver_routes_to_actor_chain_lane_despite_stale_proof(self) -> None:
+        truth_summary = {
+            "actorChain": {
+                "status": "blocked",
+                "staticResolver": {
+                    "complete": True,
+                    "promoted": False,
+                    "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                },
+            }
+        }
+        target_epoch = {"status": "stale", "blockers": ["target-epoch-pid-drift"]}
+        git_state = {"changedFiles": [], "dirty": False}
+
+        lane = decision_packet.classify_lane(git_state, target_epoch, truth_summary)
+        safe_next = decision_packet.build_safe_next_action(lane, target_epoch, git_state, truth_summary)
+
+        self.assertEqual(lane, "actor-chain")
+        self.assertEqual(safe_next["key"], "actor-chain-no-debug-status")
+        self.assertIn("static owner-coordinate resolver candidate exists", safe_next["why"])
+
     def test_actor_chain_candidate_only_blocks_promotion(self) -> None:
         result = decision_packet.summarize_truth(
             {

@@ -514,6 +514,8 @@ def summarize_truth(
 
 def classify_lane(git_state: dict[str, Any], target_epoch: dict[str, Any], truth_summary: dict[str, Any]) -> str:
     paths = [normalize_path(str(item.get("path") or "")).lower() for item in safe_list(git_state.get("changedFiles"))]
+    actor = safe_mapping(truth_summary.get("actorChain"))
+    static_resolver = safe_mapping(actor.get("staticResolver"))
     if any("package" in path for path in paths):
         return "package"
     if any("mcp" in path or "chatgpt" in path for path in paths):
@@ -522,9 +524,11 @@ def classify_lane(git_state: dict[str, Any], target_epoch: dict[str, Any], truth
         return "actor-chain"
     if paths and all(path.endswith(".md") for path in paths):
         return "docs"
+    if static_resolver.get("complete") and not static_resolver.get("promoted"):
+        return "actor-chain"
     if target_epoch.get("status") == "stale":
         return "proof-recovery"
-    if safe_mapping(truth_summary.get("actorChain")).get("status") in {"candidate-only", "blocked"}:
+    if actor.get("status") in {"candidate-only", "blocked"}:
         return "actor-chain"
     if git_state.get("dirty"):
         return "git"
@@ -804,6 +808,17 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
             "command": ["git", "--no-pager", "diff", "--", *retired_paths],
             "why": "Retired OpenCode surfaces changed; inspect/revert or get explicit reauthorization before validation, staging, or commit.",
         }
+    actor = safe_mapping(truth.get("actorChain"))
+    static_resolver = safe_mapping(actor.get("staticResolver"))
+    if static_resolver.get("complete") and not static_resolver.get("promoted"):
+        return {
+            "key": "actor-chain-no-debug-status",
+            "command": ["python", ".\\scripts\\actor_chain_no_debug_status.py", "--json"],
+            "why": (
+                "A static owner-coordinate resolver candidate exists but is not promoted; continue the no-debug "
+                "static-chain lane instead of falling back to stale proof-anchor recovery."
+            ),
+        }
     if target_epoch.get("status") == "stale":
         return {
             "key": "refresh-coordinate-recovery-status",
@@ -822,7 +837,6 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
             "command": ["git", "--no-pager", "status", "--short", "--branch"],
             "why": "Branch is ahead of origin; report local commits and wait for explicit push approval.",
         }
-    actor = safe_mapping(truth.get("actorChain"))
     if actor.get("status") == "candidate-only":
         return {
             "key": "actor-chain-no-debug-status",
