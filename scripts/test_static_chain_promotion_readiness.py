@@ -245,6 +245,8 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         steps = {step["key"]: step for step in summary["next"]["steps"]}
         self.assertTrue(steps["apply-rrapicoord-addon-settings-repair"]["requiresApproval"])
         self.assertTrue(steps["refresh-live-addon-runtime"]["requiresApproval"])
+        self.assertEqual(steps["refresh-live-addon-runtime"]["knownReloaduiAction"]["slot"], "-")
+        self.assertTrue(steps["refresh-live-addon-runtime"]["knownReloaduiAction"]["requiresExactWindowTarget"])
         self.assertFalse(steps["capture-rrapicoord-reference"]["requiresApproval"])
         self.assertIn("34176", steps["capture-rrapicoord-reference"]["command"])
         self.assertIn("", steps["read-static-chain-now"]["command"])

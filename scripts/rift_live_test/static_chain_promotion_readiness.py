@@ -521,11 +521,17 @@ def build_next_steps(
                 },
                 {
                     "key": "refresh-live-addon-runtime",
-                    "description": "Refresh the live addon runtime after the settings repair, for example by operator-controlled reload/relog.",
-                    "operatorAction": "After explicit approval, refresh the RIFT addon runtime, then return here for read-only capture.",
+                    "description": "Refresh the live addon runtime after the settings repair, for example by exact-window actionbar slot '-' reloadUI, /reloadui, or relog.",
+                    "operatorAction": "After explicit approval, refresh the RIFT addon runtime. Known bounded path: exact-target the current RIFT PID/HWND and press actionbar 1 slot '-' for reloadUI; then return here for read-only capture.",
                     "requiresApproval": True,
                     "approvalReason": "Changes live game/addon runtime state; no command is auto-run by this helper.",
                     "mutatesExternalState": True,
+                    "knownReloaduiAction": {
+                        "actionbar": 1,
+                        "slot": "-",
+                        "requiresExactWindowTarget": True,
+                        "requiresApproval": True,
+                    },
                     "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
                 },
             ]
