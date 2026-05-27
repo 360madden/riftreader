@@ -90,6 +90,25 @@ def promotion_review(*, captured_at: datetime | None = None) -> dict:
     }
 
 
+def chain_readback(*, generated_at: datetime | None = None) -> dict:
+    generated = generated_at or (NOW - timedelta(seconds=5))
+    return {
+        "path": "static-owner-coordinate-chain-readback-fixture/summary.json",
+        "status": "passed",
+        "verdict": "static-module-root-owner-plus-0x320-coordinate-chain-resolved",
+        "generatedAtUtc": generated.isoformat().replace("+00:00", "Z"),
+        "ageSeconds": (NOW - generated).total_seconds(),
+        "currentReadbackPassed": True,
+        "candidate": {"rootRva": "0x32EBC80", "rootAddress": "0x7FF77E22BC80"},
+        "reads": {
+            "ownerAddress": "0x278C3830010",
+            "coordinate": {"x": 7259.98, "y": 821.43, "z": 2990.99},
+        },
+        "blockers": [],
+        "warnings": ["api-now-vs-chain-now-not-refreshed-in-this-helper"],
+    }
+
+
 class StaticChainPromotionReadinessTests(unittest.TestCase):
     def reference_recovery_none(self) -> dict:
         return {"status": "unknown", "pendingSettingsRepairApproval": False, "doesNotPromote": True}
@@ -130,6 +149,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             promotion_review=promotion_review(),
             proof={"target": {"processId": 12148, "targetWindowHandle": "0x640C0C"}, "status": "current-target-proofonly-passed"},
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -147,6 +167,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             promotion_review=promotion_review(),
             proof={"target": {"processId": 12148, "targetWindowHandle": "0x640C0C"}, "status": "current-target-proofonly-passed"},
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -162,6 +183,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -178,6 +200,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(),
             promotion_review=promotion_review(captured_at=NOW - timedelta(seconds=900)),
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -193,6 +216,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -208,6 +232,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
             reference_recovery=self.reference_recovery_pending_repair(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -222,6 +247,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertTrue(steps["refresh-live-addon-runtime"]["requiresApproval"])
         self.assertFalse(steps["capture-rrapicoord-reference"]["requiresApproval"])
         self.assertIn("34176", steps["capture-rrapicoord-reference"]["command"])
+        self.assertIn("", steps["read-static-chain-now"]["command"])
         self.assertEqual(steps["request-static-chain-promotion-approval"]["approvalReason"], "Actor/static-chain promotion is a hard gate.")
 
     def test_no_pending_settings_repair_omits_external_write_step(self) -> None:
@@ -230,6 +256,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
             reference_recovery=self.reference_recovery_none(),
+            chain_readback=chain_readback(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -238,6 +265,26 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertNotIn("apply-rrapicoord-addon-settings-repair", step_keys)
         self.assertIn("capture-rrapicoord-reference", step_keys)
         self.assertIn("request-static-chain-promotion-approval", step_keys)
+
+    def test_missing_chain_readback_blocks_even_when_api_sample_is_fresh(self) -> None:
+        summary = build_summary_from_documents(
+            repo_root=Path("."),
+            truth=base_truth(),
+            promotion_review=promotion_review(),
+            reference_recovery=self.reference_recovery_none(),
+            chain_readback={
+                "status": "missing",
+                "currentReadbackPassed": False,
+                "blockers": ["static-chain-readback-summary-not-found"],
+                "warnings": [],
+            },
+            max_sample_age_seconds=300,
+            now=NOW,
+        )
+
+        self.assertEqual(summary["verdict"], "blocked-static-chain-current-readback")
+        self.assertFalse(summary["promotionGates"]["staticChainCurrentReadbackPassed"])
+        self.assertIn("static-chain-readback-summary-not-found", summary["blockers"])
 
 
 if __name__ == "__main__":

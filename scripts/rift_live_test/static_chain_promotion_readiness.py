@@ -357,11 +357,114 @@ def summarize_reference_recovery_diagnostics(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def summarize_latest_static_chain_readback(
+    *,
+    repo_root: Path,
+    target: Mapping[str, Any],
+    static_resolver: Mapping[str, Any],
+    now: datetime,
+    max_age_seconds: float,
+) -> dict[str, Any]:
+    capture_root = repo_root / "scripts" / "captures"
+    readback_path = latest_file(list(capture_root.glob("static-owner-coordinate-chain-readback-*/summary.json")))
+    if readback_path is None:
+        return {
+            "path": None,
+            "status": "missing",
+            "currentReadbackPassed": False,
+            "blockers": ["static-chain-readback-summary-not-found"],
+            "warnings": [],
+        }
+    try:
+        document = load_json_object(readback_path)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "path": str(readback_path),
+            "status": "read-failed",
+            "currentReadbackPassed": False,
+            "blockers": [f"static-chain-readback-summary-read-failed:{type(exc).__name__}:{exc}"],
+            "warnings": [],
+        }
+    readback_target = safe_mapping(document.get("target"))
+    candidate = safe_mapping(document.get("candidate"))
+    reads = safe_mapping(document.get("reads"))
+    hwnd_check = safe_mapping(readback_target.get("hwndCheck"))
+    generated_at = document.get("generatedAtUtc")
+    age = age_seconds(generated_at, now=now)
+    blockers: list[str] = []
+    blockers.extend(f"static-chain-readback-target-mismatch:{item}" for item in target_mismatches(target, readback_target))
+    if document.get("status") != "passed":
+        blockers.append(f"static-chain-readback-status:{document.get('status')}")
+    if hwnd_check and hwnd_check.get("ownerMatchesExpectedPid") is not True:
+        blockers.append("static-chain-readback-hwnd-owner-mismatch")
+    if not same_text(static_resolver.get("rootRva"), candidate.get("rootRva")):
+        blockers.append("static-chain-readback-root-rva-mismatch")
+    if not same_text(static_resolver.get("rootAddress"), candidate.get("rootAddress")):
+        blockers.append("static-chain-readback-root-address-mismatch")
+    if not same_text(static_resolver.get("ownerAddress"), reads.get("ownerAddress")):
+        blockers.append("static-chain-readback-owner-address-mismatch")
+    if numeric_coordinate(safe_mapping(reads.get("coordinate"))) is None:
+        blockers.append("static-chain-readback-coordinate-missing")
+    if age is None:
+        blockers.append("static-chain-readback-missing-generated-at")
+    elif age < -5:
+        blockers.append(f"static-chain-readback-clock-skew:{age:.3f}")
+    elif age > max_age_seconds:
+        blockers.append(f"static-chain-readback-too-old:{age:.3f}>{max_age_seconds:.3f}")
+    safety = safe_mapping(document.get("safety"))
+    if safety.get("movementSent") is not False:
+        blockers.append("static-chain-readback-movement-sent-not-false")
+    if safety.get("inputSent") is not False:
+        blockers.append("static-chain-readback-input-sent-not-false")
+    if safety.get("noCheatEngine") is not True:
+        blockers.append("static-chain-readback-no-cheat-engine-not-true")
+    if safety.get("proofPromotion") is not False:
+        blockers.append("static-chain-readback-proof-promotion-not-false")
+    if safety.get("actorChainPromotion") is not False:
+        blockers.append("static-chain-readback-actor-chain-promotion-not-false")
+    return {
+        "path": str(readback_path),
+        "status": document.get("status"),
+        "verdict": document.get("verdict"),
+        "classification": document.get("classification"),
+        "generatedAtUtc": generated_at,
+        "ageSeconds": age,
+        "currentReadbackPassed": not blockers,
+        "target": readback_target,
+        "candidate": {
+            "rootModule": candidate.get("rootModule"),
+            "rootRva": candidate.get("rootRva"),
+            "rootAddress": candidate.get("rootAddress"),
+            "chain": candidate.get("chain"),
+            "expectedProofAnchor": candidate.get("expectedProofAnchor"),
+        },
+        "reads": {
+            "ownerAddress": reads.get("ownerAddress"),
+            "ownerVtable": reads.get("ownerVtable"),
+            "ownerVtableRva": reads.get("ownerVtableRva"),
+            "coordinate": numeric_coordinate(safe_mapping(reads.get("coordinate"))),
+        },
+        "blockers": blockers,
+        "warnings": safe_list(document.get("warnings")),
+        "safety": {
+            "movementSent": safety.get("movementSent"),
+            "inputSent": safety.get("inputSent"),
+            "noCheatEngine": safety.get("noCheatEngine"),
+            "targetMemoryBytesRead": safety.get("targetMemoryBytesRead"),
+            "targetMemoryBytesWritten": safety.get("targetMemoryBytesWritten"),
+            "proofPromotion": safety.get("proofPromotion"),
+            "actorChainPromotion": safety.get("actorChainPromotion"),
+        },
+    }
+
+
 def classify_verdict(blockers: Sequence[str], *, approval_required: bool) -> str:
     if any(blocker.startswith("target-mismatch:") for blocker in blockers):
         return "blocked-target-mismatch"
     if "static-resolver-incomplete" in blockers:
         return "blocked-static-resolver-incomplete"
+    if any(blocker.startswith("static-chain-readback-") for blocker in blockers):
+        return "blocked-static-chain-current-readback"
     if "latest-fresh-api-source-refresh-blocked" in blockers:
         return "blocked-fresh-api-reference-unavailable"
     if any("too-old" in blocker or "clock-skew" in blocker for blocker in blockers):
@@ -459,6 +562,8 @@ def build_next_steps(
                     str(target_hwnd),
                     "--module-base",
                     str(module_base),
+                    "--expected-proof-anchor",
+                    "",
                     "--json",
                 ],
                 "requiresApproval": False,
@@ -495,6 +600,7 @@ def build_summary_from_documents(
     proof: Mapping[str, Any] | None = None,
     proof_path: Path | None = None,
     reference_recovery: Mapping[str, Any] | None = None,
+    chain_readback: Mapping[str, Any] | None = None,
     max_sample_age_seconds: float = DEFAULT_MAX_SAMPLE_AGE_SECONDS,
     tolerance: float = DEFAULT_TOLERANCE,
     now: datetime | None = None,
@@ -506,6 +612,17 @@ def build_summary_from_documents(
     review = safe_mapping(promotion_review)
     final_sample = summarize_final_sample(review, now=now, max_sample_age_seconds=max_sample_age_seconds, default_tolerance=tolerance)
     reference_recovery_summary = dict(reference_recovery) if reference_recovery is not None else summarize_reference_recovery_diagnostics(repo_root)
+    chain_readback_summary = (
+        dict(chain_readback)
+        if chain_readback is not None
+        else summarize_latest_static_chain_readback(
+            repo_root=repo_root,
+            target=target,
+            static_resolver=static_resolver,
+            now=now,
+            max_age_seconds=max_sample_age_seconds,
+        )
+    )
     review_target = safe_mapping(review.get("target"))
     blockers: list[str] = []
     warnings: list[str] = []
@@ -529,6 +646,8 @@ def build_summary_from_documents(
         blockers.extend(f"chromalink:{item}" for item in safe_list(latest_refresh.get("chromalinkBlockers")))
     if reference_recovery_summary.get("pendingSettingsRepairApproval"):
         blockers.append("rrapicoord-addon-settings-repair-pending-approval")
+    if not chain_readback_summary.get("currentReadbackPassed"):
+        blockers.extend(str(item) for item in safe_list(chain_readback_summary.get("blockers")))
     blockers.extend(final_sample["blockers"])
     warnings.extend(final_sample["warnings"])
     stale_proof = summarize_stale_proof_pointer(repo_root=repo_root, truth=truth, proof=proof, proof_path=proof_path)
@@ -563,6 +682,7 @@ def build_summary_from_documents(
         "freshnessGate": {
             "latestFreshApiSourceRefreshAttempt": latest_refresh,
             "referenceRecoveryDiagnostics": reference_recovery_summary,
+            "latestStaticChainReadback": chain_readback_summary,
             "finalFreshSample": final_sample,
             "currentEnoughForPromotionReview": not blocking_without_approval,
             "maxSampleAgeSeconds": max_sample_age_seconds,
@@ -571,6 +691,7 @@ def build_summary_from_documents(
         "promotionGates": {
             "staticResolverComplete": bool(static_resolver.get("complete")),
             "restartRelogSurvived": bool(static_resolver.get("restartRelogSurvived")),
+            "staticChainCurrentReadbackPassed": bool(chain_readback_summary.get("currentReadbackPassed")),
             "freshApiNowVsChainNowCurrent": not bool(final_sample["blockers"]) and latest_refresh.get("status") != "blocked",
             "staleProofPointerUsed": False,
             "promotionAllowed": bool(static_resolver.get("promotionAllowed")),
@@ -617,6 +738,7 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     freshness = safe_mapping(summary.get("freshnessGate"))
     final_sample = safe_mapping(freshness.get("finalFreshSample"))
     reference_recovery = safe_mapping(freshness.get("referenceRecoveryDiagnostics"))
+    latest_chain_readback = safe_mapping(freshness.get("latestStaticChainReadback"))
     repair_dry_run = safe_mapping(reference_recovery.get("addonSettingsRepairDryRun"))
     addon_state = safe_mapping(reference_recovery.get("addonStateDiagnostics"))
     comparison = safe_mapping(final_sample.get("comparison"))
@@ -639,6 +761,7 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     for key in (
         "staticResolverComplete",
         "restartRelogSurvived",
+        "staticChainCurrentReadbackPassed",
         "freshApiNowVsChainNowCurrent",
         "staleProofPointerUsed",
         "promotionAllowed",
@@ -656,6 +779,14 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             f"- Max abs delta: `{comparison.get('maxAbsDelta')}`",
             f"- Tolerance: `{comparison.get('tolerance')}`",
             f"- Within tolerance: `{str(comparison.get('withinTolerance')).lower()}`",
+            "",
+            "## Latest static chain-only readback",
+            "",
+            f"- Status: `{latest_chain_readback.get('status')}`",
+            f"- Current readback passed: `{str(latest_chain_readback.get('currentReadbackPassed')).lower()}`",
+            f"- Age seconds: `{latest_chain_readback.get('ageSeconds')}`",
+            f"- Owner: `{safe_mapping(latest_chain_readback.get('reads')).get('ownerAddress')}`",
+            f"- Coordinate: `{safe_mapping(latest_chain_readback.get('reads')).get('coordinate')}`",
             "",
             "## Reference recovery diagnostics",
             "",
