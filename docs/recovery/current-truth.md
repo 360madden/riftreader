@@ -1,6 +1,6 @@
-# Current RIFT live truth — PID 12148 route smoke passed, x64dbg attach blocked
+# Current RIFT live truth — PID 12148 route smoke passed, x64dbg detach blocked
 
-Updated UTC: `2026-05-27T06:56:25Z`
+Updated UTC: `2026-05-27T07:03:30Z`
 Repo: `C:\RIFT MODDING\RiftReader`
 
 ## Verdict
@@ -12,8 +12,9 @@ This is current proof-anchor and route-smoke truth for the live target. It is **
 The bounded x64dbg access-provenance lane was approved and attempted after
 no-attach readiness passed, but the `stop-context` attach failed before a debug
 session started. Read-only target recovery then found an existing debug
-object/debug port on PID `12148`, so x64dbg provenance remains blocked unless a
-separate detach/`DebugActiveProcessStop` decision is approved.
+object/debug port on PID `12148`. A separately approved
+`DebugActiveProcessStop` recovery attempt then failed with `winerr=5`
+(`Access denied`), so x64dbg provenance remains blocked.
 
 ## Current target
 
@@ -83,6 +84,7 @@ Any new live movement still requires exact PID/HWND preflight and the normal liv
 | x64dbg no-attach readiness | `passed` |
 | x64dbg stop-context attach | `failed-before-debug-session` |
 | Debug object/debug port | `present on PID 12148` |
+| DebugActiveProcessStop | `failed`, `winerr=5` |
 
 ## x64dbg attach evidence
 
@@ -92,6 +94,8 @@ Any new live movement still requires exact PID/HWND preflight and the normal liv
 | Attach environment probe | `scripts/captures/x64dbg-attach-environment-probe-20260527-065315-816903/summary.json` |
 | Stop-context attempt summary | `scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json` |
 | Target recovery/debug-state summary | `scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json` |
+| DebugActiveProcessStop attempt | `scripts/captures/x64dbg-target-recovery-20260527-070222-981745/summary.json` |
+| Post-stop target recovery | `scripts/captures/x64dbg-target-recovery-20260527-070256-151533/summary.json` |
 
 Stop-context result:
 
@@ -106,12 +110,16 @@ Stop-context result:
 - Read-only recovery reported `processDebugPort=0xFFFFFFFFFFFFFFFF`,
   `processDebugFlags=0`, `processDebugObjectHandle=0x250`, and
   `debuggerLikelyAttached=true`.
+- The subsequent `DebugActiveProcessStop` attempt failed with `winerr=5`; the
+  target stayed visible/responding and post-stop recovery still reported an
+  existing debug object/debug port.
 
 Current blockers:
 
 - `actor-static-chain-not-promoted`
 - `blocked-no-debugger-access-provenance`
 - `x64dbg-attach-blocked-existing-debug-object`
+- `debugactiveprocessstop-access-denied-winerr-5`
 - `no-static-resolver-promoted`
 - `not-restart-validated-for-static-actor-chain`
 
@@ -136,6 +144,7 @@ PID `28248` / HWND `0x2302BC` is historical-only and was superseded by the PID `
 | Current-truth doc/data update | Yes |
 | Cheat Engine | No |
 | x64dbg/debugger attach | Attempted, blocked before debug session |
+| DebugActiveProcessStop | Attempted once, failed with `winerr=5` |
 | Breakpoints/watchpoints | No |
 | Memory writes | No |
 | Provider writes | No |
@@ -145,6 +154,7 @@ PID `28248` / HWND `0x2302BC` is historical-only and was superseded by the PID `
 
 Route smoke is green. Keep the proof-anchor gate fresh before any further live
 movement. Actor/static-chain recovery remains separate and is currently blocked
-at x64dbg attach by the existing debug object/debug port. Ask before detaching
-that debug object with `DebugActiveProcessStop`; otherwise continue no-debug
-actor/static evidence work.
+at x64dbg attach by the existing debug object/debug port plus
+`DebugActiveProcessStop` access denial. Do not loop the same attach/detach path;
+continue no-debug actor/static evidence work unless a new live-debug tactic is
+explicitly approved.

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T06:56:25Z",
-  "status": "current_pid_12148_route_smoke_passed_x64dbg_attach_blocked_existing_debug_object_static_actor_chain_not_promoted",
+  "updatedAtUtc": "2026-05-27T07:03:30Z",
+  "status": "current_pid_12148_route_smoke_passed_debugactiveprocessstop_access_denied_static_actor_chain_not_promoted",
   "target": {
     "processName": "rift_x64",
     "processId": 12148,
@@ -48,7 +48,10 @@
       "Post-waypoint ProofOnly passed with no movement and no CE after the route smoke.",
       "No-attach x64dbg readiness passed after confirming the normal RiftErrorHandler child process for PID 12148.",
       "A bounded x64dbg stop-context attach attempt failed before a debug session started; no breakpoints/watchpoints, memory writes, or game input occurred.",
-      "Read-only target recovery found an existing debug object/debug port on PID 12148, so x64dbg access provenance remains blocked unless a separate DebugActiveProcessStop/detach decision is approved."
+      "Read-only target recovery found an existing debug object/debug port on PID 12148, so x64dbg access provenance remains blocked unless a separate DebugActiveProcessStop/detach decision is approved.",
+      "DebugActiveProcessStop was attempted once after exact-target gates passed and failed with winerr=5 (access denied).",
+      "Post-attempt preflight and coordinate recovery status still passed; PID 12148 remained visible/responding.",
+      "Existing debug object/debug port still appears present after the failed stop attempt; x64dbg access provenance remains blocked."
     ]
   },
   "movementGate": {
@@ -97,16 +100,17 @@
     "reusePolicy": "Current proof-anchor movement-gate evidence only while PID/HWND/process epoch remain exact; not actor static-chain truth."
   },
   "staticChainStatus": {
-    "status": "blocked-existing-debug-object-no-static-resolver-promoted",
+    "status": "blocked-debugactiveprocessstop-access-denied-no-static-resolver-promoted",
     "promotionAllowed": false,
     "blockers": [
       "actor-static-chain-not-promoted",
       "no-static-resolver-promoted",
       "not-restart-validated-for-static-actor-chain",
       "blocked-no-debugger-access-provenance",
-      "x64dbg-attach-blocked-existing-debug-object"
+      "x64dbg-attach-blocked-existing-debug-object",
+      "debugactiveprocessstop-access-denied-winerr-5"
     ],
-    "reusePolicy": "Proof-anchor candidate must not be promoted as actor static chain. Current x64dbg attach is blocked by an existing debug object/debug port; resolving that requires separate approval and post-action proof checks."
+    "reusePolicy": "Proof-anchor candidate must not be promoted as actor static chain. DebugActiveProcessStop failed with access denied, so x64dbg access provenance remains blocked until a new approved tactic exists."
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
@@ -143,7 +147,8 @@
     "no-static-resolver-promoted",
     "not-restart-validated-for-static-actor-chain",
     "blocked-no-debugger-access-provenance",
-    "x64dbg-attach-blocked-existing-debug-object"
+    "x64dbg-attach-blocked-existing-debug-object",
+    "debugactiveprocessstop-access-denied-winerr-5"
   ],
   "canonicalArtifacts": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
@@ -154,7 +159,7 @@
     "movementValidationBatchSummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json",
     "fastRecoverySummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json",
     "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
-    "latestHandoff": "docs/handoffs/2026-05-27-0258-currentpid-12148-x64dbg-attach-blocked.md",
+    "latestHandoff": "docs/handoffs/2026-05-27-0304-currentpid-12148-debugactiveprocessstop-access-denied.md",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
     "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json",
     "preNavigationProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
@@ -165,9 +170,11 @@
     "postWaypointProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-waypoint-proofonly/live-test-ProofOnly-20260527-063521/run-summary.json",
     "x64dbgNoAttachReadinessSummary": "scripts/captures/x64dbg-no-attach-readiness-packet-20260527-065241-005785/summary.json",
     "x64dbgStopContextAttemptSummary": "scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json",
-    "x64dbgTargetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json"
+    "x64dbgTargetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json",
+    "x64dbgDebugActiveProcessStopAttemptSummary": "scripts/captures/x64dbg-target-recovery-20260527-070222-981745/summary.json",
+    "x64dbgPostStopTargetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-070256-151533/summary.json"
   },
-  "nextRecommendedAction": "Route smoke remains green for PID 12148. Actor/static-chain recovery is blocked at x64dbg attach because the target already has a debug object/debug port. Ask before DebugActiveProcessStop/detaching that debug object, or continue no-debug actor/static evidence work.",
+  "nextRecommendedAction": "Route smoke remains green for PID 12148. x64dbg/static-chain recovery is now blocked by existing debug object plus DebugActiveProcessStop access denied. Do not loop the same detach/attach path; either continue no-debug actor/static evidence work or choose a separately approved new live-debug tactic.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",
@@ -204,7 +211,7 @@
     }
   },
   "x64dbgStatus": {
-    "status": "attach-blocked-existing-debug-object",
+    "status": "debugactiveprocessstop-access-denied-existing-debug-object-still-present",
     "approvedThisSession": true,
     "noAttachReadinessStatus": "passed",
     "readinessStatus": "ready-for-current-turn-approval",
@@ -216,7 +223,7 @@
     "debugState": {
       "processDebugPort": "0xFFFFFFFFFFFFFFFF",
       "processDebugFlags": 0,
-      "processDebugObjectHandle": "0x250",
+      "processDebugObjectHandle": "0x268",
       "processDebugFlagsIndicatesDebugger": true
     },
     "attachDiagnostics": {
@@ -235,8 +242,22 @@
       "targetMemoryWritten": false,
       "cheatEngineUsed": false,
       "providerWrites": false,
-      "proofPromoted": false
+      "proofPromoted": false,
+      "movementSentByDebugActiveProcessStopAttempt": false,
+      "gameInputSentByDebugActiveProcessStopAttempt": false,
+      "breakpointsOrWatchpointsSetByDebugActiveProcessStopAttempt": false,
+      "targetMemoryWrittenByDebugActiveProcessStopAttempt": false
     },
-    "nextGate": "Separate approval required before DebugActiveProcessStop or any operation that detaches the existing debug object/debug port."
+    "nextGate": "Do not retry the same detach/attach sequence. A new tactic such as elevated/owner-debugger investigation, RiftErrorHandler handling, target restart, or no-debug actor/static evidence work requires separate risk review.",
+    "debugActiveProcessStopAttemptSummary": "scripts/captures/x64dbg-target-recovery-20260527-070222-981745/summary.json",
+    "postStopPreflightSummary": "scripts/captures/x64dbg-target-preflight-20260527-070256-088315/summary.json",
+    "postStopTargetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-070256-151533/summary.json",
+    "postStopCoordinateRecoveryStatusUtc": "2026-05-27T07:02:55Z",
+    "debugActiveProcessStop": {
+      "attempted": true,
+      "succeeded": false,
+      "error": "winerr=5",
+      "interpretation": "Access denied; current process did not detach the existing debug object/debug port."
+    }
   }
 }
