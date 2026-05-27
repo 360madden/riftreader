@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T20:04:30Z",
-  "status": "current_pid_34176_static_owner_chain_no_debug_discovery_extended_promotion_review_ready_not_promoted",
+  "updatedAtUtc": "2026-05-27T20:28:54Z",
+  "status": "current_pid_34176_static_owner_chain_extended_root_discovery_promotion_review_ready_not_promoted_api_source_blocked",
   "target": {
     "processName": "rift_x64",
     "processId": 34176,
@@ -187,6 +187,34 @@
         "world-state-navigation-player-position-unavailable"
       ],
       "doesNotPromote": true
+    },
+    "latestExtendedStaticRootDiscovery": {
+      "status": "passed-candidate-only-not-promoted",
+      "handoff": "docs/handoffs/2026-05-27-2029-extended-static-root-readonly-discovery.md",
+      "ownerPointerFamilySummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-202627-130980\\summary.json",
+      "moduleRootNeighborhoodSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-owner-neighborhood-inspector-20260527-202759-882715\\summary.json",
+      "ownerPointerFamily": {
+        "scannedTargetCount": 20,
+        "remainingQueueCount": 1,
+        "ownerHitCount": 20,
+        "moduleHitCount": 1,
+        "riftModuleHitCount": 1,
+        "moduleHitAddress": "0x7FF77E22BC80",
+        "warning": "max-elapsed-seconds-reached:90.0"
+      },
+      "moduleRootNeighborhood": {
+        "rootAddress": "0x7FF77E22BC80",
+        "exactOwnerPointerCount": 1,
+        "coordinateFieldPointerCount": 0,
+        "regionMatchCount": 380,
+        "modulePointerCount": 379,
+        "ownerWindowModulePointerCount": 4,
+        "readWindowBase": "0x7FF77E22B000",
+        "readWindowSizeBytes": 131072
+      },
+      "interpretation": "Static root rift_x64+0x32EBC80 remains the only observed rift_x64.exe module hit to the current owner in the bounded scan; module-root neighborhood contains the direct owner pointer and no direct coordinate-field pointer refs.",
+      "promotionAllowed": false,
+      "doesNotPromote": true
     }
   },
   "latestPointerEvidence": {
@@ -234,7 +262,7 @@
     "movementValidationBatchSummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json",
     "fastRecoverySummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json",
     "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
-    "latestHandoff": "docs/handoffs/2026-05-27-2004-no-debug-static-owner-chain-discovery.md",
+    "latestHandoff": "docs/handoffs/2026-05-27-2029-extended-static-root-readonly-discovery.md",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
     "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json",
     "preNavigationProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
@@ -273,9 +301,12 @@
     "latestOwnerLayoutComparisonPacket": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-layout-comparison-packet-20260527-200911-671622\\summary.json",
     "latestRiftScanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json",
     "latestRrapicoordScanDiagnostics": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rrapicoord-scan-diagnostics-20260527-201612-575793\\summary.json",
-    "latestChromaLinkWorldStateReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-201624-468822\\summary.json"
+    "latestChromaLinkWorldStateReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-201624-468822\\summary.json",
+    "latestStaticRootExtendedDiscoveryHandoff": "docs/handoffs/2026-05-27-2029-extended-static-root-readonly-discovery.md",
+    "latestExtendedStaticOwnerPointerFamilyScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-202627-130980\\summary.json",
+    "latestModuleStaticRootNeighborhoodInspector": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-owner-neighborhood-inspector-20260527-202759-882715\\summary.json"
   },
-  "nextRecommendedAction": "Restore a fresh live API/reference source first: the latest RRAPICOORD scan found no usable marker, and the ChromaLink world-state reference was blocked as not healthy/fresh enough for player position. After the API source is healthy, rerun API-now vs static-chain-now immediately before any promotion review and keep stale PID 12148 proof-family evidence separate from the current static resolver.",
+  "nextRecommendedAction": "Restore a fresh live API/reference source first. The static root rift_x64+0x32EBC80 remains the best no-debug resolver candidate, but RRAPICOORD currently has no usable marker and ChromaLink player position is stale/not proof-grade. After the API source is healthy, rerun API-now vs static-chain-now immediately before any promotion review and keep stale PID 12148 proof-family evidence separate from the current static resolver.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",

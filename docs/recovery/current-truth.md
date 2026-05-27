@@ -1,6 +1,6 @@
 # Current RIFT live truth — static owner chain promotion-review ready, not promoted
 
-Updated UTC: `2026-05-27T20:04:30Z`
+Updated UTC: `2026-05-27T20:28:54Z`
 
 ## Verdict
 
@@ -55,6 +55,8 @@ Max absolute axis delta: `0.004167578` within tolerance `0.25`.
 | Owner-layout comparison packet | `blocked` only on promotion/proof gates; now recognizes the current static owner resolver instead of routing solely through stale PID `12148` proof-family artifacts |
 | RiftScan milestone review | `blocked`; confirms stale PID `12148` proof pointer / no current selected RiftScan candidate for PID `34176` |
 | Fresh API source refresh attempt | `blocked`; RRAPICOORD scan had no usable marker and ChromaLink world-state was not healthy/fresh enough for player position |
+| Extended owner pointer-family scan | `passed`; bounded depth-2 scan found `20` owner refs and exactly `1` `rift_x64.exe` module hit at `0x7FF77E22BC80`; no better upstream static parent emerged |
+| Module static-root neighborhood | `passed`; exactly `1` owner pointer at `0x7FF77E22BC80`, `0` direct coordinate-field pointer refs, `379` module-pointer matches in the bounded module window |
 
 Artifacts:
 
@@ -66,6 +68,9 @@ Artifacts:
 - `C:\RIFT MODDING\RiftReader\scripts\captures\riftscan-milestone-review-20260527-200952.json`
 - `C:\RIFT MODDING\RiftReader\scripts\captures\rrapicoord-scan-diagnostics-20260527-201612-575793\summary.json`
 - `C:\RIFT MODDING\RiftReader\scripts\captures\chromalink-world-state-reference-20260527-201624-468822\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\pointer-family-scan-20260527-202627-130980\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\pointer-owner-neighborhood-inspector-20260527-202759-882715\summary.json`
+- `C:\RIFT MODDING\RiftReader\docs\handoffs\2026-05-27-2029-extended-static-root-readonly-discovery.md`
 
 This extension is candidate evidence only and does **not** promote the chain.
 
