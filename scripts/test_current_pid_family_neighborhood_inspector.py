@@ -10,6 +10,7 @@ from pathlib import Path
 from rift_live_test.current_pid_family_neighborhood_inspector import (
     inspect_neighborhood_bytes,
     known_candidate_addresses,
+    load_candidate_doc,
     load_offset_profiles,
     main,
     synthetic_candidate_doc,
@@ -65,6 +66,47 @@ class CurrentPidFamilyNeighborhoodInspectorTests(unittest.TestCase):
 
         self.assertEqual(known[0x3000]["candidateId"], "family-snapshot-hit-000001")
         self.assertEqual(known[0x3000]["familyBase"], "0x3000")
+
+    def test_load_candidate_doc_wraps_single_family_scan_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "api-family-vec3-candidates.jsonl"
+            path.write_text(
+                json.dumps(
+                    {
+                        "candidate_id": "api-family-hit-000001",
+                        "absolute_address_hex": "0x23863A26E50",
+                        "base_address_hex": "0x23863000000",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            doc = load_candidate_doc(path)
+            known = known_candidate_addresses(doc)
+
+        self.assertEqual(len(doc["candidates"]), 1)
+        self.assertEqual(known[0x23863A26E50]["candidateId"], "api-family-hit-000001")
+        self.assertEqual(known[0x23863A26E50]["familyBase"], "0x23863000000")
+
+    def test_load_candidate_doc_accepts_jsonl_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "api-family-vec3-candidates.jsonl"
+            path.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"candidate_id": "one", "absolute_address_hex": "0x1000"}),
+                        json.dumps({"candidate_id": "two", "absolute_address_hex": "0x2000"}),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            doc = load_candidate_doc(path)
+            known = known_candidate_addresses(doc)
+
+        self.assertEqual(len(doc["candidates"]), 2)
+        self.assertEqual(known[0x1000]["candidateId"], "one")
+        self.assertEqual(known[0x2000]["candidateId"], "two")
 
     def test_inspect_neighborhood_finds_offset_corrected_hits(self) -> None:
         base, data = synthetic_memory()

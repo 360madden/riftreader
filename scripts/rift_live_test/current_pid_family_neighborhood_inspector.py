@@ -50,11 +50,57 @@ def int_hex(value: int | None) -> str | None:
     return f"0x{int(value):X}"
 
 
+def candidate_address(candidate: Mapping[str, Any]) -> int | None:
+    return parse_int(
+        candidate.get("address")
+        or candidate.get("addressHex")
+        or candidate.get("absolute_address_hex")
+        or candidate.get("AbsoluteAddressHex")
+    )
+
+
 def load_json(path: Path) -> Mapping[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, Mapping):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def load_candidate_doc(path: Path) -> Mapping[str, Any]:
+    """Load candidate records from JSON-object, JSON-array, or JSONL artifacts."""
+
+    text = path.read_text(encoding="utf-8")
+    stripped = text.strip()
+    if not stripped:
+        return {"candidates": []}
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        candidates: list[Mapping[str, Any]] = []
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            raw_line = line.strip()
+            if not raw_line:
+                continue
+            try:
+                item = json.loads(raw_line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path} line {line_number} is not valid JSON") from exc
+            if not isinstance(item, Mapping):
+                raise ValueError(f"{path} line {line_number} must contain a JSON object")
+            candidates.append(item)
+        return {"candidates": candidates}
+    if isinstance(data, Mapping):
+        if isinstance(data.get("candidates") or data.get("Candidates"), list):
+            return data
+        if candidate_address(data) is not None:
+            return {"candidates": [data]}
+        return data
+    if isinstance(data, list):
+        candidates = [item for item in data if isinstance(item, Mapping)]
+        if len(candidates) != len(data):
+            raise ValueError(f"{path} candidate list must contain only JSON objects")
+        return {"candidates": candidates}
+    raise ValueError(f"{path} must contain a JSON object, JSON array, or JSONL candidate records")
 
 
 def coordinate_from_mapping(value: Any) -> dict[str, float] | None:
@@ -145,17 +191,16 @@ def known_candidate_addresses(candidate_doc: Mapping[str, Any]) -> dict[int, dic
     for index, candidate in enumerate(raw, start=1):
         if not isinstance(candidate, Mapping):
             continue
-        address = parse_int(
-            candidate.get("address")
-            or candidate.get("addressHex")
-            or candidate.get("absolute_address_hex")
-            or candidate.get("AbsoluteAddressHex")
-        )
+        address = candidate_address(candidate)
         if address is None:
             continue
         result[address] = {
             "candidateId": candidate.get("candidateId") or candidate.get("candidate_id") or f"candidate-{index:03d}",
-            "familyBase": candidate.get("familyBaseHex") or candidate.get("family_base_hex"),
+            "familyBase": (
+                candidate.get("familyBaseHex")
+                or candidate.get("family_base_hex")
+                or candidate.get("base_address_hex")
+            ),
             "rangeLabel": candidate.get("rangeLabel"),
         }
     return result
@@ -408,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
             center_address = parse_int(args.center_address)
             if center_address is None:
                 raise ValueError("--center-address is required unless --self-test is used")
-            candidate_doc = load_json(args.candidate_json)
+            candidate_doc = load_candidate_doc(args.candidate_json)
             readback_doc = load_json(args.readback_summary_json)
             target = verify_hwnd_owner(args.hwnd, int(args.pid))
             if target.get("ownerMatchesExpectedPid") is not True:
