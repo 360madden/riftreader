@@ -167,6 +167,26 @@
       "doesNotPromote": true,
       "ownerLayoutComparisonPacket": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-layout-comparison-packet-20260527-200911-671622\\summary.json",
       "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json"
+    },
+    "latestFreshApiSourceRefreshAttempt": {
+      "status": "blocked",
+      "rrapicoordDiagnostics": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rrapicoord-scan-diagnostics-20260527-201612-575793\\summary.json",
+      "rrapicoordBlockers": [
+        "rrapicoord-no-usable-marker"
+      ],
+      "rrapicoordCounts": {
+        "loadedHitCount": 12,
+        "rrapicoordTextHitCount": 3,
+        "usableMarkerCount": 0
+      },
+      "chromalinkWorldStateReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-201624-468822\\summary.json",
+      "chromalinkBlockers": [
+        "world-state-not-healthy",
+        "world-state-player-position-not-fresh",
+        "world-state-player-position-stale",
+        "world-state-navigation-player-position-unavailable"
+      ],
+      "doesNotPromote": true
     }
   },
   "latestPointerEvidence": {
@@ -251,9 +271,11 @@
     "latestStaticOwnerPointerFamilyScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200236-877935\\summary.json",
     "latestStaticCoordinateFieldPointerFamilyScan": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\pointer-family-scan-20260527-200328-634938\\summary.json",
     "latestOwnerLayoutComparisonPacket": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-layout-comparison-packet-20260527-200911-671622\\summary.json",
-    "latestRiftScanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json"
+    "latestRiftScanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-200952.json",
+    "latestRrapicoordScanDiagnostics": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rrapicoord-scan-diagnostics-20260527-201612-575793\\summary.json",
+    "latestChromaLinkWorldStateReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-201624-468822\\summary.json"
   },
-  "nextRecommendedAction": "If continuing no-debug discovery, rerun fresh API-now vs static-chain-now immediately before any promotion review and keep stale PID 12148 proof-family evidence separate from the current static resolver. If approved separately, promote [rift_x64+0x32EBC80]+0x320/+0x324/+0x328 as the static player-coordinate resolver; decision/status helpers are prepared to use it only after promotionAllowed becomes true.",
+  "nextRecommendedAction": "Restore a fresh live API/reference source first: the latest RRAPICOORD scan found no usable marker, and the ChromaLink world-state reference was blocked as not healthy/fresh enough for player position. After the API source is healthy, rerun API-now vs static-chain-now immediately before any promotion review and keep stale PID 12148 proof-family evidence separate from the current static resolver.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",

@@ -47,6 +47,8 @@ This is still **candidate-only** and **not promoted**.
 | Coordinate-field pointer scan | `passed`; `0` direct pointer hits to `0x278C3830330` | `scripts/captures/pointer-family-scan-20260527-200328-634938/summary.json` |
 | Owner-layout comparison packet | `blocked` only on promotion/proof gates; recognizes current static owner resolver and separates stale PID `12148` proof-family artifacts | `scripts/captures/owner-layout-comparison-packet-20260527-200911-671622/summary.json` |
 | RiftScan milestone review | `blocked`; confirms stale PID `12148` proof pointer and no current selected RiftScan candidate for PID `34176` | `scripts/captures/riftscan-milestone-review-20260527-200952.json` |
+| Fresh RRAPICOORD/API refresh | `blocked`; no usable RRAPICOORD marker in attempt 3 scan; `12` hits, `0` usable markers | `scripts/captures/rrapicoord-scan-diagnostics-20260527-201612-575793/summary.json` |
+| ChromaLink world-state reference | `blocked`; world-state not healthy/fresh enough for player position | `scripts/captures/chromalink-world-state-reference-20260527-201624-468822/summary.json` |
 
 ## Owner layout highlights
 
@@ -69,6 +71,8 @@ This is still **candidate-only** and **not promoted**.
 - no new same-target `ProofOnly` run was performed in this no-input slice
 - RiftScan strategy gate remains blocked for this target because the selected
   proof pointer is still PID `12148`, not current PID `34176`
+- fresh API-now validation cannot be refreshed until RRAPICOORD emits a usable
+  marker again or ChromaLink world-state returns a healthy/fresh player position
 
 ## Helper update in this slice
 
@@ -92,8 +96,8 @@ This is still **candidate-only** and **not promoted**.
 
 ## Next best safe action
 
-If continuing without promotion, rerun fresh API-now vs static-chain-now
-immediately before any promotion review and keep stale PID `12148` proof-family
-evidence separate from the current static resolver. Promotion, live input,
-debugger attach, CE, provider writes, and Git push still require explicit
-approval.
+If continuing without promotion, restore a fresh live API/reference source
+first. Then rerun API-now vs static-chain-now immediately before any promotion
+review and keep stale PID `12148` proof-family evidence separate from the
+current static resolver. Promotion, live input, debugger attach, CE, provider
+writes, and Git push still require explicit approval.
