@@ -43,6 +43,13 @@ def load_json_object(path: Path) -> dict[str, Any]:
     return document
 
 
+def latest_file(paths: list[Path]) -> Path | None:
+    existing = [path for path in paths if path.exists() and path.is_file()]
+    if not existing:
+        return None
+    return max(existing, key=lambda path: (path.stat().st_mtime_ns, str(path)))
+
+
 def resolve_path(repo_root: Path, value: Any) -> Path | None:
     if value in (None, ""):
         return None
@@ -292,6 +299,64 @@ def summarize_stale_proof_pointer(
     }
 
 
+def summarize_reference_recovery_diagnostics(repo_root: Path) -> dict[str, Any]:
+    capture_root = repo_root / "scripts" / "captures"
+    addon_state_path = latest_file(list(capture_root.glob("rrapicoord-addon-state-diagnostics-*/summary.json")))
+    repair_path = latest_file(list(capture_root.glob("rrapicoord-addon-settings-repair-*/summary.json")))
+    addon_state: dict[str, Any] | None = None
+    repair: dict[str, Any] | None = None
+    if addon_state_path:
+        try:
+            addon_state = load_json_object(addon_state_path)
+        except Exception:  # noqa: BLE001
+            addon_state = None
+    if repair_path:
+        try:
+            repair = load_json_object(repair_path)
+        except Exception:  # noqa: BLE001
+            repair = None
+    repair_counts = safe_mapping(repair.get("counts") if repair else None)
+    repairs = [safe_mapping(item) for item in safe_list(repair.get("repairs") if repair else None)]
+    pending_repairs = [item for item in repairs if item.get("changed") is True and item.get("applied") is not True]
+    addon_state_blocked = bool(addon_state and addon_state.get("status") == "blocked")
+    pending_settings_repair_approval = bool(pending_repairs and int(repair_counts.get("appliedCount") or 0) == 0)
+    return {
+        "status": "blocked" if addon_state_blocked or pending_settings_repair_approval else "unknown",
+        "addonStateDiagnostics": {
+            "path": str(addon_state_path) if addon_state_path else None,
+            "status": addon_state.get("status") if addon_state else None,
+            "verdict": addon_state.get("verdict") if addon_state else None,
+            "blockers": safe_list(addon_state.get("blockers") if addon_state else None),
+            "inferredCauses": safe_list(addon_state.get("inferredCauses") if addon_state else None),
+        },
+        "addonSettingsRepairDryRun": {
+            "path": str(repair_path) if repair_path else None,
+            "status": repair.get("status") if repair else None,
+            "verdict": repair.get("verdict") if repair else None,
+            "counts": repair_counts,
+            "pendingRepairs": [
+                {
+                    "path": item.get("path"),
+                    "statusBefore": item.get("statusBefore"),
+                    "action": item.get("action"),
+                    "changed": item.get("changed"),
+                    "applied": item.get("applied"),
+                    "enabledAfter": item.get("enabledAfter"),
+                }
+                for item in pending_repairs
+            ],
+        },
+        "pendingSettingsRepairApproval": pending_settings_repair_approval,
+        "runtimeRefreshRequiredAfterRepair": pending_settings_repair_approval,
+        "doesNotPromote": True,
+        "recommendedAction": (
+            "Approval required: apply the selected AddonSettings repair, refresh the live addon runtime, then rerun RRAPICOORD capture."
+            if pending_settings_repair_approval
+            else "Run RRAPICOORD addon-state diagnostics and AddonSettings repair dry-run before retrying promotion readiness."
+        ),
+    }
+
+
 def classify_verdict(blockers: Sequence[str], *, approval_required: bool) -> str:
     if any(blocker.startswith("target-mismatch:") for blocker in blockers):
         return "blocked-target-mismatch"
@@ -318,6 +383,7 @@ def build_summary_from_documents(
     promotion_review_path: Path | None = None,
     proof: Mapping[str, Any] | None = None,
     proof_path: Path | None = None,
+    reference_recovery: Mapping[str, Any] | None = None,
     max_sample_age_seconds: float = DEFAULT_MAX_SAMPLE_AGE_SECONDS,
     tolerance: float = DEFAULT_TOLERANCE,
     now: datetime | None = None,
@@ -328,6 +394,7 @@ def build_summary_from_documents(
     target = safe_mapping(truth.get("target"))
     review = safe_mapping(promotion_review)
     final_sample = summarize_final_sample(review, now=now, max_sample_age_seconds=max_sample_age_seconds, default_tolerance=tolerance)
+    reference_recovery_summary = dict(reference_recovery) if reference_recovery is not None else summarize_reference_recovery_diagnostics(repo_root)
     review_target = safe_mapping(review.get("target"))
     blockers: list[str] = []
     warnings: list[str] = []
@@ -349,6 +416,8 @@ def build_summary_from_documents(
         blockers.append("latest-fresh-api-source-refresh-blocked")
         blockers.extend(f"rrapicoord:{item}" for item in safe_list(latest_refresh.get("rrapicoordBlockers")))
         blockers.extend(f"chromalink:{item}" for item in safe_list(latest_refresh.get("chromalinkBlockers")))
+    if reference_recovery_summary.get("pendingSettingsRepairApproval"):
+        blockers.append("rrapicoord-addon-settings-repair-pending-approval")
     blockers.extend(final_sample["blockers"])
     warnings.extend(final_sample["warnings"])
     stale_proof = summarize_stale_proof_pointer(repo_root=repo_root, truth=truth, proof=proof, proof_path=proof_path)
@@ -382,6 +451,7 @@ def build_summary_from_documents(
         },
         "freshnessGate": {
             "latestFreshApiSourceRefreshAttempt": latest_refresh,
+            "referenceRecoveryDiagnostics": reference_recovery_summary,
             "finalFreshSample": final_sample,
             "currentEnoughForPromotionReview": not blocking_without_approval,
             "maxSampleAgeSeconds": max_sample_age_seconds,
@@ -419,6 +489,8 @@ def build_summary_from_documents(
             "recommendedAction": (
                 "Ask for explicit promotion approval, then apply the resolver promotion gate."
                 if verdict == "ready-for-explicit-promotion-approval"
+                else str(reference_recovery_summary.get("recommendedAction"))
+                if reference_recovery_summary.get("pendingSettingsRepairApproval")
                 else "Restore a fresh RRAPICOORD or ChromaLink reference, rerun API-now vs static-chain-now, and re-run this readiness gate before any promotion."
                 if status == "blocked"
                 else "Static-chain promotion gates are passed; keep movement gated until the promoted resolver is written and validated."
@@ -432,6 +504,9 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     gates = safe_mapping(summary.get("promotionGates"))
     freshness = safe_mapping(summary.get("freshnessGate"))
     final_sample = safe_mapping(freshness.get("finalFreshSample"))
+    reference_recovery = safe_mapping(freshness.get("referenceRecoveryDiagnostics"))
+    repair_dry_run = safe_mapping(reference_recovery.get("addonSettingsRepairDryRun"))
+    addon_state = safe_mapping(reference_recovery.get("addonStateDiagnostics"))
     comparison = safe_mapping(final_sample.get("comparison"))
     stale_proof = safe_mapping(summary.get("staleProofPointer"))
     lines = [
@@ -469,6 +544,13 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             f"- Max abs delta: `{comparison.get('maxAbsDelta')}`",
             f"- Tolerance: `{comparison.get('tolerance')}`",
             f"- Within tolerance: `{str(comparison.get('withinTolerance')).lower()}`",
+            "",
+            "## Reference recovery diagnostics",
+            "",
+            f"- RRAPICOORD addon state: `{addon_state.get('status')}` / `{addon_state.get('verdict')}`",
+            f"- AddonSettings dry-run: `{repair_dry_run.get('status')}` / `{repair_dry_run.get('verdict')}`",
+            f"- Pending settings repair approval: `{str(reference_recovery.get('pendingSettingsRepairApproval')).lower()}`",
+            f"- Runtime refresh required after repair: `{str(reference_recovery.get('runtimeRefreshRequiredAfterRepair')).lower()}`",
             "",
             "## Stale proof pointer policy",
             "",

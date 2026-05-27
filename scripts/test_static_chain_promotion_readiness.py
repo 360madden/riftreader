@@ -91,12 +91,45 @@ def promotion_review(*, captured_at: datetime | None = None) -> dict:
 
 
 class StaticChainPromotionReadinessTests(unittest.TestCase):
+    def reference_recovery_none(self) -> dict:
+        return {"status": "unknown", "pendingSettingsRepairApproval": False, "doesNotPromote": True}
+
+    def reference_recovery_pending_repair(self) -> dict:
+        return {
+            "status": "blocked",
+            "addonStateDiagnostics": {
+                "status": "blocked",
+                "verdict": "blocked-live-reference-runtime-marker-not-observed",
+                "blockers": ["current-scan-has-no-usable-rrapicoord-live-marker"],
+            },
+            "addonSettingsRepairDryRun": {
+                "status": "passed",
+                "verdict": "addon-settings-repair-dry-run",
+                "counts": {"repairCount": 1, "changedCount": 1, "appliedCount": 0, "enabledAfterCount": 1},
+                "pendingRepairs": [
+                    {
+                        "path": r"C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\Saved\rift315.2@gmail.com\AddonSettings.lua",
+                        "statusBefore": "missing",
+                        "action": "inserted:missing->enabled",
+                        "changed": True,
+                        "applied": False,
+                        "enabledAfter": True,
+                    }
+                ],
+            },
+            "pendingSettingsRepairApproval": True,
+            "runtimeRefreshRequiredAfterRepair": True,
+            "doesNotPromote": True,
+            "recommendedAction": "Approval required: apply the selected AddonSettings repair, refresh the live addon runtime, then rerun RRAPICOORD capture.",
+        }
+
     def test_ready_fresh_review_still_requires_explicit_approval(self) -> None:
         summary = build_summary_from_documents(
             repo_root=Path("."),
             truth=base_truth(),
             promotion_review=promotion_review(),
             proof={"target": {"processId": 12148, "targetWindowHandle": "0x640C0C"}, "status": "current-target-proofonly-passed"},
+            reference_recovery=self.reference_recovery_none(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -113,6 +146,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             truth=base_truth(promotion_allowed=True),
             promotion_review=promotion_review(),
             proof={"target": {"processId": 12148, "targetWindowHandle": "0x640C0C"}, "status": "current-target-proofonly-passed"},
+            reference_recovery=self.reference_recovery_none(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -127,6 +161,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             repo_root=Path("."),
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
+            reference_recovery=self.reference_recovery_none(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -142,6 +177,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             repo_root=Path("."),
             truth=base_truth(),
             promotion_review=promotion_review(captured_at=NOW - timedelta(seconds=900)),
+            reference_recovery=self.reference_recovery_none(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -156,6 +192,7 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
             repo_root=Path("."),
             truth=base_truth(latest_refresh_status="blocked"),
             promotion_review=promotion_review(),
+            reference_recovery=self.reference_recovery_none(),
             max_sample_age_seconds=300,
             now=NOW,
         )
@@ -164,6 +201,22 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertIn("[rift_x64+0x32EBC80]+0x320/+0x324/+0x328", markdown)
         self.assertIn("does not send input", markdown)
         self.assertIn("latest-fresh-api-source-refresh-blocked", markdown)
+
+    def test_pending_rrapicoord_addon_settings_repair_is_actionable_blocker(self) -> None:
+        summary = build_summary_from_documents(
+            repo_root=Path("."),
+            truth=base_truth(latest_refresh_status="blocked"),
+            promotion_review=promotion_review(),
+            reference_recovery=self.reference_recovery_pending_repair(),
+            max_sample_age_seconds=300,
+            now=NOW,
+        )
+
+        self.assertEqual(summary["status"], "blocked")
+        self.assertIn("rrapicoord-addon-settings-repair-pending-approval", summary["blockers"])
+        self.assertTrue(summary["freshnessGate"]["referenceRecoveryDiagnostics"]["pendingSettingsRepairApproval"])
+        self.assertIn("Approval required", summary["next"]["recommendedAction"])
+        self.assertFalse(summary["promotionGates"]["freshApiNowVsChainNowCurrent"])
 
 
 if __name__ == "__main__":
