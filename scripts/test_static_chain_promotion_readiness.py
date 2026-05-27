@@ -217,6 +217,27 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertTrue(summary["freshnessGate"]["referenceRecoveryDiagnostics"]["pendingSettingsRepairApproval"])
         self.assertIn("Approval required", summary["next"]["recommendedAction"])
         self.assertFalse(summary["promotionGates"]["freshApiNowVsChainNowCurrent"])
+        steps = {step["key"]: step for step in summary["next"]["steps"]}
+        self.assertTrue(steps["apply-rrapicoord-addon-settings-repair"]["requiresApproval"])
+        self.assertTrue(steps["refresh-live-addon-runtime"]["requiresApproval"])
+        self.assertFalse(steps["capture-rrapicoord-reference"]["requiresApproval"])
+        self.assertIn("34176", steps["capture-rrapicoord-reference"]["command"])
+        self.assertEqual(steps["request-static-chain-promotion-approval"]["approvalReason"], "Actor/static-chain promotion is a hard gate.")
+
+    def test_no_pending_settings_repair_omits_external_write_step(self) -> None:
+        summary = build_summary_from_documents(
+            repo_root=Path("."),
+            truth=base_truth(latest_refresh_status="blocked"),
+            promotion_review=promotion_review(),
+            reference_recovery=self.reference_recovery_none(),
+            max_sample_age_seconds=300,
+            now=NOW,
+        )
+
+        step_keys = {step["key"] for step in summary["next"]["steps"]}
+        self.assertNotIn("apply-rrapicoord-addon-settings-repair", step_keys)
+        self.assertIn("capture-rrapicoord-reference", step_keys)
+        self.assertIn("request-static-chain-promotion-approval", step_keys)
 
 
 if __name__ == "__main__":

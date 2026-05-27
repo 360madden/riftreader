@@ -375,6 +375,117 @@ def classify_verdict(blockers: Sequence[str], *, approval_required: bool) -> str
     return "blocked-static-chain-promotion-readiness"
 
 
+def build_next_steps(
+    *,
+    target: Mapping[str, Any],
+    reference_recovery: Mapping[str, Any],
+    static_resolver: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    target_pid = first_nonempty(target.get("processId"), target.get("pid"))
+    target_hwnd = first_nonempty(target.get("targetWindowHandle"), target.get("hwnd"))
+    process_name = target.get("processName") or "rift_x64"
+    module_base = target.get("moduleBase")
+    pending_settings_repair = bool(reference_recovery.get("pendingSettingsRepairApproval"))
+    steps: list[dict[str, Any]] = [
+        {
+            "key": "rrapicoord-addon-state-diagnostics",
+            "description": "Re-check whether the RRAPICOORD runtime marker is visible before changing anything.",
+            "command": ["python", ".\\scripts\\rrapicoord_addon_state_diagnostics.py", "--json"],
+            "requiresApproval": False,
+            "mutatesExternalState": False,
+            "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+        },
+        {
+            "key": "rrapicoord-addon-settings-repair-dry-run",
+            "description": "Preview the selected AddonSettings repair and target account/settings path.",
+            "command": ["python", ".\\scripts\\repair_rrapicoord_addon_settings.py", "--scope", "latest", "--json"],
+            "requiresApproval": False,
+            "mutatesExternalState": False,
+            "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+        },
+    ]
+    if pending_settings_repair:
+        steps.extend(
+            [
+                {
+                    "key": "apply-rrapicoord-addon-settings-repair",
+                    "description": "Apply the selected AddonSettings repair only after explicit approval and account-path confirmation.",
+                    "command": ["python", ".\\scripts\\repair_rrapicoord_addon_settings.py", "--scope", "latest", "--apply", "--json"],
+                    "requiresApproval": True,
+                    "approvalReason": "Writes external RIFT AddonSettings outside the repo.",
+                    "mutatesExternalState": True,
+                    "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+                },
+                {
+                    "key": "refresh-live-addon-runtime",
+                    "description": "Refresh the live addon runtime after the settings repair, for example by operator-controlled reload/relog.",
+                    "operatorAction": "After explicit approval, refresh the RIFT addon runtime, then return here for read-only capture.",
+                    "requiresApproval": True,
+                    "approvalReason": "Changes live game/addon runtime state; no command is auto-run by this helper.",
+                    "mutatesExternalState": True,
+                    "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+                },
+            ]
+        )
+    steps.extend(
+        [
+            {
+                "key": "capture-rrapicoord-reference",
+                "description": "Capture a fresh RRAPICOORD API-now sample for the current target after runtime refresh.",
+                "command": [
+                    "powershell",
+                    "-NoProfile",
+                    "-File",
+                    ".\\scripts\\capture-rift-api-reference-coordinate.ps1",
+                    "-ProcessId",
+                    str(target_pid),
+                    "-TargetWindowHandle",
+                    str(target_hwnd),
+                    "-Json",
+                ],
+                "requiresApproval": False,
+                "mutatesExternalState": False,
+                "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+            },
+            {
+                "key": "read-static-chain-now",
+                "description": "Read the static chain again from the same target immediately after a fresh API-now sample.",
+                "command": [
+                    "python",
+                    ".\\scripts\\static_owner_coordinate_chain_readback.py",
+                    "--pid",
+                    str(target_pid),
+                    "--hwnd",
+                    str(target_hwnd),
+                    "--module-base",
+                    str(module_base),
+                    "--json",
+                ],
+                "requiresApproval": False,
+                "mutatesExternalState": False,
+                "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+            },
+            {
+                "key": "rerun-static-chain-promotion-readiness",
+                "description": "Re-run the fail-closed static-chain readiness gate; it must pass before any promotion request.",
+                "command": ["python", ".\\scripts\\static_chain_promotion_readiness.py", "--json"],
+                "requiresApproval": False,
+                "mutatesExternalState": False,
+                "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+            },
+            {
+                "key": "request-static-chain-promotion-approval",
+                "description": f"Request explicit approval to promote {static_resolver.get('chain')} only after readiness passes with current fresh evidence.",
+                "requiresApproval": True,
+                "approvalReason": "Actor/static-chain promotion is a hard gate.",
+                "mutatesExternalState": False,
+                "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "actorChainPromotion": False},
+            },
+        ]
+    )
+    return steps
+
+
 def build_summary_from_documents(
     *,
     repo_root: Path,
@@ -494,7 +605,8 @@ def build_summary_from_documents(
                 else "Restore a fresh RRAPICOORD or ChromaLink reference, rerun API-now vs static-chain-now, and re-run this readiness gate before any promotion."
                 if status == "blocked"
                 else "Static-chain promotion gates are passed; keep movement gated until the promoted resolver is written and validated."
-            )
+            ),
+            "steps": build_next_steps(target=target, reference_recovery=reference_recovery_summary, static_resolver=static_resolver),
         },
     }
 
@@ -567,6 +679,12 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     next_section = safe_mapping(summary.get("next"))
     if next_section.get("recommendedAction"):
         lines.extend(["", "## Recommended next action", "", str(next_section.get("recommendedAction"))])
+    if next_section.get("steps"):
+        lines.extend(["", "## Next command plan", "", "| Step | Approval | Command/action |", "|---|---|---|"])
+        for step in safe_list(next_section.get("steps")):
+            row = safe_mapping(step)
+            command_or_action = row.get("command") or row.get("operatorAction") or row.get("description")
+            lines.append(f"| `{row.get('key')}` | `{str(row.get('requiresApproval')).lower()}` | `{command_or_action}` |")
     lines.extend(
         [
             "",
