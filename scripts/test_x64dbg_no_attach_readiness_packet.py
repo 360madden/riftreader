@@ -276,6 +276,96 @@ class X64DbgNoAttachReadinessPacketTests(unittest.TestCase):
             self.assertEqual(calls, ["x64dbg_preflight"])
             self.assertIn("x64dbg_preflight:debugger-process-present", summary["blockers"])
 
+    def test_packet_can_pass_rift_error_handler_ignore_to_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            supplied_api = temp_path / "api-reference.json"
+            candidate_file = write_candidate_file(temp_path / "explicit-candidates.json", candidate_id="explicit-hit")
+            calls: list[tuple[str, list[str]]] = []
+            planner_summary = temp_path / "planner-summary.json"
+
+            def fake_runner(name: str, _main_fn: Any, argv: list[str]) -> dict[str, Any]:
+                calls.append((name, argv))
+                if name == "x64dbg_preflight":
+                    return {
+                        "name": name,
+                        "argv": argv,
+                        "exitCode": 0,
+                        "payload": {
+                            "status": "passed",
+                            "summaryJson": str(temp_path / "preflight-summary.json"),
+                            "blockers": [],
+                            "warnings": [],
+                        },
+                        "stdout": "",
+                    }
+                if name == "x64dbg_access_event_template":
+                    return {
+                        "name": name,
+                        "argv": argv,
+                        "exitCode": 0,
+                        "payload": {
+                            "status": "passed",
+                            "summaryJson": str(temp_path / "template-summary.json"),
+                            "templateJson": str(temp_path / "x64dbg-manual-access-events-template.json"),
+                            "blockers": [],
+                            "warnings": [],
+                        },
+                        "stdout": "",
+                    }
+                planner_summary.write_text(
+                    json.dumps(
+                        {
+                            "status": "planned",
+                            "readiness": {"status": "ready-for-current-turn-approval"},
+                            "candidate": {
+                                "candidateId": "explicit-hit",
+                                "address": "0x17382765E40",
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return {
+                    "name": name,
+                    "argv": argv,
+                    "exitCode": 0,
+                    "payload": {
+                        "status": "planned",
+                        "summaryJson": str(planner_summary),
+                        "compactHandoffJson": str(temp_path / "handoff.json"),
+                        "compactHandoffMarkdown": str(temp_path / "handoff.md"),
+                        "blockers": [],
+                        "warnings": [],
+                    },
+                    "stdout": "",
+                }
+
+            args = build_parser().parse_args(
+                [
+                    "--repo-root",
+                    str(temp_path),
+                    "--output-root",
+                    str(temp_path / "packet"),
+                    "--target-pid",
+                    TARGET_PID,
+                    "--target-hwnd",
+                    TARGET_HWND,
+                    "--api-coordinate-file",
+                    str(supplied_api),
+                    "--candidate-file",
+                    str(candidate_file),
+                    "--candidate-id",
+                    "explicit-hit",
+                    "--ignore-rift-error-handler",
+                ]
+            )
+            summary = run_packet(args, fake_runner)
+
+            self.assertEqual(summary["status"], "passed")
+            self.assertIn("--ignore-rift-error-handler", calls[0][1])
+            self.assertTrue(summary["safety"]["riftErrorHandlerIgnored"])
+
     def test_packet_skips_chromalink_when_api_coordinate_file_supplied(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)

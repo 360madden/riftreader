@@ -322,6 +322,8 @@ def build_preflight_argv(args: argparse.Namespace, repo_root: Path) -> tuple[lis
         argv.extend(["--expected-start-time-utc", str(args.expected_start_time_utc)])
     if args.expected_module_base:
         argv.extend(["--expected-module-base", str(args.expected_module_base)])
+    if getattr(args, "ignore_rift_error_handler", False):
+        argv.append("--ignore-rift-error-handler")
     return argv, blockers
 
 
@@ -476,6 +478,7 @@ def build_summary(args: argparse.Namespace, run_dir: Path, steps: list[dict[str,
             "x64dbgLiveAttachStarted": False,
             "x64dbgCommandsExecuted": False,
             "noAttachWorkflow": True,
+            "riftErrorHandlerIgnored": bool(getattr(args, "ignore_rift_error_handler", False)),
         },
         "candidate": candidate,
         "candidateSelection": {
@@ -722,6 +725,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-api-coordinate-latest-fallback",
         action="store_true",
         help="Do not fall back to --api-coordinate-file latest when ChromaLink reference capture fails.",
+    )
+    parser.add_argument(
+        "--ignore-rift-error-handler",
+        action="store_true",
+        help=(
+            "Pass through to x64dbg_preflight after confirming the RiftErrorHandler process is the normal "
+            "child handler for the exact target. Does not attach, set breakpoints, or send input."
+        ),
     )
     parser.add_argument("--json", action="store_true")
     return parser

@@ -1,6 +1,6 @@
-# Current RIFT live truth — PID 12148 route smoke passed
+# Current RIFT live truth — PID 12148 route smoke passed, x64dbg attach blocked
 
-Updated UTC: `2026-05-27T06:38:00Z`
+Updated UTC: `2026-05-27T06:56:25Z`
 Repo: `C:\RIFT MODDING\RiftReader`
 
 ## Verdict
@@ -8,6 +8,12 @@ Repo: `C:\RIFT MODDING\RiftReader`
 The current live target is **PID `12148` / HWND `0x640C0C`**. Current-PID coordinate recovery validated proof-anchor candidate `api-family-hit-000001` at `0x23863A26E50`; post-waypoint `ProofOnly` passed at `2026-05-27T06:36:08.616053+00:00` after a bounded observed-forward route smoke.
 
 This is current proof-anchor and route-smoke truth for the live target. It is **not** player actor static-chain truth and does not promote a restart-stable actor resolver.
+
+The bounded x64dbg access-provenance lane was approved and attempted after
+no-attach readiness passed, but the `stop-context` attach failed before a debug
+session started. Read-only target recovery then found an existing debug
+object/debug port on PID `12148`, so x64dbg provenance remains blocked unless a
+separate detach/`DebugActiveProcessStop` decision is approved.
 
 ## Current target
 
@@ -32,7 +38,7 @@ This is current proof-anchor and route-smoke truth for the live target. It is **
 | Proof-anchor readback summary | `C:\RIFT MODDING\RiftReader\scripts\captures\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json` |
 | Candidate file | `C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-12148-20260527-060224-849853\api-family-vec3-candidates.jsonl` |
 | Movement validation batch | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json` |
-| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260527-063740.json` |
+| RiftScan milestone review | `scripts/captures/riftscan-milestone-review-20260527-065906.json` |
 
 ## Route/navigation smoke
 
@@ -61,7 +67,7 @@ This is current proof-anchor and route-smoke truth for the live target. It is **
 | Waypoint smoke movement sent | `true` |
 | Movement sent by post-smoke ProofOnly | `false` |
 | Cheat Engine | `not used` |
-| x64dbg/debugger attach | `not used` |
+| x64dbg/debugger attach | `attempted stop-context; failed before debug session` |
 | SavedVariables live truth | `not used` |
 
 Any new live movement still requires exact PID/HWND preflight and the normal live-input gate. The passed proof anchor and route smoke mean current-coordinate navigation is green for this process epoch only.
@@ -74,10 +80,38 @@ Any new live movement still requires exact PID/HWND preflight and the normal liv
 | Static owner chain | `not restart-validated` |
 | Current candidate role | `proof-anchor coordinate candidate only` |
 | Navigation/route smoke after refresh | `passed` |
+| x64dbg no-attach readiness | `passed` |
+| x64dbg stop-context attach | `failed-before-debug-session` |
+| Debug object/debug port | `present on PID 12148` |
+
+## x64dbg attach evidence
+
+| Evidence | Path |
+|---|---|
+| No-attach readiness packet | `scripts/captures/x64dbg-no-attach-readiness-packet-20260527-065241-005785/summary.json` |
+| Attach environment probe | `scripts/captures/x64dbg-attach-environment-probe-20260527-065315-816903/summary.json` |
+| Stop-context attempt summary | `scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json` |
+| Target recovery/debug-state summary | `scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json` |
+
+Stop-context result:
+
+- Attach command variants were rejected before debug session start:
+  - `attach 0x2f74`
+  - `attach 2f74`
+  - `AttachDebugger 2f74`
+- No breakpoint/watchpoint was set.
+- No target memory was written.
+- No game input or movement was sent.
+- Post-attempt preflight still passed for PID `12148` / HWND `0x640C0C`.
+- Read-only recovery reported `processDebugPort=0xFFFFFFFFFFFFFFFF`,
+  `processDebugFlags=0`, `processDebugObjectHandle=0x250`, and
+  `debuggerLikelyAttached=true`.
 
 Current blockers:
 
 - `actor-static-chain-not-promoted`
+- `blocked-no-debugger-access-provenance`
+- `x64dbg-attach-blocked-existing-debug-object`
 - `no-static-resolver-promoted`
 - `not-restart-validated-for-static-actor-chain`
 
@@ -101,11 +135,16 @@ PID `28248` / HWND `0x2302BC` is historical-only and was superseded by the PID `
 | Post-waypoint ProofOnly | Yes, no movement sent |
 | Current-truth doc/data update | Yes |
 | Cheat Engine | No |
-| x64dbg/debugger attach | No |
+| x64dbg/debugger attach | Attempted, blocked before debug session |
+| Breakpoints/watchpoints | No |
 | Memory writes | No |
 | Provider writes | No |
 | Git push | No |
 
 ## Required next step
 
-Route smoke is green. Keep the proof-anchor gate fresh before any further live movement. Actor/static-chain recovery remains separate and still requires new static evidence or a separately approved debugger access-provenance step.
+Route smoke is green. Keep the proof-anchor gate fresh before any further live
+movement. Actor/static-chain recovery remains separate and is currently blocked
+at x64dbg attach by the existing debug object/debug port. Ask before detaching
+that debug object with `DebugActiveProcessStop`; otherwise continue no-debug
+actor/static evidence work.

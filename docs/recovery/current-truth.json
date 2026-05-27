@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T06:38:00Z",
-  "status": "current_pid_12148_route_smoke_passed_static_actor_chain_not_promoted",
+  "updatedAtUtc": "2026-05-27T06:56:25Z",
+  "status": "current_pid_12148_route_smoke_passed_x64dbg_attach_blocked_existing_debug_object_static_actor_chain_not_promoted",
   "target": {
     "processName": "rift_x64",
     "processId": 12148,
@@ -34,7 +34,7 @@
     "proofOnlyRunSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\navigation-smoke-currentpid-12148-20260527-0227\\post-waypoint-proofonly\\live-test-ProofOnly-20260527-063521\\run-summary.json",
     "readbackSummaryFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
     "proofAnchorFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\telemetry-proof-coord-anchor.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
     "noCheatEngine": true,
     "movementSentByLatestProofOnly": false,
     "movementSentByRecovery": true,
@@ -45,7 +45,10 @@
       "SavedVariables files were not used as live truth.",
       "ForwardSeries3x250 passed with 3/3 exact-target W pulses and 5.024164820532755m planar displacement.",
       "A 2m observed-forward waypoint smoke passed: Status=success, StopReason=arrived, PulseCount=1, FinalPlanarDistance=0.32886291685124763m.",
-      "Post-waypoint ProofOnly passed with no movement and no CE after the route smoke."
+      "Post-waypoint ProofOnly passed with no movement and no CE after the route smoke.",
+      "No-attach x64dbg readiness passed after confirming the normal RiftErrorHandler child process for PID 12148.",
+      "A bounded x64dbg stop-context attach attempt failed before a debug session started; no breakpoints/watchpoints, memory writes, or game input occurred.",
+      "Read-only target recovery found an existing debug object/debug port on PID 12148, so x64dbg access provenance remains blocked unless a separate DebugActiveProcessStop/detach decision is approved."
     ]
   },
   "movementGate": {
@@ -94,14 +97,16 @@
     "reusePolicy": "Current proof-anchor movement-gate evidence only while PID/HWND/process epoch remain exact; not actor static-chain truth."
   },
   "staticChainStatus": {
-    "status": "blocked-no-static-resolver-promoted",
+    "status": "blocked-existing-debug-object-no-static-resolver-promoted",
     "promotionAllowed": false,
     "blockers": [
       "actor-static-chain-not-promoted",
       "no-static-resolver-promoted",
-      "not-restart-validated-for-static-actor-chain"
+      "not-restart-validated-for-static-actor-chain",
+      "blocked-no-debugger-access-provenance",
+      "x64dbg-attach-blocked-existing-debug-object"
     ],
-    "reusePolicy": "Proof-anchor candidate must not be promoted as actor static chain without separate owner/static resolver evidence."
+    "reusePolicy": "Proof-anchor candidate must not be promoted as actor static chain. Current x64dbg attach is blocked by an existing debug object/debug port; resolving that requires separate approval and post-action proof checks."
   },
   "latestPointerEvidence": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
@@ -118,7 +123,7 @@
     "candidateAddressHex": "0x23863A26E50",
     "proofSupportCount": 6,
     "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\proof-anchor-currentpid-12148-readback-summary-20260527-023602.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json"
   },
   "staleOrInvalid": [
@@ -136,7 +141,9 @@
   "currentBlockers": [
     "actor-static-chain-not-promoted",
     "no-static-resolver-promoted",
-    "not-restart-validated-for-static-actor-chain"
+    "not-restart-validated-for-static-actor-chain",
+    "blocked-no-debugger-access-provenance",
+    "x64dbg-attach-blocked-existing-debug-object"
   ],
   "canonicalArtifacts": {
     "currentProofPointer": "docs/recovery/current-proof-anchor-readback.json",
@@ -146,8 +153,8 @@
     "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-12148-20260527-060224-849853\\api-family-vec3-candidates.jsonl",
     "movementValidationBatchSummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/05-pose-batch-attempt-01-w-750ms/coordinate-anchor-batch-summary.json",
     "fastRecoverySummary": "scripts/captures/recover-currentpid-coord-anchor-fast-execute-12148-20260527-060019-832280/summary.json",
-    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-063740.json",
-    "latestHandoff": "docs/handoffs/2026-05-27-0238-currentpid-12148-route-smoke-passed.md",
+    "riftscanMilestoneReview": "scripts/captures/riftscan-milestone-review-20260527-065906.json",
+    "latestHandoff": "docs/handoffs/2026-05-27-0258-currentpid-12148-x64dbg-attach-blocked.md",
     "historicalProofPointerArchive": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-proof-anchor-readback-2026-05-27-pid28248-hwnd2302BC-historical.json",
     "historicalTruthArchiveJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-2026-05-27-pid28248-hwnd2302BC-historical-before-pid12148-proof-refresh.json",
     "preNavigationProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/pre-proofonly/live-test-ProofOnly-20260527-062748/run-summary.json",
@@ -155,9 +162,12 @@
     "postSeriesProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-series-proofonly/live-test-ProofOnly-20260527-063304/run-summary.json",
     "navigationSmokeRoute": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/smoke-test-waypoints-2m-observed-forward.json",
     "navigationSmokeRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/route/navigate-waypoints-run-summary.json",
-    "postWaypointProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-waypoint-proofonly/live-test-ProofOnly-20260527-063521/run-summary.json"
+    "postWaypointProofOnlyRunSummary": "scripts/captures/navigation-smoke-currentpid-12148-20260527-0227/post-waypoint-proofonly/live-test-ProofOnly-20260527-063521/run-summary.json",
+    "x64dbgNoAttachReadinessSummary": "scripts/captures/x64dbg-no-attach-readiness-packet-20260527-065241-005785/summary.json",
+    "x64dbgStopContextAttemptSummary": "scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json",
+    "x64dbgTargetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json"
   },
-  "nextRecommendedAction": "Route smoke is green. Keep current proof-anchor gate fresh for any further live movement; actor/static-chain truth remains separate and still requires new static evidence or a separately approved debugger access-provenance step.",
+  "nextRecommendedAction": "Route smoke remains green for PID 12148. Actor/static-chain recovery is blocked at x64dbg attach because the target already has a debug object/debug port. Ask before DebugActiveProcessStop/detaching that debug object, or continue no-debug actor/static evidence work.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",
@@ -192,5 +202,41 @@
       "providerWrites": false,
       "exactTarget": true
     }
+  },
+  "x64dbgStatus": {
+    "status": "attach-blocked-existing-debug-object",
+    "approvedThisSession": true,
+    "noAttachReadinessStatus": "passed",
+    "readinessStatus": "ready-for-current-turn-approval",
+    "noAttachReadinessSummary": "scripts/captures/x64dbg-no-attach-readiness-packet-20260527-065241-005785/summary.json",
+    "attachEnvironmentProbe": "scripts/captures/x64dbg-attach-environment-probe-20260527-065315-816903/summary.json",
+    "stopContextAttemptSummary": "scripts/captures/x64dbg-live-access-capture-20260527-065357-522442/summary.json",
+    "targetRecoverySummary": "scripts/captures/x64dbg-target-recovery-20260527-065545-618096/summary.json",
+    "debuggerLikelyAttached": true,
+    "debugState": {
+      "processDebugPort": "0xFFFFFFFFFFFFFFFF",
+      "processDebugFlags": 0,
+      "processDebugObjectHandle": "0x250",
+      "processDebugFlagsIndicatesDebugger": true
+    },
+    "attachDiagnostics": {
+      "attempted": true,
+      "status": "failed-before-debug-session",
+      "commandsRejected": [
+        "attach 0x2f74",
+        "attach 2f74",
+        "AttachDebugger 2f74"
+      ]
+    },
+    "safety": {
+      "movementSent": false,
+      "gameInputSent": false,
+      "breakpointsOrWatchpointsSet": false,
+      "targetMemoryWritten": false,
+      "cheatEngineUsed": false,
+      "providerWrites": false,
+      "proofPromoted": false
+    },
+    "nextGate": "Separate approval required before DebugActiveProcessStop or any operation that detaches the existing debug object/debug port."
   }
 }
