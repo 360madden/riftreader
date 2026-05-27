@@ -3,8 +3,8 @@ param(
     [string]$ProcessName = 'rift_x64',
     [int]$ProcessId,
     [string]$TargetWindowHandle,
-    [string]$ReaderProject = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..')).Path 'reader\RiftReader.Reader\RiftReader.Reader.csproj'),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot 'captures'),
+    [string]$ReaderProject,
+    [string]$OutputRoot,
     [string]$OutputFile,
     [string]$ScanResultFile,
     [int]$ScanContextBytes = 512,
@@ -17,6 +17,24 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$scriptRootForDefaults = if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    $PSScriptRoot
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PSCommandPath)) {
+    Split-Path -Parent $PSCommandPath
+}
+else {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+
+$repoRootForDefaults = (Resolve-Path (Join-Path $scriptRootForDefaults '..')).Path
+if ([string]::IsNullOrWhiteSpace($ReaderProject)) {
+    $ReaderProject = Join-Path $repoRootForDefaults 'reader\RiftReader.Reader\RiftReader.Reader.csproj'
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRootForDefaults 'captures'
+}
 
 if (-not ([System.Management.Automation.PSTypeName]'RiftApiReferenceTargetNative').Type) {
     Add-Type -TypeDefinition @"
@@ -456,7 +474,7 @@ if (-not [string]::IsNullOrWhiteSpace($ScanResultFile)) {
 else {
     $target = Resolve-LiveTargetProcess
     $scanPath = Join-Path $resolvedOutputRoot ("rift-api-reference-scan-currentpid-{0}-{1}.json" -f $target.ProcessId, $stamp)
-    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $repoRoot = $repoRootForDefaults
     $scanCommand = Invoke-ExternalCommand -FilePath 'dotnet' -Arguments @(
         'run',
         '--project',
