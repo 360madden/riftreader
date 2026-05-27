@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -92,6 +93,7 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
                 argparse.Namespace(
                     repo_root=root,
                     current_truth_json=Path("docs/recovery/current-truth.json"),
+                    current_proof_json=Path("docs/recovery/current-proof-anchor-readback.json"),
                     output_root=root / "out",
                     scan_root=None,
                     max_evidence_per_file=12,
@@ -106,6 +108,38 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
             self.assertTrue(summary["currentTruthGates"]["movementGate"]["automationMovementPaused"])
             self.assertTrue(Path(summary["artifacts"]["summaryJson"]).is_file())
             self.assertFalse(summary["safety"]["inputSent"])
+
+    def test_stale_proof_freshness_overrides_raw_allowed_movement_gate(self) -> None:
+        current_truth = {
+            "movementGate": {
+                "allowed": True,
+                "status": "allowed-current-target-proofonly-passed-route-smoke-passed",
+                "reason": "historically allowed",
+            }
+        }
+        current_proof = {
+            "status": "current-target-proofonly-passed",
+            "lastUpdatedUtc": "2026-05-27T07:00:00Z",
+            "latestValidation": {
+                "status": "valid",
+                "movementAllowed": True,
+                "movementSent": False,
+                "generatedAtUtc": "2026-05-27T07:00:00Z",
+            },
+        }
+
+        summary = audit.summarize_current_truth_gate(
+            current_truth,
+            current_proof,
+            now=datetime(2026, 5, 27, 7, 2, tzinfo=timezone.utc),
+        )
+
+        gate = summary["movementGate"]
+        self.assertFalse(gate["allowed"])
+        self.assertEqual(gate["status"], "blocked-proof-anchor-age-out-of-range")
+        self.assertTrue(gate["automationMovementPaused"])
+        self.assertEqual(gate["proofFreshness"]["ageSeconds"], 120)
+        self.assertEqual(gate["proofFreshnessBlocker"], "proof-anchor-stale-for-movement:ageSeconds=120;maxAgeSeconds=60")
 
     def test_self_test_passes(self) -> None:
         result = audit.self_test()

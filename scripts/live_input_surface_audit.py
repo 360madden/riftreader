@@ -28,9 +28,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+TOOLS_ROOT = Path(__file__).resolve().parents[1] / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+from riftreader_workflow.status_packet import proof_anchor_freshness_summary  # noqa: E402
+
+
 SCHEMA_VERSION = 1
 DEFAULT_OUTPUT_ROOT = Path("scripts/captures")
 DEFAULT_CURRENT_TRUTH = Path("docs/recovery/current-truth.json")
+DEFAULT_CURRENT_PROOF = Path("docs/recovery/current-proof-anchor-readback.json")
 SCAN_ROOTS = ("scripts", "tools")
 SOURCE_SUFFIXES = {".py", ".ps1", ".cmd", ".bat", ".cs", ".ahk"}
 SKIP_PARTS = {
@@ -283,8 +291,8 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
-def read_current_truth(repo_root: Path, current_truth_path: Path) -> dict[str, Any]:
-    path = current_truth_path if current_truth_path.is_absolute() else repo_root / current_truth_path
+def read_json_document(repo_root: Path, document_path: Path) -> dict[str, Any]:
+    path = document_path if document_path.is_absolute() else repo_root / document_path
     if not path.is_file():
         return {}
     try:
@@ -294,18 +302,67 @@ def read_current_truth(repo_root: Path, current_truth_path: Path) -> dict[str, A
     return value if isinstance(value, dict) else {}
 
 
-def summarize_current_truth_gate(document: dict[str, Any]) -> dict[str, Any]:
+def summarize_current_truth_gate(
+    document: dict[str, Any],
+    proof_document: dict[str, Any] | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     movement_gate = document.get("movementGate") if isinstance(document.get("movementGate"), dict) else {}
     live_incident = movement_gate.get("liveInputIncident") if isinstance(movement_gate.get("liveInputIncident"), dict) else {}
     target = document.get("target") if isinstance(document.get("target"), dict) else {}
     client_geometry = target.get("clientGeometry") if isinstance(target.get("clientGeometry"), dict) else {}
+    proof = proof_document if isinstance(proof_document, dict) else {}
+    proof_latest_validation = proof.get("latestValidation") if isinstance(proof.get("latestValidation"), dict) else {}
+    proof_latest_proofonly = proof.get("latestProofOnly") if isinstance(proof.get("latestProofOnly"), dict) else {}
+    proof_freshness = proof_anchor_freshness_summary(proof, proof_latest_validation, proof_latest_proofonly, now=now)
+    movement_allowed = movement_gate.get("allowed")
+    movement_status = movement_gate.get("status")
+    movement_reason = movement_gate.get("reason")
+    movement_paused = bool(movement_gate.get("automationMovementPaused") or live_incident.get("automationMovementPaused"))
+    proof_status = str(proof.get("status") or "")
+    proof_supports_movement_gate = (
+        proof_latest_validation.get("movementAllowed") is True
+        or proof_status == "current-target-proofonly-passed"
+        or str(proof_latest_proofonly.get("status") or "") == "passed-proof-only"
+    )
+    proof_freshness_blocker = None
+    if movement_allowed is True and proof_supports_movement_gate and proof_freshness.get("status") != "fresh":
+        age = proof_freshness.get("ageSeconds")
+        max_age = proof_freshness.get("maxAgeSeconds")
+        if proof_freshness.get("status") == "stale":
+            movement_status = "blocked-proof-anchor-age-out-of-range"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+                f"is now outside the movement preflight freshness budget ({age}s > {max_age}s). "
+                "Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+            )
+            proof_freshness_blocker = f"proof-anchor-stale-for-movement:ageSeconds={age};maxAgeSeconds={max_age}"
+        elif proof_freshness.get("status") == "future-clock-skew":
+            movement_status = "blocked-proof-anchor-clock-skew"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
+                "appears to be in the future. Recheck clock/target state and rerun same-target ProofOnly before movement."
+            )
+            proof_freshness_blocker = f"proof-anchor-clock-skew-for-movement:ageSeconds={age};maxAgeSeconds={max_age}"
+        else:
+            movement_status = "blocked-proof-anchor-freshness-unknown"
+            movement_reason = (
+                "Current-truth movement status was historically allowed, but no parseable proof-anchor/readback freshness "
+                "timestamp is available. Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
+            )
+            proof_freshness_blocker = "proof-anchor-freshness-unknown-for-movement"
+        movement_allowed = False
+        movement_paused = True
     return {
         "movementGate": {
-            "allowed": movement_gate.get("allowed"),
-            "status": movement_gate.get("status"),
-            "reason": movement_gate.get("reason"),
-            "automationMovementPaused": bool(movement_gate.get("automationMovementPaused") or live_incident.get("automationMovementPaused")),
+            "allowed": movement_allowed,
+            "status": movement_status,
+            "reason": movement_reason,
+            "automationMovementPaused": movement_paused,
             "liveInputIncidentStatus": live_incident.get("status"),
+            "proofFreshness": proof_freshness,
+            "proofFreshnessBlocker": proof_freshness_blocker,
         },
         "clientGeometry": {
             "requiredClientWidth": client_geometry.get("requiredClientWidth"),
@@ -530,7 +587,11 @@ def build_summary(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     files = iter_source_files(repo_root, roots)
     surfaces = audit_files(repo_root, files, max_evidence_per_file=max(1, args.max_evidence_per_file))
     counts = summarize_surfaces(surfaces)
-    current_truth = summarize_current_truth_gate(read_current_truth(repo_root, args.current_truth_json))
+    current_proof_json = getattr(args, "current_proof_json", DEFAULT_CURRENT_PROOF)
+    current_truth = summarize_current_truth_gate(
+        read_json_document(repo_root, args.current_truth_json),
+        read_json_document(repo_root, current_proof_json),
+    )
     status = "passed-with-review-required" if counts["reviewRequiredCount"] else "passed"
     warnings: list[str] = []
     if counts["reviewRequiredCount"]:
@@ -627,6 +688,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Read-only audit of RiftReader live-input-capable surfaces.")
     parser.add_argument("--repo-root", type=Path, default=None)
     parser.add_argument("--current-truth-json", type=Path, default=DEFAULT_CURRENT_TRUTH)
+    parser.add_argument("--current-proof-json", type=Path, default=DEFAULT_CURRENT_PROOF)
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--scan-root", action="append", default=None, help="Repo-relative root to scan. Defaults to scripts and tools.")
     parser.add_argument("--max-evidence-per-file", type=int, default=12)
