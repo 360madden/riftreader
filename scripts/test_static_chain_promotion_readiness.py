@@ -116,6 +116,19 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
     def reference_recovery_pending_repair(self) -> dict:
         return {
             "status": "blocked",
+            "rrapicoordScanDiagnostics": {
+                "status": "blocked",
+                "verdict": "blocked-rrapicoord-no-usable-marker",
+                "counts": {
+                    "scanFileCount": 1,
+                    "rrapicoordTextHitCount": 13,
+                    "sourceTextHitCount": 10,
+                    "markerLikeCount": 5,
+                    "usableMarkerCount": 0,
+                },
+                "blockers": ["rrapicoord-no-usable-marker"],
+                "inferredCauses": ["only-starting/default-marker-observed"],
+            },
             "addonStateDiagnostics": {
                 "status": "blocked",
                 "verdict": "blocked-live-reference-runtime-marker-not-observed",
@@ -240,6 +253,8 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertEqual(summary["status"], "blocked")
         self.assertIn("rrapicoord-addon-settings-repair-pending-approval", summary["blockers"])
         self.assertTrue(summary["freshnessGate"]["referenceRecoveryDiagnostics"]["pendingSettingsRepairApproval"])
+        scan_diagnostics = summary["freshnessGate"]["referenceRecoveryDiagnostics"]["rrapicoordScanDiagnostics"]
+        self.assertEqual(scan_diagnostics["counts"]["usableMarkerCount"], 0)
         self.assertIn("Approval required", summary["next"]["recommendedAction"])
         self.assertFalse(summary["promotionGates"]["freshApiNowVsChainNowCurrent"])
         step_keys = [step["key"] for step in summary["next"]["steps"]]
@@ -255,6 +270,10 @@ class StaticChainPromotionReadinessTests(unittest.TestCase):
         self.assertIn("34176", steps["capture-rrapicoord-reference"]["command"])
         self.assertIn("", steps["read-static-chain-now"]["command"])
         self.assertEqual(steps["request-static-chain-promotion-approval"]["approvalReason"], "Actor/static-chain promotion is a hard gate.")
+
+        markdown = build_markdown(summary)
+        self.assertIn("RRAPICOORD scan diagnostic", markdown)
+        self.assertIn("usable=0", markdown)
 
     def test_no_pending_settings_repair_omits_external_write_step(self) -> None:
         summary = build_summary_from_documents(

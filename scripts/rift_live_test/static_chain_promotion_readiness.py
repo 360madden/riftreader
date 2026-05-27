@@ -301,10 +301,17 @@ def summarize_stale_proof_pointer(
 
 def summarize_reference_recovery_diagnostics(repo_root: Path) -> dict[str, Any]:
     capture_root = repo_root / "scripts" / "captures"
+    scan_path = latest_file(list(capture_root.glob("rrapicoord-scan-diagnostics-*/summary.json")))
     addon_state_path = latest_file(list(capture_root.glob("rrapicoord-addon-state-diagnostics-*/summary.json")))
     repair_path = latest_file(list(capture_root.glob("rrapicoord-addon-settings-repair-*/summary.json")))
+    scan: dict[str, Any] | None = None
     addon_state: dict[str, Any] | None = None
     repair: dict[str, Any] | None = None
+    if scan_path:
+        try:
+            scan = load_json_object(scan_path)
+        except Exception:  # noqa: BLE001
+            scan = None
     if addon_state_path:
         try:
             addon_state = load_json_object(addon_state_path)
@@ -320,8 +327,23 @@ def summarize_reference_recovery_diagnostics(repo_root: Path) -> dict[str, Any]:
     pending_repairs = [item for item in repairs if item.get("changed") is True and item.get("applied") is not True]
     addon_state_blocked = bool(addon_state and addon_state.get("status") == "blocked")
     pending_settings_repair_approval = bool(pending_repairs and int(repair_counts.get("appliedCount") or 0) == 0)
+    scan_counts = safe_mapping(scan.get("counts") if scan else None)
     return {
         "status": "blocked" if addon_state_blocked or pending_settings_repair_approval else "unknown",
+        "rrapicoordScanDiagnostics": {
+            "path": str(scan_path) if scan_path else None,
+            "status": scan.get("status") if scan else None,
+            "verdict": scan.get("verdict") if scan else None,
+            "counts": {
+                "scanFileCount": scan_counts.get("scanFileCount"),
+                "rrapicoordTextHitCount": scan_counts.get("rrapicoordTextHitCount"),
+                "sourceTextHitCount": scan_counts.get("sourceTextHitCount"),
+                "markerLikeCount": scan_counts.get("markerLikeCount"),
+                "usableMarkerCount": scan_counts.get("usableMarkerCount"),
+            },
+            "blockers": safe_list(scan.get("blockers") if scan else None),
+            "inferredCauses": safe_list(scan.get("inferredCauses") if scan else None),
+        },
         "addonStateDiagnostics": {
             "path": str(addon_state_path) if addon_state_path else None,
             "status": addon_state.get("status") if addon_state else None,
@@ -756,6 +778,8 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     final_sample = safe_mapping(freshness.get("finalFreshSample"))
     reference_recovery = safe_mapping(freshness.get("referenceRecoveryDiagnostics"))
     latest_chain_readback = safe_mapping(freshness.get("latestStaticChainReadback"))
+    scan_diagnostics = safe_mapping(reference_recovery.get("rrapicoordScanDiagnostics"))
+    scan_counts = safe_mapping(scan_diagnostics.get("counts"))
     repair_dry_run = safe_mapping(reference_recovery.get("addonSettingsRepairDryRun"))
     addon_state = safe_mapping(reference_recovery.get("addonStateDiagnostics"))
     comparison = safe_mapping(final_sample.get("comparison"))
@@ -807,6 +831,8 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             "",
             "## Reference recovery diagnostics",
             "",
+            f"- RRAPICOORD scan diagnostic: `{scan_diagnostics.get('status')}` / `{scan_diagnostics.get('verdict')}`",
+            f"- RRAPICOORD scan counts: `textHits={scan_counts.get('rrapicoordTextHitCount')}; markerLike={scan_counts.get('markerLikeCount')}; usable={scan_counts.get('usableMarkerCount')}`",
             f"- RRAPICOORD addon state: `{addon_state.get('status')}` / `{addon_state.get('verdict')}`",
             f"- AddonSettings dry-run: `{repair_dry_run.get('status')}` / `{repair_dry_run.get('verdict')}`",
             f"- Pending settings repair approval: `{str(reference_recovery.get('pendingSettingsRepairApproval')).lower()}`",
