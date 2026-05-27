@@ -30,6 +30,21 @@ object/debug port on PID `12148`. A separately approved
 | Latest coordinate | `X=7261.8330078125`, `Y=821.7017822265625`, `Z=3003.057861328125` |
 | Coordinate recorded UTC | `2026-05-27T06:36:07.8790417Z` |
 
+## Coordinate freshness invariant
+
+PID/HWND matching is a **targeting preflight only**; it is not coordinate
+freshness proof by itself. Future coordinate-driven work must re-check
+**API-now vs memory-now** with a fresh API/runtime coordinate, immediate memory
+readback, per-axis deltas, tolerance, and an explicit verdict before treating a
+coordinate as current.
+
+Latest recorded coordinate snapshot:
+`X=7261.8330078125`, `Y=821.7017822265625`, `Z=3003.057861328125`, recorded at
+`2026-05-27T06:36:07.8790417Z`. This snapshot is evidence for the recorded
+ProofOnly/route-smoke epoch; **do not present this value as current-now** for a
+later capture, route, proof, or recovery decision without a fresh
+API-now vs memory-now check.
+
 ## Proof evidence
 
 | Artifact | Path |
