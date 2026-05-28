@@ -422,6 +422,21 @@ def validate_plan_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def validate_progress_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if not args.plan_summary_json:
+        errors.append("plan-summary-json-required")
+    elif len(args.plan_summary_json) < 2:
+        errors.append("at-least-two-plan-summaries-required")
+    if args.minimum_progress_distance < 0:
+        errors.append("minimum-progress-distance-must-be-nonnegative")
+    if args.wrong_way_tolerance_distance < 0:
+        errors.append("wrong-way-tolerance-distance-must-be-nonnegative")
+    if args.arrival_radius is not None and args.arrival_radius < 0:
+        errors.append("arrival-radius-must-be-nonnegative")
+    return errors
+
+
 def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
     defaults = apply_current_truth(args, root)
@@ -748,6 +763,180 @@ def run_plan(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def load_plan_targets(root: Path, paths: Sequence[str]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    for index, raw_path in enumerate(paths):
+        path = Path(raw_path)
+        if not path.is_absolute():
+            path = root / path
+        summary = load_json_object(path)
+        target = safe_mapping(summary.get("navigationTarget"))
+        if not target:
+            raise ValueError(f"plan-summary-missing-navigation-target:{path}")
+        if target.get("planarDistance") is None:
+            raise ValueError(f"plan-summary-missing-planar-distance:{path}")
+        targets.append(
+            {
+                "sampleIndex": index,
+                "sourceFile": str(path),
+                "status": summary.get("status"),
+                "verdict": summary.get("verdict"),
+                "generatedAtUtc": summary.get("generatedAtUtc"),
+                "planarDistance": float(target["planarDistance"]),
+                "arrivalRadius": None if target.get("arrivalRadius") is None else float(target["arrivalRadius"]),
+                "withinArrivalRadius": bool(target.get("withinArrivalRadius")),
+                "suggestedTurnDirection": target.get("suggestedTurnDirection"),
+                "signedBearingDeltaDegrees": target.get("signedBearingDeltaDegrees"),
+                "absoluteBearingDeltaDegrees": target.get("absoluteBearingDeltaDegrees"),
+                "destination": target.get("destination"),
+            }
+        )
+    return targets
+
+
+def build_progress_analysis(
+    plan_targets: Sequence[Mapping[str, Any]],
+    *,
+    minimum_progress_distance: float,
+    wrong_way_tolerance_distance: float,
+    arrival_radius: float | None,
+) -> dict[str, Any]:
+    if len(plan_targets) < 2:
+        raise ValueError("at-least-two-plan-targets-required")
+    distances = [float(target["planarDistance"]) for target in plan_targets]
+    initial_distance = distances[0]
+    final_distance = distances[-1]
+    best_distance = min(distances)
+    best_index = distances.index(best_distance)
+    effective_arrival_radius = arrival_radius
+    if effective_arrival_radius is None:
+        for target in reversed(plan_targets):
+            if target.get("arrivalRadius") is not None:
+                effective_arrival_radius = float(target["arrivalRadius"])
+                break
+            destination = safe_mapping(target.get("destination"))
+            if destination.get("arrivalRadius") is not None:
+                effective_arrival_radius = float(destination["arrivalRadius"])
+                break
+    if effective_arrival_radius is None:
+        effective_arrival_radius = 0.0
+
+    total_progress = initial_distance - final_distance
+    best_progress = initial_distance - best_distance
+    moved_wrong_way = final_distance > initial_distance + wrong_way_tolerance_distance
+    arrived_now = final_distance <= effective_arrival_radius
+    arrived_at_any_sample = any(bool(target.get("withinArrivalRadius")) or float(target["planarDistance"]) <= effective_arrival_radius for target in plan_targets)
+    overshot = (
+        not arrived_now
+        and arrived_at_any_sample
+        and final_distance > effective_arrival_radius + wrong_way_tolerance_distance
+    ) or (
+        not arrived_now
+        and best_index < len(distances) - 1
+        and best_progress >= minimum_progress_distance
+        and final_distance > best_distance + wrong_way_tolerance_distance
+    )
+
+    if arrived_now:
+        status = "arrived"
+        stop_reason = "within-arrival-radius"
+    elif overshot:
+        status = "overshot"
+        stop_reason = "moved-away-after-closest-approach"
+    elif moved_wrong_way:
+        status = "wrong-way"
+        stop_reason = "distance-increased-beyond-tolerance"
+    elif total_progress >= minimum_progress_distance:
+        status = "progress"
+        stop_reason = "distance-decreased"
+    else:
+        status = "no-progress"
+        stop_reason = "minimum-progress-not-met"
+
+    transitions: list[dict[str, Any]] = []
+    for index in range(1, len(plan_targets)):
+        previous = plan_targets[index - 1]
+        current = plan_targets[index]
+        previous_distance = float(previous["planarDistance"])
+        current_distance = float(current["planarDistance"])
+        transitions.append(
+            {
+                "fromSample": previous.get("sampleIndex"),
+                "toSample": current.get("sampleIndex"),
+                "previousPlanarDistance": previous_distance,
+                "currentPlanarDistance": current_distance,
+                "progressDistance": previous_distance - current_distance,
+                "distanceIncreased": current_distance > previous_distance,
+            }
+        )
+    return {
+        "status": status,
+        "stopReason": stop_reason,
+        "sampleCount": len(plan_targets),
+        "initialPlanarDistance": initial_distance,
+        "finalPlanarDistance": final_distance,
+        "bestPlanarDistance": best_distance,
+        "bestSampleIndex": plan_targets[best_index].get("sampleIndex"),
+        "totalProgressDistance": total_progress,
+        "bestProgressDistance": best_progress,
+        "minimumProgressDistance": float(minimum_progress_distance),
+        "wrongWayToleranceDistance": float(wrong_way_tolerance_distance),
+        "arrivalRadius": float(effective_arrival_radius),
+        "arrivedAtAnySample": arrived_at_any_sample,
+        "candidateOnly": True,
+        "actionableForMovement": False,
+        "transitions": transitions,
+    }
+
+
+def run_progress(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    errors = validate_progress_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-progress-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-progress-dry-run",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "planTargets": [],
+        "analysis": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety() | {"facingPromotion": False, "navigationControl": False, "dryRunOnly": True},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    if errors:
+        return summary
+    try:
+        plan_targets = load_plan_targets(root, args.plan_summary_json)
+        summary["planTargets"] = plan_targets
+        summary["analysis"] = build_progress_analysis(
+            plan_targets,
+            minimum_progress_distance=float(args.minimum_progress_distance),
+            wrong_way_tolerance_distance=float(args.wrong_way_tolerance_distance),
+            arrival_radius=None if args.arrival_radius is None else float(args.arrival_radius),
+        )
+        summary["status"] = "passed"
+        summary["verdict"] = "static-owner-nav-progress-dry-run-built"
+        summary["warnings"].extend(
+            [
+                "dry-run-only-no-live-read-or-input",
+                "progress-analysis-is-not-movement-permission",
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "static-owner-nav-progress-dry-run-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    return summary
+
+
 def rows_by_offset(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
     return {str(row.get("offset")): row for row in rows if row.get("offset")}
 
@@ -917,6 +1106,29 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-nav-progress-dry-run":
+        analysis = safe_mapping(summary.get("analysis"))
+        lines = [
+            "# Static owner navigation progress dry-run",
+            "",
+            f"Status: `{summary.get('status')}`",
+            f"Verdict: `{summary.get('verdict')}`",
+            f"Progress status: `{analysis.get('status')}`",
+            f"Stop reason: `{analysis.get('stopReason')}`",
+            f"Initial distance: `{analysis.get('initialPlanarDistance')}`",
+            f"Final distance: `{analysis.get('finalPlanarDistance')}`",
+            f"Best distance: `{analysis.get('bestPlanarDistance')}`",
+            f"Total progress: `{analysis.get('totalProgressDistance')}`",
+            "",
+            "Dry-run only; no live read, no movement, and no movement permission.",
+        ]
+        if summary.get("errors"):
+            lines.extend(["", "## Errors", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+        if summary.get("warnings"):
+            lines.extend(["", "## Warnings", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+        return "\n".join(lines) + "\n"
     if summary.get("kind") == "static-owner-nav-target-dry-run-plan":
         source = safe_mapping(summary.get("sourceStateSummary"))
         target_request = safe_mapping(summary.get("navigationTargetRequest"))
@@ -1064,6 +1276,22 @@ def write_outputs(summary: dict[str, Any]) -> None:
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-nav-progress-dry-run":
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "progressStatus": safe_mapping(summary.get("analysis")).get("status"),
+            "stopReason": safe_mapping(summary.get("analysis")).get("stopReason"),
+            "sampleCount": safe_mapping(summary.get("analysis")).get("sampleCount"),
+            "initialPlanarDistance": safe_mapping(summary.get("analysis")).get("initialPlanarDistance"),
+            "finalPlanarDistance": safe_mapping(summary.get("analysis")).get("finalPlanarDistance"),
+            "totalProgressDistance": safe_mapping(summary.get("analysis")).get("totalProgressDistance"),
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
     if summary.get("kind") == "static-owner-nav-target-dry-run-plan":
         return {
             "status": summary.get("status"),
@@ -1181,6 +1409,15 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--alignment-threshold-degrees", type=float, default=7.5)
     plan.add_argument("--json", action="store_true")
 
+    progress = subparsers.add_parser("progress")
+    progress.add_argument("--repo-root")
+    progress.add_argument("--output-root")
+    progress.add_argument("--plan-summary-json", nargs="+", required=True)
+    progress.add_argument("--minimum-progress-distance", type=float, default=0.35)
+    progress.add_argument("--wrong-way-tolerance-distance", type=float, default=0.75)
+    progress.add_argument("--arrival-radius", type=float)
+    progress.add_argument("--json", action="store_true")
+
     state = subparsers.add_parser("state")
     state.add_argument("--repo-root")
     state.add_argument("--output-root")
@@ -1221,6 +1458,8 @@ def main(argv: list[str] | None = None) -> int:
         summary = run_compare(args)
     elif args.command == "plan":
         summary = run_plan(args)
+    elif args.command == "progress":
+        summary = run_progress(args)
     elif args.command == "state":
         summary = run_state(args)
     else:

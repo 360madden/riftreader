@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.static_owner_facing_discovery import (
     build_yaw_transition_analysis,
+    build_progress_analysis,
     compare_snapshots,
     load_waypoint_destination,
     nav_state_from_owner_window,
@@ -14,6 +15,7 @@ from scripts.static_owner_facing_discovery import (
     normalize_degrees,
     resolve_navigation_target_request,
     run_plan,
+    run_progress,
     validate_state_args,
 )
 
@@ -321,6 +323,96 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             self.assertEqual("north", plan["navigationTarget"]["destination"]["label"])
             self.assertAlmostEqual(90.0, plan["navigationTarget"]["destinationBearingDegrees"])
             self.assertEqual("right", plan["navigationTarget"]["suggestedTurnDirection"])
+
+    def test_progress_analysis_classifies_arrival_progress_wrong_way_and_overshoot(self):
+        arrived = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 1.0, "withinArrivalRadius": True},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("arrived", arrived["status"])
+        self.assertEqual("within-arrival-radius", arrived["stopReason"])
+
+        progress = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("progress", progress["status"])
+
+        wrong_way = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 11.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("wrong-way", wrong_way["status"])
+
+        overshot = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 1.0, "withinArrivalRadius": True},
+                {"sampleIndex": 2, "planarDistance": 4.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("overshot", overshot["status"])
+        self.assertFalse(overshot["actionableForMovement"])
+
+    def test_run_progress_builds_dry_run_progress_from_saved_plan_summaries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "plan-1.json"
+            second = root / "plan-2.json"
+            for path, distance in ((first, 10.0), (second, 9.0)):
+                path.write_text(
+                    json.dumps(
+                        {
+                            "kind": "static-owner-nav-target-dry-run-plan",
+                            "status": "passed",
+                            "verdict": "static-owner-nav-target-dry-run-plan-built",
+                            "generatedAtUtc": "2026-05-28T00:00:00+00:00",
+                            "navigationTarget": {
+                                "planarDistance": distance,
+                                "arrivalRadius": 2.0,
+                                "withinArrivalRadius": False,
+                                "suggestedTurnDirection": "aligned",
+                                "destination": {"label": "dest", "x": 10.0, "y": 0.0, "z": 0.0},
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                plan_summary_json=[str(first), str(second)],
+                minimum_progress_distance=0.35,
+                wrong_way_tolerance_distance=0.75,
+                arrival_radius=None,
+            )
+
+            progress = run_progress(args)
+
+            self.assertEqual("passed", progress["status"])
+            self.assertEqual("static-owner-nav-progress-dry-run-built", progress["verdict"])
+            self.assertTrue(progress["safety"]["dryRunOnly"])
+            self.assertFalse(progress["safety"]["movementSent"])
+            self.assertEqual("progress", progress["analysis"]["status"])
+            self.assertAlmostEqual(1.0, progress["analysis"]["totalProgressDistance"])
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
