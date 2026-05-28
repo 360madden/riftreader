@@ -31,8 +31,16 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
             by_path = {item["path"]: item for item in surfaces}
 
         self.assertEqual(by_path["scripts/current_pid_family_snapshot_sequence.py"]["classification"], "guarded-live-movement")
+        self.assertEqual(
+            by_path["scripts/current_pid_family_snapshot_sequence.py"]["recommendedDisposition"]["key"],
+            "guarded-entrypoint-approval-only",
+        )
         self.assertEqual(by_path["scripts/rift_live_test/emergency_key_release.py"]["classification"], "release-only")
         self.assertFalse(by_path["scripts/rift_live_test/emergency_key_release.py"]["reviewRequired"])
+        self.assertEqual(
+            by_path["scripts/rift_live_test/emergency_key_release.py"]["recommendedDisposition"]["key"],
+            "release-only-exact-target",
+        )
 
     def test_unknown_legacy_input_reference_requires_review(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -45,6 +53,8 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
         self.assertEqual(surfaces[0]["classification"], "input-workflow-reference")
         self.assertTrue(surfaces[0]["reviewRequired"])
         self.assertIn("post-rift-key", surfaces[0]["tokens"])
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "legacy-window-message-retire-or-wrap")
+        self.assertFalse(surfaces[0]["recommendedDisposition"]["autonomousSafeUse"])
 
     def test_test_files_are_not_runtime_review_blockers(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -55,6 +65,8 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
 
         self.assertEqual(surfaces[0]["classification"], "test-reference-only")
         self.assertFalse(surfaces[0]["reviewRequired"])
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "test-reference-only")
+        self.assertTrue(surfaces[0]["recommendedDisposition"]["autonomousSafeUse"])
 
     def test_tool_catalog_policy_references_are_not_runtime_review_blockers(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -68,6 +80,8 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
 
         self.assertEqual(surfaces[0]["classification"], "policy-reference")
         self.assertFalse(surfaces[0]["reviewRequired"])
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "read-only-policy-reference")
+        self.assertTrue(surfaces[0]["recommendedDisposition"]["autonomousSafeUse"])
 
     def test_debugger_stimulus_surface_is_critical(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -79,6 +93,20 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
         self.assertEqual(surfaces[0]["classification"], "debugger-or-stimulus-surface")
         self.assertEqual(surfaces[0]["risk"], "critical")
         self.assertTrue(surfaces[0]["reviewRequired"])
+        self.assertEqual(
+            surfaces[0]["recommendedDisposition"]["key"],
+            "forbidden-unless-live-debugger-and-input-approved",
+        )
+
+    def test_sendinput_surface_gets_guarded_wrapper_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_text(root / "scripts" / "calibration.py", "ctypes.windll.user32.SendInput(1, None, 0)\n")
+
+            surfaces = audit.audit_files(root, audit.iter_source_files(root))
+
+        self.assertEqual(surfaces[0]["classification"], "input-capable-code")
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "guarded-sendinput-wrapper-required")
 
     def test_run_writes_summary_and_reads_current_truth_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -119,6 +147,14 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
             self.assertEqual(summary["status"], "passed-with-review-required")
             self.assertEqual(summary["currentTruthGates"]["movementGate"]["status"], "blocked-live-input-spin-incident")
             self.assertTrue(summary["currentTruthGates"]["movementGate"]["automationMovementPaused"])
+            self.assertEqual(
+                summary["counts"]["reviewRequiredByDisposition"],
+                {"direct-input-primitive-explicit-approval-only": 1},
+            )
+            self.assertEqual(
+                summary["counts"]["reviewRequiredDispositionGroups"]["direct-input-primitive-explicit-approval-only"],
+                ["scripts/post-rift-key.ps1"],
+            )
             self.assertTrue(Path(summary["artifacts"]["summaryJson"]).is_file())
             self.assertFalse(summary["safety"]["inputSent"])
 

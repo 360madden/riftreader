@@ -255,6 +255,27 @@ KNOWN_SURFACES: dict[str, dict[str, Any]] = {
 }
 
 
+def make_disposition(
+    key: str,
+    *,
+    label: str,
+    operator_action: str,
+    approval_boundary: str,
+    required_gates: list[str],
+    autonomous_safe_use: bool = False,
+    notes: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "label": label,
+        "operatorAction": operator_action,
+        "approvalBoundary": approval_boundary,
+        "requiredGates": required_gates,
+        "autonomousSafeUse": autonomous_safe_use,
+        "notes": notes or [],
+    }
+
+
 def utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
@@ -504,6 +525,165 @@ def classify_surface(rel_path: str, tokens: set[str]) -> dict[str, Any]:
     }
 
 
+def recommend_surface_disposition(rel_path: str, tokens: set[str], classification: dict[str, Any]) -> dict[str, Any]:
+    classification_name = str(classification.get("classification") or "")
+    status = str(classification.get("status") or "")
+    risk = str(classification.get("risk") or "")
+    lower = rel_path.lower()
+
+    if classification_name in {"read-only-audit-helper", "policy-reference"}:
+        return make_disposition(
+            "read-only-policy-reference",
+            label="Read-only policy/reference surface",
+            operator_action="Safe to inspect and run only as documented read-only policy tooling.",
+            approval_boundary="none",
+            required_gates=["do not use policy references as live-input authorization"],
+            autonomous_safe_use=True,
+        )
+
+    if classification_name == "test-reference-only":
+        return make_disposition(
+            "test-reference-only",
+            label="Test or fixture reference",
+            operator_action="Use only for unit-test validation; do not route operator workflows through it.",
+            approval_boundary="none",
+            required_gates=["test/fixture scope only"],
+            autonomous_safe_use=True,
+        )
+
+    if classification_name.startswith("release-only"):
+        return make_disposition(
+            "release-only-exact-target",
+            label="Emergency release-only helper",
+            operator_action="Keep available for exact-target key-up/mouse-up cleanup; do not treat it as movement authorization.",
+            approval_boundary="emergency-release-exact-target",
+            required_gates=[
+                "exact PID/HWND target",
+                "release/up events only",
+                "no key-down, mouse-down, or movement stimulus",
+            ],
+        )
+
+    if status.startswith("guarded") or classification_name.startswith("guarded") or classification_name.startswith("profile-gated"):
+        return make_disposition(
+            "guarded-entrypoint-approval-only",
+            label="Guarded live-capable entry point",
+            operator_action="Use dry-run/no-input modes freely; live profiles still require explicit current-turn approval and proof gates.",
+            approval_boundary="live-input-or-movement",
+            required_gates=[
+                "fresh exact PID/HWND/process-start target",
+                "fresh API-now vs memory-now coordinate readback where coordinate-driven",
+                "movement/input approval in current turn",
+                "post-run no-stuck-key release/readback",
+            ],
+        )
+
+    if "debugger" in classification_name or risk == "critical" or "x64dbg" in lower or {"allow-game-input", "stimulus-key"} & tokens:
+        return make_disposition(
+            "forbidden-unless-live-debugger-and-input-approved",
+            label="Debugger/stimulus surface",
+            operator_action="Do not run in autonomous safe/offline lanes; require explicit live debugger plus input approval.",
+            approval_boundary="live-debugger-and-input",
+            required_gates=[
+                "user acknowledges x64dbg/CE crash risk in current turn",
+                "exact target identity",
+                "explicit game-input/stimulus approval",
+                "bounded capture plan and stop conditions",
+            ],
+        )
+
+    if classification_name == "external-local-mcp-input-capable":
+        return make_disposition(
+            "external-window-tool-explicit-target-only",
+            label="External local window/input helper",
+            operator_action="Use only through the rift-window-control workflow after exact bind/focus/capture verification.",
+            approval_boundary="rift-window-control-live-input",
+            required_gates=[
+                "current rift-window-control bind",
+                "exact target verification",
+                "explicit live input approval",
+                "visual/readback confirmation after action",
+            ],
+        )
+
+    if status == "direct-live-input-capable" or classification_name in {"input-primitive", "input-primitive-launcher", "input-launcher"}:
+        return make_disposition(
+            "direct-input-primitive-explicit-approval-only",
+            label="Direct live-input primitive",
+            operator_action="Do not invoke directly from automation; wrap behind exact-target gates and current-turn live-input approval.",
+            approval_boundary="live-input",
+            required_gates=[
+                "fresh exact PID/HWND target",
+                "approved backend",
+                "explicit input/movement authorization",
+                "pre/post emergency release guard",
+            ],
+        )
+
+    if {"post-message", "use-window-message", "window-message"} & tokens:
+        return make_disposition(
+            "legacy-window-message-retire-or-wrap",
+            label="Legacy WindowMessage/PostMessage surface",
+            operator_action="Prefer retirement or a guarded Python/C# wrapper; do not use as an autonomous live backend.",
+            approval_boundary="legacy-live-input-review",
+            required_gates=[
+                "incident review completed",
+                "exact target identity",
+                "explicit live input approval",
+                "bounded readback proving no spin/stuck input",
+            ],
+        )
+
+    if {"click-action", "mouse-event", "set-foreground-window"} & tokens:
+        return make_disposition(
+            "focus-click-manual-review-required",
+            label="Focus/click-capable surface",
+            operator_action="Review manually and route through exact-bound window-control helpers before any live use.",
+            approval_boundary="focus-or-click-live-input",
+            required_gates=[
+                "exact target window",
+                "foreground/focus drift check",
+                "explicit click/focus approval",
+                "visual confirmation",
+            ],
+        )
+
+    if {"sendinput-api", "riftreader-sendinput", "send-rift-key"} & tokens:
+        return make_disposition(
+            "guarded-sendinput-wrapper-required",
+            label="SendInput-capable surface",
+            operator_action="Keep as a primitive or calibration tool only; route through approved exact-target guarded wrappers.",
+            approval_boundary="live-input",
+            required_gates=[
+                "fresh exact PID/HWND target",
+                "C# ScanCode backend where movement is involved",
+                "explicit live input approval",
+                "post-action readback/release check",
+            ],
+        )
+
+    if classification_name == "input-workflow-reference":
+        return make_disposition(
+            "workflow-reference-review-required",
+            label="Input workflow reference",
+            operator_action="Review the referenced workflow before routing or reuse; references alone are not authorization.",
+            approval_boundary="workflow-review",
+            required_gates=[
+                "identify referenced live backend",
+                "confirm exact-target gates",
+                "explicit approval before live use",
+            ],
+        )
+
+    return make_disposition(
+        "manual-review-required",
+        label="Manual review required",
+        operator_action="Classify the surface and add an explicit guard or policy entry before any live use.",
+        approval_boundary="manual-review",
+        required_gates=["human classification", "explicit authorization before live use"],
+    )
+
+
 def audit_files(repo_root: Path, files: list[Path], *, max_evidence_per_file: int = 12) -> list[dict[str, Any]]:
     surfaces: list[dict[str, Any]] = []
     for path in files:
@@ -512,12 +692,14 @@ def audit_files(repo_root: Path, files: list[Path], *, max_evidence_per_file: in
             continue
         rel_path = repo_rel(repo_root, path)
         classification = classify_surface(rel_path, tokens)
+        disposition = recommend_surface_disposition(rel_path, tokens, classification)
         surfaces.append(
             {
                 "path": rel_path,
                 "tokens": sorted(tokens),
                 "evidence": evidence,
                 **classification,
+                "recommendedDisposition": disposition,
             }
         )
     return surfaces
@@ -527,10 +709,18 @@ def summarize_surfaces(surfaces: list[dict[str, Any]]) -> dict[str, Any]:
     classifications = Counter(str(item.get("classification")) for item in surfaces)
     statuses = Counter(str(item.get("status")) for item in surfaces)
     risks = Counter(str(item.get("risk")) for item in surfaces)
+    dispositions = Counter(str(item.get("recommendedDisposition", {}).get("key", "missing")) for item in surfaces)
     review_required = [item for item in surfaces if item.get("reviewRequired")]
+    review_dispositions = Counter(
+        str(item.get("recommendedDisposition", {}).get("key", "missing")) for item in review_required
+    )
     guarded = [item for item in surfaces if str(item.get("status", "")).startswith("guarded")]
     release_only = [item for item in surfaces if str(item.get("classification", "")).startswith("release-only")]
     critical = [item for item in surfaces if item.get("risk") == "critical"]
+    review_disposition_groups: dict[str, list[str]] = {}
+    for item in review_required:
+        key = str(item.get("recommendedDisposition", {}).get("key", "missing"))
+        review_disposition_groups.setdefault(key, []).append(str(item.get("path")))
     return {
         "surfaceCount": len(surfaces),
         "reviewRequiredCount": len(review_required),
@@ -540,6 +730,9 @@ def summarize_surfaces(surfaces: list[dict[str, Any]]) -> dict[str, Any]:
         "byClassification": dict(sorted(classifications.items())),
         "byStatus": dict(sorted(statuses.items())),
         "byRisk": dict(sorted(risks.items())),
+        "byRecommendedDisposition": dict(sorted(dispositions.items())),
+        "reviewRequiredByDisposition": dict(sorted(review_dispositions.items())),
+        "reviewRequiredDispositionGroups": {key: sorted(paths) for key, paths in sorted(review_disposition_groups.items())},
         "reviewRequiredPaths": [str(item.get("path")) for item in review_required],
         "criticalPaths": [str(item.get("path")) for item in critical],
     }
@@ -567,15 +760,22 @@ def render_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Surfaces",
         "",
-        "| Path | Classification | Status | Risk | Review? | Evidence tokens |",
-        "|---|---|---|---|---:|---|",
+        "| Path | Classification | Status | Risk | Review? | Disposition | Evidence tokens |",
+        "|---|---|---|---|---:|---|---|",
     ]
     for item in summary.get("surfaces", []):
         tokens = ", ".join(f"`{token}`" for token in item.get("tokens", [])[:8])
+        disposition = item.get("recommendedDisposition", {}).get("key")
         lines.append(
             f"| `{item.get('path')}` | `{item.get('classification')}` | `{item.get('status')}` | "
-            f"`{item.get('risk')}` | `{bool(item.get('reviewRequired'))}` | {tokens} |"
+            f"`{item.get('risk')}` | `{bool(item.get('reviewRequired'))}` | `{disposition}` | {tokens} |"
         )
+
+    review_groups = counts.get("reviewRequiredDispositionGroups") or {}
+    if review_groups:
+        lines.extend(["", "## Review-required disposition groups", ""])
+        for key, paths in review_groups.items():
+            lines.append(f"- `{key}`: `{len(paths)}`")
 
     review_paths = counts.get("reviewRequiredPaths") or []
     if review_paths:
