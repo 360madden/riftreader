@@ -377,3 +377,38 @@ cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json <route-s
 ## Updated resume note
 
 The offline navigation chain now includes a fail-closed consumer gate: generate route summaries with `static-owner-nav-route.cmd`, then validate them with `static-owner-nav-validate-route.cmd` before any downstream helper consumes the recommendation. This still does not permit movement; live route loops need a separate exact-target static-chain readback/preflight and any proof expansion still requires explicit approval.
+
+---
+
+# Continuation addendum — checked-in route contract fixture
+
+Added after the route contract validator addendum.
+
+## Additional local commit
+
+| Commit | Summary |
+|---|---|
+| `ac48988` | Add static owner nav route contract fixture |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Stable route-summary fixture | Added `scripts/navigation/testdata/static-owner-nav-route-summary-safe.json` as a safe, non-live, movement-denied route summary sample. |
+| Fixture coverage | `scripts/test_static_owner_facing_discovery.py` now validates the checked-in fixture through `validate_route_summary_contract`. |
+| Safety posture | Fixture asserts `movementPermission=false`, `actionableForMovement=false`, `navigationControl=false`, `candidateOnly=true`, and `dryRunOnly=true`. |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `21` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `42` tests |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+Downstream code now has a checked-in fixture that documents and tests the safe route-summary contract. Use it as the canonical offline sample for future route consumers, not as live truth or movement permission.
