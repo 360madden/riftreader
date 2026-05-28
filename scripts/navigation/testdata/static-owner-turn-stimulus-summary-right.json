@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-turn-stimulus-capture",
+  "generatedAtUtc": "2026-05-28T17:02:00.972190+00:00",
+  "status": "passed",
+  "verdict": "turn-yaw-delta-validated",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "operator": {
+    "dryRun": false,
+    "turnApproved": true
+  },
+  "input": {
+    "direction": "right",
+    "key": "right",
+    "holdMilliseconds": 350,
+    "inputMode": "ScanCode"
+  },
+  "analysis": {
+    "status": "passed",
+    "candidateOnly": true,
+    "actionableForNavigation": false,
+    "movementPermission": false,
+    "facingPromotion": false,
+    "direction": "right",
+    "key": "right",
+    "preYawDegrees": 28.588648937607957,
+    "postYawDegrees": 92.11673917694314,
+    "signedYawDeltaDegrees": 63.5280902393352,
+    "absoluteYawDeltaDegrees": 63.5280902393352,
+    "minimumYawDeltaDegrees": 2.0,
+    "coordinateDelta": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "planar": 0.0,
+      "distance3d": 0.0
+    },
+    "maxPlanarDrift": 1.0,
+    "blockers": [],
+    "warnings": []
+  },
+  "childCommands": [
+    {
+      "label": "01-pre-state",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "02-turn-stimulus",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "03-post-state",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "blockers": [],
+  "warnings": [
+    "candidate-facing-yaw-not-promoted"
+  ],
+  "errors": [],
+  "safety": {
+    "movementSent": true,
+    "inputSent": true,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debuggerAttached": false,
+    "providerWrites": false,
+    "gitMutation": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "facingPromotion": false,
+    "navigationControl": false,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "artifacts": {
+    "runDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170200-971334",
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170200-971334\\summary.json",
+    "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170200-971334\\summary.md",
+    "preStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-170201-266061\\summary.json",
+    "postStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-170204-312026\\summary.json",
+    "stimulusStdout": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170200-971334\\child-outputs\\02-turn-stimulus.stdout.txt"
+  }
+}

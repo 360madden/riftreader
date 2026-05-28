@@ -18,6 +18,7 @@ permission and does not promote facing, actor, or proof truth.
 | Run one bounded route step | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x <x> --destination-z <z> --movement-approved --json` | `static-owner-nav-route-step` | Live workflow gate; performs pre-state readback, one C# SendInput pulse, post-state readback, route contract validation, and fail-closed progress classification. |
 | Run a conservative bounded route | `cmd /c scripts\static-owner-nav-route-run.cmd --destination-x <x> --destination-z <z> --max-steps 3 --movement-approved --json` | `static-owner-nav-route-run` | Live workflow gate; loops only by calling the one-step helper, stops on arrival/block/failure/max-steps, and records aggregate safety. |
 | Validate route-run contract | `cmd /c scripts\static-owner-nav-validate-route-run.cmd <route-run-summary.json> --json` | `static-owner-nav-route-run-contract-validation` | Saved-summary gate; no live read or input. |
+| Report route-run summary | `cmd /c scripts\static-owner-nav-report-route-run.cmd <route-run-summary.json> --json` | `static-owner-nav-route-run-report` | Saved-summary report; no live read or input. |
 
 ## Route summary requirements
 
@@ -101,6 +102,7 @@ the one-step helper. It does not implement independent movement logic.
 | Stop rule | Stops successfully on `routeStatus=arrived` or `route-step-no-movement-needed`. |
 | Fail-closed rule | Blocks/fails immediately on step failure, contract failure, candidate turn block, wrong-way, no-progress, overshot, target drift, or JSON/summary load failure. |
 | Max steps | Reaching `--max-steps` with progress but without arrival returns blocked (`route-run-max-steps-reached-before-arrival`) rather than silently continuing. |
+| Arrival-radius guardrail | `--arrival-radius` must not exceed `--max-arrival-radius` (default `10.0`) unless the operator explicitly raises that ceiling. |
 | Promotions | Does not promote facing, actor chain, proof, or current truth. |
 
 The runner's `safety.navigationControl` is set only when a live run sends input
@@ -139,6 +141,7 @@ cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\
 cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json
 cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --dry-run --json
 cmd /c scripts\static-owner-nav-validate-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
+cmd /c scripts\static-owner-nav-report-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
 python -m unittest scripts.test_static_owner_facing_discovery
 python -m unittest scripts.test_static_owner_nav_route_step
 python -m unittest scripts.test_static_owner_nav_route_run

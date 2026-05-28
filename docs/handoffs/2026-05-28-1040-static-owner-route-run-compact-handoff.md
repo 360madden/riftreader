@@ -101,3 +101,61 @@ Static-owner navigation development is now at a coherent pushed-ready checkpoint
 | 8 | Avoid route-loop expansion until turn evidence exists | Prevents candidate-only yaw from becoming implicit control truth. |
 | 9 | Push after handoff commit if remote is still behind | Shares validated route-runner work. |
 | 10 | After push, verify `origin/main` head matches local head | Confirms remote has the full checkpoint. |
+
+---
+
+# Continuation addendum — turn/yaw stimulus and route-run guardrails
+
+Created UTC: `2026-05-28T17:05:00Z`
+
+## Additional result
+
+| Area | Current state |
+|---|---|
+| Turn/yaw stimulus helper | Added `scripts\static_owner_turn_stimulus_capture.py` and `scripts\static-owner-turn-stimulus-capture.cmd`. |
+| Turn validator | Added `scripts\static-owner-validate-turn-stimulus.cmd`. |
+| Turn fixtures | Added left/right checked-in summaries under `scripts\navigation\testdata\`. |
+| Route-run guardrail | Added `--max-arrival-radius` (default `10.0`) and blocks overlarge `--arrival-radius`. |
+| Route-run report | Added `scripts\static-owner-nav-report-route-run.cmd` for saved-summary review without live input. |
+| Turn contract doc | Added `docs\workflow\static-owner-turn-stimulus-contract.md`. |
+
+## Live turn/yaw evidence
+
+| Direction | Key | Signed yaw delta | Planar drift | MCP frame change |
+|---|---|---:|---:|---:|
+| left | `left` | `-63.528090239335185` | `0.0` | `61.7222%` |
+| right | `right` | `63.5280902393352` | `0.0` | `64.0833%` |
+
+## New artifacts
+
+| Artifact | Path |
+|---|---|
+| Left turn live summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-turn-stimulus-20260528-170126-146711\summary.json` |
+| Right turn live summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-turn-stimulus-20260528-170200-971334\summary.json` |
+| Left turn fixture | `C:\RIFT MODDING\RiftReader\scripts\navigation\testdata\static-owner-turn-stimulus-summary-left.json` |
+| Right turn fixture | `C:\RIFT MODDING\RiftReader\scripts\navigation\testdata\static-owner-turn-stimulus-summary-right.json` |
+| Left changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-130136-180.png` |
+| Right changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-130209-103.png` |
+
+## Validation added
+
+| Validation | Result |
+|---|---|
+| `python -m unittest scripts.test_static_owner_turn_stimulus_capture scripts.test_static_owner_nav_route_run` | Passed: `19` tests |
+| `cmd /c scripts\static-owner-validate-turn-stimulus.cmd scripts\navigation\testdata\static-owner-turn-stimulus-summary-left.json --json` | Passed |
+| `cmd /c scripts\static-owner-validate-turn-stimulus.cmd scripts\navigation\testdata\static-owner-turn-stimulus-summary-right.json --json` | Passed |
+| `cmd /c scripts\static-owner-nav-report-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json` | Passed |
+| Route-run overlarge arrival-radius guardrail | Blocked as expected with `arrival-radius-exceeds-max-arrival-radius`. |
+
+## Updated boundary
+
+Turn/yaw stimulus evidence proves the candidate yaw lane responds to bounded left/right turn input. It still does **not** promote facing/yaw, full actor/stat-chain truth, ProofOnly, or route turn control. Next controller work should consume these fixtures only through explicit fail-closed gates.
+
+Final validation before commit:
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_turn_stimulus_capture.py scripts\test_static_owner_turn_stimulus_capture.py scripts\static_owner_nav_route_run.py scripts\test_static_owner_nav_route_run.py` | Passed |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status scripts.test_static_owner_nav_route_step scripts.test_static_owner_nav_route_run scripts.test_static_owner_turn_stimulus_capture` | Passed: `69` tests |
+| `git --no-pager diff --check` | Passed; only line-ending warnings |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |

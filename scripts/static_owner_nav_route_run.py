@@ -45,6 +45,7 @@ except ImportError:  # pragma: no cover - direct script execution path
 
 SCHEMA_VERSION = 1
 DEFAULT_MAX_STEPS = 3
+DEFAULT_MAX_ARRIVAL_RADIUS = 10.0
 LIVE_STEP_VERDICT = "route-step-live-movement-progress-validated"
 DRY_RUN_STEP_VERDICTS = {"route-step-dry-run-plan-built", "route-step-no-movement-needed"}
 
@@ -67,6 +68,10 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         errors.append("max-steps-must-be-positive")
     if args.step_timeout_seconds <= 0:
         errors.append("step-timeout-seconds-must-be-positive")
+    if args.max_arrival_radius <= 0:
+        errors.append("max-arrival-radius-must-be-positive")
+    if args.arrival_radius is not None and args.arrival_radius > args.max_arrival_radius:
+        errors.append("arrival-radius-exceeds-max-arrival-radius")
     return sorted(set(errors))
 
 
@@ -537,6 +542,77 @@ def build_validation_markdown(summary: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_report_markdown(summary: Mapping[str, Any]) -> str:
+    source = safe_mapping(summary.get("source"))
+    aggregate = safe_mapping(source.get("aggregate"))
+    safety = safe_mapping(source.get("safety"))
+    contract = safe_mapping(summary.get("contract"))
+    artifacts = safe_mapping(summary.get("artifacts"))
+    lines = [
+        "# Static owner navigation route-run report",
+        "",
+        f"Generated: `{summary.get('generatedAtUtc')}`",
+        f"Status: `{summary.get('status')}`",
+        f"Source summary: `{summary.get('sourceSummaryJson')}`",
+        f"Source verdict: `{source.get('verdict')}`",
+        f"Contract status: `{contract.get('status')}`",
+        "",
+        "## Aggregate",
+        "",
+        f"- Steps run: `{aggregate.get('stepsRun')}` / `{aggregate.get('maxSteps')}`",
+        f"- Arrived: `{aggregate.get('arrived')}`",
+        f"- Last route status: `{aggregate.get('lastRouteStatus')}`",
+        f"- Total progress: `{aggregate.get('totalProgressDistance')}`",
+        f"- Final planar distance: `{aggregate.get('finalPlanarDistance')}`",
+        "",
+        "## Steps",
+        "",
+        "| Step | Status | Route status | Progress | Initial distance | Final distance |",
+        "|---:|---|---|---:|---:|---:|",
+    ]
+    for step in source.get("steps", []):
+        row = safe_mapping(step)
+        lines.append(
+            "| {step} | `{status}` | `{route}` | `{progress}` | `{initial}` | `{final}` |".format(
+                step=row.get("stepNumber"),
+                status=row.get("status"),
+                route=row.get("routeStatus"),
+                progress=row.get("totalProgressDistance"),
+                initial=row.get("initialPlanarDistance"),
+                final=row.get("finalPlanarDistance"),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Safety",
+            "",
+            f"- Movement sent: `{safety.get('movementSent')}`",
+            f"- Input sent: `{safety.get('inputSent')}`",
+            f"- Navigation control: `{safety.get('navigationControl')}`",
+            f"- Cheat Engine: `{not bool(safety.get('noCheatEngine'))}`",
+            f"- x64dbg attach: `{safety.get('x64dbgAttach')}`",
+            f"- Provider writes: `{safety.get('providerWrites')}`",
+            f"- Proof promotion: `{safety.get('proofPromotion')}`",
+            "",
+            "## Artifacts",
+            "",
+            f"- Summary JSON: `{artifacts.get('summaryJson')}`",
+            f"- Run directory: `{artifacts.get('runDirectory')}`",
+        ]
+    )
+    if summary.get("blockers"):
+        lines.extend(["", "## Blockers", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
+    if summary.get("warnings"):
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+    if summary.get("errors"):
+        lines.extend(["", "## Errors", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+    return "\n".join(lines) + "\n"
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
@@ -703,6 +779,64 @@ def validate_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def report_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-route-run-report-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    safety = base_safety()
+    source = Path(str(args.report_route_run_summary_json)).resolve() if args.report_route_run_summary_json else None
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-route-run-report",
+        "generatedAtUtc": utc_iso(),
+        "status": "pending",
+        "repoRoot": str(root),
+        "sourceSummaryJson": str(source) if source else None,
+        "source": {},
+        "contract": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": safety,
+        "artifacts": {
+            "runDirectory": str(run_dir),
+            "summaryJson": str(run_dir / "summary.json"),
+            "summaryMarkdown": str(run_dir / "summary.md"),
+        },
+    }
+    if not source:
+        summary["status"] = "failed"
+        summary["errors"].append("report-route-run-summary-json-required")
+        return summary
+    try:
+        route_run_summary = load_json_object(source)
+        contract = validate_route_run_summary_contract(route_run_summary)
+        summary["source"] = {
+            "kind": route_run_summary.get("kind"),
+            "status": route_run_summary.get("status"),
+            "verdict": route_run_summary.get("verdict"),
+            "generatedAtUtc": route_run_summary.get("generatedAtUtc"),
+            "operator": route_run_summary.get("operator"),
+            "input": route_run_summary.get("input"),
+            "aggregate": route_run_summary.get("aggregate"),
+            "steps": route_run_summary.get("steps", []),
+            "safety": route_run_summary.get("safety"),
+            "artifacts": route_run_summary.get("artifacts"),
+        }
+        summary["contract"] = contract
+        summary["blockers"].extend(contract["blockers"])
+        summary["warnings"].extend(contract["warnings"])
+        summary["status"] = "passed" if contract["status"] == "passed" else "blocked"
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["blockers"] = sorted(set(summary["blockers"]))
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    summary["errors"] = sorted(set(summary["errors"]))
+    return summary
+
+
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     aggregate = safe_mapping(summary.get("aggregate"))
@@ -747,11 +881,36 @@ def compact_validation(summary: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_report(summary: Mapping[str, Any]) -> dict[str, Any]:
+    artifacts = safe_mapping(summary.get("artifacts"))
+    contract = safe_mapping(summary.get("contract"))
+    source = safe_mapping(summary.get("source"))
+    aggregate = safe_mapping(source.get("aggregate"))
+    return {
+        "status": summary.get("status"),
+        "contractStatus": contract.get("status"),
+        "sourceStatus": source.get("status"),
+        "sourceVerdict": source.get("verdict"),
+        "stepsRun": aggregate.get("stepsRun"),
+        "arrived": aggregate.get("arrived"),
+        "lastRouteStatus": aggregate.get("lastRouteStatus"),
+        "totalProgressDistance": aggregate.get("totalProgressDistance"),
+        "finalPlanarDistance": aggregate.get("finalPlanarDistance"),
+        "sourceSummaryJson": summary.get("sourceSummaryJson"),
+        "summaryJson": artifacts.get("summaryJson"),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "blockers": summary.get("blockers", []),
+        "warnings": summary.get("warnings", []),
+        "errors": summary.get("errors", []),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a conservative multi-step static-owner navigation route")
     parser.add_argument("--repo-root")
     parser.add_argument("--output-root")
     parser.add_argument("--validate-route-run-summary-json", nargs="?", const="")
+    parser.add_argument("--report-route-run-summary-json", nargs="?", const="")
     parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
     parser.add_argument("--destination-x", type=float)
     parser.add_argument("--destination-y", type=float)
@@ -774,6 +933,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--step-timeout-seconds", type=float, default=240.0)
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
+    parser.add_argument("--max-arrival-radius", type=float, default=DEFAULT_MAX_ARRIVAL_RADIUS)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--movement-approved", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -783,11 +943,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     validation_mode = args.validate_route_run_summary_json is not None
-    summary = validate_saved_summary(args) if validation_mode else run(args)
+    report_mode = args.report_route_run_summary_json is not None
+    if validation_mode and report_mode:
+        raise SystemExit("--validate-route-run-summary-json and --report-route-run-summary-json are mutually exclusive")
+    summary = validate_saved_summary(args) if validation_mode else report_saved_summary(args) if report_mode else run(args)
     artifacts = safe_mapping(summary.get("artifacts"))
     write_json(Path(str(artifacts["summaryJson"])), summary)
-    markdown = build_validation_markdown(summary) if validation_mode else build_markdown(summary)
-    compact_summary = compact_validation(summary) if validation_mode else compact(summary)
+    markdown = build_validation_markdown(summary) if validation_mode else build_report_markdown(summary) if report_mode else build_markdown(summary)
+    compact_summary = compact_validation(summary) if validation_mode else compact_report(summary) if report_mode else compact(summary)
     Path(str(artifacts["summaryMarkdown"])).write_text(markdown, encoding="utf-8")
     print(json.dumps(compact_summary) if args.json else json.dumps(compact_summary, indent=2))
     return 0 if summary.get("status") == "passed" else 2 if summary.get("status") == "blocked" else 1

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from scripts.static_owner_nav_route_run import (
+    report_saved_summary,
     summarize_route_run_steps,
     validate_args,
     validate_route_run_summary_contract,
@@ -88,9 +89,31 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
             command_timeout_seconds=120.0,
             step_timeout_seconds=240.0,
             max_steps=0,
+            max_arrival_radius=10.0,
         )
 
         self.assertIn("max-steps-must-be-positive", validate_args(args))
+
+    def test_validate_args_blocks_overlarge_arrival_radius(self):
+        args = argparse.Namespace(
+            destination_x=1.0,
+            destination_y=None,
+            destination_z=2.0,
+            destination_waypoint_json=None,
+            destination_waypoint_id=None,
+            arrival_radius=25.0,
+            alignment_threshold_degrees=7.5,
+            samples=3,
+            interval_seconds=0.1,
+            hold_milliseconds=250,
+            settle_seconds=0.75,
+            command_timeout_seconds=120.0,
+            step_timeout_seconds=240.0,
+            max_steps=1,
+            max_arrival_radius=10.0,
+        )
+
+        self.assertIn("arrival-radius-exceeds-max-arrival-radius", validate_args(args))
 
     def test_checked_in_route_run_fixture_passes_contract(self):
         summary = route_run_fixture()
@@ -131,6 +154,22 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual("passed", summary["status"])
         self.assertEqual("passed", summary["contract"]["status"])
         self.assertEqual([], summary["blockers"])
+
+    def test_report_saved_summary_passes_fixture(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            args = argparse.Namespace(
+                repo_root=None,
+                output_root=tmp,
+                report_route_run_summary_json=str(fixture),
+            )
+
+            summary = report_saved_summary(args)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual("route-run-arrived", summary["source"]["verdict"])
+        self.assertEqual(2, summary["source"]["aggregate"]["stepsRun"])
+        self.assertEqual("passed", summary["contract"]["status"])
 
 
 if __name__ == "__main__":
