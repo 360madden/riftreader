@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-nav-state-response-candidate",
+  "updatedUtc": "2026-05-28T03:22:00Z",
+  "status": "passed-candidate-not-promoted",
+  "target": {
+    "processName": "rift_x64",
+    "pid": 34176,
+    "hwnd": "0x3D1544",
+    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "moduleBase": "0x7FF77AF40000"
+  },
+  "resolver": {
+    "positionChain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "facingTargetChain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+    "yawFormula": "atan2((owner+0x314)-(owner+0x328), (owner+0x30C)-(owner+0x320))",
+    "classification": "candidate-facing-state-source-not-promoted"
+  },
+  "stimulus": {
+    "keyChord": "right",
+    "holdMilliseconds": 250,
+    "allowMovementKeys": true,
+    "keyboardInputMethod": "window-message",
+    "frameChangePercent": 60.7778
+  },
+  "before": {
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-031944-060785\\summary.json",
+    "coordinate": {
+      "x": 7260.65576171875,
+      "y": 821.4660034179688,
+      "z": 2989.657470703125
+    },
+    "yawDegrees": 83.64698580993692,
+    "pitchDegrees": 0.7057304447350325,
+    "planarLookaheadDistance": 9.99914895549015,
+    "sampleCount": 3,
+    "maxPlanarDelta": 0.0,
+    "yawRangeDegrees": 0.0
+  },
+  "after": {
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-032009-849296\\summary.json",
+    "coordinate": {
+      "x": 7260.65576171875,
+      "y": 821.4660034179688,
+      "z": 2989.657470703125
+    },
+    "yawDegrees": 131.64771257433102,
+    "pitchDegrees": 0.7057200332052375,
+    "planarLookaheadDistance": 9.999296488453382,
+    "sampleCount": 3,
+    "maxPlanarDelta": 0.0,
+    "yawRangeDegrees": 0.0
+  },
+  "deltas": {
+    "yawDegrees": 48.0007267643941,
+    "coordinatePlanar": 0.0
+  },
+  "screenshots": {
+    "baseline": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-231937-553.png",
+    "changed": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-231958-523.png",
+    "final": "C:\\RIFT MODDING\\RiftReader\\tools\\rift-game-mcp\\.runtime\\screenshots\\capture-20260527-232003-389.png"
+  },
+  "safety": {
+    "exactTarget": true,
+    "movementSent": true,
+    "inputSent": true,
+    "cheatEngineUsed": false,
+    "x64dbgAttached": false,
+    "targetMemoryWrites": false,
+    "providerWrites": false,
+    "facingPromotion": false,
+    "navigationControl": false
+  },
+  "nextGate": "explicit approval required before facing/yaw promotion"
+}
