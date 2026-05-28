@@ -450,6 +450,25 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("decision-packet-tests", labels)
         self.assertIn("policy-lint-changed", labels)
 
+    def test_validation_plan_selects_tool_catalog_checks_for_tool_catalog_change(self) -> None:
+        plan = decision_packet.build_validation_plan(
+            {"changedFiles": [{"path": "tools/riftreader_workflow/tool_catalog.py"}]},
+            "git",
+        )
+        labels = {item["label"] for item in plan["commands"]}
+
+        self.assertIn("tool-catalog-tests", labels)
+        self.assertIn("tool-catalog-self-test", labels)
+
+    def test_validation_plan_selects_live_input_audit_checks_for_audit_change(self) -> None:
+        plan = decision_packet.build_validation_plan(
+            {"changedFiles": [{"path": "scripts/live_input_surface_audit.py"}]},
+            "git",
+        )
+        labels = {item["label"] for item in plan["commands"]}
+
+        self.assertIn("live-input-surface-audit-tests", labels)
+
     def test_validation_plan_selects_retired_surface_policy_tests_for_policy_docs(self) -> None:
         plan = decision_packet.build_validation_plan(
             {"changedFiles": [{"path": "docs/workflow/codex-agent-routing-policy.md"}]},
@@ -735,6 +754,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "repo",
                 "targetEpoch",
                 "truth",
+                "toolCatalog",
                 "retiredSurfaces",
                 "allowedActions",
                 "forbiddenActions",
@@ -760,6 +780,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(packet["kind"], "riftreader-decision-packet")
         self.assertIn("command", packet["safeNextAction"])
         self.assertIn("commands", packet["validationPlan"])
+        self.assertIn("safeRefreshCommand", packet["toolCatalog"])
         self.assertIn("recommended", packet["commitPlan"])
         self.assertIn("banner", packet["llmReminder"])
         self.assertIn("state", packet["milestoneStatus"])
@@ -771,6 +792,7 @@ class DecisionPacketTests(unittest.TestCase):
 
         self.assertEqual(contract["kind"], "riftreader-decision-packet-schema-contract")
         self.assertIn("commitPlan", contract["requiredTopLevelFields"])
+        self.assertIn("toolCatalog", contract["requiredTopLevelFields"])
         self.assertIn("stageCommand", contract["commitPlanFields"])
         self.assertIn("stageCommandPreview", contract["commitPlanFields"])
         self.assertIn("retiredSurfacePaths", contract["commitPlanFields"])
@@ -1160,6 +1182,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "milestoneStatus",
                 "commitPlan",
                 "agentPlan",
+                "toolCatalog",
                 "retiredSurfaces",
                 "blockers",
                 "warnings",

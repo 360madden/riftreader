@@ -236,6 +236,14 @@ KNOWN_SURFACES: dict[str, dict[str, Any]] = {
         "controls": ["package deny list includes send-rift-key/post-rift-key patterns"],
         "allowedReusePolicy": "Safe as package-policy reference; does not authorize live input.",
     },
+    "tools/riftreader_workflow/tool_catalog.py": {
+        "classification": "policy-reference",
+        "status": "read-only-policy-reference",
+        "risk": "low",
+        "reviewRequired": False,
+        "controls": ["catalogs input-capable tools by name only; sends no input and runs no live tooling"],
+        "allowedReusePolicy": "Safe as a read-only tool-routing reference; it does not authorize live input.",
+    },
     "tools/rift-game-mcp/helpers/window-tools.ps1": {
         "classification": "external-local-mcp-input-capable",
         "status": "direct-live-input-capable",

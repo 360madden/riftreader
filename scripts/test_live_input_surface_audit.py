@@ -56,6 +56,19 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
         self.assertEqual(surfaces[0]["classification"], "test-reference-only")
         self.assertFalse(surfaces[0]["reviewRequired"])
 
+    def test_tool_catalog_policy_references_are_not_runtime_review_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_text(
+                root / "tools" / "riftreader_workflow" / "tool_catalog.py",
+                '"tools/RiftReader.SendInput/Program.cs" "PostMessage helpers"\n',
+            )
+
+            surfaces = audit.audit_files(root, audit.iter_source_files(root))
+
+        self.assertEqual(surfaces[0]["classification"], "policy-reference")
+        self.assertFalse(surfaces[0]["reviewRequired"])
+
     def test_debugger_stimulus_surface_is_critical(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

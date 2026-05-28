@@ -20,14 +20,16 @@ from typing import Any, Iterable
 try:
     from .common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
     from .status_packet import proof_anchor_freshness_summary
+    from .tool_catalog import build_decision_packet_tool_catalog
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
     from riftreader_workflow.status_packet import proof_anchor_freshness_summary
+    from riftreader_workflow.tool_catalog import build_decision_packet_tool_catalog
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.3"
+HELPER_VERSION = "0.1.4"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -607,6 +609,29 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "Run fixture-only decision packet self-test.",
             )
         )
+    if any("tool_catalog" in path or "riftreader-tool-catalog" in path for path in lower_paths):
+        commands.append(
+            command_spec(
+                "tool-catalog-tests",
+                ["python", "-m", "unittest", "scripts.test_tool_catalog"],
+                "Validate the repo/external tool catalog and risk routing.",
+            )
+        )
+        commands.append(
+            command_spec(
+                "tool-catalog-self-test",
+                ["python", "tools/riftreader_workflow/tool_catalog.py", "--self-test"],
+                "Run fixture-only tool catalog self-test.",
+            )
+        )
+    if any("live_input_surface_audit" in path or "riftreader-live-input-surface-audit" in path for path in lower_paths):
+        commands.append(
+            command_spec(
+                "live-input-surface-audit-tests",
+                ["python", "-m", "unittest", "scripts.test_live_input_surface_audit"],
+                "Validate live-input surface classifications remain fail-closed.",
+            )
+        )
     if lane == "actor-chain" or any("actor_chain" in path or "static_chain_promotion_readiness" in path for path in lower_paths):
         commands.append(
             command_spec(
@@ -750,18 +775,20 @@ def build_agent_plan() -> list[dict[str, Any]]:
         {
             "name": "core-helper",
             "authority": "write",
-            "ownedPaths": ["tools/riftreader_workflow/decision_packet.py"],
+            "ownedPaths": ["tools/riftreader_workflow/decision_packet.py", "tools/riftreader_workflow/tool_catalog.py"],
             "forbiddenPaths": ["scripts/test_decision_packet.py", "docs/**"],
             "risk": "medium",
-            "validation": ["python -m py_compile tools/riftreader_workflow/decision_packet.py"],
+            "validation": [
+                "python -m py_compile tools/riftreader_workflow/decision_packet.py tools/riftreader_workflow/tool_catalog.py"
+            ],
         },
         {
             "name": "tests",
             "authority": "write",
-            "ownedPaths": ["scripts/test_decision_packet.py"],
+            "ownedPaths": ["scripts/test_decision_packet.py", "scripts/test_tool_catalog.py"],
             "forbiddenPaths": ["tools/riftreader_workflow/decision_packet.py"],
             "risk": "low",
-            "validation": ["python -m unittest scripts.test_decision_packet"],
+            "validation": ["python -m unittest scripts.test_decision_packet scripts.test_tool_catalog"],
         },
         {
             "name": "docs",
@@ -1062,6 +1089,8 @@ def build_decision_packet(
             "proofUseAllowed": False,
         }
     truth_summary = summarize_truth(truth, proof, now=now)
+    tool_catalog_summary = build_decision_packet_tool_catalog(repo_root)
+    warnings.extend(f"tool-catalog:{item}" for item in safe_list(tool_catalog_summary.get("warnings")))
     lane = classify_lane(git_state, target_epoch, truth_summary)
     risk = classify_risk(lane, git_state, target_epoch)
     blockers: list[str] = []
@@ -1096,6 +1125,7 @@ def build_decision_packet(
         "repo": git_state,
         "targetEpoch": target_epoch,
         "truth": truth_summary,
+        "toolCatalog": tool_catalog_summary,
         "retiredSurfaces": retired_guardrail,
         "allowedActions": list(ALLOWED_ACTIONS),
         "forbiddenActions": list(FORBIDDEN_ACTIONS),
@@ -1179,6 +1209,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
         "agentPlan": packet.get("agentPlan"),
+        "toolCatalog": packet.get("toolCatalog"),
         "retiredSurfaces": packet.get("retiredSurfaces"),
         "blockers": packet.get("blockers"),
         "warnings": packet.get("warnings"),
@@ -1371,6 +1402,7 @@ def build_schema_contract() -> dict[str, Any]:
             "targetEpoch",
             "truth",
             "retiredSurfaces",
+            "toolCatalog",
             "allowedActions",
             "forbiddenActions",
             "safeNextAction",
