@@ -446,3 +446,46 @@ Added after the checked-in route contract fixture addendum.
 ## Updated resume note
 
 The route contract is now both executable and documented: use the checked-in fixture plus the workflow doc as the baseline when adding future route consumers. Remaining obvious next actions are gated: push the local commits, or approve fresh ProofOnly/live proof recovery for PID `34176` / HWND `0x3D1544`.
+
+---
+
+# Continuation addendum — live static-owner movement smoke
+
+Added after live movement was explicitly approved.
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Exact live target | Bound and focused `rift_x64` PID `34176`, HWND `0x3D1544`, title `RIFT`. |
+| Pre-movement static-chain gate | Passed `static_owner_coordinate_chain_readback.py --use-current-truth --samples 3 --expect-stationary`: owner `0x278C3830010`, coordinate `X=7260.65380859375 Y=821.4304809570312 Z=2990.268798828125`, no owner changes, no blockers. |
+| MCP visual/input smoke | Sent one approved `w` hold for `250ms`; frame-change check passed at `30.3819%` changed. Post-readback coordinate was `X=7260.64794921875 Y=821.3999633789062 Z=2992.156005859375`. |
+| C# SendInput measured proof | `pwsh -File scripts\measure-csharp-sendinput-current.ps1 -Key w -HoldMilliseconds 250 -InputMode ScanCode -MinimumPlanarDistance 0.05 -Json` passed with API planar displacement `1.6499321501200075`. |
+| Post-C# static-chain readback | Passed: owner still `0x278C3830010`, coordinate `X=7260.6416015625 Y=821.4066772460938 Z=2993.810302734375`, no owner changes, no blockers. |
+| Convenience launcher | Added `scripts\measure-csharp-sendinput-current.cmd` so operators use the repo PowerShell 7 launcher instead of accidentally running the helper under Windows PowerShell 5.1. |
+
+## Additional live artifacts
+
+| Artifact | Path |
+|---|---|
+| Baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-055642-536.png` |
+| MCP changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-055720-686.png` |
+| Final screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-060107-305.png` |
+| Pre-movement static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260528-095654-510477\summary.json` |
+| Post-MCP static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260528-095734-513511\summary.json` |
+| C# SendInput measured proof | `C:\RIFT MODDING\RiftReader\scripts\captures\csharp-sendinput-current-measured-proof-20260528-055905\measured-result.json` |
+| Post-C# static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260528-100100-465296\summary.json` |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python scripts\static_owner_coordinate_chain_readback.py --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json` | Passed before movement |
+| `mcp rift_game.send_key(w, 250ms, allowMovementKeys=true)` | Sent after explicit approval |
+| `mcp rift_game.wait_for_frame_change(...)` | Passed: `30.3819%` frame change |
+| `pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\measure-csharp-sendinput-current.ps1 -Key w -HoldMilliseconds 250 -InputMode ScanCode -MinimumPlanarDistance 0.05 -Json` | Passed: API planar displacement `1.6499321501200075` |
+| `python scripts\static_owner_coordinate_chain_readback.py --use-current-truth --samples 3 --interval-seconds 0.20 --json` | Passed after C# movement |
+
+## Updated resume note
+
+Live movement is now smoke-validated against the promoted static owner-coordinate resolver for the current target. This still does **not** promote facing/yaw or a full actor/stat chain. The next useful development slice is a bounded route-step controller that uses the static-chain preflight, C# SendInput ScanCode movement, immediate post-readback, and the existing route contract validator; any ProofOnly/proof promotion still remains separately gated.
