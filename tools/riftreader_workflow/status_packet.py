@@ -138,6 +138,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "dry-run route/turn planning only; no input/movement/debugger/provider writes",
     ),
     (
+        "static-owner-route-run-report",
+        "Static-owner route-run report",
+        "scripts\\static-owner-nav-report-route-run.cmd <summary.json> --json",
+        "saved route-run report only; no live input/movement/debugger/provider writes",
+    ),
+    (
         "emergency-release",
         "Emergency key/mouse release",
         "scripts\\riftreader-emergency-release.cmd --pid <PID> --hwnd <HWND> --process-name rift_x64 --include-mouse-buttons --json",

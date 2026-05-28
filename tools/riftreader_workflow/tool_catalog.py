@@ -336,6 +336,19 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="static-owner-route-run-report",
+            label="Static-owner route-run report",
+            kind="navigation-report",
+            rel_path="scripts/static-owner-nav-report-route-run.cmd",
+            risk="safe-read-only",
+            default_use="review saved route-run summaries with optional turn and turn-forward evidence",
+            allowed=True,
+            approval=False,
+            command=["scripts\\static-owner-nav-report-route-run.cmd", "<route-run-summary.json>", "--json"],
+            notes=["saved-summary review only; sends no input and reads no live target memory"],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -623,6 +636,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
         {"step": "live-input-audit-before-live", "command": "scripts\\riftreader-live-input-surface-audit.cmd --json"},
         {"step": "turn-plan-before-input", "command": "scripts\\static-owner-turn-aware-route-plan.cmd --json"},
         {"step": "single-gated-turn-forward", "command": "scripts\\static-owner-turn-forward-experiment.cmd --json"},
+        {
+            "step": "route-run-report-before-rerun",
+            "command": "scripts\\static-owner-nav-report-route-run.cmd <route-run-summary.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -679,6 +696,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
             "static-owner-turn-aware-plan",
+            "static-owner-route-run-report",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,

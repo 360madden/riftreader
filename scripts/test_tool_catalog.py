@@ -41,6 +41,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/static-owner-turn-forward-experiment.cmd",
         "scripts/static-owner-nav-route-step.cmd",
         "scripts/static-owner-nav-route-run.cmd",
+        "scripts/static-owner-nav-report-route-run.cmd",
         "scripts/riftscan_milestone_review.py",
         "tools/riftreader_workflow/opencode_bridge.py",
         "tools/RiftReader.SendInput/Program.cs",
@@ -87,8 +88,10 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "offline-static-first" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "actor-chain-status-separate" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
         self.assertIn("actor-chain-no-debug-status", compact["canonicalToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
+        self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
 
     def test_missing_external_tools_warns_without_authorizing_debugger(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
