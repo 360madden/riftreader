@@ -112,6 +112,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
     def test_compact_summary_reports_static_owner_navigation_bridge_commands(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            write_text(root / "scripts" / "riftreader-actor-chain-no-debug-status.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-coordinate-chain-readback.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-nav-now.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-turn-aware-route-plan.cmd", "@echo off\n")
@@ -140,6 +141,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             compact = status_packet.compact_summary(packet)
 
         commands = {item["key"]: item for item in compact["bridgeCommands"]}
+        self.assertTrue(commands["actor-chain-no-debug-status"]["exists"])
+        self.assertIn("no promotion", commands["actor-chain-no-debug-status"]["safety"])
         self.assertTrue(commands["static-owner-coordinate-chain-readback"]["exists"])
         self.assertIn("live target memory readback only", commands["static-owner-coordinate-chain-readback"]["safety"])
         self.assertTrue(commands["static-owner-nav-now"]["exists"])

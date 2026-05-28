@@ -114,6 +114,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "read-only existing candidate files; no live process reads/input/movement/debugger/provider writes",
     ),
     (
+        "actor-chain-no-debug-status",
+        "Actor-chain no-debug status",
+        "scripts\\riftreader-actor-chain-no-debug-status.cmd --json",
+        "read-only actor/stat chain status; no input/movement/debugger/provider writes and no promotion",
+    ),
+    (
         "static-owner-coordinate-chain-readback",
         "Static-owner coordinate-chain readback",
         "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",

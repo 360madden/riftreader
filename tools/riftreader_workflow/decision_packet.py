@@ -874,7 +874,7 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
     if actor.get("status") == "candidate-only":
         return {
             "key": "actor-chain-no-debug-status",
-            "command": ["python", ".\\scripts\\actor_chain_no_debug_status.py", "--json"],
+            "command": [".\\scripts\\riftreader-actor-chain-no-debug-status.cmd", "--json"],
             "why": "Actor-chain evidence is candidate-only; keep using the no-debug status gate.",
         }
     return {
