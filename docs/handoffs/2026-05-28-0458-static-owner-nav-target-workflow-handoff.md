@@ -539,3 +539,31 @@ Added after the live static-owner movement smoke.
 ## Updated resume note
 
 The next practical slice is to harden route-step repeatability: add fixture coverage for full route-step summaries, then add a conservative multi-step route-runner that loops only while every step returns `route-step-live-movement-progress-validated`, target identity stays exact, and the destination remains aligned. Turn control should remain blocked until yaw/turn behavior is separately proven.
+
+---
+
+# Continuation addendum — route-step summary fixture and contract
+
+Added after the bounded live route-step controller.
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Route-step fixture | Added `scripts\navigation\testdata\static-owner-nav-route-step-summary-progress.json` as a sanitized passing live-step summary fixture. |
+| Contract function | Added `validate_route_step_summary_contract()` in `scripts\static_owner_nav_route_step.py`. |
+| Fixture coverage | `scripts\test_static_owner_nav_route_step.py` now proves the checked-in fixture passes and a `wrong-way` route result blocks. |
+| Documentation | `docs\workflow\static-owner-nav-route-contract.md` now names the route-step fixture and expected safety posture. |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_nav_route_step.py scripts\test_static_owner_nav_route_step.py` | Passed |
+| `python -m unittest scripts.test_static_owner_nav_route_step scripts.test_static_owner_facing_discovery` | Passed: `29` tests |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+
+## Updated resume note
+
+The next safe slice is a conservative multi-step route-runner design/implementation that imports the route-step contract and loops only on passing `progress` / `arrived` step summaries. Keep turn control blocked unless separately proven, and keep ProofOnly/proof promotion separately gated.

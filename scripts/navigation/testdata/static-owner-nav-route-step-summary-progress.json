@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-nav-route-step",
+  "generatedAtUtc": "2026-05-28T10:11:35Z",
+  "status": "passed",
+  "verdict": "route-step-live-movement-progress-validated",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "operator": {
+    "dryRun": false,
+    "movementApproved": true
+  },
+  "input": {
+    "key": "w",
+    "holdMilliseconds": 250,
+    "inputMode": "ScanCode"
+  },
+  "initialDecision": {
+    "status": "passed",
+    "reason": "initial-bearing-aligned-forward-step-eligible",
+    "movementRequired": true,
+    "controlIntent": "forward",
+    "suggestedTurnDirection": "aligned",
+    "signedBearingDeltaDegrees": -0.6981671652022783,
+    "absoluteBearingDeltaDegrees": 0.6981671652022783,
+    "planarDistance": 11.189697380239469
+  },
+  "routeResult": {
+    "status": "passed",
+    "routeStatus": "progress",
+    "stopReason": "distance-decreased",
+    "controllerRecommendedAction": "continue-aligned-candidate",
+    "controllerControlIntent": "continue",
+    "totalProgressDistance": 1.677001320876208,
+    "initialPlanarDistance": 11.189697380239469,
+    "finalPlanarDistance": 9.512696059363261,
+    "contractStatus": "passed",
+    "contractMovementPermission": false,
+    "blockers": []
+  },
+  "childCommands": [
+    {
+      "label": "01-pre-state",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "02-sendinput-step",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "03-post-state",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "04-route-analysis",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "05-route-contract",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "blockers": [],
+  "warnings": [],
+  "errors": [],
+  "safety": {
+    "movementSent": true,
+    "inputSent": true,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debuggerAttached": false,
+    "providerWrites": false,
+    "gitMutation": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "facingPromotion": false,
+    "navigationControl": false,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "artifacts": {
+    "runDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-route-step-20260528-101131-369548",
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-route-step-20260528-101131-369548\\summary.json",
+    "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-route-step-20260528-101131-369548\\summary.md",
+    "preStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-101131-612064\\summary.json",
+    "postStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-101134-578151\\summary.json",
+    "routeSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-route-20260528-101135-090022\\summary.json",
+    "routeContractSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-route-contract-20260528-101135-394002\\summary.json"
+  }
+}

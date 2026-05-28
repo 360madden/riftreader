@@ -77,6 +77,13 @@ contract. It is intentionally one-step only:
 | Progress gate | Builds and validates a saved route summary from pre/post states. `progress` or `arrived` passes; `no-progress`, `wrong-way`, and `overshot` block. |
 | Promotions | Does not promote facing, actor chain, proof, or current truth. |
 
+The repository fixture
+`scripts/navigation/testdata/static-owner-nav-route-step-summary-progress.json`
+is the canonical safe sample for a passing one-step live movement summary. It
+captures the expected safety posture: movement/input were sent once, but CE,
+x64dbg, provider writes, screenshot keys, reload UI, and all proof/facing/actor
+promotions remained disabled.
+
 ## Live boundary
 
 Before any live route loop or movement-polling consumer can use this offline

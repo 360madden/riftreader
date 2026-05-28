@@ -1,7 +1,9 @@
-import unittest
-
-from scripts.static_owner_nav_route_step import classify_initial_step, classify_route_result, validate_args
 import argparse
+import json
+import unittest
+from pathlib import Path
+
+from scripts.static_owner_nav_route_step import classify_initial_step, classify_route_result, validate_args, validate_route_step_summary_contract
 
 
 class StaticOwnerNavRouteStepTests(unittest.TestCase):
@@ -116,6 +118,28 @@ class StaticOwnerNavRouteStepTests(unittest.TestCase):
         )
 
         self.assertIn("destination-x-and-z-required", validate_args(args))
+
+    def test_checked_in_route_step_fixture_passes_contract(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-step-summary-progress.json"
+        summary = json.loads(fixture.read_text(encoding="utf-8"))
+
+        contract = validate_route_step_summary_contract(summary)
+
+        self.assertEqual("passed", contract["status"])
+        self.assertEqual([], contract["blockers"])
+        self.assertEqual("progress", contract["routeStatus"])
+        self.assertTrue(contract["movementSent"])
+        self.assertTrue(contract["inputSent"])
+
+    def test_route_step_contract_blocks_wrong_way(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-step-summary-progress.json"
+        summary = json.loads(fixture.read_text(encoding="utf-8"))
+        summary["routeResult"]["routeStatus"] = "wrong-way"
+
+        contract = validate_route_step_summary_contract(summary)
+
+        self.assertEqual("blocked", contract["status"])
+        self.assertIn("route-result-route-status-must-be-progress-or-arrived", contract["blockers"])
 
 
 if __name__ == "__main__":

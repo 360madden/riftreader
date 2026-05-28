@@ -260,6 +260,86 @@ def classify_route_result(route_summary: Mapping[str, Any], validation_summary: 
     }
 
 
+def validate_route_step_summary_contract(step_summary: Mapping[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if step_summary.get("kind") != "static-owner-nav-route-step":
+        blockers.append("route-step-kind-must-be-static-owner-nav-route-step")
+    if step_summary.get("status") != "passed":
+        blockers.append("route-step-status-must-be-passed")
+    if step_summary.get("verdict") != "route-step-live-movement-progress-validated":
+        blockers.append("route-step-verdict-must-be-live-movement-progress-validated")
+
+    decision = safe_mapping(step_summary.get("initialDecision"))
+    if decision.get("status") != "passed":
+        blockers.append("initial-decision-status-must-be-passed")
+    if decision.get("movementRequired") is not True:
+        blockers.append("initial-decision-movement-required-must-be-true")
+    if decision.get("controlIntent") != "forward":
+        blockers.append("initial-decision-control-intent-must-be-forward")
+    if decision.get("suggestedTurnDirection") != "aligned":
+        blockers.append("initial-decision-suggested-turn-must-be-aligned")
+
+    route_result = safe_mapping(step_summary.get("routeResult"))
+    if route_result.get("status") != "passed":
+        blockers.append("route-result-status-must-be-passed")
+    if route_result.get("routeStatus") not in PASS_ROUTE_STATUSES:
+        blockers.append("route-result-route-status-must-be-progress-or-arrived")
+    if route_result.get("contractStatus") != "passed":
+        blockers.append("route-result-contract-status-must-be-passed")
+    if route_result.get("contractMovementPermission") is not False:
+        blockers.append("route-result-contract-movement-permission-must-be-false")
+    if route_result.get("totalProgressDistance") is None:
+        blockers.append("route-result-total-progress-distance-required")
+
+    safety = safe_mapping(step_summary.get("safety"))
+    safety_required_true = {
+        "movementSent": "safety-movement-sent-must-be-true",
+        "inputSent": "safety-input-sent-must-be-true",
+        "noCheatEngine": "safety-no-cheat-engine-must-be-true",
+    }
+    safety_required_false = {
+        "reloaduiSent": "safety-reloadui-sent-must-be-false",
+        "screenshotKeySent": "safety-screenshot-key-sent-must-be-false",
+        "x64dbgAttach": "safety-x64dbg-attach-must-be-false",
+        "debuggerAttached": "safety-debugger-attached-must-be-false",
+        "providerWrites": "safety-provider-writes-must-be-false",
+        "gitMutation": "safety-git-mutation-must-be-false",
+        "proofPromotion": "safety-proof-promotion-must-be-false",
+        "actorChainPromotion": "safety-actor-chain-promotion-must-be-false",
+        "facingPromotion": "safety-facing-promotion-must-be-false",
+        "savedVariablesUsedAsLiveTruth": "safety-savedvariables-live-truth-must-be-false",
+    }
+    for key, blocker in safety_required_true.items():
+        if safety.get(key) is not True:
+            blockers.append(blocker)
+    for key, blocker in safety_required_false.items():
+        if safety.get(key) is not False:
+            blockers.append(blocker)
+
+    artifacts = safe_mapping(step_summary.get("artifacts"))
+    for key in ("preStateSummaryJson", "postStateSummaryJson", "routeSummaryJson", "routeContractSummaryJson"):
+        if not artifacts.get(key):
+            blockers.append(f"artifact-{key}-required")
+
+    labels = [safe_mapping(item).get("label") for item in step_summary.get("childCommands", []) if isinstance(item, Mapping)]
+    required_labels = ["01-pre-state", "02-sendinput-step", "03-post-state", "04-route-analysis", "05-route-contract"]
+    missing_labels = [label for label in required_labels if label not in labels]
+    if missing_labels:
+        warnings.append(f"child-command-labels-missing:{','.join(missing_labels)}")
+
+    return {
+        "status": "blocked" if blockers else "passed",
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "routeStatus": route_result.get("routeStatus"),
+        "routeVerdict": step_summary.get("verdict"),
+        "movementSent": safety.get("movementSent"),
+        "inputSent": safety.get("inputSent"),
+        "totalProgressDistance": route_result.get("totalProgressDistance"),
+    }
+
+
 def state_command(args: argparse.Namespace, root: Path) -> list[str]:
     command = [
         sys.executable,
