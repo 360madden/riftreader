@@ -1,4 +1,4 @@
-# Version: riftreader-measure-csharp-sendinput-current-v0.6.0
+# Version: riftreader-measure-csharp-sendinput-current-v0.6.1
 # Total-Character-Count: 19611
 # Purpose: Measure repo-owned C# SendInput movement with fresh API coordinates before/after. Uses stable colorized stage lines by default; -Json emits clean JSON only.
 
@@ -33,6 +33,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "measure-csharp-sendinput-current.ps1 requires PowerShell 7+ (pwsh). Use scripts\measure-csharp-sendinput-current.cmd or run pwsh -File scripts\measure-csharp-sendinput-current.ps1."
+}
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaptureScript = Join-Path $RepoRoot "scripts\capture-rift-api-reference-coordinate.ps1"
