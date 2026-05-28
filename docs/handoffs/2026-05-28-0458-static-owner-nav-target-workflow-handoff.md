@@ -126,3 +126,55 @@ That `ProofOnly` command is a hard approval boundary.
 | 8 | Create a tiny fixture from a redacted state summary | Gives regression tests a realistic state payload. |
 | 9 | Keep old PID `12148` proof artifacts marked historical | Avoids stale absolute address reuse. |
 | 10 | Update current-truth only after approved proof/facing promotion gates | Keeps docs aligned with actual evidence. |
+
+---
+
+# Continuation addendum — offline dry-run planner
+
+Added after the initial handoff block.
+
+## Additional local commits
+
+| Commit | Summary |
+|---|---|
+| `5401d54` | Add static owner nav dry-run planner |
+| `f042f4c` | Add static owner nav plan launcher |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Offline route planning | `static_owner_facing_discovery.py plan` consumes a saved `state` summary JSON and builds candidate-only destination bearing / signed turn analysis without live reads. |
+| Plan launcher | `scripts/static-owner-nav-plan.cmd` wraps the dry-run `plan` command and forwards args. |
+| Live safety | Still no live input, no movement, no ProofOnly, no CE/x64dbg, no promotion. |
+
+## Additional useful commands
+
+Build a dry-run plan from a saved state summary and direct target coordinates:
+
+```powershell
+cmd /c scripts\static-owner-nav-plan.cmd --state-summary-json <state-summary.json> --destination-x 7265 --destination-z 2990 --destination-label test-destination
+```
+
+Build a dry-run plan from a saved state summary and waypoint file:
+
+```powershell
+cmd /c scripts\static-owner-nav-plan.cmd --state-summary-json <state-summary.json> --destination-waypoint-json scripts\navigation\waypoints.json --destination-waypoint-id destination
+```
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_facing_discovery.py scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `13` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `34` tests |
+| `python scripts\static_owner_facing_discovery.py plan --help` | Passed |
+| `cmd /c scripts\static-owner-nav-plan.cmd --help` | Passed |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The next safe offline lane is to add recorded-state fixtures or a route-controller dry-run that consumes the new `plan` output. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
