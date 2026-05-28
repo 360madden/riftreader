@@ -412,3 +412,37 @@ Added after the route contract validator addendum.
 ## Updated resume note
 
 Downstream code now has a checked-in fixture that documents and tests the safe route-summary contract. Use it as the canonical offline sample for future route consumers, not as live truth or movement permission.
+
+---
+
+# Continuation addendum — route contract workflow doc
+
+Added after the checked-in route contract fixture addendum.
+
+## Additional local commit
+
+| Commit | Summary |
+|---|---|
+| `244546e` | Document static owner nav route contract |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Durable route contract docs | Added `docs/workflow/static-owner-nav-route-contract.md`. |
+| Consumer safety contract | The doc lists required route, analysis, controller, and safety fields that downstream helpers must enforce before consuming a saved route summary. |
+| Validation command | The doc records `cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\navigation\testdata\static-owner-nav-route-summary-safe.json`. |
+| Live boundary | The doc explicitly states that route summaries and controller recommendations do not grant movement permission. |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\navigation\testdata\static-owner-nav-route-summary-safe.json` | Passed |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The route contract is now both executable and documented: use the checked-in fixture plus the workflow doc as the baseline when adding future route consumers. Remaining obvious next actions are gated: push the local commits, or approve fresh ProofOnly/live proof recovery for PID `34176` / HWND `0x3D1544`.
