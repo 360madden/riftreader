@@ -463,6 +463,53 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             self.assertAlmostEqual(1.0, route["analysis"]["totalProgressDistance"])
             self.assertEqual(2, len(route["routePlanTargets"]))
             self.assertFalse(route["routePlanTargets"][0]["navigationTarget"]["actionableForMovement"])
+            self.assertEqual("continue-aligned-candidate", route["controllerRecommendation"]["recommendedAction"])
+            self.assertFalse(route["controllerRecommendation"]["movementPermission"])
+            self.assertFalse(route["controllerRecommendation"]["actionableForMovement"])
+
+    def test_run_route_controller_recommendation_stops_on_wrong_way(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "state-1.json"
+            second = root / "state-2.json"
+            for path, x in ((first, 0.0), (second, -1.0)):
+                path.write_text(
+                    json.dumps(
+                        {
+                            "kind": "static-owner-nav-state-readback",
+                            "status": "passed",
+                            "latestState": {
+                                "coordinate": {"x": x, "y": 0.0, "z": 0.0},
+                                "yawDegrees": 180.0,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                state_summary_json=[str(first), str(second)],
+                destination_x=10.0,
+                destination_y=None,
+                destination_z=0.0,
+                destination_label="east",
+                destination_waypoint_json=None,
+                destination_waypoint_id=None,
+                arrival_radius=2.0,
+                alignment_threshold_degrees=7.5,
+                minimum_progress_distance=0.35,
+                wrong_way_tolerance_distance=0.75,
+            )
+
+            route = run_route(args)
+
+            self.assertEqual("passed", route["status"])
+            self.assertEqual("wrong-way", route["analysis"]["status"])
+            self.assertEqual("stop-wrong-way", route["controllerRecommendation"]["recommendedAction"])
+            self.assertEqual("stop", route["controllerRecommendation"]["controlIntent"])
+            self.assertTrue(route["controllerRecommendation"]["candidateOnly"])
+            self.assertFalse(route["controllerRecommendation"]["movementPermission"])
 
     def test_route_arg_validation_requires_two_state_summaries(self):
         args = argparse.Namespace(

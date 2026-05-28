@@ -997,6 +997,71 @@ def build_route_plan_targets(
     return targets
 
 
+def build_route_controller_recommendation(
+    route_targets: Sequence[Mapping[str, Any]],
+    analysis: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not route_targets:
+        raise ValueError("route-targets-required")
+    latest_target = safe_mapping(route_targets[-1])
+    navigation_target = safe_mapping(latest_target.get("navigationTarget"))
+    if not navigation_target:
+        navigation_target = latest_target
+    progress_status = str(analysis.get("status") or "unknown")
+    suggested_turn = navigation_target.get("suggestedTurnDirection")
+    if progress_status == "arrived":
+        recommended_action = "stop-arrived"
+        control_intent = "stop"
+        reason = "within-arrival-radius"
+    elif progress_status == "overshot":
+        recommended_action = "stop-overshot"
+        control_intent = "stop"
+        reason = "moved-away-after-closest-approach"
+    elif progress_status == "wrong-way":
+        recommended_action = "stop-wrong-way"
+        control_intent = "stop"
+        reason = "distance-increased-beyond-tolerance"
+    elif progress_status == "no-progress":
+        recommended_action = "sample-more-or-reassess"
+        control_intent = "wait"
+        reason = "minimum-progress-not-met"
+    elif suggested_turn == "left":
+        recommended_action = "turn-left-candidate"
+        control_intent = "turn-left"
+        reason = "candidate-bearing-left-of-current-yaw"
+    elif suggested_turn == "right":
+        recommended_action = "turn-right-candidate"
+        control_intent = "turn-right"
+        reason = "candidate-bearing-right-of-current-yaw"
+    else:
+        recommended_action = "continue-aligned-candidate"
+        control_intent = "continue"
+        reason = "candidate-bearing-within-alignment-threshold"
+    return {
+        "status": "candidate-controller-recommendation",
+        "recommendedAction": recommended_action,
+        "controlIntent": control_intent,
+        "reason": reason,
+        "progressStatus": progress_status,
+        "stopReason": analysis.get("stopReason"),
+        "sourceSampleIndex": latest_target.get("sampleIndex"),
+        "sourceFile": latest_target.get("sourceFile"),
+        "latestPlanarDistance": navigation_target.get("planarDistance"),
+        "arrivalRadius": navigation_target.get("arrivalRadius"),
+        "suggestedTurnDirection": suggested_turn,
+        "signedBearingDeltaDegrees": navigation_target.get("signedBearingDeltaDegrees"),
+        "absoluteBearingDeltaDegrees": navigation_target.get("absoluteBearingDeltaDegrees"),
+        "withinArrivalRadius": navigation_target.get("withinArrivalRadius"),
+        "withinAlignmentThreshold": navigation_target.get("withinAlignmentThreshold"),
+        "candidateOnly": True,
+        "dryRunOnly": True,
+        "actionableForMovement": False,
+        "movementPermission": False,
+        "navigationControl": False,
+        "requiresFreshPreflightBeforeLiveUse": True,
+    }
+
+
 def run_route(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
     errors = validate_route_args(args)
@@ -1014,6 +1079,7 @@ def run_route(args: argparse.Namespace) -> dict[str, Any]:
         "navigationTargetRequest": {},
         "routePlanTargets": [],
         "analysis": {},
+        "controllerRecommendation": {},
         "blockers": [],
         "warnings": [],
         "errors": errors,
@@ -1037,12 +1103,17 @@ def run_route(args: argparse.Namespace) -> dict[str, Any]:
             wrong_way_tolerance_distance=float(args.wrong_way_tolerance_distance),
             arrival_radius=None if args.arrival_radius is None else float(args.arrival_radius),
         )
+        summary["controllerRecommendation"] = build_route_controller_recommendation(
+            route_targets,
+            safe_mapping(summary.get("analysis")),
+        )
         summary["status"] = "passed"
         summary["verdict"] = "static-owner-nav-route-dry-run-built"
         summary["warnings"].extend(
             [
                 "dry-run-only-no-live-read-or-input",
                 "route-analysis-is-not-movement-permission",
+                "controller-recommendation-is-candidate-only-not-movement-permission",
                 "facing-candidate-readback-only-not-promoted",
             ]
         )
@@ -1225,6 +1296,7 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 def markdown(summary: Mapping[str, Any]) -> str:
     if summary.get("kind") == "static-owner-nav-route-dry-run":
         analysis = safe_mapping(summary.get("analysis"))
+        controller = safe_mapping(summary.get("controllerRecommendation"))
         lines = [
             "# Static owner navigation route dry-run",
             "",
@@ -1237,6 +1309,8 @@ def markdown(summary: Mapping[str, Any]) -> str:
             f"Final distance: `{analysis.get('finalPlanarDistance')}`",
             f"Best distance: `{analysis.get('bestPlanarDistance')}`",
             f"Total progress: `{analysis.get('totalProgressDistance')}`",
+            f"Controller recommendation: `{controller.get('recommendedAction')}`",
+            f"Controller movement permission: `{controller.get('movementPermission')}`",
             "",
             "Dry-run only; no live read, no movement, and no movement permission.",
         ]
@@ -1428,6 +1502,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
             "finalPlanarDistance": safe_mapping(summary.get("analysis")).get("finalPlanarDistance"),
             "totalProgressDistance": safe_mapping(summary.get("analysis")).get("totalProgressDistance"),
             "navigationTargetRequest": summary.get("navigationTargetRequest") or None,
+            "controllerRecommendation": summary.get("controllerRecommendation") or None,
             "summaryJson": artifacts.get("summaryJson"),
             "summaryMarkdown": artifacts.get("summaryMarkdown"),
             "blockers": summary.get("blockers", []),
