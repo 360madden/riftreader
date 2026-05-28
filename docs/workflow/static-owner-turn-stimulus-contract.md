@@ -12,6 +12,7 @@ remains candidate-only and is not promoted to navigation truth.
 |---|---|---|---|
 | Capture turn stimulus | `cmd /c scripts\static-owner-turn-stimulus-capture.cmd --direction left --turn-approved --json` | `static-owner-turn-stimulus-capture` | Exact-target pre/post static-owner reads around one C# SendInput turn key. |
 | Validate turn summary | `cmd /c scripts\static-owner-validate-turn-stimulus.cmd <turn-summary.json> --json` | `static-owner-turn-stimulus-contract-validation` | Saved-summary contract validation; no live read or input. |
+| Review with route-run report | `cmd /c scripts\static-owner-nav-report-route-run.cmd <route-run-summary.json> --turn-summary-json <turn-summary.json> --json` | `static-owner-nav-route-run-report` | Shows turn evidence beside forward route progress without granting control permission. |
 
 ## Contract requirements
 
@@ -67,4 +68,6 @@ Turn stimulus captures prove that the candidate yaw lane responds to bounded
 turn input. They do **not** prove route turn control, full actor/stat-chain
 truth, or ProofOnly/proof freshness. Any route controller that consumes turn
 evidence must still exact-target the current process and keep proof/facing
-promotion as separate explicit gates.
+promotion as separate explicit gates. The next-stage turn-aware planner and
+single turn-forward experiment are documented separately in
+`docs\workflow\static-owner-turn-aware-route-contract.md`.

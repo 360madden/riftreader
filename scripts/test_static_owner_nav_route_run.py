@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.static_owner_nav_route_run import (
     report_saved_summary,
+    summarize_turn_evidence,
     summarize_route_run_steps,
     validate_args,
     validate_route_run_summary_contract,
@@ -162,6 +163,7 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
                 repo_root=None,
                 output_root=tmp,
                 report_route_run_summary_json=str(fixture),
+                turn_summary_json=None,
             )
 
             summary = report_saved_summary(args)
@@ -170,6 +172,32 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual("route-run-arrived", summary["source"]["verdict"])
         self.assertEqual(2, summary["source"]["aggregate"]["stepsRun"])
         self.assertEqual("passed", summary["contract"]["status"])
+
+    def test_turn_evidence_can_be_added_to_route_run_report(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
+        left = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-turn-stimulus-summary-left.json"
+        right = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-turn-stimulus-summary-right.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            args = argparse.Namespace(
+                repo_root=None,
+                output_root=tmp,
+                report_route_run_summary_json=str(fixture),
+                turn_summary_json=[str(left), str(right)],
+            )
+
+            summary = report_saved_summary(args)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual(2, len(summary["turnEvidence"]))
+        self.assertEqual(["left", "right"], [item["direction"] for item in summary["turnEvidence"]])
+        self.assertEqual(["passed", "passed"], [item["contractStatus"] for item in summary["turnEvidence"]])
+
+    def test_summarize_turn_evidence_blocks_invalid_path(self):
+        evidence, blockers, warnings = summarize_turn_evidence(["missing-turn-summary.json"])
+
+        self.assertEqual([], evidence)
+        self.assertIn("turn-evidence-1-load-or-contract-failed", blockers)
+        self.assertTrue(warnings)
 
 
 if __name__ == "__main__":

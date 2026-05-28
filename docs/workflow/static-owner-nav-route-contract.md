@@ -18,7 +18,9 @@ permission and does not promote facing, actor, or proof truth.
 | Run one bounded route step | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x <x> --destination-z <z> --movement-approved --json` | `static-owner-nav-route-step` | Live workflow gate; performs pre-state readback, one C# SendInput pulse, post-state readback, route contract validation, and fail-closed progress classification. |
 | Run a conservative bounded route | `cmd /c scripts\static-owner-nav-route-run.cmd --destination-x <x> --destination-z <z> --max-steps 3 --movement-approved --json` | `static-owner-nav-route-run` | Live workflow gate; loops only by calling the one-step helper, stops on arrival/block/failure/max-steps, and records aggregate safety. |
 | Validate route-run contract | `cmd /c scripts\static-owner-nav-validate-route-run.cmd <route-run-summary.json> --json` | `static-owner-nav-route-run-contract-validation` | Saved-summary gate; no live read or input. |
-| Report route-run summary | `cmd /c scripts\static-owner-nav-report-route-run.cmd <route-run-summary.json> --json` | `static-owner-nav-route-run-report` | Saved-summary report; no live read or input. |
+| Report route-run summary | `cmd /c scripts\static-owner-nav-report-route-run.cmd <route-run-summary.json> --turn-summary-json <turn-summary.json> --json` | `static-owner-nav-route-run-report` | Saved-summary report; can show turn evidence beside forward progress; no live read or input. |
+| Build turn-aware first-action plan | `cmd /c scripts\static-owner-turn-aware-route-plan.cmd --destination-x <x> --destination-z <z> --json` | `static-owner-turn-aware-route-plan` | Dry-run only; computes `stop`/`forward`/`turn-left`/`turn-right` while keeping candidate yaw blocked unless explicitly gated. |
+| Run one turn-forward experiment | `cmd /c scripts\static-owner-turn-forward-experiment.cmd --destination-x <x> --destination-z <z> --allow-candidate-turn-control --turn-approved --movement-approved --json` | `static-owner-turn-forward-experiment` | Single bounded live experiment; not a route loop and still no proof/facing/actor promotion. |
 
 ## Route summary requirements
 
@@ -117,6 +119,31 @@ contract, the final step reached `routeStatus=arrived`, movement/input were
 sent, multi-step `navigationControl=true` was recorded, and CE/x64dbg/provider
 writes/proof/facing/actor promotions remained disabled.
 
+Route-run reports can now include turn stimulus summaries through repeated
+`--turn-summary-json` arguments. This is review-only evidence: valid turn
+fixtures prove bounded yaw response and planar non-drift, but do not grant
+route turn control or promote yaw/facing truth.
+
+## Turn-aware planner and single experiment boundary
+
+`scripts\static-owner-turn-aware-route-plan.cmd` is the dry-run bridge between
+route targets and the candidate yaw lane. It can recommend a first action but
+always records `movementPermission=false` and `navigationControl=false`.
+
+`scripts\static-owner-turn-forward-experiment.cmd` may execute one bounded
+turn-then-forward sequence only when all relevant flags are present:
+
+| Required flag | When required | Purpose |
+|---|---|---|
+| `--allow-candidate-turn-control` | Plan first action is `turn-left` or `turn-right` | Explicitly opens the candidate-yaw turn-control experiment gate. |
+| `--turn-approved` | A turn will be sent | Prevents accidental turn input. |
+| `--movement-approved` | Any forward route step may be sent | Preserves the live movement approval gate. |
+
+The experiment delegates the forward pulse to `static-owner-nav-route-step`, so
+the forward movement still receives a fresh exact-target static-chain readback
+after any turn stimulus. It is not a loop and defaults to one route step, bounded
+turn degrees, and bounded total input duration.
+
 ## Live boundary
 
 Before any live route loop or movement-polling consumer can use this offline
@@ -142,9 +169,13 @@ cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destina
 cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --dry-run --json
 cmd /c scripts\static-owner-nav-validate-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
 cmd /c scripts\static-owner-nav-report-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
+cmd /c scripts\static-owner-nav-report-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --turn-summary-json scripts\navigation\testdata\static-owner-turn-stimulus-summary-left.json --turn-summary-json scripts\navigation\testdata\static-owner-turn-stimulus-summary-right.json --json
+cmd /c scripts\static-owner-validate-turn-aware-route-plan.cmd scripts\navigation\testdata\static-owner-turn-aware-route-plan-summary-turn-needed.json --json
+cmd /c scripts\static-owner-turn-forward-experiment.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json
 python -m unittest scripts.test_static_owner_facing_discovery
 python -m unittest scripts.test_static_owner_nav_route_step
 python -m unittest scripts.test_static_owner_nav_route_run
+python -m unittest scripts.test_static_owner_turn_aware_route_plan scripts.test_static_owner_turn_forward_experiment
 ```
 
 The route-step dry-run command is read-only and sends no input. Remove

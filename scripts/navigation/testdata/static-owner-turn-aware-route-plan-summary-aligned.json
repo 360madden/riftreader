@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-turn-aware-route-plan",
+  "generatedAtUtc": "2026-05-28T18:00:00+00:00",
+  "status": "passed",
+  "verdict": "turn-aware-route-plan-built",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "operator": {
+    "dryRun": true,
+    "allowCandidateTurnControl": false
+  },
+  "inputLimits": {
+    "maxInitialTurnDegrees": 90.0,
+    "maxCumulativeTurnDegrees": 90.0,
+    "maxTotalInputMilliseconds": 700,
+    "maxRouteSteps": 1
+  },
+  "sourceStateSummary": {
+    "path": "fixture",
+    "kind": "static-owner-nav-state-readback",
+    "status": "passed",
+    "verdict": "position-and-facing-nav-state-readback-passed",
+    "generatedAtUtc": "2026-05-28T18:00:00+00:00"
+  },
+  "navigationTargetRequest": {
+    "sourceKind": "direct-coordinates",
+    "sourceFile": null,
+    "waypointId": null,
+    "destinationLabel": "aligned",
+    "destinationX": 10.0,
+    "destinationY": null,
+    "destinationZ": 0.0,
+    "arrivalRadius": 2.0,
+    "alignmentThresholdDegrees": 7.5
+  },
+  "plan": {
+    "status": "passed",
+    "candidateOnly": true,
+    "dryRunOnly": true,
+    "actionableForNavigation": false,
+    "movementPermission": false,
+    "navigationControl": false,
+    "facingPromotion": false,
+    "requiresFreshPreflightBeforeLiveUse": true,
+    "firstAction": "forward",
+    "controlIntent": "forward",
+    "reason": "bearing-within-alignment-threshold",
+    "turnMagnitudeClass": "aligned",
+    "executionBlocked": false,
+    "executionBlockers": [],
+    "navigationTarget": {
+      "status": "aligned-candidate",
+      "sourceKind": "static-owner-relative-target-candidate-facing",
+      "candidateOnly": true,
+      "actionableForMovement": false,
+      "reason": "static-owner-facing-target-is-candidate-only-not-promoted",
+      "destination": {
+        "label": "aligned",
+        "x": 10.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "delta": {
+        "x": 10.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "planarDistance": 10.0,
+      "distance3d": 10.0,
+      "heightDelta": 0.0,
+      "arrivalRadius": 2.0,
+      "withinArrivalRadius": false,
+      "destinationBearingDegrees": 0.0,
+      "currentYawDegrees": 0.0,
+      "signedBearingDeltaDegrees": 0.0,
+      "absoluteBearingDeltaDegrees": 0.0,
+      "alignmentThresholdDegrees": 7.5,
+      "withinAlignmentThreshold": true,
+      "suggestedTurnDirection": "aligned"
+    },
+    "turnControlGate": {
+      "status": "not-required",
+      "candidateOnly": true,
+      "allowCandidateTurnControl": false,
+      "turnRequired": false,
+      "turnDirection": null,
+      "absoluteBearingDeltaDegrees": 0.0,
+      "maxInitialTurnDegrees": 90.0,
+      "maxCumulativeTurnDegrees": 90.0,
+      "maxTotalInputMilliseconds": 700,
+      "maxRouteSteps": 1,
+      "movementPermission": false,
+      "navigationControl": false,
+      "facingPromotion": false,
+      "blockers": [],
+      "warnings": [
+        "turn-control-not-required-for-current-plan"
+      ]
+    }
+  },
+  "contract": {},
+  "childCommands": [],
+  "blockers": [],
+  "warnings": [
+    "dry-run-only-no-input-sent",
+    "candidate-facing-yaw-not-promoted",
+    "fresh-exact-target-readback-required-before-live-use"
+  ],
+  "errors": [],
+  "safety": {
+    "movementSent": false,
+    "inputSent": false,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debuggerAttached": false,
+    "providerWrites": false,
+    "gitMutation": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "facingPromotion": false,
+    "navigationControl": false,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "artifacts": {
+    "runDirectory": "fixture",
+    "summaryJson": "fixture",
+    "summaryMarkdown": "fixture"
+  }
+}

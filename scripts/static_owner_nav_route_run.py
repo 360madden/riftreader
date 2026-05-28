@@ -30,6 +30,7 @@ try:
         validate_route_step_summary_contract,
         write_json,
     )
+    from .static_owner_turn_stimulus_capture import validate_turn_capture_summary_contract
 except ImportError:  # pragma: no cover - direct script execution path
     from static_owner_nav_route_step import (  # type: ignore
         base_safety,
@@ -41,6 +42,7 @@ except ImportError:  # pragma: no cover - direct script execution path
         validate_route_step_summary_contract,
         write_json,
     )
+    from static_owner_turn_stimulus_capture import validate_turn_capture_summary_contract  # type: ignore
 
 
 SCHEMA_VERSION = 1
@@ -547,6 +549,7 @@ def build_report_markdown(summary: Mapping[str, Any]) -> str:
     aggregate = safe_mapping(source.get("aggregate"))
     safety = safe_mapping(source.get("safety"))
     contract = safe_mapping(summary.get("contract"))
+    turn_evidence = [safe_mapping(item) for item in summary.get("turnEvidence", []) if isinstance(item, Mapping)]
     artifacts = safe_mapping(summary.get("artifacts"))
     lines = [
         "# Static owner navigation route-run report",
@@ -582,6 +585,28 @@ def build_report_markdown(summary: Mapping[str, Any]) -> str:
                 final=row.get("finalPlanarDistance"),
             )
         )
+    if turn_evidence:
+        lines.extend(
+            [
+                "",
+                "## Turn evidence",
+                "",
+                "| # | Direction | Contract | Signed yaw delta | Planar drift | Candidate only | Movement permission |",
+                "|---:|---|---|---:|---:|---|---|",
+            ]
+        )
+        for row in turn_evidence:
+            lines.append(
+                "| {index} | `{direction}` | `{contract}` | `{delta}` | `{drift}` | `{candidate}` | `{permission}` |".format(
+                    index=row.get("index"),
+                    direction=row.get("direction"),
+                    contract=row.get("contractStatus"),
+                    delta=row.get("signedYawDeltaDegrees"),
+                    drift=row.get("planarDrift"),
+                    candidate=row.get("candidateOnly"),
+                    permission=row.get("movementPermission"),
+                )
+            )
     lines.extend(
         [
             "",
@@ -779,6 +804,46 @@ def validate_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def summarize_turn_evidence(paths: Sequence[str] | None) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    evidence: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    warnings: list[str] = []
+    for index, raw_path in enumerate(paths or [], start=1):
+        path = Path(str(raw_path)).resolve()
+        try:
+            turn_summary = load_json_object(path)
+            contract = validate_turn_capture_summary_contract(turn_summary)
+            analysis = safe_mapping(turn_summary.get("analysis"))
+            evidence.append(
+                {
+                    "index": index,
+                    "path": str(path),
+                    "kind": turn_summary.get("kind"),
+                    "status": turn_summary.get("status"),
+                    "verdict": turn_summary.get("verdict"),
+                    "contractStatus": contract.get("status"),
+                    "direction": contract.get("direction"),
+                    "key": contract.get("key"),
+                    "signedYawDeltaDegrees": contract.get("signedYawDeltaDegrees"),
+                    "absoluteYawDeltaDegrees": contract.get("absoluteYawDeltaDegrees"),
+                    "planarDrift": contract.get("planarDrift"),
+                    "candidateOnly": analysis.get("candidateOnly"),
+                    "actionableForNavigation": analysis.get("actionableForNavigation"),
+                    "movementPermission": analysis.get("movementPermission"),
+                    "blockers": contract.get("blockers", []),
+                    "warnings": contract.get("warnings", []),
+                }
+            )
+            if contract.get("status") != "passed":
+                blockers.append(f"turn-evidence-{index}-contract-not-passed")
+                blockers.extend(str(item) for item in contract.get("blockers", []))
+            warnings.extend(str(item) for item in contract.get("warnings", []))
+        except Exception as exc:  # noqa: BLE001
+            blockers.append(f"turn-evidence-{index}-load-or-contract-failed")
+            warnings.append(f"{type(exc).__name__}:{exc}")
+    return evidence, sorted(set(blockers)), sorted(set(warnings))
+
+
 def report_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
@@ -793,7 +858,9 @@ def report_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
         "status": "pending",
         "repoRoot": str(root),
         "sourceSummaryJson": str(source) if source else None,
+        "turnSummaryJson": [str(Path(path).resolve()) for path in (getattr(args, "turn_summary_json", None) or [])],
         "source": {},
+        "turnEvidence": [],
         "contract": {},
         "blockers": [],
         "warnings": [],
@@ -827,7 +894,13 @@ def report_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
         summary["contract"] = contract
         summary["blockers"].extend(contract["blockers"])
         summary["warnings"].extend(contract["warnings"])
+        turn_evidence, turn_blockers, turn_warnings = summarize_turn_evidence(getattr(args, "turn_summary_json", None))
+        summary["turnEvidence"] = turn_evidence
+        summary["blockers"].extend(turn_blockers)
+        summary["warnings"].extend(turn_warnings)
         summary["status"] = "passed" if contract["status"] == "passed" else "blocked"
+        if turn_blockers:
+            summary["status"] = "blocked"
     except Exception as exc:  # noqa: BLE001
         summary["status"] = "failed"
         summary["errors"].append(f"{type(exc).__name__}:{exc}")
@@ -886,6 +959,7 @@ def compact_report(summary: Mapping[str, Any]) -> dict[str, Any]:
     contract = safe_mapping(summary.get("contract"))
     source = safe_mapping(summary.get("source"))
     aggregate = safe_mapping(source.get("aggregate"))
+    turn_evidence = [safe_mapping(item) for item in summary.get("turnEvidence", []) if isinstance(item, Mapping)]
     return {
         "status": summary.get("status"),
         "contractStatus": contract.get("status"),
@@ -897,6 +971,9 @@ def compact_report(summary: Mapping[str, Any]) -> dict[str, Any]:
         "totalProgressDistance": aggregate.get("totalProgressDistance"),
         "finalPlanarDistance": aggregate.get("finalPlanarDistance"),
         "sourceSummaryJson": summary.get("sourceSummaryJson"),
+        "turnEvidenceCount": len(turn_evidence),
+        "turnDirections": [item.get("direction") for item in turn_evidence],
+        "turnEvidenceStatuses": [item.get("contractStatus") for item in turn_evidence],
         "summaryJson": artifacts.get("summaryJson"),
         "summaryMarkdown": artifacts.get("summaryMarkdown"),
         "blockers": summary.get("blockers", []),
@@ -911,6 +988,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root")
     parser.add_argument("--validate-route-run-summary-json", nargs="?", const="")
     parser.add_argument("--report-route-run-summary-json", nargs="?", const="")
+    parser.add_argument("--turn-summary-json", action="append")
     parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
     parser.add_argument("--destination-x", type=float)
     parser.add_argument("--destination-y", type=float)
