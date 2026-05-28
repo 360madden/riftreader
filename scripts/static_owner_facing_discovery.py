@@ -185,6 +185,100 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
     }
 
 
+def build_yaw_transition_analysis(samples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    passed_samples = [sample for sample in samples if sample.get("status") == "passed" and sample.get("yawDegrees") is not None]
+    transitions: list[dict[str, Any]] = []
+    max_abs_yaw_delta = 0.0
+    max_abs_yaw_speed: float | None = None
+    for index in range(1, len(passed_samples)):
+        previous = passed_samples[index - 1]
+        current = passed_samples[index]
+        elapsed_delta = None
+        if previous.get("elapsedSeconds") is not None and current.get("elapsedSeconds") is not None:
+            elapsed_delta = float(current["elapsedSeconds"]) - float(previous["elapsedSeconds"])
+        signed_delta = normalize_degrees(float(current["yawDegrees"]) - float(previous["yawDegrees"]))
+        absolute_delta = abs(signed_delta)
+        yaw_speed = absolute_delta / elapsed_delta if elapsed_delta and elapsed_delta > 0 else None
+        max_abs_yaw_delta = max(max_abs_yaw_delta, absolute_delta)
+        if yaw_speed is not None:
+            max_abs_yaw_speed = yaw_speed if max_abs_yaw_speed is None else max(max_abs_yaw_speed, yaw_speed)
+        transitions.append(
+            {
+                "fromSample": previous.get("sampleIndex"),
+                "toSample": current.get("sampleIndex"),
+                "elapsedSeconds": elapsed_delta,
+                "signedYawDeltaDegrees": signed_delta,
+                "absoluteYawDeltaDegrees": absolute_delta,
+                "yawSpeedDegreesPerSecond": yaw_speed,
+            }
+        )
+    return {
+        "yawTransitions": transitions,
+        "maxAbsYawDeltaDegrees": max_abs_yaw_delta,
+        "maxAbsYawSpeedDegreesPerSecond": max_abs_yaw_speed,
+    }
+
+
+def navigation_target_from_state(
+    state: Mapping[str, Any],
+    *,
+    destination_x: float,
+    destination_y: float | None,
+    destination_z: float,
+    destination_label: str | None,
+    arrival_radius: float,
+    alignment_threshold_degrees: float,
+) -> dict[str, Any]:
+    coordinate = safe_mapping(state.get("coordinate"))
+    current_x = float(coordinate["x"])
+    current_y = float(coordinate["y"])
+    current_z = float(coordinate["z"])
+    dest_y = current_y if destination_y is None else float(destination_y)
+    delta_x = float(destination_x) - current_x
+    delta_y = dest_y - current_y
+    delta_z = float(destination_z) - current_z
+    planar_distance = math.hypot(delta_x, delta_z)
+    distance_3d = math.sqrt((delta_x * delta_x) + (delta_y * delta_y) + (delta_z * delta_z))
+    destination_bearing = normalize_degrees(math.degrees(math.atan2(delta_z, delta_x)))
+    current_yaw = float(state["yawDegrees"])
+    signed_delta = normalize_degrees(destination_bearing - current_yaw)
+    absolute_delta = abs(signed_delta)
+    within_arrival = planar_distance <= arrival_radius
+    within_alignment = absolute_delta <= alignment_threshold_degrees
+    if within_alignment:
+        turn_direction = "aligned"
+    elif signed_delta > 0:
+        turn_direction = "right"
+    else:
+        turn_direction = "left"
+    return {
+        "status": "arrived" if within_arrival else "aligned-candidate" if within_alignment else "turn-candidate",
+        "sourceKind": "static-owner-relative-target-candidate-facing",
+        "candidateOnly": True,
+        "actionableForMovement": False,
+        "reason": "static-owner-facing-target-is-candidate-only-not-promoted",
+        "destination": {
+            "label": destination_label,
+            "x": float(destination_x),
+            "y": dest_y,
+            "z": float(destination_z),
+        },
+        "delta": {"x": delta_x, "y": delta_y, "z": delta_z},
+        "planarDistance": planar_distance,
+        "distance3d": distance_3d,
+        "heightDelta": delta_y,
+        "arrivalRadius": float(arrival_radius),
+        "withinArrivalRadius": within_arrival,
+        "destinationBearingDegrees": destination_bearing,
+        "currentYawDegrees": current_yaw,
+        "signedBearingDeltaDegrees": signed_delta,
+        "absoluteBearingDeltaDegrees": absolute_delta,
+        "alignmentThresholdDegrees": float(alignment_threshold_degrees),
+        "withinAlignmentThreshold": within_alignment,
+        "suggestedTurnDirection": turn_direction,
+    }
+
+
 def apply_current_truth(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     defaults = load_current_truth_defaults(root, args.current_truth_json)
     if args.pid is None and defaults.get("pid") is not None:
@@ -210,6 +304,32 @@ def validate_snapshot_args(args: argparse.Namespace) -> list[str]:
         errors.append("module-base-required")
     if args.owner_window_bytes < 0x330:
         errors.append("owner-window-bytes-too-small")
+    return errors
+
+
+def validate_state_args(args: argparse.Namespace) -> list[str]:
+    errors = validate_snapshot_args(args)
+    if args.samples < 1:
+        errors.append("samples-must-be-positive")
+    if args.interval_seconds < 0:
+        errors.append("interval-seconds-must-be-nonnegative")
+    if args.max_planar_jump_per_sample < 0:
+        errors.append("max-planar-jump-per-sample-must-be-nonnegative")
+    if args.max_sample_gap_seconds <= 0:
+        errors.append("max-sample-gap-seconds-must-be-positive")
+    if args.max_stationary_planar_drift < 0:
+        errors.append("max-stationary-planar-drift-must-be-nonnegative")
+    if args.min_target_distance < 0:
+        errors.append("min-target-distance-must-be-nonnegative")
+    if args.max_target_distance < args.min_target_distance:
+        errors.append("max-target-distance-must-be-greater-than-or-equal-to-min-target-distance")
+    destination_requested = args.destination_x is not None or args.destination_y is not None or args.destination_z is not None
+    if destination_requested and (args.destination_x is None or args.destination_z is None):
+        errors.append("destination-x-and-z-required-together")
+    if args.arrival_radius < 0:
+        errors.append("arrival-radius-must-be-nonnegative")
+    if args.alignment_threshold_degrees < 0:
+        errors.append("alignment-threshold-degrees-must-be-nonnegative")
     return errors
 
 
@@ -321,7 +441,7 @@ def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
 def run_state(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
     defaults = apply_current_truth(args, root)
-    errors = validate_snapshot_args(args)
+    errors = validate_state_args(args)
     output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
     run_dir = output_root / f"static-owner-nav-state-{utc_stamp()}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -358,6 +478,7 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
         },
         "samples": [],
         "latestState": {},
+        "navigationTarget": {},
         "analysis": {},
         "blockers": [],
         "warnings": [],
@@ -428,6 +549,17 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
             summary["analysis"]["yawMinDegrees"] = min(yaw_values)
             summary["analysis"]["yawMaxDegrees"] = max(yaw_values)
             summary["analysis"]["yawRangeDegrees"] = max(yaw_values) - min(yaw_values)
+        summary["analysis"].update(build_yaw_transition_analysis(summary["samples"]))
+        if args.destination_x is not None and args.destination_z is not None and summary.get("latestState"):
+            summary["navigationTarget"] = navigation_target_from_state(
+                summary["latestState"],
+                destination_x=float(args.destination_x),
+                destination_y=None if args.destination_y is None else float(args.destination_y),
+                destination_z=float(args.destination_z),
+                destination_label=args.destination_label,
+                arrival_radius=float(args.arrival_radius),
+                alignment_threshold_degrees=float(args.alignment_threshold_degrees),
+            )
         summary["blockers"].extend(summary["analysis"].get("blockers", []))
         if summary["blockers"]:
             summary["status"] = "blocked"
@@ -620,6 +752,7 @@ def markdown(summary: Mapping[str, Any]) -> str:
     if summary.get("kind") == "static-owner-nav-state-readback":
         latest = safe_mapping(summary.get("latestState"))
         analysis = safe_mapping(summary.get("analysis"))
+        navigation_target = safe_mapping(summary.get("navigationTarget"))
         lines = [
             "# Static owner navigation state readback",
             "",
@@ -633,9 +766,25 @@ def markdown(summary: Mapping[str, Any]) -> str:
             f"Samples: `{analysis.get('sampleCount')}`",
             f"Max coordinate delta: `{analysis.get('maxPlanarDelta')}`",
             f"Yaw range: `{analysis.get('yawRangeDegrees')}`",
+            f"Max signed yaw delta: `{analysis.get('maxAbsYawDeltaDegrees')}`",
+            f"Max yaw speed/s: `{analysis.get('maxAbsYawSpeedDegreesPerSecond')}`",
             "",
             "Candidate readback only; no facing promotion and no navigation control.",
         ]
+        if navigation_target:
+            lines.extend(
+                [
+                    "",
+                    "## Navigation target analysis",
+                    "",
+                    f"Destination: `{navigation_target.get('destination')}`",
+                    f"Planar distance: `{navigation_target.get('planarDistance')}`",
+                    f"Destination bearing: `{navigation_target.get('destinationBearingDegrees')}`",
+                    f"Signed bearing delta: `{navigation_target.get('signedBearingDeltaDegrees')}`",
+                    f"Suggested turn: `{navigation_target.get('suggestedTurnDirection')}`",
+                    f"Candidate only: `{navigation_target.get('candidateOnly')}`",
+                ]
+            )
         if summary.get("blockers"):
             lines.extend(["", "## Blockers", ""])
             lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
@@ -729,6 +878,9 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
             "sampleCount": analysis.get("sampleCount"),
             "maxPlanarDelta": analysis.get("maxPlanarDelta"),
             "yawRangeDegrees": analysis.get("yawRangeDegrees"),
+            "maxAbsYawDeltaDegrees": analysis.get("maxAbsYawDeltaDegrees"),
+            "maxAbsYawSpeedDegreesPerSecond": analysis.get("maxAbsYawSpeedDegreesPerSecond"),
+            "navigationTarget": summary.get("navigationTarget") or None,
             "summaryJson": artifacts.get("summaryJson"),
             "summaryMarkdown": artifacts.get("summaryMarkdown"),
             "blockers": summary.get("blockers", []),
@@ -821,6 +973,12 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--max-stationary-planar-drift", type=float, default=0.5)
     state.add_argument("--min-target-distance", type=float, default=DEFAULT_MIN_TARGET_DISTANCE)
     state.add_argument("--max-target-distance", type=float, default=DEFAULT_MAX_TARGET_DISTANCE)
+    state.add_argument("--destination-x", type=float)
+    state.add_argument("--destination-y", type=float)
+    state.add_argument("--destination-z", type=float)
+    state.add_argument("--destination-label")
+    state.add_argument("--arrival-radius", type=float, default=2.0)
+    state.add_argument("--alignment-threshold-degrees", type=float, default=7.5)
     state.add_argument("--json", action="store_true")
     return parser
 

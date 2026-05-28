@@ -1,7 +1,15 @@
+import argparse
 import struct
 import unittest
 
-from scripts.static_owner_facing_discovery import compare_snapshots, nav_state_from_owner_window, normalize_degrees
+from scripts.static_owner_facing_discovery import (
+    build_yaw_transition_analysis,
+    compare_snapshots,
+    nav_state_from_owner_window,
+    navigation_target_from_state,
+    normalize_degrees,
+    validate_state_args,
+)
 
 
 def snapshot(label, yaw, scalar, coord_x=0.0):
@@ -63,6 +71,72 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
     def test_normalize_degrees_short_delta(self):
         self.assertAlmostEqual(normalize_degrees(358.0), -2.0)
         self.assertAlmostEqual(normalize_degrees(-358.0), 2.0)
+
+    def test_yaw_transition_analysis_uses_short_signed_delta_across_wrap(self):
+        analysis = build_yaw_transition_analysis(
+            [
+                {"status": "passed", "sampleIndex": 0, "elapsedSeconds": 0.0, "yawDegrees": 179.0},
+                {"status": "passed", "sampleIndex": 1, "elapsedSeconds": 0.5, "yawDegrees": -179.0},
+            ]
+        )
+
+        self.assertEqual(len(analysis["yawTransitions"]), 1)
+        transition = analysis["yawTransitions"][0]
+        self.assertAlmostEqual(transition["signedYawDeltaDegrees"], 2.0)
+        self.assertAlmostEqual(transition["absoluteYawDeltaDegrees"], 2.0)
+        self.assertAlmostEqual(transition["yawSpeedDegreesPerSecond"], 4.0)
+        self.assertAlmostEqual(analysis["maxAbsYawDeltaDegrees"], 2.0)
+        self.assertAlmostEqual(analysis["maxAbsYawSpeedDegreesPerSecond"], 4.0)
+
+    def test_navigation_target_from_state_builds_candidate_turn_analysis(self):
+        state = {
+            "coordinate": {"x": 0.0, "y": 5.0, "z": 0.0},
+            "yawDegrees": 90.0,
+        }
+
+        target = navigation_target_from_state(
+            state,
+            destination_x=10.0,
+            destination_y=None,
+            destination_z=0.0,
+            destination_label="east",
+            arrival_radius=1.5,
+            alignment_threshold_degrees=7.5,
+        )
+
+        self.assertEqual(target["status"], "turn-candidate")
+        self.assertEqual(target["sourceKind"], "static-owner-relative-target-candidate-facing")
+        self.assertTrue(target["candidateOnly"])
+        self.assertFalse(target["actionableForMovement"])
+        self.assertAlmostEqual(target["destination"]["y"], 5.0)
+        self.assertAlmostEqual(target["planarDistance"], 10.0)
+        self.assertAlmostEqual(target["destinationBearingDegrees"], 0.0)
+        self.assertAlmostEqual(target["signedBearingDeltaDegrees"], -90.0)
+        self.assertEqual(target["suggestedTurnDirection"], "left")
+        self.assertFalse(target["withinArrivalRadius"])
+        self.assertFalse(target["withinAlignmentThreshold"])
+
+    def test_validate_state_args_requires_destination_x_and_z_together(self):
+        args = argparse.Namespace(
+            pid=1,
+            hwnd="0x1",
+            module_base="0x1000",
+            owner_window_bytes=0x700,
+            samples=1,
+            interval_seconds=0.0,
+            max_planar_jump_per_sample=25.0,
+            max_sample_gap_seconds=2.0,
+            max_stationary_planar_drift=0.5,
+            min_target_distance=0.5,
+            max_target_distance=100.0,
+            destination_x=10.0,
+            destination_y=None,
+            destination_z=None,
+            arrival_radius=2.0,
+            alignment_threshold_degrees=7.5,
+        )
+
+        self.assertIn("destination-x-and-z-required-together", validate_state_args(args))
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
