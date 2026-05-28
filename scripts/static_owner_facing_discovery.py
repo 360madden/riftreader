@@ -336,6 +336,36 @@ def resolve_navigation_target_request(args: argparse.Namespace, root: Path) -> d
     return None
 
 
+def validate_navigation_target_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    direct_destination_requested = args.destination_x is not None or args.destination_y is not None or args.destination_z is not None
+    waypoint_destination_requested = args.destination_waypoint_json is not None or args.destination_waypoint_id is not None
+    if direct_destination_requested and waypoint_destination_requested:
+        errors.append("destination-waypoint-and-direct-coordinates-mutually-exclusive")
+    if direct_destination_requested and (args.destination_x is None or args.destination_z is None):
+        errors.append("destination-x-and-z-required-together")
+    if waypoint_destination_requested and not args.destination_waypoint_json:
+        errors.append("destination-waypoint-json-required")
+    if waypoint_destination_requested and not args.destination_waypoint_id:
+        errors.append("destination-waypoint-id-required")
+    if args.arrival_radius is not None and args.arrival_radius < 0:
+        errors.append("arrival-radius-must-be-nonnegative")
+    if args.alignment_threshold_degrees < 0:
+        errors.append("alignment-threshold-degrees-must-be-nonnegative")
+    return errors
+
+
+def resolve_plan_navigation_target_request(args: argparse.Namespace, root: Path, source_summary: Mapping[str, Any]) -> dict[str, Any]:
+    request = resolve_navigation_target_request(args, root)
+    if request is not None:
+        return request
+    saved_request = safe_mapping(source_summary.get("navigationTargetRequest"))
+    required_keys = {"destinationX", "destinationZ", "arrivalRadius", "alignmentThresholdDegrees"}
+    if required_keys.issubset(saved_request.keys()):
+        return dict(saved_request)
+    raise ValueError("navigation-target-required")
+
+
 def apply_current_truth(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     defaults = load_current_truth_defaults(root, args.current_truth_json)
     if args.pid is None and defaults.get("pid") is not None:
@@ -380,20 +410,15 @@ def validate_state_args(args: argparse.Namespace) -> list[str]:
         errors.append("min-target-distance-must-be-nonnegative")
     if args.max_target_distance < args.min_target_distance:
         errors.append("max-target-distance-must-be-greater-than-or-equal-to-min-target-distance")
-    direct_destination_requested = args.destination_x is not None or args.destination_y is not None or args.destination_z is not None
-    waypoint_destination_requested = args.destination_waypoint_json is not None or args.destination_waypoint_id is not None
-    if direct_destination_requested and waypoint_destination_requested:
-        errors.append("destination-waypoint-and-direct-coordinates-mutually-exclusive")
-    if direct_destination_requested and (args.destination_x is None or args.destination_z is None):
-        errors.append("destination-x-and-z-required-together")
-    if waypoint_destination_requested and not args.destination_waypoint_json:
-        errors.append("destination-waypoint-json-required")
-    if waypoint_destination_requested and not args.destination_waypoint_id:
-        errors.append("destination-waypoint-id-required")
-    if args.arrival_radius is not None and args.arrival_radius < 0:
-        errors.append("arrival-radius-must-be-nonnegative")
-    if args.alignment_threshold_degrees < 0:
-        errors.append("alignment-threshold-degrees-must-be-nonnegative")
+    errors.extend(validate_navigation_target_args(args))
+    return errors
+
+
+def validate_plan_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if not args.state_summary_json:
+        errors.append("state-summary-json-required")
+    errors.extend(validate_navigation_target_args(args))
     return errors
 
 
@@ -655,6 +680,74 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def run_plan(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    errors = validate_plan_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-target-plan-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-target-dry-run-plan",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "sourceStateSummary": {"path": str(Path(args.state_summary_json).resolve()) if args.state_summary_json else None},
+        "navigationTargetRequest": {},
+        "navigationTarget": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety() | {"facingPromotion": False, "navigationControl": False, "dryRunOnly": True},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    if errors:
+        return summary
+    try:
+        source_path = Path(args.state_summary_json)
+        if not source_path.is_absolute():
+            source_path = root / source_path
+        source_summary = load_json_object(source_path)
+        latest_state = safe_mapping(source_summary.get("latestState"))
+        if not latest_state or not latest_state.get("coordinate") or latest_state.get("yawDegrees") is None:
+            raise ValueError("state-summary-missing-latest-state-coordinate-or-yaw")
+        target_request = resolve_plan_navigation_target_request(args, root, source_summary)
+        summary["sourceStateSummary"].update(
+            {
+                "path": str(source_path),
+                "kind": source_summary.get("kind"),
+                "status": source_summary.get("status"),
+                "verdict": source_summary.get("verdict"),
+                "generatedAtUtc": source_summary.get("generatedAtUtc"),
+            }
+        )
+        summary["navigationTargetRequest"] = target_request
+        summary["navigationTarget"] = navigation_target_from_state(
+            latest_state,
+            destination_x=float(target_request["destinationX"]),
+            destination_y=None if target_request.get("destinationY") is None else float(target_request["destinationY"]),
+            destination_z=float(target_request["destinationZ"]),
+            destination_label=target_request.get("destinationLabel"),
+            arrival_radius=float(target_request["arrivalRadius"]),
+            alignment_threshold_degrees=float(target_request["alignmentThresholdDegrees"]),
+        )
+        summary["status"] = "passed"
+        summary["verdict"] = "static-owner-nav-target-dry-run-plan-built"
+        summary["warnings"].extend(
+            [
+                "dry-run-only-no-live-read-or-input",
+                "facing-candidate-readback-only-not-promoted",
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "static-owner-nav-target-dry-run-plan-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    return summary
+
+
 def rows_by_offset(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
     return {str(row.get("offset")): row for row in rows if row.get("offset")}
 
@@ -824,6 +917,36 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-nav-target-dry-run-plan":
+        source = safe_mapping(summary.get("sourceStateSummary"))
+        target_request = safe_mapping(summary.get("navigationTargetRequest"))
+        navigation_target = safe_mapping(summary.get("navigationTarget"))
+        lines = [
+            "# Static owner navigation target dry-run plan",
+            "",
+            f"Status: `{summary.get('status')}`",
+            f"Verdict: `{summary.get('verdict')}`",
+            f"Source state: `{source}`",
+            "",
+            "## Navigation target analysis",
+            "",
+            f"Request: `{target_request}`",
+            f"Destination: `{navigation_target.get('destination')}`",
+            f"Planar distance: `{navigation_target.get('planarDistance')}`",
+            f"Destination bearing: `{navigation_target.get('destinationBearingDegrees')}`",
+            f"Signed bearing delta: `{navigation_target.get('signedBearingDeltaDegrees')}`",
+            f"Suggested turn: `{navigation_target.get('suggestedTurnDirection')}`",
+            f"Candidate only: `{navigation_target.get('candidateOnly')}`",
+            "",
+            "Dry-run only; no live read, no movement, and no facing promotion.",
+        ]
+        if summary.get("errors"):
+            lines.extend(["", "## Errors", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+        if summary.get("warnings"):
+            lines.extend(["", "## Warnings", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+        return "\n".join(lines) + "\n"
     if summary.get("kind") == "static-owner-nav-state-readback":
         latest = safe_mapping(summary.get("latestState"))
         analysis = safe_mapping(summary.get("analysis"))
@@ -941,6 +1064,19 @@ def write_outputs(summary: dict[str, Any]) -> None:
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-nav-target-dry-run-plan":
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "sourceStateSummary": summary.get("sourceStateSummary"),
+            "navigationTargetRequest": summary.get("navigationTargetRequest") or None,
+            "navigationTarget": summary.get("navigationTarget") or None,
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
     if summary.get("kind") == "static-owner-nav-state-readback":
         latest = safe_mapping(summary.get("latestState"))
         analysis = safe_mapping(summary.get("analysis"))
@@ -1031,6 +1167,20 @@ def build_parser() -> argparse.ArgumentParser:
     comp.add_argument("--max-coordinate-planar-drift", type=float, default=0.5)
     comp.add_argument("--json", action="store_true")
 
+    plan = subparsers.add_parser("plan")
+    plan.add_argument("--repo-root")
+    plan.add_argument("--output-root")
+    plan.add_argument("--state-summary-json", required=True)
+    plan.add_argument("--destination-x", type=float)
+    plan.add_argument("--destination-y", type=float)
+    plan.add_argument("--destination-z", type=float)
+    plan.add_argument("--destination-label")
+    plan.add_argument("--destination-waypoint-json")
+    plan.add_argument("--destination-waypoint-id")
+    plan.add_argument("--arrival-radius", type=float)
+    plan.add_argument("--alignment-threshold-degrees", type=float, default=7.5)
+    plan.add_argument("--json", action="store_true")
+
     state = subparsers.add_parser("state")
     state.add_argument("--repo-root")
     state.add_argument("--output-root")
@@ -1069,6 +1219,8 @@ def main(argv: list[str] | None = None) -> int:
         summary = run_snapshot(args)
     elif args.command == "compare":
         summary = run_compare(args)
+    elif args.command == "plan":
+        summary = run_plan(args)
     elif args.command == "state":
         summary = run_state(args)
     else:

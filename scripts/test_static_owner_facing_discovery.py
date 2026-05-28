@@ -13,6 +13,7 @@ from scripts.static_owner_facing_discovery import (
     navigation_target_from_state,
     normalize_degrees,
     resolve_navigation_target_request,
+    run_plan,
     validate_state_args,
 )
 
@@ -230,6 +231,96 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             self.assertEqual("Destination", request["destinationLabel"])
             self.assertAlmostEqual(4.5, request["arrivalRadius"])
             self.assertAlmostEqual(6.0, request["alignmentThresholdDegrees"])
+
+    def test_run_plan_builds_dry_run_target_from_saved_state_summary(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_summary = root / "state-summary.json"
+            state_summary.write_text(
+                json.dumps(
+                    {
+                        "kind": "static-owner-nav-state-readback",
+                        "status": "passed",
+                        "verdict": "position-and-facing-nav-state-readback-passed",
+                        "generatedAtUtc": "2026-05-28T00:00:00+00:00",
+                        "latestState": {
+                            "coordinate": {"x": 0.0, "y": 5.0, "z": 0.0},
+                            "yawDegrees": 90.0,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                state_summary_json=str(state_summary),
+                destination_x=10.0,
+                destination_y=None,
+                destination_z=0.0,
+                destination_label="east",
+                destination_waypoint_json=None,
+                destination_waypoint_id=None,
+                arrival_radius=2.0,
+                alignment_threshold_degrees=7.5,
+            )
+
+            plan = run_plan(args)
+
+            self.assertEqual("passed", plan["status"])
+            self.assertEqual("static-owner-nav-target-dry-run-plan-built", plan["verdict"])
+            self.assertTrue(plan["safety"]["dryRunOnly"])
+            self.assertFalse(plan["safety"]["movementSent"])
+            self.assertFalse(plan["navigationTarget"]["actionableForMovement"])
+            self.assertAlmostEqual(-90.0, plan["navigationTarget"]["signedBearingDeltaDegrees"])
+            self.assertEqual("left", plan["navigationTarget"]["suggestedTurnDirection"])
+
+    def test_run_plan_reuses_saved_navigation_target_request_when_no_new_target_is_supplied(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_summary = root / "state-summary.json"
+            state_summary.write_text(
+                json.dumps(
+                    {
+                        "kind": "static-owner-nav-state-readback",
+                        "status": "passed",
+                        "latestState": {
+                            "coordinate": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "yawDegrees": 0.0,
+                        },
+                        "navigationTargetRequest": {
+                            "sourceKind": "direct-coordinates",
+                            "destinationLabel": "north",
+                            "destinationX": 0.0,
+                            "destinationY": None,
+                            "destinationZ": 10.0,
+                            "arrivalRadius": 2.0,
+                            "alignmentThresholdDegrees": 7.5,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                state_summary_json=str(state_summary),
+                destination_x=None,
+                destination_y=None,
+                destination_z=None,
+                destination_label=None,
+                destination_waypoint_json=None,
+                destination_waypoint_id=None,
+                arrival_radius=None,
+                alignment_threshold_degrees=7.5,
+            )
+
+            plan = run_plan(args)
+
+            self.assertEqual("passed", plan["status"])
+            self.assertEqual("north", plan["navigationTarget"]["destination"]["label"])
+            self.assertAlmostEqual(90.0, plan["navigationTarget"]["destinationBearingDegrees"])
+            self.assertEqual("right", plan["navigationTarget"]["suggestedTurnDirection"])
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
