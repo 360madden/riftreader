@@ -489,3 +489,53 @@ Added after live movement was explicitly approved.
 ## Updated resume note
 
 Live movement is now smoke-validated against the promoted static owner-coordinate resolver for the current target. This still does **not** promote facing/yaw or a full actor/stat chain. The next useful development slice is a bounded route-step controller that uses the static-chain preflight, C# SendInput ScanCode movement, immediate post-readback, and the existing route contract validator; any ProofOnly/proof promotion still remains separately gated.
+
+---
+
+# Continuation addendum — bounded live route-step controller
+
+Added after the live static-owner movement smoke.
+
+## Additional local commit context
+
+| Commit | Summary |
+|---|---|
+| `a7bac8f` | Add measured movement launcher guard |
+| `83213a3` | Record live static owner movement smoke |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| One-step live controller | Added `scripts\static_owner_nav_route_step.py` and `scripts\static-owner-nav-route-step.cmd`. |
+| Safety gate | The helper reads pre-state, refuses candidate-only turn actions, requires `--movement-approved` before input, sends at most one C# SendInput pulse, reads post-state, builds/validates a route summary, and blocks on no-progress/wrong-way/overshot. |
+| Dry-run proof | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json` passed with no input; initial bearing was aligned (`absoluteBearingDeltaDegrees=0.6981671652022783`). |
+| Live route-step proof | Same destination with `--movement-approved` passed: `route-step-live-movement-progress-validated`, `routeStatus=progress`, `totalProgressDistance=1.677001320876208`, `initialPlanarDistance=11.189697380239469`, `finalPlanarDistance=9.512696059363261`. |
+| Visual confirmation | MCP frame-change check after the live route-step saw `28.7847%` change. |
+| Remaining boundary | This validates one bounded forward route step only. It still does not promote facing/yaw, turn control, actor/stat chain, ProofOnly, or provider truth. |
+
+## Additional artifacts
+
+| Artifact | Path |
+|---|---|
+| Route-step dry-run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-step-20260528-101059-549787\summary.json` |
+| Live route-step summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-step-20260528-101131-369548\summary.json` |
+| Live route summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-20260528-101135-090022\summary.json` |
+| Live route contract validation | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-contract-20260528-101135-394002\summary.json` |
+| Route-step baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-061121-492.png` |
+| Route-step changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-061139-912.png` |
+| Route-step final screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-061146-649.png` |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_nav_route_step.py scripts\test_static_owner_nav_route_step.py` | Passed |
+| `python -m unittest scripts.test_static_owner_nav_route_step scripts.test_static_owner_facing_discovery` | Passed: `27` tests |
+| Route-step dry-run command | Passed; no input sent |
+| Route-step live command with `--movement-approved` | Passed; one `w` / `250ms` C# SendInput pulse |
+| MCP `wait_for_frame_change` after route step | Passed: `28.7847%` change |
+
+## Updated resume note
+
+The next practical slice is to harden route-step repeatability: add fixture coverage for full route-step summaries, then add a conservative multi-step route-runner that loops only while every step returns `route-step-live-movement-progress-validated`, target identity stays exact, and the destination remains aligned. Turn control should remain blocked until yaw/turn behavior is separately proven.

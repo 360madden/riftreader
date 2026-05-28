@@ -15,6 +15,7 @@ permission and does not promote facing, actor, or proof truth.
 | Compare saved plans | `cmd /c scripts\static-owner-nav-progress.cmd --plan-summary-json <before.json> <after.json>` | `static-owner-nav-progress-dry-run` | Offline dry-run; no movement permission. |
 | Build route from saved states | `cmd /c scripts\static-owner-nav-route.cmd --state-summary-json <before.json> <after.json> ...` | `static-owner-nav-route-dry-run` | Offline dry-run; controller recommendation is candidate-only. |
 | Validate route contract | `cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json <route-summary.json>` | `static-owner-nav-route-contract-validation` | Fail-closed consumer gate; no live read or input. |
+| Run one bounded route step | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x <x> --destination-z <z> --movement-approved --json` | `static-owner-nav-route-step` | Live workflow gate; performs pre-state readback, one C# SendInput pulse, post-state readback, route contract validation, and fail-closed progress classification. |
 
 ## Route summary requirements
 
@@ -61,6 +62,21 @@ These values are labels for offline planning and review. A live route loop must
 not send input from them unless a separate live workflow has already passed its
 own exact-target, current-coordinate, and movement-approval gates.
 
+## Bounded live route-step helper
+
+`scripts\static-owner-nav-route-step.cmd` is the first live consumer of this
+contract. It is intentionally one-step only:
+
+| Gate | Behavior |
+|---|---|
+| Pre-state readback | Runs `static_owner_facing_discovery.py state` with exact current-truth target checks and a navigation destination. |
+| Candidate turn block | Refuses to send input unless the pre-state bearing is already `aligned`; left/right turn labels remain candidate-only. |
+| Movement approval | Requires `--movement-approved`; `--dry-run` builds the step plan and sends no input. |
+| Input backend | Uses `scripts\send-rift-key-csharp.ps1` with C# SendInput `ScanCode` by default. |
+| Post-state readback | Captures another exact-target static-owner state after the single pulse. |
+| Progress gate | Builds and validates a saved route summary from pre/post states. `progress` or `arrived` passes; `no-progress`, `wrong-way`, and `overshot` block. |
+| Promotions | Does not promote facing, actor chain, proof, or current truth. |
+
 ## Live boundary
 
 Before any live route loop or movement-polling consumer can use this offline
@@ -82,7 +98,11 @@ HWND `0x3D1544`.
 
 ```powershell
 cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\navigation\testdata\static-owner-nav-route-summary-safe.json
+cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json
 python -m unittest scripts.test_static_owner_facing_discovery
+python -m unittest scripts.test_static_owner_nav_route_step
 ```
 
-Both commands are offline-safe. They do not grant movement permission.
+The route-step dry-run command is read-only and sends no input. Remove
+`--dry-run` and add `--movement-approved` only after the live movement boundary
+has been explicitly opened for the current conversation.
