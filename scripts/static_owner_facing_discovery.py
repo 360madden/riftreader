@@ -451,6 +451,13 @@ def validate_route_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def validate_route_contract_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if not args.route_summary_json:
+        errors.append("route-summary-json-required")
+    return errors
+
+
 def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
     defaults = apply_current_truth(args, root)
@@ -1125,6 +1132,164 @@ def run_route(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def validate_route_summary_contract(route_summary: Mapping[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if route_summary.get("kind") != "static-owner-nav-route-dry-run":
+        blockers.append("route-summary-kind-must-be-static-owner-nav-route-dry-run")
+    if route_summary.get("status") != "passed":
+        blockers.append("route-summary-status-must-be-passed")
+
+    route_targets = route_summary.get("routePlanTargets")
+    if not isinstance(route_targets, list) or len(route_targets) < 2:
+        blockers.append("route-plan-targets-must-have-at-least-two-samples")
+        route_targets = []
+    analysis = safe_mapping(route_summary.get("analysis"))
+    controller = safe_mapping(route_summary.get("controllerRecommendation"))
+    safety = safe_mapping(route_summary.get("safety"))
+    if not analysis:
+        blockers.append("analysis-required")
+    elif analysis.get("actionableForMovement") is not False:
+        blockers.append("analysis-actionable-for-movement-must-be-false")
+    if analysis.get("candidateOnly") is not True:
+        blockers.append("analysis-candidate-only-must-be-true")
+    if not controller:
+        blockers.append("controller-recommendation-required")
+    controller_required_false = {
+        "movementPermission": "controller-movement-permission-must-be-false",
+        "actionableForMovement": "controller-actionable-for-movement-must-be-false",
+        "navigationControl": "controller-navigation-control-must-be-false",
+    }
+    controller_required_true = {
+        "candidateOnly": "controller-candidate-only-must-be-true",
+        "dryRunOnly": "controller-dry-run-only-must-be-true",
+        "requiresFreshPreflightBeforeLiveUse": "controller-requires-fresh-preflight-before-live-use-must-be-true",
+    }
+    for key, blocker in controller_required_false.items():
+        if controller.get(key) is not False:
+            blockers.append(blocker)
+    for key, blocker in controller_required_true.items():
+        if controller.get(key) is not True:
+            blockers.append(blocker)
+
+    safety_required_false = {
+        "movementSent": "safety-movement-sent-must-be-false",
+        "inputSent": "safety-input-sent-must-be-false",
+        "reloaduiSent": "safety-reloadui-sent-must-be-false",
+        "screenshotKeySent": "safety-screenshot-key-sent-must-be-false",
+        "x64dbgAttach": "safety-x64dbg-attach-must-be-false",
+        "providerWrites": "safety-provider-writes-must-be-false",
+        "navigationControl": "safety-navigation-control-must-be-false",
+    }
+    for key, blocker in safety_required_false.items():
+        if safety.get(key) is not False:
+            blockers.append(blocker)
+    if safety.get("noCheatEngine") is not True:
+        blockers.append("safety-no-cheat-engine-must-be-true")
+    if safety.get("dryRunOnly") is not True:
+        blockers.append("safety-dry-run-only-must-be-true")
+    if safety.get("facingPromotion") is not False:
+        blockers.append("safety-facing-promotion-must-be-false")
+
+    for index, target in enumerate(route_targets):
+        target_mapping = safe_mapping(target)
+        navigation_target = safe_mapping(target_mapping.get("navigationTarget"))
+        if not navigation_target:
+            blockers.append(f"route-target-{index}-navigation-target-required")
+            continue
+        if navigation_target.get("candidateOnly") is not True:
+            blockers.append(f"route-target-{index}-candidate-only-must-be-true")
+        if navigation_target.get("actionableForMovement") is not False:
+            blockers.append(f"route-target-{index}-actionable-for-movement-must-be-false")
+        if navigation_target.get("planarDistance") is None:
+            blockers.append(f"route-target-{index}-planar-distance-required")
+    recommended_action = controller.get("recommendedAction")
+    allowed_actions = {
+        "stop-arrived",
+        "stop-overshot",
+        "stop-wrong-way",
+        "sample-more-or-reassess",
+        "turn-left-candidate",
+        "turn-right-candidate",
+        "continue-aligned-candidate",
+    }
+    if recommended_action and recommended_action not in allowed_actions:
+        warnings.append(f"controller-recommended-action-unrecognized:{recommended_action}")
+    return {
+        "status": "blocked" if blockers else "passed",
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "routeStatus": analysis.get("status"),
+        "stopReason": analysis.get("stopReason"),
+        "sampleCount": analysis.get("sampleCount"),
+        "checkedRouteTargetCount": len(route_targets),
+        "controllerRecommendedAction": recommended_action,
+        "controllerControlIntent": controller.get("controlIntent"),
+        "movementPermission": controller.get("movementPermission"),
+        "dryRunOnly": controller.get("dryRunOnly"),
+        "candidateOnly": controller.get("candidateOnly"),
+        "actionableForMovement": controller.get("actionableForMovement"),
+    }
+
+
+def run_validate_route(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    errors = validate_route_contract_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-route-contract-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    route_summary_path = Path(args.route_summary_json).resolve() if args.route_summary_json else None
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-route-contract-validation",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "sourceRouteSummary": {"path": str(route_summary_path) if route_summary_path else None},
+        "contract": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety() | {"facingPromotion": False, "navigationControl": False, "dryRunOnly": True},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    if errors:
+        return summary
+    try:
+        source_path = Path(args.route_summary_json)
+        if not source_path.is_absolute():
+            source_path = root / source_path
+        route_summary = load_json_object(source_path)
+        summary["sourceRouteSummary"].update(
+            {
+                "path": str(source_path),
+                "kind": route_summary.get("kind"),
+                "status": route_summary.get("status"),
+                "verdict": route_summary.get("verdict"),
+                "generatedAtUtc": route_summary.get("generatedAtUtc"),
+            }
+        )
+        contract = validate_route_summary_contract(route_summary)
+        summary["contract"] = contract
+        summary["blockers"] = list(contract.get("blockers", []))
+        summary["warnings"].extend(contract.get("warnings", []))
+        if summary["blockers"]:
+            summary["status"] = "blocked"
+            summary["verdict"] = "static-owner-nav-route-contract-blocked"
+        else:
+            summary["status"] = "passed"
+            summary["verdict"] = "static-owner-nav-route-contract-passed"
+            summary["warnings"].append("route-contract-validation-is-not-movement-permission")
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "static-owner-nav-route-contract-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["blockers"] = sorted(set(summary["blockers"]))
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    return summary
+
+
 def rows_by_offset(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
     return {str(row.get("offset")): row for row in rows if row.get("offset")}
 
@@ -1294,6 +1459,30 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-nav-route-contract-validation":
+        contract = safe_mapping(summary.get("contract"))
+        lines = [
+            "# Static owner navigation route contract validation",
+            "",
+            f"Status: `{summary.get('status')}`",
+            f"Verdict: `{summary.get('verdict')}`",
+            f"Route status: `{contract.get('routeStatus')}`",
+            f"Controller recommendation: `{contract.get('controllerRecommendedAction')}`",
+            f"Movement permission: `{contract.get('movementPermission')}`",
+            f"Checked route targets: `{contract.get('checkedRouteTargetCount')}`",
+            "",
+            "Contract validation only; no live read, no movement, and no movement permission.",
+        ]
+        if summary.get("blockers"):
+            lines.extend(["", "## Blockers", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
+        if summary.get("errors"):
+            lines.extend(["", "## Errors", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+        if summary.get("warnings"):
+            lines.extend(["", "## Warnings", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+        return "\n".join(lines) + "\n"
     if summary.get("kind") == "static-owner-nav-route-dry-run":
         analysis = safe_mapping(summary.get("analysis"))
         controller = safe_mapping(summary.get("controllerRecommendation"))
@@ -1491,6 +1680,24 @@ def write_outputs(summary: dict[str, Any]) -> None:
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-nav-route-contract-validation":
+        contract = safe_mapping(summary.get("contract"))
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "routeStatus": contract.get("routeStatus"),
+            "controllerRecommendedAction": contract.get("controllerRecommendedAction"),
+            "movementPermission": contract.get("movementPermission"),
+            "dryRunOnly": contract.get("dryRunOnly"),
+            "candidateOnly": contract.get("candidateOnly"),
+            "actionableForMovement": contract.get("actionableForMovement"),
+            "checkedRouteTargetCount": contract.get("checkedRouteTargetCount"),
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
     if summary.get("kind") == "static-owner-nav-route-dry-run":
         return {
             "status": summary.get("status"),
@@ -1667,6 +1874,12 @@ def build_parser() -> argparse.ArgumentParser:
     route.add_argument("--wrong-way-tolerance-distance", type=float, default=0.75)
     route.add_argument("--json", action="store_true")
 
+    validate_route = subparsers.add_parser("validate-route")
+    validate_route.add_argument("--repo-root")
+    validate_route.add_argument("--output-root")
+    validate_route.add_argument("--route-summary-json", required=True)
+    validate_route.add_argument("--json", action="store_true")
+
     state = subparsers.add_parser("state")
     state.add_argument("--repo-root")
     state.add_argument("--output-root")
@@ -1711,6 +1924,8 @@ def main(argv: list[str] | None = None) -> int:
         summary = run_progress(args)
     elif args.command == "route":
         summary = run_route(args)
+    elif args.command == "validate-route":
+        summary = run_validate_route(args)
     elif args.command == "state":
         summary = run_state(args)
     else:

@@ -17,6 +17,8 @@ from scripts.static_owner_facing_discovery import (
     run_plan,
     run_progress,
     run_route,
+    run_validate_route,
+    validate_route_summary_contract,
     validate_state_args,
     validate_route_args,
 )
@@ -528,6 +530,112 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         errors = validate_route_args(args)
 
         self.assertIn("at-least-two-state-summaries-required", errors)
+
+    def test_route_contract_validation_passes_safe_route_summary(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "state-1.json"
+            second = root / "state-2.json"
+            for path, x in ((first, 0.0), (second, 1.0)):
+                path.write_text(
+                    json.dumps(
+                        {
+                            "kind": "static-owner-nav-state-readback",
+                            "status": "passed",
+                            "latestState": {
+                                "coordinate": {"x": x, "y": 0.0, "z": 0.0},
+                                "yawDegrees": 0.0,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            route_args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                state_summary_json=[str(first), str(second)],
+                destination_x=10.0,
+                destination_y=None,
+                destination_z=0.0,
+                destination_label="east",
+                destination_waypoint_json=None,
+                destination_waypoint_id=None,
+                arrival_radius=2.0,
+                alignment_threshold_degrees=7.5,
+                minimum_progress_distance=0.35,
+                wrong_way_tolerance_distance=0.75,
+            )
+            route = run_route(route_args)
+            route_summary = root / "route-summary.json"
+            route_summary.write_text(json.dumps(route), encoding="utf-8")
+            validate_args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                route_summary_json=str(route_summary),
+            )
+
+            validation = run_validate_route(validate_args)
+
+            self.assertEqual("passed", validation["status"])
+            self.assertEqual("static-owner-nav-route-contract-passed", validation["verdict"])
+            self.assertEqual([], validation["blockers"])
+            self.assertFalse(validation["contract"]["movementPermission"])
+            self.assertEqual(2, validation["contract"]["checkedRouteTargetCount"])
+
+    def test_route_contract_validation_blocks_movement_permission(self):
+        route = {
+            "kind": "static-owner-nav-route-dry-run",
+            "status": "passed",
+            "routePlanTargets": [
+                {
+                    "navigationTarget": {
+                        "candidateOnly": True,
+                        "actionableForMovement": False,
+                        "planarDistance": 10.0,
+                    }
+                },
+                {
+                    "navigationTarget": {
+                        "candidateOnly": True,
+                        "actionableForMovement": False,
+                        "planarDistance": 9.0,
+                    }
+                },
+            ],
+            "analysis": {
+                "status": "progress",
+                "sampleCount": 2,
+                "candidateOnly": True,
+                "actionableForMovement": False,
+            },
+            "controllerRecommendation": {
+                "recommendedAction": "continue-aligned-candidate",
+                "controlIntent": "continue",
+                "candidateOnly": True,
+                "dryRunOnly": True,
+                "actionableForMovement": False,
+                "movementPermission": True,
+                "navigationControl": False,
+                "requiresFreshPreflightBeforeLiveUse": True,
+            },
+            "safety": {
+                "movementSent": False,
+                "inputSent": False,
+                "reloaduiSent": False,
+                "screenshotKeySent": False,
+                "x64dbgAttach": False,
+                "providerWrites": False,
+                "navigationControl": False,
+                "noCheatEngine": True,
+                "dryRunOnly": True,
+                "facingPromotion": False,
+            },
+        }
+
+        contract = validate_route_summary_contract(route)
+
+        self.assertEqual("blocked", contract["status"])
+        self.assertIn("controller-movement-permission-must-be-false", contract["blockers"])
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
