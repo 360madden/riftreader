@@ -13,6 +13,7 @@ import json
 import math
 import struct
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -160,6 +161,30 @@ def extract_relative_target_samples(
     return rows
 
 
+def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str, Any]:
+    position = triplet(data, 0x320)
+    facing_target = triplet(data, 0x30C)
+    dx = facing_target["x"] - position["x"]
+    dy = facing_target["y"] - position["y"]
+    dz = facing_target["z"] - position["z"]
+    planar = math.hypot(dx, dz)
+    distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+    yaw = math.degrees(math.atan2(dz, dx))
+    pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
+    return {
+        "ownerAddress": int_hex(owner_address),
+        "coordinate": position,
+        "facingTargetCoordinate": facing_target,
+        "facingVector": {"x": dx, "y": dy, "z": dz},
+        "yawDegrees": yaw,
+        "pitchDegrees": pitch,
+        "planarLookaheadDistance": planar,
+        "lookaheadDistance3d": distance,
+        "positionOffset": "0x320",
+        "facingTargetOffset": "0x30C",
+    }
+
+
 def apply_current_truth(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     defaults = load_current_truth_defaults(root, args.current_truth_json)
     if args.pid is None and defaults.get("pid") is not None:
@@ -290,6 +315,136 @@ def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         summary["errors"].append(f"{type(exc).__name__}:{exc}")
     finally:
         close_handle(handle)
+    return summary
+
+
+def run_state(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    defaults = apply_current_truth(args, root)
+    errors = validate_snapshot_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-state-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-state-readback",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "target": {
+            "processName": args.process_name,
+            "processId": args.pid,
+            "targetWindowHandle": args.hwnd,
+            "expectedProcessStartUtc": args.expected_process_start_utc,
+            "moduleBase": args.module_base,
+            "currentTruthPath": defaults.get("path"),
+        },
+        "resolver": {
+            "positionChain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+            "facingTargetChain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "yawFormula": "atan2((owner+0x314)-(owner+0x328), (owner+0x30C)-(owner+0x320))",
+            "currentTruthStaticResolverStatus": defaults.get("staticResolverStatus"),
+            "currentTruthPromotionAllowed": defaults.get("promotionAllowed"),
+        },
+        "polling": {
+            "requestedSampleCount": int(args.samples),
+            "intervalSeconds": float(args.interval_seconds),
+            "exactHwndPidCheckPerSample": True,
+            "maxPlanarJumpPerSample": float(args.max_planar_jump_per_sample),
+            "maxSampleGapSeconds": float(args.max_sample_gap_seconds),
+            "minLookaheadDistance": float(args.min_target_distance),
+            "maxLookaheadDistance": float(args.max_target_distance),
+        },
+        "samples": [],
+        "latestState": {},
+        "analysis": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety() | {"facingPromotion": False, "navigationControl": False},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    if errors:
+        return summary
+
+    module_base = int(str(args.module_base), 0)
+    root_rva = int(str(args.root_rva or defaults.get("rootRva") or "0x32EBC80"), 0)
+    root_address = module_base + root_rva
+    hwnd_check = verify_hwnd_owner(str(args.hwnd), int(args.pid))
+    summary["target"]["hwndCheck"] = hwnd_check
+    if not hwnd_check.get("ownerMatchesExpectedPid"):
+        summary["status"] = "blocked"
+        summary["verdict"] = "target-hwnd-pid-mismatch"
+        summary["blockers"].append("target-hwnd-pid-mismatch")
+        return summary
+
+    handle = open_process_for_read(int(args.pid))
+    start = time.perf_counter()
+    try:
+        actual_start = get_process_creation_time_utc(handle)
+        start_check = process_start_check(actual_start, args.expected_process_start_utc, tolerance_seconds=args.process_start_tolerance_seconds)
+        summary["target"]["actualProcessStartUtc"] = actual_start
+        summary["target"]["processStartCheck"] = start_check
+        if start_check.get("matchesExpected") is False:
+            summary["status"] = "blocked"
+            summary["verdict"] = "target-process-start-mismatch"
+            summary["blockers"].append("target-process-start-mismatch")
+            return summary
+        for index in range(int(args.samples)):
+            sample_check = verify_hwnd_owner(str(args.hwnd), int(args.pid))
+            sample: dict[str, Any] = {
+                "sampleIndex": index,
+                "sampledAtUtc": utc_iso(),
+                "elapsedSeconds": time.perf_counter() - start,
+                "hwndCheck": sample_check,
+            }
+            if not sample_check.get("ownerMatchesExpectedPid"):
+                sample["status"] = "blocked"
+                sample["blocker"] = "target-hwnd-pid-mismatch-during-poll"
+                summary["samples"].append(sample)
+                summary["blockers"].append("target-hwnd-pid-mismatch-during-poll")
+                break
+            owner_address = qword(read_memory(handle, root_address, 8))
+            data = read_memory(handle, owner_address, int(args.owner_window_bytes))
+            state = nav_state_from_owner_window(data, owner_address=owner_address)
+            sample.update({"status": "passed", **state})
+            if not (float(args.min_target_distance) <= float(state["planarLookaheadDistance"]) <= float(args.max_target_distance)):
+                sample["lookaheadDistanceOutOfRange"] = True
+                summary["blockers"].append("facing-lookahead-distance-out-of-range")
+            summary["latestState"] = state
+            summary["samples"].append(sample)
+            if index < int(args.samples) - 1 and args.interval_seconds > 0:
+                time.sleep(float(args.interval_seconds))
+        summary["analysis"] = build_poll_analysis(
+            summary["samples"],
+            max_planar_jump_per_sample=float(args.max_planar_jump_per_sample),
+            max_sample_gap_seconds=float(args.max_sample_gap_seconds),
+            expect_stationary=bool(args.expect_stationary),
+            max_stationary_planar_drift=float(args.max_stationary_planar_drift),
+        )
+        yaw_values = [float(sample["yawDegrees"]) for sample in summary["samples"] if sample.get("status") == "passed" and sample.get("yawDegrees") is not None]
+        if yaw_values:
+            summary["analysis"]["yawMinDegrees"] = min(yaw_values)
+            summary["analysis"]["yawMaxDegrees"] = max(yaw_values)
+            summary["analysis"]["yawRangeDegrees"] = max(yaw_values) - min(yaw_values)
+        summary["blockers"].extend(summary["analysis"].get("blockers", []))
+        if summary["blockers"]:
+            summary["status"] = "blocked"
+            summary["verdict"] = "nav-state-readback-blocked"
+        else:
+            summary["status"] = "passed"
+            summary["verdict"] = "position-and-facing-nav-state-readback-passed"
+            summary["classification"] = "candidate-facing-state-source-not-promoted"
+            summary["warnings"].append("facing-candidate-readback-only-not-promoted")
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "nav-state-readback-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    finally:
+        close_handle(handle)
+    summary["blockers"] = sorted(set(summary["blockers"]))
+    summary["warnings"] = sorted(set(summary["warnings"]))
     return summary
 
 
@@ -462,6 +617,32 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-nav-state-readback":
+        latest = safe_mapping(summary.get("latestState"))
+        analysis = safe_mapping(summary.get("analysis"))
+        lines = [
+            "# Static owner navigation state readback",
+            "",
+            f"Status: `{summary.get('status')}`",
+            f"Verdict: `{summary.get('verdict')}`",
+            f"Coordinate: `{latest.get('coordinate')}`",
+            f"Facing target: `{latest.get('facingTargetCoordinate')}`",
+            f"Yaw degrees: `{latest.get('yawDegrees')}`",
+            f"Pitch degrees: `{latest.get('pitchDegrees')}`",
+            f"Lookahead distance: `{latest.get('planarLookaheadDistance')}`",
+            f"Samples: `{analysis.get('sampleCount')}`",
+            f"Max coordinate delta: `{analysis.get('maxPlanarDelta')}`",
+            f"Yaw range: `{analysis.get('yawRangeDegrees')}`",
+            "",
+            "Candidate readback only; no facing promotion and no navigation control.",
+        ]
+        if summary.get("blockers"):
+            lines.extend(["", "## Blockers", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
+        if summary.get("warnings"):
+            lines.extend(["", "## Warnings", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+        return "\n".join(lines) + "\n"
     if summary.get("kind") == "static-owner-facing-snapshot":
         owner = safe_mapping(summary.get("owner"))
         return "\n".join(
@@ -534,6 +715,26 @@ def write_outputs(summary: dict[str, Any]) -> None:
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-nav-state-readback":
+        latest = safe_mapping(summary.get("latestState"))
+        analysis = safe_mapping(summary.get("analysis"))
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "classification": summary.get("classification"),
+            "coordinate": latest.get("coordinate"),
+            "yawDegrees": latest.get("yawDegrees"),
+            "pitchDegrees": latest.get("pitchDegrees"),
+            "planarLookaheadDistance": latest.get("planarLookaheadDistance"),
+            "sampleCount": analysis.get("sampleCount"),
+            "maxPlanarDelta": analysis.get("maxPlanarDelta"),
+            "yawRangeDegrees": analysis.get("yawRangeDegrees"),
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
     if summary.get("kind") == "static-owner-facing-snapshot":
         return {
             "status": summary.get("status"),
@@ -599,12 +800,41 @@ def build_parser() -> argparse.ArgumentParser:
     comp.add_argument("--min-yaw-delta-degrees", type=float, default=DEFAULT_MIN_YAW_DELTA_DEGREES)
     comp.add_argument("--max-coordinate-planar-drift", type=float, default=0.5)
     comp.add_argument("--json", action="store_true")
+
+    state = subparsers.add_parser("state")
+    state.add_argument("--repo-root")
+    state.add_argument("--output-root")
+    state.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
+    state.add_argument("--process-name", default="rift_x64")
+    state.add_argument("--pid", type=int)
+    state.add_argument("--hwnd")
+    state.add_argument("--module-base")
+    state.add_argument("--expected-process-start-utc")
+    state.add_argument("--process-start-tolerance-seconds", type=float, default=2.0)
+    state.add_argument("--root-rva")
+    state.add_argument("--owner-window-bytes", type=lambda value: int(value, 0), default=DEFAULT_OWNER_WINDOW_BYTES)
+    state.add_argument("--samples", type=int, default=5)
+    state.add_argument("--interval-seconds", type=float, default=0.1)
+    state.add_argument("--max-planar-jump-per-sample", type=float, default=25.0)
+    state.add_argument("--max-sample-gap-seconds", type=float, default=2.0)
+    state.add_argument("--expect-stationary", action="store_true")
+    state.add_argument("--max-stationary-planar-drift", type=float, default=0.5)
+    state.add_argument("--min-target-distance", type=float, default=DEFAULT_MIN_TARGET_DISTANCE)
+    state.add_argument("--max-target-distance", type=float, default=DEFAULT_MAX_TARGET_DISTANCE)
+    state.add_argument("--json", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    summary = run_snapshot(args) if args.command == "snapshot" else run_compare(args)
+    if args.command == "snapshot":
+        summary = run_snapshot(args)
+    elif args.command == "compare":
+        summary = run_compare(args)
+    elif args.command == "state":
+        summary = run_state(args)
+    else:
+        raise ValueError(f"unsupported command: {args.command}")
     write_outputs(summary)
     print(json.dumps(compact(summary)) if args.json else json.dumps(compact(summary), indent=2))
     return 0 if summary.get("status") in {"passed", "no-candidates"} else 2 if summary.get("status") == "blocked" else 1

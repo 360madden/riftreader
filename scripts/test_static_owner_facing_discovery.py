@@ -1,6 +1,7 @@
+import struct
 import unittest
 
-from scripts.static_owner_facing_discovery import compare_snapshots, normalize_degrees
+from scripts.static_owner_facing_discovery import compare_snapshots, nav_state_from_owner_window, normalize_degrees
 
 
 def snapshot(label, yaw, scalar, coord_x=0.0):
@@ -31,6 +32,34 @@ def snapshot(label, yaw, scalar, coord_x=0.0):
 
 
 class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
+    def test_nav_state_from_owner_window_computes_yaw_from_relative_target(self):
+        data = bytearray(0x700)
+        struct.pack_into("<fff", data, 0x320, 10.0, 2.0, 20.0)
+        struct.pack_into("<fff", data, 0x30C, 20.0, 2.0, 20.0)
+
+        state = nav_state_from_owner_window(bytes(data), owner_address=0x1000)
+
+        self.assertEqual(state["positionOffset"], "0x320")
+        self.assertEqual(state["facingTargetOffset"], "0x30C")
+        self.assertAlmostEqual(state["coordinate"]["x"], 10.0)
+        self.assertAlmostEqual(state["facingTargetCoordinate"]["x"], 20.0)
+        self.assertAlmostEqual(state["facingVector"]["x"], 10.0)
+        self.assertAlmostEqual(state["facingVector"]["z"], 0.0)
+        self.assertAlmostEqual(state["yawDegrees"], 0.0)
+        self.assertAlmostEqual(state["planarLookaheadDistance"], 10.0)
+
+    def test_nav_state_from_owner_window_computes_z_axis_yaw(self):
+        data = bytearray(0x700)
+        struct.pack_into("<fff", data, 0x320, 10.0, 2.0, 20.0)
+        struct.pack_into("<fff", data, 0x30C, 10.0, 2.0, 30.0)
+
+        state = nav_state_from_owner_window(bytes(data), owner_address=0x1000)
+
+        self.assertAlmostEqual(state["facingVector"]["x"], 0.0)
+        self.assertAlmostEqual(state["facingVector"]["z"], 10.0)
+        self.assertAlmostEqual(state["yawDegrees"], 90.0)
+        self.assertAlmostEqual(state["planarLookaheadDistance"], 10.0)
+
     def test_normalize_degrees_short_delta(self):
         self.assertAlmostEqual(normalize_degrees(358.0), -2.0)
         self.assertAlmostEqual(normalize_degrees(-358.0), 2.0)
