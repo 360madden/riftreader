@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-nav-route-dry-run",
+  "generatedAtUtc": "2026-05-28T00:00:00+00:00",
+  "status": "passed",
+  "verdict": "static-owner-nav-route-dry-run-built",
+  "routePlanTargets": [
+    {
+      "sampleIndex": 0,
+      "sourceFile": "fixture-state-before.json",
+      "navigationTarget": {
+        "status": "aligned-candidate",
+        "candidateOnly": true,
+        "actionableForMovement": false,
+        "planarDistance": 10.0,
+        "arrivalRadius": 2.0,
+        "withinArrivalRadius": false,
+        "suggestedTurnDirection": "aligned"
+      }
+    },
+    {
+      "sampleIndex": 1,
+      "sourceFile": "fixture-state-after.json",
+      "navigationTarget": {
+        "status": "aligned-candidate",
+        "candidateOnly": true,
+        "actionableForMovement": false,
+        "planarDistance": 9.0,
+        "arrivalRadius": 2.0,
+        "withinArrivalRadius": false,
+        "suggestedTurnDirection": "aligned"
+      }
+    }
+  ],
+  "analysis": {
+    "status": "progress",
+    "stopReason": "distance-decreased",
+    "sampleCount": 2,
+    "candidateOnly": true,
+    "actionableForMovement": false,
+    "initialPlanarDistance": 10.0,
+    "finalPlanarDistance": 9.0,
+    "totalProgressDistance": 1.0
+  },
+  "controllerRecommendation": {
+    "status": "candidate-controller-recommendation",
+    "recommendedAction": "continue-aligned-candidate",
+    "controlIntent": "continue",
+    "reason": "candidate-bearing-within-alignment-threshold",
+    "progressStatus": "progress",
+    "sourceSampleIndex": 1,
+    "sourceFile": "fixture-state-after.json",
+    "latestPlanarDistance": 9.0,
+    "arrivalRadius": 2.0,
+    "suggestedTurnDirection": "aligned",
+    "candidateOnly": true,
+    "dryRunOnly": true,
+    "actionableForMovement": false,
+    "movementPermission": false,
+    "navigationControl": false,
+    "requiresFreshPreflightBeforeLiveUse": true
+  },
+  "safety": {
+    "movementSent": false,
+    "inputSent": false,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "x64dbgAttach": false,
+    "providerWrites": false,
+    "navigationControl": false,
+    "noCheatEngine": true,
+    "dryRunOnly": true,
+    "facingPromotion": false
+  }
+}

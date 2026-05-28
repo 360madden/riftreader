@@ -637,6 +637,18 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         self.assertEqual("blocked", contract["status"])
         self.assertIn("controller-movement-permission-must-be-false", contract["blockers"])
 
+    def test_checked_in_route_contract_fixture_passes(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-summary-safe.json"
+        route = json.loads(fixture.read_text(encoding="utf-8"))
+
+        contract = validate_route_summary_contract(route)
+
+        self.assertEqual("passed", contract["status"])
+        self.assertEqual([], contract["blockers"])
+        self.assertEqual("continue-aligned-candidate", contract["controllerRecommendedAction"])
+        self.assertFalse(contract["movementPermission"])
+        self.assertEqual(2, contract["checkedRouteTargetCount"])
+
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
             [snapshot("baseline", 10.0, 1.0), snapshot("after-right", 25.0, 1.5), snapshot("after-left", 5.0, 1.1)],
