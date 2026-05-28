@@ -279,6 +279,63 @@ def navigation_target_from_state(
     }
 
 
+def load_waypoint_destination(root: Path, waypoint_json: str, waypoint_id: str) -> dict[str, Any]:
+    path = Path(waypoint_json)
+    if not path.is_absolute():
+        path = root / path
+    data = load_json_object(path)
+    waypoints = data.get("waypoints")
+    if not isinstance(waypoints, list):
+        raise ValueError("waypoint-json-missing-waypoints-array")
+    for item in waypoints:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("id")) != waypoint_id:
+            continue
+        missing = [axis for axis in ("x", "y", "z") if item.get(axis) is None]
+        if missing:
+            raise ValueError(f"waypoint-missing-coordinate:{','.join(missing)}")
+        return {
+            "sourceFile": str(path),
+            "waypointId": waypoint_id,
+            "label": item.get("label") or waypoint_id,
+            "x": float(item["x"]),
+            "y": float(item["y"]),
+            "z": float(item["z"]),
+            "arrivalRadius": None if item.get("arrivalRadius") is None else float(item["arrivalRadius"]),
+        }
+    raise ValueError(f"waypoint-id-not-found:{waypoint_id}")
+
+
+def resolve_navigation_target_request(args: argparse.Namespace, root: Path) -> dict[str, Any] | None:
+    if args.destination_waypoint_json:
+        waypoint = load_waypoint_destination(root, args.destination_waypoint_json, str(args.destination_waypoint_id))
+        return {
+            "sourceKind": "waypoint-json",
+            "sourceFile": waypoint["sourceFile"],
+            "waypointId": waypoint["waypointId"],
+            "destinationLabel": args.destination_label or waypoint["label"],
+            "destinationX": waypoint["x"],
+            "destinationY": waypoint["y"],
+            "destinationZ": waypoint["z"],
+            "arrivalRadius": float(args.arrival_radius if args.arrival_radius is not None else waypoint["arrivalRadius"] if waypoint["arrivalRadius"] is not None else 2.0),
+            "alignmentThresholdDegrees": float(args.alignment_threshold_degrees),
+        }
+    if args.destination_x is not None and args.destination_z is not None:
+        return {
+            "sourceKind": "direct-coordinates",
+            "sourceFile": None,
+            "waypointId": None,
+            "destinationLabel": args.destination_label,
+            "destinationX": float(args.destination_x),
+            "destinationY": None if args.destination_y is None else float(args.destination_y),
+            "destinationZ": float(args.destination_z),
+            "arrivalRadius": float(args.arrival_radius if args.arrival_radius is not None else 2.0),
+            "alignmentThresholdDegrees": float(args.alignment_threshold_degrees),
+        }
+    return None
+
+
 def apply_current_truth(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     defaults = load_current_truth_defaults(root, args.current_truth_json)
     if args.pid is None and defaults.get("pid") is not None:
@@ -323,10 +380,17 @@ def validate_state_args(args: argparse.Namespace) -> list[str]:
         errors.append("min-target-distance-must-be-nonnegative")
     if args.max_target_distance < args.min_target_distance:
         errors.append("max-target-distance-must-be-greater-than-or-equal-to-min-target-distance")
-    destination_requested = args.destination_x is not None or args.destination_y is not None or args.destination_z is not None
-    if destination_requested and (args.destination_x is None or args.destination_z is None):
+    direct_destination_requested = args.destination_x is not None or args.destination_y is not None or args.destination_z is not None
+    waypoint_destination_requested = args.destination_waypoint_json is not None or args.destination_waypoint_id is not None
+    if direct_destination_requested and waypoint_destination_requested:
+        errors.append("destination-waypoint-and-direct-coordinates-mutually-exclusive")
+    if direct_destination_requested and (args.destination_x is None or args.destination_z is None):
         errors.append("destination-x-and-z-required-together")
-    if args.arrival_radius < 0:
+    if waypoint_destination_requested and not args.destination_waypoint_json:
+        errors.append("destination-waypoint-json-required")
+    if waypoint_destination_requested and not args.destination_waypoint_id:
+        errors.append("destination-waypoint-id-required")
+    if args.arrival_radius is not None and args.arrival_radius < 0:
         errors.append("arrival-radius-must-be-nonnegative")
     if args.alignment_threshold_degrees < 0:
         errors.append("alignment-threshold-degrees-must-be-nonnegative")
@@ -478,6 +542,7 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
         },
         "samples": [],
         "latestState": {},
+        "navigationTargetRequest": {},
         "navigationTarget": {},
         "analysis": {},
         "blockers": [],
@@ -487,6 +552,15 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
         "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
     }
     if errors:
+        return summary
+    try:
+        navigation_target_request = resolve_navigation_target_request(args, root)
+        if navigation_target_request is not None:
+            summary["navigationTargetRequest"] = navigation_target_request
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "navigation-target-request-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
         return summary
 
     module_base = int(str(args.module_base), 0)
@@ -550,15 +624,16 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
             summary["analysis"]["yawMaxDegrees"] = max(yaw_values)
             summary["analysis"]["yawRangeDegrees"] = max(yaw_values) - min(yaw_values)
         summary["analysis"].update(build_yaw_transition_analysis(summary["samples"]))
-        if args.destination_x is not None and args.destination_z is not None and summary.get("latestState"):
+        if summary.get("navigationTargetRequest") and summary.get("latestState"):
+            target_request = safe_mapping(summary.get("navigationTargetRequest"))
             summary["navigationTarget"] = navigation_target_from_state(
                 summary["latestState"],
-                destination_x=float(args.destination_x),
-                destination_y=None if args.destination_y is None else float(args.destination_y),
-                destination_z=float(args.destination_z),
-                destination_label=args.destination_label,
-                arrival_radius=float(args.arrival_radius),
-                alignment_threshold_degrees=float(args.alignment_threshold_degrees),
+                destination_x=float(target_request["destinationX"]),
+                destination_y=None if target_request.get("destinationY") is None else float(target_request["destinationY"]),
+                destination_z=float(target_request["destinationZ"]),
+                destination_label=target_request.get("destinationLabel"),
+                arrival_radius=float(target_request["arrivalRadius"]),
+                alignment_threshold_degrees=float(target_request["alignmentThresholdDegrees"]),
             )
         summary["blockers"].extend(summary["analysis"].get("blockers", []))
         if summary["blockers"]:
@@ -752,6 +827,7 @@ def markdown(summary: Mapping[str, Any]) -> str:
     if summary.get("kind") == "static-owner-nav-state-readback":
         latest = safe_mapping(summary.get("latestState"))
         analysis = safe_mapping(summary.get("analysis"))
+        target_request = safe_mapping(summary.get("navigationTargetRequest"))
         navigation_target = safe_mapping(summary.get("navigationTarget"))
         lines = [
             "# Static owner navigation state readback",
@@ -777,6 +853,7 @@ def markdown(summary: Mapping[str, Any]) -> str:
                     "",
                     "## Navigation target analysis",
                     "",
+                    f"Request: `{target_request}`",
                     f"Destination: `{navigation_target.get('destination')}`",
                     f"Planar distance: `{navigation_target.get('planarDistance')}`",
                     f"Destination bearing: `{navigation_target.get('destinationBearingDegrees')}`",
@@ -880,6 +957,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
             "yawRangeDegrees": analysis.get("yawRangeDegrees"),
             "maxAbsYawDeltaDegrees": analysis.get("maxAbsYawDeltaDegrees"),
             "maxAbsYawSpeedDegreesPerSecond": analysis.get("maxAbsYawSpeedDegreesPerSecond"),
+            "navigationTargetRequest": summary.get("navigationTargetRequest") or None,
             "navigationTarget": summary.get("navigationTarget") or None,
             "summaryJson": artifacts.get("summaryJson"),
             "summaryMarkdown": artifacts.get("summaryMarkdown"),
@@ -977,7 +1055,9 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--destination-y", type=float)
     state.add_argument("--destination-z", type=float)
     state.add_argument("--destination-label")
-    state.add_argument("--arrival-radius", type=float, default=2.0)
+    state.add_argument("--destination-waypoint-json")
+    state.add_argument("--destination-waypoint-id")
+    state.add_argument("--arrival-radius", type=float)
     state.add_argument("--alignment-threshold-degrees", type=float, default=7.5)
     state.add_argument("--json", action="store_true")
     return parser

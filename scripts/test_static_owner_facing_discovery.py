@@ -1,13 +1,18 @@
 import argparse
+import json
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 
 from scripts.static_owner_facing_discovery import (
     build_yaw_transition_analysis,
     compare_snapshots,
+    load_waypoint_destination,
     nav_state_from_owner_window,
     navigation_target_from_state,
     normalize_degrees,
+    resolve_navigation_target_request,
     validate_state_args,
 )
 
@@ -132,11 +137,99 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             destination_x=10.0,
             destination_y=None,
             destination_z=None,
+            destination_waypoint_json=None,
+            destination_waypoint_id=None,
             arrival_radius=2.0,
             alignment_threshold_degrees=7.5,
         )
 
         self.assertIn("destination-x-and-z-required-together", validate_state_args(args))
+
+    def test_validate_state_args_rejects_mixed_direct_and_waypoint_destination(self):
+        args = argparse.Namespace(
+            pid=1,
+            hwnd="0x1",
+            module_base="0x1000",
+            owner_window_bytes=0x700,
+            samples=1,
+            interval_seconds=0.0,
+            max_planar_jump_per_sample=25.0,
+            max_sample_gap_seconds=2.0,
+            max_stationary_planar_drift=0.5,
+            min_target_distance=0.5,
+            max_target_distance=100.0,
+            destination_x=10.0,
+            destination_y=None,
+            destination_z=20.0,
+            destination_waypoint_json="scripts/navigation/waypoints.json",
+            destination_waypoint_id="destination",
+            arrival_radius=None,
+            alignment_threshold_degrees=7.5,
+        )
+
+        self.assertIn("destination-waypoint-and-direct-coordinates-mutually-exclusive", validate_state_args(args))
+
+    def test_load_waypoint_destination_extracts_target_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            waypoint_file = root / "waypoints.json"
+            waypoint_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "waypoints": [
+                            {"id": "start", "x": 1.0, "y": 2.0, "z": 3.0},
+                            {"id": "dest", "label": "Destination", "x": 10.0, "y": 20.0, "z": 30.0, "arrivalRadius": 4.5},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            waypoint = load_waypoint_destination(root, "waypoints.json", "dest")
+
+            self.assertEqual(str(waypoint_file), waypoint["sourceFile"])
+            self.assertEqual("dest", waypoint["waypointId"])
+            self.assertEqual("Destination", waypoint["label"])
+            self.assertAlmostEqual(10.0, waypoint["x"])
+            self.assertAlmostEqual(20.0, waypoint["y"])
+            self.assertAlmostEqual(30.0, waypoint["z"])
+            self.assertAlmostEqual(4.5, waypoint["arrivalRadius"])
+
+    def test_resolve_navigation_target_request_uses_waypoint_arrival_radius(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            waypoint_file = root / "waypoints.json"
+            waypoint_file.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "waypoints": [
+                            {"id": "dest", "label": "Destination", "x": 10.0, "y": 20.0, "z": 30.0, "arrivalRadius": 4.5},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                destination_waypoint_json="waypoints.json",
+                destination_waypoint_id="dest",
+                destination_label=None,
+                destination_x=None,
+                destination_y=None,
+                destination_z=None,
+                arrival_radius=None,
+                alignment_threshold_degrees=6.0,
+            )
+
+            request = resolve_navigation_target_request(args, root)
+
+            self.assertIsNotNone(request)
+            self.assertEqual("waypoint-json", request["sourceKind"])
+            self.assertEqual("dest", request["waypointId"])
+            self.assertEqual("Destination", request["destinationLabel"])
+            self.assertAlmostEqual(4.5, request["arrivalRadius"])
+            self.assertAlmostEqual(6.0, request["alignmentThresholdDegrees"])
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
