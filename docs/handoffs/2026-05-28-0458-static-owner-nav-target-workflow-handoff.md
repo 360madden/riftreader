@@ -230,3 +230,67 @@ cmd /c scripts\static-owner-nav-progress.cmd --plan-summary-json <plan-before.js
 ## Updated resume note
 
 The offline lane now has a three-step artifact chain: `state` summary -> `plan` summary -> `progress` summary. The next safe code slice is a route-controller dry-run that consumes this chain and emits stop reasons without issuing movement. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
+
+---
+
+# Continuation addendum — offline route dry-run
+
+Added after the progress/stuck analysis addendum.
+
+## Additional local commits
+
+| Commit | Summary |
+|---|---|
+| `a4fed13` | Add static owner nav route dry-run |
+| `c0f02a3` | Add static owner nav route launcher |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Offline route dry-run | `static_owner_facing_discovery.py route` consumes two or more saved `state` summaries and one destination request, builds per-state candidate-only navigation targets, then reuses the progress/stuck classifier. |
+| Route launcher | `scripts/static-owner-nav-route.cmd` wraps the dry-run `route` command and forwards args. |
+| Route safety | The output is dry-run only, candidate-only, and explicitly not movement permission. It does not read live memory, send input, run ProofOnly, use CE/x64dbg, or promote facing/actor truth. |
+| Live/proof boundary | Fresh ProofOnly for PID `34176` / HWND `0x3D1544` remains a hard approval boundary before any proof/watchset expansion. |
+
+## Additional useful commands
+
+Build a route dry-run from saved state summaries and direct target coordinates:
+
+```powershell
+cmd /c scripts\static-owner-nav-route.cmd --state-summary-json <state-before.json> <state-after.json> --destination-x 7265 --destination-z 2990 --destination-label test-destination
+```
+
+Build a route dry-run from saved state summaries and a waypoint file:
+
+```powershell
+cmd /c scripts\static-owner-nav-route.cmd --state-summary-json <state-before.json> <state-after.json> --destination-waypoint-json scripts\navigation\waypoints.json --destination-waypoint-id destination
+```
+
+Override route-progress thresholds offline:
+
+```powershell
+cmd /c scripts\static-owner-nav-route.cmd --state-summary-json <state-before.json> <state-after.json> --destination-x 7265 --destination-z 2990 --minimum-progress-distance 0.35 --wrong-way-tolerance-distance 0.75 --arrival-radius 2.0
+```
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_facing_discovery.py scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `17` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `38` tests |
+| `python scripts\static_owner_facing_discovery.py route --help` | Passed |
+| `cmd /c scripts\static-owner-nav-route.cmd --help` | Passed |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The offline lane now has both artifact-chain and direct-route dry runs:
+
+1. `state` summary -> `plan` summary -> `progress` summary.
+2. multiple `state` summaries + one destination request -> `route` summary.
+
+Neither path authorizes live movement. The next useful safe local slice is to add small recorded fixture coverage for route summaries or to harden route output into a non-mutating controller contract. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
