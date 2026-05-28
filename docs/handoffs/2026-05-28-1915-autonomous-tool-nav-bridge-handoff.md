@@ -49,6 +49,7 @@ separate from promoted coordinate navigation.
 
 | Commit | Summary |
 |---|---|
+| `4215c2f` | Surface static owner readback freshness |
 | `d19c5e7` | Assert turn-forward route report output |
 | `a19f38f` | Catalog static owner route reports |
 | `2690ce3` | Add autonomous tool nav bridge handoff |
@@ -72,7 +73,9 @@ separate from promoted coordinate navigation.
 | Validation | Result |
 |---|---|
 | `python -m unittest scripts.test_static_owner_nav_route_run` | Passed: `14` tests |
+| `python -m unittest scripts.test_status_packet` | Passed: `4` tests after static-owner readback freshness surfacing |
 | `python -m unittest scripts.test_tool_catalog scripts.test_status_packet scripts.test_decision_packet` | Passed: `67` tests |
+| `python -m unittest scripts.test_status_packet scripts.test_tool_catalog scripts.test_decision_packet` | Passed: `68` tests after static-owner readback freshness surfacing |
 | Route-run report CLI with `--turn-forward-summary-json` fixture | Passed; `turnForwardEvidenceCount=1`, contract `passed` |
 | `cmd /c scripts\riftreader-tool-catalog.cmd --compact-json` | Passed; `26/26` tools present |
 | `cmd /c scripts\riftreader-workflow-status.cmd --compact-json` | Passed; worktree clean before this slice, latest pushed HEAD `a681249` |
@@ -88,7 +91,7 @@ separate from promoted coordinate navigation.
 | ProofOnly / proof promotion | Not run. |
 | Actor/facing promotion | Not done. |
 | SavedVariables as live truth | Not used. |
-| Git remote mutation | Coherent slices were committed and pushed after validation. Current pushed head after the continuation was `d19c5e7`. |
+| Git remote mutation | Coherent slices were committed and pushed after validation. Latest code pushed head before this docs refresh was `4215c2f`. |
 
 ## Current blockers / guardrails
 
