@@ -567,3 +567,57 @@ Added after the bounded live route-step controller.
 ## Updated resume note
 
 The next safe slice is a conservative multi-step route-runner design/implementation that imports the route-step contract and loops only on passing `progress` / `arrived` step summaries. Keep turn control blocked unless separately proven, and keep ProofOnly/proof promotion separately gated.
+
+---
+
+# Continuation addendum — conservative static-owner route-runner
+
+Added after the route-step fixture and contract addendum.
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Multi-step route wrapper | Added `scripts\static_owner_nav_route_run.py` and `scripts\static-owner-nav-route-run.cmd`. |
+| Movement primitive | The runner only calls the validated one-step helper; it does not send keys directly or implement turn control. |
+| Dry-run gate | `--dry-run` runs exactly one route-step dry-run and sends no input. |
+| Live gate | Live route runs require `--movement-approved`, loop only while every step passes the route-step contract with `routeStatus=progress`, and stop on arrival/block/failure/max-steps. |
+| Max-step behavior | Progress without arrival at `--max-steps` returns blocked (`route-run-max-steps-reached-before-arrival`) so the runner cannot silently continue. |
+| Safety posture | No CE, x64dbg, provider writes, proof promotion, actor-chain promotion, facing promotion, screenshot key, reload UI, push, or current-truth promotion. |
+
+## Additional useful commands
+
+Dry-run the conservative route-runner without input:
+
+```powershell
+cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --dry-run --json
+```
+
+Live bounded run after the movement boundary is open:
+
+```powershell
+cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --movement-approved --json
+```
+
+## Additional dry-run artifact
+
+| Artifact | Path |
+|---|---|
+| Route-run dry-run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-run-20260528-102502-263674\summary.json` |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_nav_route_run.py scripts\test_static_owner_nav_route_run.py` | Passed |
+| `cmd /c scripts\static-owner-nav-route-run.cmd --help` | Passed |
+| `python -m unittest scripts.test_static_owner_nav_route_run scripts.test_static_owner_nav_route_step` | Passed: `13` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status scripts.test_static_owner_nav_route_step scripts.test_static_owner_nav_route_run` | Passed: `55` tests |
+| Route-run dry-run command | Passed: `route-run-dry-run-plan-built`, no input sent |
+| `git --no-pager diff --check` | Passed; only line-ending warnings |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The static-owner navigation lane now has a conservative multi-step wrapper, but live route-loop execution still should remain bounded and exact-target. Turn control remains blocked until yaw/turn behavior is separately proven, and ProofOnly/proof promotion remains separately gated.

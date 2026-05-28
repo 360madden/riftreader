@@ -16,6 +16,7 @@ permission and does not promote facing, actor, or proof truth.
 | Build route from saved states | `cmd /c scripts\static-owner-nav-route.cmd --state-summary-json <before.json> <after.json> ...` | `static-owner-nav-route-dry-run` | Offline dry-run; controller recommendation is candidate-only. |
 | Validate route contract | `cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json <route-summary.json>` | `static-owner-nav-route-contract-validation` | Fail-closed consumer gate; no live read or input. |
 | Run one bounded route step | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x <x> --destination-z <z> --movement-approved --json` | `static-owner-nav-route-step` | Live workflow gate; performs pre-state readback, one C# SendInput pulse, post-state readback, route contract validation, and fail-closed progress classification. |
+| Run a conservative bounded route | `cmd /c scripts\static-owner-nav-route-run.cmd --destination-x <x> --destination-z <z> --max-steps 3 --movement-approved --json` | `static-owner-nav-route-run` | Live workflow gate; loops only by calling the one-step helper, stops on arrival/block/failure/max-steps, and records aggregate safety. |
 
 ## Route summary requirements
 
@@ -84,6 +85,27 @@ captures the expected safety posture: movement/input were sent once, but CE,
 x64dbg, provider writes, screenshot keys, reload UI, and all proof/facing/actor
 promotions remained disabled.
 
+## Conservative live route-runner
+
+`scripts\static-owner-nav-route-run.cmd` is a bounded multi-step wrapper around
+the one-step helper. It does not implement independent movement logic.
+
+| Gate | Behavior |
+|---|---|
+| Primitive | Calls `static_owner_nav_route_step.py` for every step; no separate key sender or turn primitive is used. |
+| Dry-run | `--dry-run` runs exactly one route-step dry-run and sends no input. |
+| Movement approval | Live runs require `--movement-approved`; missing approval blocks before calling the step helper. |
+| Step contract | Every live step must pass `validate_route_step_summary_contract()`. |
+| Continue rule | Continues only when the prior step passed with `routeStatus=progress`. |
+| Stop rule | Stops successfully on `routeStatus=arrived` or `route-step-no-movement-needed`. |
+| Fail-closed rule | Blocks/fails immediately on step failure, contract failure, candidate turn block, wrong-way, no-progress, overshot, target drift, or JSON/summary load failure. |
+| Max steps | Reaching `--max-steps` with progress but without arrival returns blocked (`route-run-max-steps-reached-before-arrival`) rather than silently continuing. |
+| Promotions | Does not promote facing, actor chain, proof, or current truth. |
+
+The runner's `safety.navigationControl` is set only when a live run sends input
+across more than one step. The one-step summaries remain the source of truth for
+per-step exact-target, input, progress, and contract evidence.
+
 ## Live boundary
 
 Before any live route loop or movement-polling consumer can use this offline
@@ -106,8 +128,10 @@ HWND `0x3D1544`.
 ```powershell
 cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\navigation\testdata\static-owner-nav-route-summary-safe.json
 cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json
+cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --dry-run --json
 python -m unittest scripts.test_static_owner_facing_discovery
 python -m unittest scripts.test_static_owner_nav_route_step
+python -m unittest scripts.test_static_owner_nav_route_run
 ```
 
 The route-step dry-run command is read-only and sends no input. Remove
