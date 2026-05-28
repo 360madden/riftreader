@@ -109,6 +109,44 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("movement-not-allowed:blocked-proof-anchor-age-out-of-range", packet["blockers"])
         self.assertIn("same-target ProofOnly/proof-anchor refresh", packet["nextRecommendedAction"])
 
+    def test_compact_summary_reports_static_owner_navigation_bridge_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(root / "scripts" / "static-owner-coordinate-chain-readback.cmd", "@echo off\n")
+            write_text(root / "scripts" / "static-owner-nav-now.cmd", "@echo off\n")
+            write_text(root / "scripts" / "static-owner-turn-aware-route-plan.cmd", "@echo off\n")
+            packet = {
+                "schemaVersion": 1,
+                "kind": "riftreader-local-workflow-status-packet",
+                "generatedAtUtc": "2026-05-28T00:00:00Z",
+                "status": "passed",
+                "repoRoot": str(root),
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+                "git": {},
+                "liveTarget": {},
+                "launcher": {},
+                "currentProof": {"summary": {}},
+                "currentTruth": {"summary": {}},
+                "latestHandoff": {},
+                "coordinateRecoveryStatus": {},
+                "opencode": {"retired": True, "checked": False},
+                "safety": {"movementSent": False, "gitMutation": False},
+                "nextRecommendedAction": "none",
+                "artifacts": {},
+            }
+
+            compact = status_packet.compact_summary(packet)
+
+        commands = {item["key"]: item for item in compact["bridgeCommands"]}
+        self.assertTrue(commands["static-owner-coordinate-chain-readback"]["exists"])
+        self.assertIn("live target memory readback only", commands["static-owner-coordinate-chain-readback"]["safety"])
+        self.assertTrue(commands["static-owner-nav-now"]["exists"])
+        self.assertIn("candidate-facing readback only", commands["static-owner-nav-now"]["safety"])
+        self.assertTrue(commands["static-owner-turn-aware-plan"]["exists"])
+        self.assertIn("dry-run route/turn planning only", commands["static-owner-turn-aware-plan"]["safety"])
+
 
 if __name__ == "__main__":
     unittest.main()

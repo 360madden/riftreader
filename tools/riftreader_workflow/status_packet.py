@@ -114,6 +114,24 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "read-only existing candidate files; no live process reads/input/movement/debugger/provider writes",
     ),
     (
+        "static-owner-coordinate-chain-readback",
+        "Static-owner coordinate-chain readback",
+        "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",
+        "live target memory readback only; no input/movement/debugger/provider writes",
+    ),
+    (
+        "static-owner-nav-now",
+        "Static-owner coordinate/facing state",
+        "scripts\\static-owner-nav-now.cmd",
+        "live target coordinate plus candidate-facing readback only; no input/movement/debugger/provider writes",
+    ),
+    (
+        "static-owner-turn-aware-plan",
+        "Static-owner turn-aware route plan",
+        "scripts\\static-owner-turn-aware-route-plan.cmd --json",
+        "dry-run route/turn planning only; no input/movement/debugger/provider writes",
+    ),
+    (
         "emergency-release",
         "Emergency key/mouse release",
         "scripts\\riftreader-emergency-release.cmd --pid <PID> --hwnd <HWND> --process-name rift_x64 --include-mouse-buttons --json",

@@ -34,6 +34,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-policy-lint.cmd",
         "scripts/riftreader-sensitive-artifact-scan.cmd",
         "scripts/riftreader-live-input-surface-audit.cmd",
+        "scripts/static-owner-coordinate-chain-readback.cmd",
         "scripts/static-owner-nav-now.cmd",
         "scripts/static-owner-turn-aware-route-plan.cmd",
         "scripts/static-owner-turn-forward-experiment.cmd",
@@ -83,6 +84,8 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertEqual(compact["ghidraStaticLane"]["status"], "ready")
         self.assertEqual(compact["inputSurfacePolicyCommand"], ["scripts\\riftreader-live-input-surface-audit.cmd", "--json"])
         self.assertTrue(any(item["step"] == "offline-static-first" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
+        self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
 
     def test_missing_external_tools_warns_without_authorizing_debugger(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
