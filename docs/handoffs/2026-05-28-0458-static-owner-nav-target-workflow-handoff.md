@@ -330,3 +330,50 @@ Added after the route dry-run addendum.
 ## Updated resume note
 
 The route dry-run can now be used as a saved-state controller contract, but only offline. It intentionally separates recommendation text from permission: downstream live route loops must still exact-target PID/HWND/process-start/module-base and perform fresh static-chain readback/preflight before any movement, and any ProofOnly/proof expansion still requires explicit approval.
+
+---
+
+# Continuation addendum — offline route contract validator
+
+Added after the route controller recommendation addendum.
+
+## Additional local commits
+
+| Commit | Summary |
+|---|---|
+| `3aa0a77` | Add static owner nav route contract validator |
+| `0a09564` | Add static owner nav route contract launcher |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Route summary contract validation | `static_owner_facing_discovery.py validate-route` reads a saved route summary and fails closed unless the route/controller/safety contract remains non-mutating. |
+| Contract launcher | `scripts/static-owner-nav-validate-route.cmd` wraps the validator and forwards args. |
+| Fail-closed checks | The validator blocks if route kind/status is wrong, fewer than two route targets exist, analysis/controller fields are missing, route targets are actionable, movement/input/provider/debug flags are unsafe, or `movementPermission` is not `false`. |
+| Live/proof boundary | This is offline-only validation. It does not read live memory, send input, run ProofOnly, use CE/x64dbg, write providers, or promote truth. |
+
+## Additional useful command
+
+Validate a saved route summary contract before any downstream consumer reads it:
+
+```powershell
+cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json <route-summary.json>
+```
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_facing_discovery.py scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `20` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `41` tests |
+| `python scripts\static_owner_facing_discovery.py validate-route --help` | Passed |
+| `cmd /c scripts\static-owner-nav-validate-route.cmd --help` | Passed |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The offline navigation chain now includes a fail-closed consumer gate: generate route summaries with `static-owner-nav-route.cmd`, then validate them with `static-owner-nav-validate-route.cmd` before any downstream helper consumes the recommendation. This still does not permit movement; live route loops need a separate exact-target static-chain readback/preflight and any proof expansion still requires explicit approval.
