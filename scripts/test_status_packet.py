@@ -29,6 +29,63 @@ def write_text(path: Path, value: str) -> None:
 
 
 class StatusPacketProofFreshnessTests(unittest.TestCase):
+    def test_latest_static_owner_readback_reports_capture_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_json(
+                root
+                / "scripts"
+                / "captures"
+                / "static-owner-coordinate-chain-readback-20260528-120000-000000"
+                / "summary.json",
+                {
+                    "status": "passed",
+                    "verdict": "promoted-static-coordinate-resolver-readback-passed",
+                    "classification": "static-coordinate-resolver-current-position-source",
+                    "generatedAtUtc": "2026-05-28T12:00:00Z",
+                    "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                    "sampleCount": 3,
+                    "maxPlanarDelta": 0.0,
+                    "blockers": [],
+                    "warnings": ["readback-only-not-facing-or-actor-stat-promotion"],
+                },
+            )
+            write_json(
+                root / "scripts" / "captures" / "static-owner-nav-state-20260528-120001-000000" / "summary.json",
+                {
+                    "status": "passed",
+                    "verdict": "position-and-facing-nav-state-readback-passed",
+                    "classification": "candidate-facing-state-source-not-promoted",
+                    "generatedAtUtc": "2026-05-28T12:00:01Z",
+                    "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                    "yawDegrees": 80.5,
+                    "pitchDegrees": 2.0,
+                    "sampleCount": 3,
+                    "yawRangeDegrees": 0.0,
+                    "maxAbsYawDeltaDegrees": 0.0,
+                    "blockers": [],
+                    "warnings": ["facing-candidate-readback-only-not-promoted"],
+                },
+            )
+            errors: list[str] = []
+            warnings: list[str] = []
+
+            summary = status_packet.latest_static_owner_readback(
+                root,
+                errors,
+                warnings,
+                now=datetime(2026, 5, 28, 12, 1, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual([], errors)
+        self.assertEqual([], warnings)
+        self.assertEqual("passed", summary["coordinateChain"]["status"])
+        self.assertEqual("fresh", summary["coordinateChain"]["freshness"]["status"])
+        self.assertEqual(60, summary["coordinateChain"]["freshness"]["ageSeconds"])
+        self.assertEqual(1.0, summary["coordinateChain"]["coordinate"]["x"])
+        self.assertEqual("passed", summary["navState"]["status"])
+        self.assertEqual(80.5, summary["navState"]["yawDegrees"])
+
     def test_current_proof_summary_reports_proof_freshness(self) -> None:
         now = datetime(2026, 5, 27, 7, 2, tzinfo=timezone.utc)
         proof = {

@@ -50,10 +50,12 @@ DEFAULT_CURRENT_TRUTH_MD = Path("docs") / "recovery" / "current-truth.md"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_HANDOFF_DIR = Path("docs") / "handoffs"
+DEFAULT_STATIC_OWNER_CAPTURE_DIR = Path("scripts") / "captures"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
 DEFAULT_LAUNCHER_INSPECTION_DIR = Path(".riftreader-local") / "launcher-inspection"
 DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR = Path(".riftreader-local") / "character-login-supervisor"
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
+DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
 DEFAULT_OPENCODE_MODEL = "openai/gpt-5.5"
 DEFAULT_OPENCODE_VARIANT = "xhigh"
@@ -569,6 +571,118 @@ def latest_character_login_supervisor(repo_root: Path, errors: list[str], warnin
     }
 
 
+def latest_static_owner_capture_summary(
+    repo_root: Path,
+    *,
+    prefix: str,
+    label: str,
+    errors: list[str],
+    warnings: list[str],
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    capture_root = repo_root / DEFAULT_STATIC_OWNER_CAPTURE_DIR
+    if not capture_root.is_dir():
+        return {"status": "missing", "summaryJson": None}
+    try:
+        summaries = [path for path in capture_root.glob(f"{prefix}-*/summary.json") if path.is_file()]
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"{label}-latest-search-failed:{type(exc).__name__}:{exc}")
+        return {"status": "failed", "summaryJson": None}
+    if not summaries:
+        return {"status": "missing", "summaryJson": None}
+    latest = max(summaries, key=lambda path: path.stat().st_mtime)
+    payload = read_json(latest, errors, warnings, label)
+    if not payload:
+        return {"status": "failed", "summaryJson": as_repo_path(repo_root, latest)}
+    observed_at_utc = payload.get("generatedAtUtc") or (
+        datetime.fromtimestamp(latest.stat().st_mtime, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+    latest_state = payload.get("latestState") if isinstance(payload.get("latestState"), dict) else {}
+    samples = payload.get("samples") if isinstance(payload.get("samples"), list) else []
+    latest_sample = samples[-1] if samples and isinstance(samples[-1], dict) else {}
+    analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
+    coordinate = (
+        payload.get("coordinate")
+        if isinstance(payload.get("coordinate"), dict)
+        else latest_state.get("coordinate")
+        if isinstance(latest_state.get("coordinate"), dict)
+        else latest_sample.get("coordinate")
+        if isinstance(latest_sample.get("coordinate"), dict)
+        else {}
+    )
+    yaw_degrees = (
+        payload.get("yawDegrees")
+        if payload.get("yawDegrees") is not None
+        else latest_state.get("yawDegrees") or latest_sample.get("yawDegrees")
+    )
+    pitch_degrees = (
+        payload.get("pitchDegrees")
+        if payload.get("pitchDegrees") is not None
+        else latest_state.get("pitchDegrees") or latest_sample.get("pitchDegrees")
+    )
+    sample_count = (
+        payload.get("sampleCount") if payload.get("sampleCount") is not None else analysis.get("sampleCount") or len(samples)
+    )
+    max_planar_delta = (
+        payload.get("maxPlanarDelta") if payload.get("maxPlanarDelta") is not None else analysis.get("maxPlanarDelta")
+    )
+    max_planar_speed = (
+        payload.get("maxSpeedPlanarPerSecond")
+        if payload.get("maxSpeedPlanarPerSecond") is not None
+        else analysis.get("maxSpeedPlanarPerSecond")
+    )
+    yaw_range = payload.get("yawRangeDegrees") if payload.get("yawRangeDegrees") is not None else analysis.get("yawRangeDegrees")
+    max_abs_yaw_delta = (
+        payload.get("maxAbsYawDeltaDegrees")
+        if payload.get("maxAbsYawDeltaDegrees") is not None
+        else analysis.get("maxAbsYawDeltaDegrees")
+    )
+    return {
+        "status": payload.get("status"),
+        "verdict": payload.get("verdict"),
+        "classification": payload.get("classification"),
+        "generatedAtUtc": payload.get("generatedAtUtc"),
+        "summaryJson": as_repo_path(repo_root, latest),
+        "freshness": freshness_summary(
+            observed_at_utc,
+            now=now,
+            max_age_seconds=DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS,
+        ),
+        "ownerAddress": latest_state.get("ownerAddress") or latest_sample.get("ownerAddress"),
+        "coordinate": coordinate,
+        "yawDegrees": yaw_degrees,
+        "pitchDegrees": pitch_degrees,
+        "sampleCount": sample_count,
+        "maxPlanarDelta": max_planar_delta,
+        "maxSpeedPlanarPerSecond": max_planar_speed,
+        "yawRangeDegrees": yaw_range,
+        "maxAbsYawDeltaDegrees": max_abs_yaw_delta,
+        "blockers": payload.get("blockers") or [],
+        "warnings": payload.get("warnings") or [],
+    }
+
+
+def latest_static_owner_readback(repo_root: Path, errors: list[str], warnings: list[str], now: datetime | None = None) -> dict[str, Any]:
+    return {
+        "coordinateChain": latest_static_owner_capture_summary(
+            repo_root,
+            prefix="static-owner-coordinate-chain-readback",
+            label="latest-static-owner-coordinate-chain-readback",
+            errors=errors,
+            warnings=warnings,
+            now=now,
+        ),
+        "navState": latest_static_owner_capture_summary(
+            repo_root,
+            prefix="static-owner-nav-state",
+            label="latest-static-owner-nav-state",
+            errors=errors,
+            warnings=warnings,
+            now=now,
+        ),
+    }
+
+
 def find_latest_handoff(repo_root: Path, handoff_dir: Path | None = None) -> Path | None:
     directory = handoff_dir if handoff_dir is not None else repo_root / DEFAULT_HANDOFF_DIR
     if not directory.is_dir():
@@ -988,6 +1102,7 @@ def build_status_packet(
     current_proof_summary = summarize_current_proof(current_proof, now=now)
     launcher_summary = latest_launcher_inspection(repo_root, errors, warnings)
     supervisor_summary = latest_character_login_supervisor(repo_root, errors, warnings)
+    static_owner_readback = latest_static_owner_readback(repo_root, errors, warnings, now=now)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -1146,6 +1261,7 @@ def build_status_packet(
         "liveTarget": live_target,
         "launcher": launcher_summary,
         "characterLoginSupervisor": supervisor_summary,
+        "staticOwnerReadback": static_owner_readback,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -1250,6 +1366,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     opencode = packet.get("opencode") if isinstance(packet.get("opencode"), dict) else {}
     launcher = packet.get("launcher") if isinstance(packet.get("launcher"), dict) else {}
     supervisor = packet.get("characterLoginSupervisor") if isinstance(packet.get("characterLoginSupervisor"), dict) else {}
+    static_owner_readback = packet.get("staticOwnerReadback") if isinstance(packet.get("staticOwnerReadback"), dict) else {}
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
     bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
@@ -1335,6 +1452,10 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "dataBlockers": supervisor.get("dataBlockers") or [],
             "executionBlockers": supervisor.get("executionBlockers") or [],
             "summaryJson": supervisor.get("summaryJson"),
+        },
+        "staticOwnerReadback": {
+            "coordinateChain": static_owner_readback.get("coordinateChain") or {},
+            "navState": static_owner_readback.get("navState") or {},
         },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
