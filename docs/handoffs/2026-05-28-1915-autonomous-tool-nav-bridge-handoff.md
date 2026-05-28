@@ -12,7 +12,7 @@ separate from promoted coordinate navigation.
 
 | Area | Current state |
 |---|---|
-| Tool workflow | `scripts\riftreader-tool-catalog.cmd --compact-json` reports `25` known tools, `25` existing, `0` missing. |
+| Tool workflow | `scripts\riftreader-tool-catalog.cmd --compact-json` reports `26` known tools, `26` existing, `0` missing. |
 | Canonical safe bridge commands | Tool catalog, workflow status, decision packet, live-input audit, static-owner readback, turn-aware planner, actor-chain no-debug status. |
 | Promoted coordinate resolver | Static owner coordinate chain remains the promoted navigation coordinate source. |
 | Facing / yaw | Candidate-only; usable for bounded turn experiments and dry-run planning, not actor/facing truth promotion. |
@@ -36,12 +36,23 @@ separate from promoted coordinate navigation.
 | `7234695` | Add compact static owner route run handoff |
 | `4d776f1` | Add static owner route run validator |
 
-## Current additional unpushed slice in this handoff
+## Additional pushed slices from this handoff continuation
 
 | File | Change |
 |---|---|
 | `scripts\static_owner_nav_route_run.py` | Route-run reports can now attach checked turn-forward experiment summaries via `--turn-forward-summary-json`. |
 | `scripts\test_static_owner_nav_route_run.py` | Added coverage for accepted turn-forward evidence and invalid-path fail-closed behavior. |
+| `tools\riftreader_workflow\tool_catalog.py` | Catalogs route-run report as a safe-read-only navigation-report tool and inserts it into the recommended workflow before route reruns. |
+| `tools\riftreader_workflow\status_packet.py` | Adds route-run report to compact workflow bridge commands. |
+
+## Post-handoff pushed commits
+
+| Commit | Summary |
+|---|---|
+| `d19c5e7` | Assert turn-forward route report output |
+| `a19f38f` | Catalog static owner route reports |
+| `2690ce3` | Add autonomous tool nav bridge handoff |
+| `5966068` | Add turn-forward evidence to route reports |
 
 ## Important commands
 
@@ -61,8 +72,9 @@ separate from promoted coordinate navigation.
 | Validation | Result |
 |---|---|
 | `python -m unittest scripts.test_static_owner_nav_route_run` | Passed: `14` tests |
+| `python -m unittest scripts.test_tool_catalog scripts.test_status_packet scripts.test_decision_packet` | Passed: `67` tests |
 | Route-run report CLI with `--turn-forward-summary-json` fixture | Passed; `turnForwardEvidenceCount=1`, contract `passed` |
-| `cmd /c scripts\riftreader-tool-catalog.cmd --compact-json` | Passed earlier in lane; `25/25` tools present |
+| `cmd /c scripts\riftreader-tool-catalog.cmd --compact-json` | Passed; `26/26` tools present |
 | `cmd /c scripts\riftreader-workflow-status.cmd --compact-json` | Passed; worktree clean before this slice, latest pushed HEAD `a681249` |
 | `cmd /c scripts\riftreader-decision-packet.cmd --compact-json --write` | Passed; safe next action was compact workflow status |
 
@@ -76,7 +88,7 @@ separate from promoted coordinate navigation.
 | ProofOnly / proof promotion | Not run. |
 | Actor/facing promotion | Not done. |
 | SavedVariables as live truth | Not used. |
-| Git remote mutation | Previous coherent slices were pushed after validation; this handoff slice is ready for validation/commit/push. |
+| Git remote mutation | Coherent slices were committed and pushed after validation. Current pushed head after the continuation was `d19c5e7`. |
 
 ## Current blockers / guardrails
 
@@ -91,13 +103,13 @@ separate from promoted coordinate navigation.
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Validate and commit the route-run report turn-forward evidence slice | It makes the latest turn-forward proof reviewable without live reruns. |
-| 2 | Run broad nav/recovery tests after commit candidate | Catches import/circular-contract regressions around report/turn helpers. |
-| 3 | Refresh `riftreader-decision-packet` with safe checks | Ensures the control plane still sees a coherent commit-ready state. |
-| 4 | Run `riftscan_milestone_review.py` through `python` | Required strategy gate after major discovery/commit milestones. |
-| 5 | Keep multi-step turn route loops blocked | Prevents candidate yaw from silently becoming full navigation control truth. |
-| 6 | Add a route-run replay fixture that includes turn-forward evidence | Lets report output stay regression-safe. |
-| 7 | Add richer route report Markdown assertions | Ensures operator-facing evidence stays compact and complete. |
-| 8 | Continue actor-chain no-debug read-only discovery | It is the next safe pointer-chain lane while proof promotion is blocked. |
+| 1 | Continue actor-chain no-debug read-only discovery | It is the next safe pointer-chain lane while proof promotion is blocked. |
+| 2 | Add a saved route-report fixture if report evidence expands again | Keeps report replay reviewable without live reruns. |
+| 3 | Add current static-readback freshness to compact status if useful | Makes PID `34176` readback evidence easier to see at a glance. |
+| 4 | Keep multi-step turn route loops blocked | Prevents candidate yaw from silently becoming full navigation control truth. |
+| 5 | Run `riftscan_milestone_review.py` through `python` after every milestone | Required strategy gate after discovery/commit/push. |
+| 6 | Keep route-run report review before any route rerun | Avoids wasting live attempts when saved evidence already answers the question. |
+| 7 | Tighten actor-chain candidate summaries around proof blockers | Clarifies why actor/stat promotion is not yet allowed. |
+| 8 | Refresh static coordinate readback before any movement attempt | Confirms the promoted static chain is still current. |
 | 9 | Reacquire fresh proof anchor only with explicit approval | Proof promotion and debugger/watchpoint work remain hard-gated. |
 | 10 | If live movement resumes, exact-target and fresh-readback first | Avoids using stale PID/HWND or old proof artifacts as current movement truth. |
