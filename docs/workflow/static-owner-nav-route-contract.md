@@ -106,6 +106,14 @@ The runner's `safety.navigationControl` is set only when a live run sends input
 across more than one step. The one-step summaries remain the source of truth for
 per-step exact-target, input, progress, and contract evidence.
 
+The repository fixture
+`scripts/navigation/testdata/static-owner-nav-route-run-summary-arrived.json`
+is the canonical safe sample for a passing two-step live route-run summary. It
+captures the expected route-run contract: every step passed the route-step
+contract, the final step reached `routeStatus=arrived`, movement/input were
+sent, multi-step `navigationControl=true` was recorded, and CE/x64dbg/provider
+writes/proof/facing/actor promotions remained disabled.
+
 ## Live boundary
 
 Before any live route loop or movement-polling consumer can use this offline

@@ -338,6 +338,114 @@ def summarize_route_run_steps(
     }
 
 
+def validate_route_run_summary_contract(run_summary: Mapping[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if run_summary.get("kind") != "static-owner-nav-route-run":
+        blockers.append("route-run-kind-must-be-static-owner-nav-route-run")
+    if run_summary.get("status") != "passed":
+        blockers.append("route-run-status-must-be-passed")
+    if run_summary.get("verdict") != "route-run-arrived":
+        blockers.append("route-run-verdict-must-be-route-run-arrived")
+    if run_summary.get("blockers"):
+        blockers.append("route-run-blockers-must-be-empty")
+    if run_summary.get("errors"):
+        blockers.append("route-run-errors-must-be-empty")
+
+    aggregate = safe_mapping(run_summary.get("aggregate"))
+    steps = [safe_mapping(item) for item in run_summary.get("steps", []) if isinstance(item, Mapping)]
+    steps_run = aggregate.get("stepsRun")
+    if aggregate.get("status") != "passed":
+        blockers.append("aggregate-status-must-be-passed")
+    if aggregate.get("verdict") != "route-run-arrived":
+        blockers.append("aggregate-verdict-must-be-route-run-arrived")
+    if aggregate.get("arrived") is not True:
+        blockers.append("aggregate-arrived-must-be-true")
+    if aggregate.get("lastRouteStatus") != "arrived":
+        blockers.append("aggregate-last-route-status-must-be-arrived")
+    if not isinstance(steps_run, int) or steps_run < 1:
+        blockers.append("aggregate-steps-run-must-be-positive")
+    elif steps_run != len(steps):
+        blockers.append("aggregate-steps-run-must-match-steps-length")
+    if aggregate.get("movementSent") is not True:
+        blockers.append("aggregate-movement-sent-must-be-true")
+    if aggregate.get("inputSent") is not True:
+        blockers.append("aggregate-input-sent-must-be-true")
+
+    safety = safe_mapping(run_summary.get("safety"))
+    safety_required_true = {
+        "movementSent": "safety-movement-sent-must-be-true",
+        "inputSent": "safety-input-sent-must-be-true",
+        "noCheatEngine": "safety-no-cheat-engine-must-be-true",
+    }
+    safety_required_false = {
+        "reloaduiSent": "safety-reloadui-sent-must-be-false",
+        "screenshotKeySent": "safety-screenshot-key-sent-must-be-false",
+        "x64dbgAttach": "safety-x64dbg-attach-must-be-false",
+        "debuggerAttached": "safety-debugger-attached-must-be-false",
+        "providerWrites": "safety-provider-writes-must-be-false",
+        "gitMutation": "safety-git-mutation-must-be-false",
+        "proofPromotion": "safety-proof-promotion-must-be-false",
+        "actorChainPromotion": "safety-actor-chain-promotion-must-be-false",
+        "facingPromotion": "safety-facing-promotion-must-be-false",
+        "savedVariablesUsedAsLiveTruth": "safety-savedvariables-live-truth-must-be-false",
+    }
+    for key, blocker in safety_required_true.items():
+        if safety.get(key) is not True:
+            blockers.append(blocker)
+    for key, blocker in safety_required_false.items():
+        if safety.get(key) is not False:
+            blockers.append(blocker)
+    if isinstance(steps_run, int) and steps_run > 1 and safety.get("navigationControl") is not True:
+        blockers.append("safety-navigation-control-must-be-true-for-multi-step-live-run")
+
+    if not steps:
+        blockers.append("steps-required")
+    for index, step in enumerate(steps, start=1):
+        if step.get("stepNumber") != index:
+            blockers.append(f"step-{index}-number-mismatch")
+        if step.get("status") != "passed":
+            blockers.append(f"step-{index}-status-must-be-passed")
+        if step.get("verdict") != LIVE_STEP_VERDICT:
+            blockers.append(f"step-{index}-verdict-must-be-live-progress-validated")
+        if step.get("movementSent") is not True:
+            blockers.append(f"step-{index}-movement-sent-must-be-true")
+        if step.get("inputSent") is not True:
+            blockers.append(f"step-{index}-input-sent-must-be-true")
+        if step.get("blockers"):
+            blockers.append(f"step-{index}-blockers-must-be-empty")
+        if step.get("errors"):
+            blockers.append(f"step-{index}-errors-must-be-empty")
+        route_status = step.get("routeStatus")
+        if route_status not in {"progress", "arrived"}:
+            blockers.append(f"step-{index}-route-status-must-be-progress-or-arrived")
+        contract = safe_mapping(step.get("contract"))
+        if contract.get("status") != "passed":
+            blockers.append(f"step-{index}-contract-status-must-be-passed")
+        if contract.get("blockers"):
+            blockers.append(f"step-{index}-contract-blockers-must-be-empty")
+    if steps and steps[-1].get("routeStatus") != "arrived":
+        blockers.append("last-step-route-status-must-be-arrived")
+
+    child_labels = [safe_mapping(item).get("label") for item in run_summary.get("childCommands", []) if isinstance(item, Mapping)]
+    if isinstance(steps_run, int):
+        expected_labels = [f"{index:02d}-route-step" for index in range(1, steps_run + 1)]
+        missing_labels = [label for label in expected_labels if label not in child_labels]
+        if missing_labels:
+            warnings.append(f"child-command-labels-missing:{','.join(missing_labels)}")
+
+    return {
+        "status": "blocked" if blockers else "passed",
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "stepsRun": steps_run,
+        "arrived": aggregate.get("arrived"),
+        "movementSent": safety.get("movementSent"),
+        "inputSent": safety.get("inputSent"),
+        "navigationControl": safety.get("navigationControl"),
+    }
+
+
 def build_markdown(summary: Mapping[str, Any]) -> str:
     aggregate = safe_mapping(summary.get("aggregate"))
     safety = safe_mapping(summary.get("safety"))

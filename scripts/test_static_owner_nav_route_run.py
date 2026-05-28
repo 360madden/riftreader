@@ -4,11 +4,16 @@ import json
 import unittest
 from pathlib import Path
 
-from scripts.static_owner_nav_route_run import summarize_route_run_steps, validate_args
+from scripts.static_owner_nav_route_run import summarize_route_run_steps, validate_args, validate_route_run_summary_contract
 
 
 def route_step_fixture() -> dict:
     fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-step-summary-progress.json"
+    return json.loads(fixture.read_text(encoding="utf-8"))
+
+
+def route_run_fixture() -> dict:
+    fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
     return json.loads(fixture.read_text(encoding="utf-8"))
 
 
@@ -80,6 +85,31 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         )
 
         self.assertIn("max-steps-must-be-positive", validate_args(args))
+
+    def test_checked_in_route_run_fixture_passes_contract(self):
+        summary = route_run_fixture()
+
+        contract = validate_route_run_summary_contract(summary)
+
+        self.assertEqual("passed", contract["status"])
+        self.assertEqual([], contract["blockers"])
+        self.assertEqual(2, contract["stepsRun"])
+        self.assertTrue(contract["arrived"])
+        self.assertTrue(contract["movementSent"])
+        self.assertTrue(contract["inputSent"])
+        self.assertTrue(contract["navigationControl"])
+
+    def test_route_run_contract_blocks_unarrived_final_step(self):
+        summary = route_run_fixture()
+        summary["aggregate"]["lastRouteStatus"] = "progress"
+        summary["aggregate"]["arrived"] = False
+        summary["steps"][-1]["routeStatus"] = "progress"
+
+        contract = validate_route_run_summary_contract(summary)
+
+        self.assertEqual("blocked", contract["status"])
+        self.assertIn("aggregate-arrived-must-be-true", contract["blockers"])
+        self.assertIn("last-step-route-status-must-be-arrived", contract["blockers"])
 
 
 if __name__ == "__main__":

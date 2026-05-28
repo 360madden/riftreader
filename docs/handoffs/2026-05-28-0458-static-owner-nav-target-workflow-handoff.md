@@ -621,3 +621,57 @@ cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destinat
 ## Updated resume note
 
 The static-owner navigation lane now has a conservative multi-step wrapper, but live route-loop execution still should remain bounded and exact-target. Turn control remains blocked until yaw/turn behavior is separately proven, and ProofOnly/proof promotion remains separately gated.
+
+---
+
+# Continuation addendum — live route-run validation and fixture
+
+Added after the conservative route-runner implementation commit.
+
+## Additional local commit context
+
+| Commit | Summary |
+|---|---|
+| `889393b` | Add conservative static owner route runner |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Exact live target | Re-bound/focused `rift_x64` PID `34176`, HWND `0x3D1544`, title `RIFT`. |
+| Route-run dry-run preflight | `route-run-dry-run-plan-built`, no input sent; initial target was aligned with planar distance `9.512696059363261`. |
+| Live route-run proof | `static-owner-nav-route-run.cmd` with `--max-steps 2 --movement-approved --arrival-radius 7.0` passed with `route-run-arrived`. |
+| Step 1 | `routeStatus=progress`, progress `1.5290476746279982`, distance `9.512696059363261 -> 7.983648384735263`. |
+| Step 2 | `routeStatus=arrived`, progress `1.6750356220595295`, distance `7.983648384735263 -> 6.308612762675733`. |
+| Aggregate | `stepsRun=2`, total progress `3.2040832966875277`, movement/input sent, `navigationControl=true`. |
+| Visual confirmation | MCP frame-change check after route-run passed at `27.5%` change. |
+| Route-run fixture | Added `scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json` as a sanitized passing live route-run fixture. |
+| Route-run contract helper | Added `validate_route_run_summary_contract()` and tests for passing fixture plus unarrived final-step blocking. |
+
+## Additional artifacts
+
+| Artifact | Path |
+|---|---|
+| Route-run dry-run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-run-20260528-102913-542922\summary.json` |
+| Live route-run summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-route-run-20260528-102940-990292\summary.json` |
+| Route-run baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-062934-080.png` |
+| Route-run changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-062956-677.png` |
+| Route-run final screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-063002-080.png` |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| MCP `find_game_window` / `focus_game_window` / `capture_game_window` | Passed for PID `34176`, HWND `0x3D1544` |
+| Route-run dry-run command | Passed; no input sent |
+| Route-run live command | Passed: `route-run-arrived`, two route-step pulses |
+| MCP `wait_for_frame_change` after route-run | Passed: `27.5%` change |
+| `python -m py_compile scripts\static_owner_nav_route_run.py scripts\test_static_owner_nav_route_run.py` | Passed |
+| `python -m unittest scripts.test_static_owner_nav_route_run scripts.test_static_owner_nav_route_step scripts.test_static_owner_facing_discovery` | Passed: `36` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status scripts.test_static_owner_nav_route_step scripts.test_static_owner_nav_route_run` | Passed: `57` tests |
+| `git --no-pager diff --check` | Passed; only line-ending warnings |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+
+## Updated resume note
+
+The static-owner navigation lane now has an implementation, a live two-step route-run proof, and a checked-in route-run fixture/contract lane. It still does not prove turn control, promote yaw/facing, promote a full actor/stat chain, run ProofOnly, use CE/x64dbg, or write provider repos.
