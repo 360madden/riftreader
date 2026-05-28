@@ -69,6 +69,19 @@ class StaticOwnerTurnAwareRoutePlanTests(unittest.TestCase):
         self.assertFalse(plan["executionBlocked"])
         self.assertEqual("passed", plan["turnControlGate"]["status"])
 
+    def test_multi_step_turn_control_stays_blocked_even_with_candidate_turn_gate(self):
+        plan = build_turn_aware_plan(
+            state(0.0),
+            target(0.0, 10.0, label="multi-step-turn"),
+            allow_candidate_turn_control=True,
+            max_route_steps=2,
+        )
+
+        self.assertEqual("turn-right", plan["firstAction"])
+        self.assertTrue(plan["executionBlocked"])
+        self.assertIn("multi-step-turn-aware-routing-not-enabled", plan["executionBlockers"])
+        self.assertEqual("blocked", plan["turnControlGate"]["status"])
+
     def test_opposite_facing_is_classified_and_bounded(self):
         plan = build_turn_aware_plan(state(0.0), target(-10.0, 0.0, label="opposite"))
 

@@ -245,6 +245,8 @@ def build_turn_control_gate(
     if turn_required:
         if not allow_candidate_turn_control:
             blockers.append("candidate-turn-control-not-enabled")
+        if max_route_steps > DEFAULT_MAX_ROUTE_STEPS:
+            blockers.append("multi-step-turn-aware-routing-not-enabled")
         if absolute_delta > float(max_initial_turn_degrees):
             blockers.append("initial-turn-exceeds-max-initial-turn-degrees")
         if absolute_delta > float(max_cumulative_turn_degrees):
