@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.static_owner_nav_route_run import (
     report_saved_summary,
+    summarize_turn_forward_evidence,
     summarize_turn_evidence,
     summarize_route_run_steps,
     validate_args,
@@ -192,11 +193,43 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual(["left", "right"], [item["direction"] for item in summary["turnEvidence"]])
         self.assertEqual(["passed", "passed"], [item["contractStatus"] for item in summary["turnEvidence"]])
 
+    def test_turn_forward_evidence_can_be_added_to_route_run_report(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
+        turn_forward = (
+            Path(__file__).resolve().parent
+            / "navigation"
+            / "testdata"
+            / "static-owner-turn-forward-experiment-summary-progress.json"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            args = argparse.Namespace(
+                repo_root=None,
+                output_root=tmp,
+                report_route_run_summary_json=str(fixture),
+                turn_summary_json=None,
+                turn_forward_summary_json=[str(turn_forward)],
+            )
+
+            summary = report_saved_summary(args)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual(1, len(summary["turnForwardEvidence"]))
+        self.assertEqual("passed", summary["turnForwardEvidence"][0]["contractStatus"])
+        self.assertEqual("turn-forward-live-progress-validated", summary["turnForwardEvidence"][0]["verdict"])
+        self.assertEqual("progress", summary["turnForwardEvidence"][0]["routeStatus"])
+
     def test_summarize_turn_evidence_blocks_invalid_path(self):
         evidence, blockers, warnings = summarize_turn_evidence(["missing-turn-summary.json"])
 
         self.assertEqual([], evidence)
         self.assertIn("turn-evidence-1-load-or-contract-failed", blockers)
+        self.assertTrue(warnings)
+
+    def test_summarize_turn_forward_evidence_blocks_invalid_path(self):
+        evidence, blockers, warnings = summarize_turn_forward_evidence(["missing-turn-forward-summary.json"])
+
+        self.assertEqual([], evidence)
+        self.assertIn("turn-forward-evidence-1-load-or-contract-failed", blockers)
         self.assertTrue(warnings)
 
 
