@@ -437,6 +437,20 @@ def validate_progress_args(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+def validate_route_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if not args.state_summary_json:
+        errors.append("state-summary-json-required")
+    elif len(args.state_summary_json) < 2:
+        errors.append("at-least-two-state-summaries-required")
+    if args.minimum_progress_distance < 0:
+        errors.append("minimum-progress-distance-must-be-nonnegative")
+    if args.wrong_way_tolerance_distance < 0:
+        errors.append("wrong-way-tolerance-distance-must-be-nonnegative")
+    errors.extend(validate_navigation_target_args(args))
+    return errors
+
+
 def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
     defaults = apply_current_truth(args, root)
@@ -937,6 +951,109 @@ def run_progress(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def build_route_plan_targets(
+    root: Path,
+    state_summary_paths: Sequence[str],
+    target_request: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    for index, raw_path in enumerate(state_summary_paths):
+        path = Path(raw_path)
+        if not path.is_absolute():
+            path = root / path
+        source_summary = load_json_object(path)
+        latest_state = safe_mapping(source_summary.get("latestState"))
+        if not latest_state or not latest_state.get("coordinate") or latest_state.get("yawDegrees") is None:
+            raise ValueError(f"state-summary-missing-latest-state-coordinate-or-yaw:{path}")
+        navigation_target = navigation_target_from_state(
+            latest_state,
+            destination_x=float(target_request["destinationX"]),
+            destination_y=None if target_request.get("destinationY") is None else float(target_request["destinationY"]),
+            destination_z=float(target_request["destinationZ"]),
+            destination_label=target_request.get("destinationLabel"),
+            arrival_radius=float(target_request["arrivalRadius"]),
+            alignment_threshold_degrees=float(target_request["alignmentThresholdDegrees"]),
+        )
+        targets.append(
+            {
+                "sampleIndex": index,
+                "sourceFile": str(path),
+                "kind": source_summary.get("kind"),
+                "status": source_summary.get("status"),
+                "verdict": source_summary.get("verdict"),
+                "generatedAtUtc": source_summary.get("generatedAtUtc"),
+                "coordinate": latest_state.get("coordinate"),
+                "yawDegrees": latest_state.get("yawDegrees"),
+                "navigationTarget": navigation_target,
+                "planarDistance": float(navigation_target["planarDistance"]),
+                "arrivalRadius": float(navigation_target["arrivalRadius"]),
+                "withinArrivalRadius": bool(navigation_target["withinArrivalRadius"]),
+                "suggestedTurnDirection": navigation_target.get("suggestedTurnDirection"),
+                "signedBearingDeltaDegrees": navigation_target.get("signedBearingDeltaDegrees"),
+                "absoluteBearingDeltaDegrees": navigation_target.get("absoluteBearingDeltaDegrees"),
+                "destination": navigation_target.get("destination"),
+            }
+        )
+    return targets
+
+
+def run_route(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    errors = validate_route_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-route-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-route-dry-run",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "sourceStateSummaries": [str(Path(path).resolve()) for path in (args.state_summary_json or [])],
+        "navigationTargetRequest": {},
+        "routePlanTargets": [],
+        "analysis": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety() | {"facingPromotion": False, "navigationControl": False, "dryRunOnly": True},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    if errors:
+        return summary
+    try:
+        first_path = Path(args.state_summary_json[0])
+        if not first_path.is_absolute():
+            first_path = root / first_path
+        first_summary = load_json_object(first_path)
+        target_request = resolve_plan_navigation_target_request(args, root, first_summary)
+        route_targets = build_route_plan_targets(root, args.state_summary_json, target_request)
+        summary["navigationTargetRequest"] = target_request
+        summary["routePlanTargets"] = route_targets
+        summary["analysis"] = build_progress_analysis(
+            route_targets,
+            minimum_progress_distance=float(args.minimum_progress_distance),
+            wrong_way_tolerance_distance=float(args.wrong_way_tolerance_distance),
+            arrival_radius=None if args.arrival_radius is None else float(args.arrival_radius),
+        )
+        summary["status"] = "passed"
+        summary["verdict"] = "static-owner-nav-route-dry-run-built"
+        summary["warnings"].extend(
+            [
+                "dry-run-only-no-live-read-or-input",
+                "route-analysis-is-not-movement-permission",
+                "facing-candidate-readback-only-not-promoted",
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "static-owner-nav-route-dry-run-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    return summary
+
+
 def rows_by_offset(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
     return {str(row.get("offset")): row for row in rows if row.get("offset")}
 
@@ -1106,6 +1223,30 @@ def run_compare(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-nav-route-dry-run":
+        analysis = safe_mapping(summary.get("analysis"))
+        lines = [
+            "# Static owner navigation route dry-run",
+            "",
+            f"Status: `{summary.get('status')}`",
+            f"Verdict: `{summary.get('verdict')}`",
+            f"Route status: `{analysis.get('status')}`",
+            f"Stop reason: `{analysis.get('stopReason')}`",
+            f"State summaries: `{len(summary.get('sourceStateSummaries', []))}`",
+            f"Initial distance: `{analysis.get('initialPlanarDistance')}`",
+            f"Final distance: `{analysis.get('finalPlanarDistance')}`",
+            f"Best distance: `{analysis.get('bestPlanarDistance')}`",
+            f"Total progress: `{analysis.get('totalProgressDistance')}`",
+            "",
+            "Dry-run only; no live read, no movement, and no movement permission.",
+        ]
+        if summary.get("errors"):
+            lines.extend(["", "## Errors", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+        if summary.get("warnings"):
+            lines.extend(["", "## Warnings", ""])
+            lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+        return "\n".join(lines) + "\n"
     if summary.get("kind") == "static-owner-nav-progress-dry-run":
         analysis = safe_mapping(summary.get("analysis"))
         lines = [
@@ -1276,6 +1417,23 @@ def write_outputs(summary: dict[str, Any]) -> None:
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-nav-route-dry-run":
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "routeStatus": safe_mapping(summary.get("analysis")).get("status"),
+            "stopReason": safe_mapping(summary.get("analysis")).get("stopReason"),
+            "sampleCount": safe_mapping(summary.get("analysis")).get("sampleCount"),
+            "initialPlanarDistance": safe_mapping(summary.get("analysis")).get("initialPlanarDistance"),
+            "finalPlanarDistance": safe_mapping(summary.get("analysis")).get("finalPlanarDistance"),
+            "totalProgressDistance": safe_mapping(summary.get("analysis")).get("totalProgressDistance"),
+            "navigationTargetRequest": summary.get("navigationTargetRequest") or None,
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
     if summary.get("kind") == "static-owner-nav-progress-dry-run":
         return {
             "status": summary.get("status"),
@@ -1418,6 +1576,22 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--arrival-radius", type=float)
     progress.add_argument("--json", action="store_true")
 
+    route = subparsers.add_parser("route")
+    route.add_argument("--repo-root")
+    route.add_argument("--output-root")
+    route.add_argument("--state-summary-json", nargs="+", required=True)
+    route.add_argument("--destination-x", type=float)
+    route.add_argument("--destination-y", type=float)
+    route.add_argument("--destination-z", type=float)
+    route.add_argument("--destination-label")
+    route.add_argument("--destination-waypoint-json")
+    route.add_argument("--destination-waypoint-id")
+    route.add_argument("--arrival-radius", type=float)
+    route.add_argument("--alignment-threshold-degrees", type=float, default=7.5)
+    route.add_argument("--minimum-progress-distance", type=float, default=0.35)
+    route.add_argument("--wrong-way-tolerance-distance", type=float, default=0.75)
+    route.add_argument("--json", action="store_true")
+
     state = subparsers.add_parser("state")
     state.add_argument("--repo-root")
     state.add_argument("--output-root")
@@ -1460,6 +1634,8 @@ def main(argv: list[str] | None = None) -> int:
         summary = run_plan(args)
     elif args.command == "progress":
         summary = run_progress(args)
+    elif args.command == "route":
+        summary = run_route(args)
     elif args.command == "state":
         summary = run_state(args)
     else:

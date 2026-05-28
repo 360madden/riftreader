@@ -16,7 +16,9 @@ from scripts.static_owner_facing_discovery import (
     resolve_navigation_target_request,
     run_plan,
     run_progress,
+    run_route,
     validate_state_args,
+    validate_route_args,
 )
 
 
@@ -413,6 +415,72 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             self.assertFalse(progress["safety"]["movementSent"])
             self.assertEqual("progress", progress["analysis"]["status"])
             self.assertAlmostEqual(1.0, progress["analysis"]["totalProgressDistance"])
+
+    def test_run_route_builds_dry_run_route_from_saved_state_summaries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "state-1.json"
+            second = root / "state-2.json"
+            for path, x in ((first, 0.0), (second, 1.0)):
+                path.write_text(
+                    json.dumps(
+                        {
+                            "kind": "static-owner-nav-state-readback",
+                            "status": "passed",
+                            "verdict": "position-and-facing-nav-state-readback-passed",
+                            "generatedAtUtc": "2026-05-28T00:00:00+00:00",
+                            "latestState": {
+                                "coordinate": {"x": x, "y": 0.0, "z": 0.0},
+                                "yawDegrees": 0.0,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            args = argparse.Namespace(
+                repo_root=str(root),
+                output_root=str(root / "captures"),
+                state_summary_json=[str(first), str(second)],
+                destination_x=10.0,
+                destination_y=None,
+                destination_z=0.0,
+                destination_label="east",
+                destination_waypoint_json=None,
+                destination_waypoint_id=None,
+                arrival_radius=2.0,
+                alignment_threshold_degrees=7.5,
+                minimum_progress_distance=0.35,
+                wrong_way_tolerance_distance=0.75,
+            )
+
+            route = run_route(args)
+
+            self.assertEqual("passed", route["status"])
+            self.assertEqual("static-owner-nav-route-dry-run-built", route["verdict"])
+            self.assertTrue(route["safety"]["dryRunOnly"])
+            self.assertFalse(route["safety"]["movementSent"])
+            self.assertEqual("progress", route["analysis"]["status"])
+            self.assertAlmostEqual(1.0, route["analysis"]["totalProgressDistance"])
+            self.assertEqual(2, len(route["routePlanTargets"]))
+            self.assertFalse(route["routePlanTargets"][0]["navigationTarget"]["actionableForMovement"])
+
+    def test_route_arg_validation_requires_two_state_summaries(self):
+        args = argparse.Namespace(
+            state_summary_json=["only-one.json"],
+            destination_x=10.0,
+            destination_y=None,
+            destination_z=0.0,
+            destination_waypoint_json=None,
+            destination_waypoint_id=None,
+            arrival_radius=2.0,
+            alignment_threshold_degrees=7.5,
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+        )
+
+        errors = validate_route_args(args)
+
+        self.assertIn("at-least-two-state-summaries-required", errors)
 
     def test_compare_scores_vector_and_scalar_candidates(self):
         result = compare_snapshots(
