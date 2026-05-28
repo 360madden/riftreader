@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from scripts.static_owner_nav_route_run import (
+    build_report_markdown,
+    compact_report,
     report_saved_summary,
     summarize_turn_forward_evidence,
     summarize_turn_evidence,
@@ -217,6 +219,12 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual("passed", summary["turnForwardEvidence"][0]["contractStatus"])
         self.assertEqual("turn-forward-live-progress-validated", summary["turnForwardEvidence"][0]["verdict"])
         self.assertEqual("progress", summary["turnForwardEvidence"][0]["routeStatus"])
+        compact = compact_report(summary)
+        self.assertEqual(1, compact["turnForwardEvidenceCount"])
+        self.assertEqual(["passed"], compact["turnForwardEvidenceStatuses"])
+        markdown = build_report_markdown(summary)
+        self.assertIn("## Turn-forward evidence", markdown)
+        self.assertIn("turn-forward-live-progress-validated", markdown)
 
     def test_summarize_turn_evidence_blocks_invalid_path(self):
         evidence, blockers, warnings = summarize_turn_evidence(["missing-turn-summary.json"])
