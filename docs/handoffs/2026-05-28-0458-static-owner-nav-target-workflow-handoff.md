@@ -294,3 +294,39 @@ The offline lane now has both artifact-chain and direct-route dry runs:
 2. multiple `state` summaries + one destination request -> `route` summary.
 
 Neither path authorizes live movement. The next useful safe local slice is to add small recorded fixture coverage for route summaries or to harden route output into a non-mutating controller contract. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
+
+---
+
+# Continuation addendum — offline route controller recommendation
+
+Added after the route dry-run addendum.
+
+## Additional local commit
+
+| Commit | Summary |
+|---|---|
+| `d0dfb75` | Add static owner nav route controller recommendation |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Non-mutating route controller contract | Route dry-run summaries now include `controllerRecommendation` with `recommendedAction`, `controlIntent`, source sample, latest distance, bearing deltas, and explicit safety booleans. |
+| Movement permission | Always `movementPermission=false`, `actionableForMovement=false`, `navigationControl=false`, `candidateOnly=true`, and `dryRunOnly=true`. |
+| Stop/turn classifications | The recommendation maps offline route analysis to `stop-arrived`, `stop-overshot`, `stop-wrong-way`, `sample-more-or-reassess`, `turn-left-candidate`, `turn-right-candidate`, or `continue-aligned-candidate`. |
+| Live/proof boundary | No live input, ProofOnly, CE/x64dbg, provider writes, or promotion was performed. Fresh ProofOnly remains gated. |
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_facing_discovery.py scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `18` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `39` tests |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The route dry-run can now be used as a saved-state controller contract, but only offline. It intentionally separates recommendation text from permission: downstream live route loops must still exact-target PID/HWND/process-start/module-base and perform fresh static-chain readback/preflight before any movement, and any ProofOnly/proof expansion still requires explicit approval.
