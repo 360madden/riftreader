@@ -1,10 +1,16 @@
 import argparse
 import copy
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.static_owner_nav_route_run import summarize_route_run_steps, validate_args, validate_route_run_summary_contract
+from scripts.static_owner_nav_route_run import (
+    summarize_route_run_steps,
+    validate_args,
+    validate_route_run_summary_contract,
+    validate_saved_summary,
+)
 
 
 def route_step_fixture() -> dict:
@@ -110,6 +116,21 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual("blocked", contract["status"])
         self.assertIn("aggregate-arrived-must-be-true", contract["blockers"])
         self.assertIn("last-step-route-status-must-be-arrived", contract["blockers"])
+
+    def test_validate_saved_summary_passes_fixture(self):
+        fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            args = argparse.Namespace(
+                repo_root=None,
+                output_root=tmp,
+                validate_route_run_summary_json=str(fixture),
+            )
+
+            summary = validate_saved_summary(args)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual("passed", summary["contract"]["status"])
+        self.assertEqual([], summary["blockers"])
 
 
 if __name__ == "__main__":

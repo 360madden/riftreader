@@ -492,6 +492,51 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_validation_markdown(summary: Mapping[str, Any]) -> str:
+    contract = safe_mapping(summary.get("contract"))
+    safety = safe_mapping(summary.get("safety"))
+    artifacts = safe_mapping(summary.get("artifacts"))
+    lines = [
+        "# Static owner navigation route-run contract validation",
+        "",
+        f"Generated: `{summary.get('generatedAtUtc')}`",
+        f"Status: `{summary.get('status')}`",
+        f"Source summary: `{summary.get('sourceSummaryJson')}`",
+        "",
+        "## Contract",
+        "",
+        f"- Status: `{contract.get('status')}`",
+        f"- Steps run: `{contract.get('stepsRun')}`",
+        f"- Arrived: `{contract.get('arrived')}`",
+        f"- Movement sent: `{contract.get('movementSent')}`",
+        f"- Input sent: `{contract.get('inputSent')}`",
+        f"- Navigation control: `{contract.get('navigationControl')}`",
+        "",
+        "## Safety",
+        "",
+        f"- Movement sent: `{safety.get('movementSent')}`",
+        f"- Input sent: `{safety.get('inputSent')}`",
+        f"- Cheat Engine: `{not bool(safety.get('noCheatEngine'))}`",
+        f"- x64dbg attach: `{safety.get('x64dbgAttach')}`",
+        f"- Provider writes: `{safety.get('providerWrites')}`",
+        "",
+        "## Artifacts",
+        "",
+        f"- Summary JSON: `{artifacts.get('summaryJson')}`",
+        f"- Run directory: `{artifacts.get('runDirectory')}`",
+    ]
+    if summary.get("blockers"):
+        lines.extend(["", "## Blockers", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
+    if summary.get("warnings"):
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("warnings", []))
+    if summary.get("errors"):
+        lines.extend(["", "## Errors", ""])
+        lines.extend(f"- `{item}`" for item in summary.get("errors", []))
+    return "\n".join(lines) + "\n"
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
@@ -613,6 +658,51 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return summary
 
 
+def validate_saved_summary(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-nav-route-run-contract-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    safety = base_safety()
+    source = Path(str(args.validate_route_run_summary_json)).resolve() if args.validate_route_run_summary_json else None
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-nav-route-run-contract-validation",
+        "generatedAtUtc": utc_iso(),
+        "status": "pending",
+        "repoRoot": str(root),
+        "sourceSummaryJson": str(source) if source else None,
+        "contract": {},
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": safety,
+        "artifacts": {
+            "runDirectory": str(run_dir),
+            "summaryJson": str(run_dir / "summary.json"),
+            "summaryMarkdown": str(run_dir / "summary.md"),
+        },
+    }
+    if not source:
+        summary["status"] = "failed"
+        summary["errors"].append("validate-route-run-summary-json-required")
+        return summary
+    try:
+        route_run_summary = load_json_object(source)
+        contract = validate_route_run_summary_contract(route_run_summary)
+        summary["contract"] = contract
+        summary["blockers"].extend(contract["blockers"])
+        summary["warnings"].extend(contract["warnings"])
+        summary["status"] = "passed" if contract["status"] == "passed" else "blocked"
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    summary["blockers"] = sorted(set(summary["blockers"]))
+    summary["warnings"] = sorted(set(summary["warnings"]))
+    summary["errors"] = sorted(set(summary["errors"]))
+    return summary
+
+
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     aggregate = safe_mapping(summary.get("aggregate"))
@@ -637,10 +727,31 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_validation(summary: Mapping[str, Any]) -> dict[str, Any]:
+    artifacts = safe_mapping(summary.get("artifacts"))
+    contract = safe_mapping(summary.get("contract"))
+    return {
+        "status": summary.get("status"),
+        "contractStatus": contract.get("status"),
+        "stepsRun": contract.get("stepsRun"),
+        "arrived": contract.get("arrived"),
+        "movementSent": contract.get("movementSent"),
+        "inputSent": contract.get("inputSent"),
+        "navigationControl": contract.get("navigationControl"),
+        "sourceSummaryJson": summary.get("sourceSummaryJson"),
+        "summaryJson": artifacts.get("summaryJson"),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "blockers": summary.get("blockers", []),
+        "warnings": summary.get("warnings", []),
+        "errors": summary.get("errors", []),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a conservative multi-step static-owner navigation route")
     parser.add_argument("--repo-root")
     parser.add_argument("--output-root")
+    parser.add_argument("--validate-route-run-summary-json", nargs="?", const="")
     parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
     parser.add_argument("--destination-x", type=float)
     parser.add_argument("--destination-y", type=float)
@@ -671,11 +782,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    summary = run(args)
+    validation_mode = args.validate_route_run_summary_json is not None
+    summary = validate_saved_summary(args) if validation_mode else run(args)
     artifacts = safe_mapping(summary.get("artifacts"))
     write_json(Path(str(artifacts["summaryJson"])), summary)
-    Path(str(artifacts["summaryMarkdown"])).write_text(build_markdown(summary), encoding="utf-8")
-    print(json.dumps(compact(summary)) if args.json else json.dumps(compact(summary), indent=2))
+    markdown = build_validation_markdown(summary) if validation_mode else build_markdown(summary)
+    compact_summary = compact_validation(summary) if validation_mode else compact(summary)
+    Path(str(artifacts["summaryMarkdown"])).write_text(markdown, encoding="utf-8")
+    print(json.dumps(compact_summary) if args.json else json.dumps(compact_summary, indent=2))
     return 0 if summary.get("status") == "passed" else 2 if summary.get("status") == "blocked" else 1
 
 

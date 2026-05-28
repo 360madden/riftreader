@@ -675,3 +675,41 @@ Added after the conservative route-runner implementation commit.
 ## Updated resume note
 
 The static-owner navigation lane now has an implementation, a live two-step route-run proof, and a checked-in route-run fixture/contract lane. It still does not prove turn control, promote yaw/facing, promote a full actor/stat chain, run ProofOnly, use CE/x64dbg, or write provider repos.
+
+---
+
+# Continuation addendum — route-run saved-summary validator
+
+Added after the live route-run validation fixture.
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Saved route-run validation | Added `--validate-route-run-summary-json` mode to `scripts\static_owner_nav_route_run.py`. |
+| Operator wrapper | Added `scripts\static-owner-nav-validate-route-run.cmd` as a dumb wrapper around the validation mode. |
+| Validation output | Writes `static-owner-nav-route-run-contract-validation` JSON/Markdown summaries under `scripts\captures\`. |
+| Safety posture | Validation mode reads a saved summary only; no live read, input, movement, CE, x64dbg, provider write, proof promotion, facing promotion, or Git mutation. |
+
+## Additional useful command
+
+Validate the checked-in route-run fixture without live input:
+
+```powershell
+cmd /c scripts\static-owner-nav-validate-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
+```
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `cmd /c scripts\static-owner-nav-validate-route-run.cmd --help` | Passed |
+| `cmd /c scripts\static-owner-nav-validate-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json` | Passed: `contractStatus=passed` |
+| `python -m py_compile scripts\static_owner_nav_route_run.py scripts\test_static_owner_nav_route_run.py` | Passed |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status scripts.test_static_owner_nav_route_step scripts.test_static_owner_nav_route_run` | Passed: `58` tests |
+| `git --no-pager diff --check` | Passed; only line-ending warnings |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+
+## Updated resume note
+
+Downstream route-run consumers now have both a Python contract function and a paste-safe `.cmd` validator for saved route-run summaries. Continue treating yaw/turn behavior as candidate-only until separately proven.

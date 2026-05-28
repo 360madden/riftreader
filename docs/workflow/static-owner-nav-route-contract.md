@@ -17,6 +17,7 @@ permission and does not promote facing, actor, or proof truth.
 | Validate route contract | `cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json <route-summary.json>` | `static-owner-nav-route-contract-validation` | Fail-closed consumer gate; no live read or input. |
 | Run one bounded route step | `cmd /c scripts\static-owner-nav-route-step.cmd --destination-x <x> --destination-z <z> --movement-approved --json` | `static-owner-nav-route-step` | Live workflow gate; performs pre-state readback, one C# SendInput pulse, post-state readback, route contract validation, and fail-closed progress classification. |
 | Run a conservative bounded route | `cmd /c scripts\static-owner-nav-route-run.cmd --destination-x <x> --destination-z <z> --max-steps 3 --movement-approved --json` | `static-owner-nav-route-run` | Live workflow gate; loops only by calling the one-step helper, stops on arrival/block/failure/max-steps, and records aggregate safety. |
+| Validate route-run contract | `cmd /c scripts\static-owner-nav-validate-route-run.cmd <route-run-summary.json> --json` | `static-owner-nav-route-run-contract-validation` | Saved-summary gate; no live read or input. |
 
 ## Route summary requirements
 
@@ -137,6 +138,7 @@ HWND `0x3D1544`.
 cmd /c scripts\static-owner-nav-validate-route.cmd --route-summary-json scripts\navigation\testdata\static-owner-nav-route-summary-safe.json
 cmd /c scripts\static-owner-nav-route-step.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --dry-run --json
 cmd /c scripts\static-owner-nav-route-run.cmd --destination-x 7260.64 --destination-z 3005 --destination-label forward-smoke --arrival-radius 1.5 --max-steps 3 --dry-run --json
+cmd /c scripts\static-owner-nav-validate-route-run.cmd scripts\navigation\testdata\static-owner-nav-route-run-summary-arrived.json --json
 python -m unittest scripts.test_static_owner_facing_discovery
 python -m unittest scripts.test_static_owner_nav_route_step
 python -m unittest scripts.test_static_owner_nav_route_run
