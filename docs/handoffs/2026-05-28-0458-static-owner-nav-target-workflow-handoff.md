@@ -178,3 +178,55 @@ cmd /c scripts\static-owner-nav-plan.cmd --state-summary-json <state-summary.jso
 ## Updated resume note
 
 The next safe offline lane is to add recorded-state fixtures or a route-controller dry-run that consumes the new `plan` output. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
+
+---
+
+# Continuation addendum — offline progress/stuck analysis
+
+Added after the dry-run planner addendum.
+
+## Additional local commits
+
+| Commit | Summary |
+|---|---|
+| `54e3de7` | Add static owner nav progress dry-run |
+| `d9e4a57` | Add static owner nav progress launcher |
+
+## Additional current state
+
+| Need | Current state |
+|---|---|
+| Offline progress analysis | `static_owner_facing_discovery.py progress` consumes saved dry-run plan summaries and classifies `arrived`, `progress`, `no-progress`, `wrong-way`, or `overshot`. |
+| Progress launcher | `scripts/static-owner-nav-progress.cmd` wraps the dry-run `progress` command and forwards args. |
+| Route safety | The progress output is explicitly dry-run, candidate-only, and not movement permission. |
+
+## Additional useful command
+
+Compare two or more saved plan summaries without reading live memory or sending input:
+
+```powershell
+cmd /c scripts\static-owner-nav-progress.cmd --plan-summary-json <plan-before.json> <plan-after.json>
+```
+
+Override thresholds offline:
+
+```powershell
+cmd /c scripts\static-owner-nav-progress.cmd --plan-summary-json <plan-before.json> <plan-after.json> --minimum-progress-distance 0.35 --wrong-way-tolerance-distance 0.75 --arrival-radius 2.0
+```
+
+## Additional validation
+
+| Validation | Result |
+|---|---|
+| `python -m py_compile scripts\static_owner_facing_discovery.py scripts\test_static_owner_facing_discovery.py` | Passed |
+| `python -m unittest scripts.test_static_owner_facing_discovery` | Passed: `15` tests |
+| `python -m unittest scripts.test_static_owner_coordinate_chain_readback scripts.test_static_owner_facing_discovery scripts.test_static_chain_promotion_readiness scripts.test_coordinate_recovery_status` | Passed: `36` tests |
+| `python scripts\static_owner_facing_discovery.py progress --help` | Passed |
+| `cmd /c scripts\static-owner-nav-progress.cmd --help` | Passed |
+| `git --no-pager diff --check` | Passed |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed |
+| `python tools\riftreader_workflow\decision_packet.py --run-safe-checks --json` | Passed |
+
+## Updated resume note
+
+The offline lane now has a three-step artifact chain: `state` summary -> `plan` summary -> `progress` summary. The next safe code slice is a route-controller dry-run that consumes this chain and emits stop reasons without issuing movement. The next live/proof lane remains gated on explicit approval for fresh `ProofOnly` against PID `34176` / HWND `0x3D1544`, followed by rerunning the RiftScan milestone review.
