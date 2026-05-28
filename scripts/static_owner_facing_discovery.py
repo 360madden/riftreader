@@ -1,0 +1,614 @@
+#!/usr/bin/env python3
+"""Read and compare promoted-owner memory snapshots for yaw/facing discovery.
+
+This helper is intentionally read-only. It uses the promoted static coordinate
+resolver only to reacquire the current owner object, then snapshots aligned
+floats and unit-vector-like triples from that owner window. Live input, if any,
+must be performed by an external exact-target controller between snapshot runs.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import struct
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from static_owner_coordinate_chain_readback import (
+    base_safety,
+    build_poll_analysis,
+    get_process_creation_time_utc,
+    int_hex,
+    load_current_truth_defaults,
+    open_process_for_read,
+    process_start_check,
+    qword,
+    read_memory,
+    repo_root as default_repo_root,
+    safe_mapping,
+    triplet,
+    utc_stamp,
+)
+from rift_live_test.current_pid_family_neighborhood_inspector import close_handle, verify_hwnd_owner
+
+SCHEMA_VERSION = 1
+DEFAULT_OWNER_WINDOW_BYTES = 0x700
+DEFAULT_VECTOR_MIN_LENGTH = 0.75
+DEFAULT_VECTOR_MAX_LENGTH = 1.25
+DEFAULT_MIN_TARGET_DISTANCE = 0.5
+DEFAULT_MAX_TARGET_DISTANCE = 100.0
+DEFAULT_MIN_SCALAR_DELTA = 0.001
+DEFAULT_MIN_YAW_DELTA_DEGREES = 1.0
+COORD_OFFSETS = {0x320, 0x324, 0x328}
+
+
+def utc_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def load_json_object(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def finite_float(value: float) -> bool:
+    return math.isfinite(value) and abs(value) < 1_000_000
+
+
+def unpack_float(data: bytes, offset: int) -> float | None:
+    try:
+        value = struct.unpack_from("<f", data, offset)[0]
+    except struct.error:
+        return None
+    return float(value) if finite_float(float(value)) else None
+
+
+def vector_from_data(data: bytes, offset: int) -> dict[str, float] | None:
+    try:
+        x, y, z = struct.unpack_from("<fff", data, offset)
+    except struct.error:
+        return None
+    x = float(x)
+    y = float(y)
+    z = float(z)
+    if not all(finite_float(value) for value in (x, y, z)):
+        return None
+    length = math.sqrt((x * x) + (y * y) + (z * z))
+    if length <= 0:
+        return None
+    yaw = math.degrees(math.atan2(z, x))
+    pitch = math.degrees(math.atan2(y, math.sqrt((x * x) + (z * z))))
+    return {"x": x, "y": y, "z": z, "length": length, "yawDegrees": yaw, "pitchDegrees": pitch}
+
+
+def normalize_degrees(delta: float) -> float:
+    normalized = math.fmod(float(delta) + 180.0, 360.0)
+    if normalized < 0:
+        normalized += 360.0
+    return normalized - 180.0
+
+
+def extract_float_samples(data: bytes, *, owner_address: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for offset in range(0, len(data) - 3, 4):
+        value = unpack_float(data, offset)
+        if value is None:
+            continue
+        rows.append({"offset": int_hex(offset), "address": int_hex(owner_address + offset), "value": value})
+    return rows
+
+
+def extract_vector_samples(
+    data: bytes,
+    *,
+    owner_address: int,
+    min_length: float,
+    max_length: float,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for offset in range(0, len(data) - 11, 4):
+        vector = vector_from_data(data, offset)
+        if vector is None:
+            continue
+        if min_length <= vector["length"] <= max_length:
+            rows.append({"offset": int_hex(offset), "address": int_hex(owner_address + offset), **vector})
+    return rows
+
+
+def extract_relative_target_samples(
+    data: bytes,
+    *,
+    owner_address: int,
+    coordinate: Mapping[str, Any],
+    min_distance: float,
+    max_distance: float,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    cx = float(coordinate["x"])
+    cy = float(coordinate["y"])
+    cz = float(coordinate["z"])
+    for offset in range(0, len(data) - 11, 4):
+        target = vector_from_data(data, offset)
+        if target is None:
+            continue
+        dx = target["x"] - cx
+        dy = target["y"] - cy
+        dz = target["z"] - cz
+        planar = math.hypot(dx, dz)
+        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if not (min_distance <= planar <= max_distance):
+            continue
+        yaw = math.degrees(math.atan2(dz, dx))
+        pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
+        rows.append(
+            {
+                "offset": int_hex(offset),
+                "address": int_hex(owner_address + offset),
+                "targetCoordinate": {"x": target["x"], "y": target["y"], "z": target["z"]},
+                "direction": {"x": dx, "y": dy, "z": dz},
+                "planarDistance": planar,
+                "distance3d": distance,
+                "yawDegrees": yaw,
+                "pitchDegrees": pitch,
+            }
+        )
+    return rows
+
+
+def apply_current_truth(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    defaults = load_current_truth_defaults(root, args.current_truth_json)
+    if args.pid is None and defaults.get("pid") is not None:
+        args.pid = int(defaults["pid"])
+    if not args.hwnd and defaults.get("hwnd"):
+        args.hwnd = str(defaults["hwnd"])
+    if not args.module_base and defaults.get("moduleBase"):
+        args.module_base = str(defaults["moduleBase"])
+    if not args.expected_process_start_utc and defaults.get("processStartUtc"):
+        args.expected_process_start_utc = str(defaults["processStartUtc"])
+    if not args.root_rva and defaults.get("rootRva"):
+        args.root_rva = str(defaults["rootRva"])
+    return defaults
+
+
+def validate_snapshot_args(args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    if args.pid is None:
+        errors.append("pid-required")
+    if not args.hwnd:
+        errors.append("hwnd-required")
+    if not args.module_base:
+        errors.append("module-base-required")
+    if args.owner_window_bytes < 0x330:
+        errors.append("owner-window-bytes-too-small")
+    return errors
+
+
+def run_snapshot(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    defaults = apply_current_truth(args, root)
+    errors = validate_snapshot_args(args)
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-facing-snapshot-{args.label}-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-facing-snapshot",
+        "generatedAtUtc": utc_iso(),
+        "label": args.label,
+        "status": "failed" if errors else "pending",
+        "verdict": "invalid-arguments" if errors else None,
+        "repoRoot": str(root),
+        "target": {
+            "processName": args.process_name,
+            "processId": args.pid,
+            "targetWindowHandle": args.hwnd,
+            "expectedProcessStartUtc": args.expected_process_start_utc,
+            "moduleBase": args.module_base,
+            "currentTruthPath": defaults.get("path"),
+        },
+        "resolver": {
+            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+            "rootRva": args.root_rva or defaults.get("rootRva"),
+            "coordOffset": "0x320",
+            "currentTruthStaticResolverStatus": defaults.get("staticResolverStatus"),
+            "currentTruthPromotionAllowed": defaults.get("promotionAllowed"),
+        },
+        "owner": {},
+        "coordinate": {},
+        "floatSamples": [],
+        "vectorSamples": [],
+        "relativeTargetSamples": [],
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": base_safety(),
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    summary["safety"]["facingPromotion"] = False
+    if errors:
+        return summary
+
+    module_base = int(str(args.module_base), 0)
+    root_rva = int(str(args.root_rva or defaults.get("rootRva") or "0x32EBC80"), 0)
+    root_address = module_base + root_rva
+    hwnd_check = verify_hwnd_owner(str(args.hwnd), int(args.pid))
+    summary["target"]["hwndCheck"] = hwnd_check
+    if not hwnd_check.get("ownerMatchesExpectedPid"):
+        summary["status"] = "blocked"
+        summary["verdict"] = "target-hwnd-pid-mismatch"
+        summary["blockers"].append("target-hwnd-pid-mismatch")
+        return summary
+
+    handle = open_process_for_read(int(args.pid))
+    try:
+        actual_start = get_process_creation_time_utc(handle)
+        start_check = process_start_check(actual_start, args.expected_process_start_utc, tolerance_seconds=args.process_start_tolerance_seconds)
+        summary["target"]["actualProcessStartUtc"] = actual_start
+        summary["target"]["processStartCheck"] = start_check
+        if start_check.get("matchesExpected") is False:
+            summary["status"] = "blocked"
+            summary["verdict"] = "target-process-start-mismatch"
+            summary["blockers"].append("target-process-start-mismatch")
+            return summary
+        owner_address = qword(read_memory(handle, root_address, 8))
+        data = read_memory(handle, owner_address, int(args.owner_window_bytes))
+        coordinate = triplet(data, 0x320)
+        owner_vtable = qword(data, 0)
+        summary["owner"] = {
+            "rootAddress": int_hex(root_address),
+            "ownerAddress": int_hex(owner_address),
+            "ownerVtable": int_hex(owner_vtable),
+            "ownerVtableRva": int_hex(owner_vtable - module_base) if module_base <= owner_vtable < module_base + 0x4000000 else None,
+            "windowBytes": int(args.owner_window_bytes),
+        }
+        summary["coordinate"] = coordinate
+        summary["floatSamples"] = extract_float_samples(data, owner_address=owner_address)
+        summary["vectorSamples"] = extract_vector_samples(
+            data,
+            owner_address=owner_address,
+            min_length=float(args.vector_min_length),
+            max_length=float(args.vector_max_length),
+        )
+        summary["relativeTargetSamples"] = extract_relative_target_samples(
+            data,
+            owner_address=owner_address,
+            coordinate=coordinate,
+            min_distance=float(args.min_target_distance),
+            max_distance=float(args.max_target_distance),
+        )
+        summary["status"] = "passed"
+        summary["verdict"] = "static-owner-facing-snapshot-captured"
+        summary["warnings"].append("snapshot-only-not-yaw-promotion")
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "snapshot-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+    finally:
+        close_handle(handle)
+    return summary
+
+
+def rows_by_offset(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+    return {str(row.get("offset")): row for row in rows if row.get("offset")}
+
+
+def coordinate_delta(left: Mapping[str, Any], right: Mapping[str, Any]) -> dict[str, float]:
+    dx = float(right.get("x", 0.0)) - float(left.get("x", 0.0))
+    dy = float(right.get("y", 0.0)) - float(left.get("y", 0.0))
+    dz = float(right.get("z", 0.0)) - float(left.get("z", 0.0))
+    return {"x": dx, "y": dy, "z": dz, "planarXz": math.hypot(dx, dz), "distance3d": math.sqrt(dx * dx + dy * dy + dz * dz)}
+
+
+def compare_snapshots(
+    snapshots: Sequence[Mapping[str, Any]],
+    *,
+    min_scalar_delta: float,
+    min_yaw_delta_degrees: float,
+    max_coordinate_planar_drift: float,
+) -> dict[str, Any]:
+    labels = [str(snapshot.get("label") or f"snapshot-{index}") for index, snapshot in enumerate(snapshots)]
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if len(snapshots) < 2:
+        blockers.append("at-least-two-snapshots-required")
+        return {
+            "status": "blocked",
+            "labels": labels,
+            "blockers": blockers,
+            "warnings": warnings,
+            "scalarCandidates": [],
+            "vectorCandidates": [],
+            "relativeTargetCandidates": [],
+        }
+    if any(snapshot.get("status") != "passed" for snapshot in snapshots):
+        blockers.append("all-snapshots-must-pass")
+    owner_addresses = {safe_mapping(snapshot.get("owner")).get("ownerAddress") for snapshot in snapshots}
+    if len(owner_addresses) > 1:
+        blockers.append("owner-address-changed-between-snapshots")
+
+    baseline = snapshots[0]
+    coord_deltas = [coordinate_delta(safe_mapping(baseline.get("coordinate")), safe_mapping(snapshot.get("coordinate"))) for snapshot in snapshots[1:]]
+    max_coord_planar = max((delta["planarXz"] for delta in coord_deltas), default=0.0)
+    if max_coord_planar > max_coordinate_planar_drift:
+        warnings.append(f"coordinate-drift-during-facing-capture:{max_coord_planar:.6f}>{max_coordinate_planar_drift:.6f}")
+
+    float_maps = [rows_by_offset(snapshot.get("floatSamples", [])) for snapshot in snapshots]
+    common_float_offsets = set(float_maps[0])
+    for mapping in float_maps[1:]:
+        common_float_offsets &= set(mapping)
+    scalar_candidates: list[dict[str, Any]] = []
+    for offset in sorted(common_float_offsets, key=lambda item: int(item, 0)):
+        parsed_offset = int(offset, 0)
+        if parsed_offset in COORD_OFFSETS:
+            continue
+        values = [float(mapping[offset].get("value")) for mapping in float_maps]
+        deltas = [values[index] - values[0] for index in range(1, len(values))]
+        max_abs_delta = max((abs(delta) for delta in deltas), default=0.0)
+        if max_abs_delta < min_scalar_delta:
+            continue
+        scalar_candidates.append(
+            {
+                "offset": offset,
+                "address": float_maps[0][offset].get("address"),
+                "valuesByLabel": dict(zip(labels, values, strict=False)),
+                "deltasFromBaseline": dict(zip(labels[1:], deltas, strict=False)),
+                "maxAbsDelta": max_abs_delta,
+                "score": max_abs_delta,
+            }
+        )
+    scalar_candidates.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
+
+    vector_maps = [rows_by_offset(snapshot.get("vectorSamples", [])) for snapshot in snapshots]
+    common_vector_offsets = set(vector_maps[0])
+    for mapping in vector_maps[1:]:
+        common_vector_offsets &= set(mapping)
+    vector_candidates: list[dict[str, Any]] = []
+    for offset in sorted(common_vector_offsets, key=lambda item: int(item, 0)):
+        yaws = [float(mapping[offset].get("yawDegrees")) for mapping in vector_maps]
+        yaw_deltas = [normalize_degrees(yaws[index] - yaws[0]) for index in range(1, len(yaws))]
+        max_abs_yaw_delta = max((abs(delta) for delta in yaw_deltas), default=0.0)
+        if max_abs_yaw_delta < min_yaw_delta_degrees:
+            continue
+        lengths = [float(mapping[offset].get("length")) for mapping in vector_maps]
+        vector_candidates.append(
+            {
+                "offset": offset,
+                "address": vector_maps[0][offset].get("address"),
+                "yawDegreesByLabel": dict(zip(labels, yaws, strict=False)),
+                "yawDeltasFromBaseline": dict(zip(labels[1:], yaw_deltas, strict=False)),
+                "lengthsByLabel": dict(zip(labels, lengths, strict=False)),
+                "maxAbsYawDeltaDegrees": max_abs_yaw_delta,
+                "score": max_abs_yaw_delta,
+            }
+        )
+    vector_candidates.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
+
+    target_maps = [rows_by_offset(snapshot.get("relativeTargetSamples", [])) for snapshot in snapshots]
+    common_target_offsets = set(target_maps[0])
+    for mapping in target_maps[1:]:
+        common_target_offsets &= set(mapping)
+    relative_target_candidates: list[dict[str, Any]] = []
+    for offset in sorted(common_target_offsets, key=lambda item: int(item, 0)):
+        yaws = [float(mapping[offset].get("yawDegrees")) for mapping in target_maps]
+        yaw_deltas = [normalize_degrees(yaws[index] - yaws[0]) for index in range(1, len(yaws))]
+        max_abs_yaw_delta = max((abs(delta) for delta in yaw_deltas), default=0.0)
+        if max_abs_yaw_delta < min_yaw_delta_degrees:
+            continue
+        distances = [float(mapping[offset].get("planarDistance")) for mapping in target_maps]
+        relative_target_candidates.append(
+            {
+                "offset": offset,
+                "address": target_maps[0][offset].get("address"),
+                "targetCoordinatesByLabel": {
+                    label: target_maps[index][offset].get("targetCoordinate") for index, label in enumerate(labels)
+                },
+                "directionByLabel": {label: target_maps[index][offset].get("direction") for index, label in enumerate(labels)},
+                "yawDegreesByLabel": dict(zip(labels, yaws, strict=False)),
+                "yawDeltasFromBaseline": dict(zip(labels[1:], yaw_deltas, strict=False)),
+                "planarDistancesByLabel": dict(zip(labels, distances, strict=False)),
+                "maxAbsYawDeltaDegrees": max_abs_yaw_delta,
+                "score": max_abs_yaw_delta,
+            }
+        )
+    relative_target_candidates.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
+
+    status = "blocked" if blockers else "passed" if relative_target_candidates or vector_candidates or scalar_candidates else "no-candidates"
+    return {
+        "status": status,
+        "labels": labels,
+        "ownerAddresses": sorted(str(item) for item in owner_addresses),
+        "coordinateDeltasFromBaseline": coord_deltas,
+        "maxCoordinatePlanarDrift": max_coord_planar,
+        "scalarCandidateCount": len(scalar_candidates),
+        "vectorCandidateCount": len(vector_candidates),
+        "relativeTargetCandidateCount": len(relative_target_candidates),
+        "scalarCandidates": scalar_candidates[:50],
+        "vectorCandidates": vector_candidates[:50],
+        "relativeTargetCandidates": relative_target_candidates[:50],
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+
+
+def run_compare(args: argparse.Namespace) -> dict[str, Any]:
+    root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-facing-comparison-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    snapshots = [load_json_object(Path(path)) for path in args.snapshot_json]
+    comparison = compare_snapshots(
+        snapshots,
+        min_scalar_delta=float(args.min_scalar_delta),
+        min_yaw_delta_degrees=float(args.min_yaw_delta_degrees),
+        max_coordinate_planar_drift=float(args.max_coordinate_planar_drift),
+    )
+    summary = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-facing-comparison",
+        "generatedAtUtc": utc_iso(),
+        "status": comparison.get("status"),
+        "verdict": "static-owner-facing-candidates-scored",
+        "snapshotJson": [str(Path(path).resolve()) for path in args.snapshot_json],
+        "comparison": comparison,
+        "safety": base_safety() | {"facingPromotion": False, "movementSent": False, "inputSent": False},
+        "artifacts": {"runDirectory": str(run_dir), "summaryJson": str(run_dir / "summary.json"), "summaryMarkdown": str(run_dir / "summary.md")},
+    }
+    return summary
+
+
+def markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-facing-snapshot":
+        owner = safe_mapping(summary.get("owner"))
+        return "\n".join(
+            [
+                "# Static owner facing snapshot",
+                "",
+                f"Status: `{summary.get('status')}`",
+                f"Label: `{summary.get('label')}`",
+                f"Owner: `{owner.get('ownerAddress')}`",
+                f"Coordinate: `{summary.get('coordinate')}`",
+                f"Float samples: `{len(summary.get('floatSamples', []))}`",
+        f"Vector-like samples: `{len(summary.get('vectorSamples', []))}`",
+        f"Relative target samples: `{len(summary.get('relativeTargetSamples', []))}`",
+                "",
+                "Snapshot only; no facing promotion.",
+            ]
+        ) + "\n"
+    comparison = safe_mapping(summary.get("comparison"))
+    vectors = comparison.get("vectorCandidates", []) if isinstance(comparison.get("vectorCandidates"), list) else []
+    relative_targets = comparison.get("relativeTargetCandidates", []) if isinstance(comparison.get("relativeTargetCandidates"), list) else []
+    scalars = comparison.get("scalarCandidates", []) if isinstance(comparison.get("scalarCandidates"), list) else []
+    lines = [
+        "# Static owner facing comparison",
+        "",
+        f"Status: `{summary.get('status')}`",
+        f"Relative target candidates: `{comparison.get('relativeTargetCandidateCount')}`",
+        f"Vector candidates: `{comparison.get('vectorCandidateCount')}`",
+        f"Scalar candidates: `{comparison.get('scalarCandidateCount')}`",
+        f"Max coordinate planar drift: `{comparison.get('maxCoordinatePlanarDrift')}`",
+        "",
+        "## Top relative target candidates",
+        "",
+        "| Offset | Address | Max yaw delta | Yaws | Planar distances |",
+        "|---|---|---:|---|---|",
+    ]
+    for row in relative_targets[:10]:
+        lines.append(
+            f"| `{row.get('offset')}` | `{row.get('address')}` | `{row.get('maxAbsYawDeltaDegrees')}` | "
+            f"`{row.get('yawDegreesByLabel')}` | `{row.get('planarDistancesByLabel')}` |"
+        )
+    lines.extend(
+        [
+            "",
+        "## Top vector candidates",
+        "",
+        "| Offset | Address | Max yaw delta | Yaws |",
+        "|---|---|---:|---|",
+        ]
+    )
+    for row in vectors[:10]:
+        lines.append(f"| `{row.get('offset')}` | `{row.get('address')}` | `{row.get('maxAbsYawDeltaDegrees')}` | `{row.get('yawDegreesByLabel')}` |")
+    lines.extend(["", "## Top scalar candidates", "", "| Offset | Address | Max delta | Values |", "|---|---|---:|---|"])
+    for row in scalars[:10]:
+        lines.append(f"| `{row.get('offset')}` | `{row.get('address')}` | `{row.get('maxAbsDelta')}` | `{row.get('valuesByLabel')}` |")
+    if comparison.get("blockers"):
+        lines.extend(["", "## Blockers", ""])
+        lines.extend(f"- `{item}`" for item in comparison.get("blockers", []))
+    if comparison.get("warnings"):
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in comparison.get("warnings", []))
+    lines.extend(["", "Candidate discovery only; no yaw/facing promotion."])
+    return "\n".join(lines) + "\n"
+
+
+def write_outputs(summary: dict[str, Any]) -> None:
+    artifacts = safe_mapping(summary.get("artifacts"))
+    Path(str(artifacts["summaryJson"])).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    Path(str(artifacts["summaryMarkdown"])).write_text(markdown(summary), encoding="utf-8")
+
+
+def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
+    artifacts = safe_mapping(summary.get("artifacts"))
+    if summary.get("kind") == "static-owner-facing-snapshot":
+        return {
+            "status": summary.get("status"),
+            "label": summary.get("label"),
+            "ownerAddress": safe_mapping(summary.get("owner")).get("ownerAddress"),
+            "coordinate": summary.get("coordinate"),
+            "floatSampleCount": len(summary.get("floatSamples", [])),
+            "vectorSampleCount": len(summary.get("vectorSamples", [])),
+            "relativeTargetSampleCount": len(summary.get("relativeTargetSamples", [])),
+            "summaryJson": artifacts.get("summaryJson"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+        }
+    comparison = safe_mapping(summary.get("comparison"))
+    vectors = comparison.get("vectorCandidates", []) if isinstance(comparison.get("vectorCandidates"), list) else []
+    relative_targets = comparison.get("relativeTargetCandidates", []) if isinstance(comparison.get("relativeTargetCandidates"), list) else []
+    scalars = comparison.get("scalarCandidates", []) if isinstance(comparison.get("scalarCandidates"), list) else []
+    return {
+        "status": summary.get("status"),
+        "relativeTargetCandidateCount": comparison.get("relativeTargetCandidateCount"),
+        "vectorCandidateCount": comparison.get("vectorCandidateCount"),
+        "scalarCandidateCount": comparison.get("scalarCandidateCount"),
+        "topRelativeTargetCandidate": relative_targets[0] if relative_targets else None,
+        "topVectorCandidate": vectors[0] if vectors else None,
+        "topScalarCandidate": scalars[0] if scalars else None,
+        "maxCoordinatePlanarDrift": comparison.get("maxCoordinatePlanarDrift"),
+        "summaryJson": artifacts.get("summaryJson"),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "blockers": comparison.get("blockers", []),
+        "warnings": comparison.get("warnings", []),
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Promoted owner facing/yaw snapshot and comparison helper")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    snap = subparsers.add_parser("snapshot")
+    snap.add_argument("--repo-root")
+    snap.add_argument("--output-root")
+    snap.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
+    snap.add_argument("--label", default="snapshot")
+    snap.add_argument("--process-name", default="rift_x64")
+    snap.add_argument("--pid", type=int)
+    snap.add_argument("--hwnd")
+    snap.add_argument("--module-base")
+    snap.add_argument("--expected-process-start-utc")
+    snap.add_argument("--process-start-tolerance-seconds", type=float, default=2.0)
+    snap.add_argument("--root-rva")
+    snap.add_argument("--owner-window-bytes", type=lambda value: int(value, 0), default=DEFAULT_OWNER_WINDOW_BYTES)
+    snap.add_argument("--vector-min-length", type=float, default=DEFAULT_VECTOR_MIN_LENGTH)
+    snap.add_argument("--vector-max-length", type=float, default=DEFAULT_VECTOR_MAX_LENGTH)
+    snap.add_argument("--min-target-distance", type=float, default=DEFAULT_MIN_TARGET_DISTANCE)
+    snap.add_argument("--max-target-distance", type=float, default=DEFAULT_MAX_TARGET_DISTANCE)
+    snap.add_argument("--json", action="store_true")
+
+    comp = subparsers.add_parser("compare")
+    comp.add_argument("--repo-root")
+    comp.add_argument("--output-root")
+    comp.add_argument("--snapshot-json", nargs="+", required=True)
+    comp.add_argument("--min-scalar-delta", type=float, default=DEFAULT_MIN_SCALAR_DELTA)
+    comp.add_argument("--min-yaw-delta-degrees", type=float, default=DEFAULT_MIN_YAW_DELTA_DEGREES)
+    comp.add_argument("--max-coordinate-planar-drift", type=float, default=0.5)
+    comp.add_argument("--json", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    summary = run_snapshot(args) if args.command == "snapshot" else run_compare(args)
+    write_outputs(summary)
+    print(json.dumps(compact(summary)) if args.json else json.dumps(compact(summary), indent=2))
+    return 0 if summary.get("status") in {"passed", "no-candidates"} else 2 if summary.get("status") == "blocked" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

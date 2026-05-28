@@ -1,0 +1,101 @@
+{
+  "evidence": {
+    "forwardAlignment": {
+      "holdMilliseconds": 300,
+      "beforeCoordinate": {
+        "y": 821.6430053710938,
+        "x": 7259.4462890625,
+        "z": 2987.6025390625
+      },
+      "afterCoordinate": {
+        "y": 821.5908203125,
+        "x": 7261.12451171875,
+        "z": 2988.64990234375
+      },
+      "frameChanged": true,
+      "movementYawDegrees": 31.967906577865786,
+      "movementMinusFacingDegrees": 0.5559810844990238,
+      "key": "w",
+      "frameChangePercent": 36.7917,
+      "beforeFacingYawDegrees": 31.411925493366756,
+      "movementPlanarDistance": 1.9782318182815612
+    },
+    "turnLeft": {
+      "key": "left",
+      "coordinatePlanarDrift": 0.0,
+      "yawDeltaFromBaselineDegrees": -4.235198603553528,
+      "yawBeforeDegrees": 35.64712409692029,
+      "frameChanged": true,
+      "frameChangePercent": 67.9375,
+      "yawAfterDegrees": 31.411925493366756,
+      "holdMilliseconds": 250
+    },
+    "turnRight": {
+      "key": "right",
+      "coordinatePlanarDrift": 0.0,
+      "yawDeltaDegrees": 43.76450077245511,
+      "yawBeforeDegrees": 35.64712409692029,
+      "frameChanged": true,
+      "frameChangePercent": 66.6597,
+      "yawAfterDegrees": 79.4116248693754,
+      "holdMilliseconds": 250
+    }
+  },
+  "kind": "static-owner-facing-candidate-report",
+  "safety": {
+    "providerWrites": false,
+    "actorChainPromotion": false,
+    "x64dbgAttach": false,
+    "savedVariablesUsedAsLiveTruth": false,
+    "facingPromotion": false,
+    "noCheatEngine": true,
+    "exactTarget": true,
+    "targetMemoryWritten": false,
+    "movementSent": true,
+    "proofPromotion": false,
+    "movementInput": [
+      "right:250ms",
+      "left:250ms",
+      "w:300ms"
+    ]
+  },
+  "next": {
+    "recommendedAction": "Ask for explicit approval to promote owner+0x30C relative target as current facing/yaw source, or run one more left/right/forward repeat before promotion.",
+    "promotionGate": "explicit-approval-required"
+  },
+  "schemaVersion": 1,
+  "status": "candidate-multi-stimulus-validated-not-promoted",
+  "facingCandidate": {
+    "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314 minus current position at owner+0x320/+0x324/+0x328",
+    "targetZCoordinateOffset": "0x314",
+    "yawFormula": "atan2((owner+0x314) - (owner+0x328), (owner+0x30C) - (owner+0x320))",
+    "planarLookaheadDistance": "~10.0",
+    "targetCoordinateOffset": "0x30C",
+    "promotionStatus": "not-promoted-explicit-approval-required",
+    "targetYCoordinateOffset": "0x310",
+    "classification": "owner-relative-facing-target-coordinate-candidate",
+    "pitchFormula": "atan2((owner+0x310) - (owner+0x324), planarDistance)"
+  },
+  "generatedAtUtc": "2026-05-28T02:41:58.4897326Z",
+  "coordinateResolver": {
+    "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+    "promoted": true,
+    "coordinateOffset": "0x320",
+    "ownerAddress": "0x278C3830010"
+  },
+  "artifacts": {
+    "afterRightSnapshot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-yaw2-after-right-250ms-20260528-023920-389977\\summary.json",
+    "baselineSnapshot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-yaw2-baseline-20260528-023901-461780\\summary.json",
+    "turnComparison": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260528-023955-197499\\summary.json",
+    "afterForwardSnapshot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-yaw2-after-forward-w300ms-20260528-024048-505448\\summary.json",
+    "afterLeftSnapshot": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-yaw2-after-left-250ms-20260528-023954-693021\\summary.json",
+    "forwardComparison": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260528-024049-011009\\summary.json"
+  },
+  "target": {
+    "processName": "rift_x64",
+    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "targetWindowHandle": "0x3D1544",
+    "moduleBase": "0x7FF77AF40000",
+    "processId": 34176
+  }
+}
