@@ -197,6 +197,18 @@ class StaticOwnerTurnForwardExperimentTests(unittest.TestCase):
         self.assertEqual("passed", summary["status"])
         self.assertEqual("passed", summary["contract"]["status"])
 
+    def test_checked_in_live_progress_fixture_passes_contract(self):
+        summary = json.loads(testdata_path("static-owner-turn-forward-experiment-summary-progress.json").read_text(encoding="utf-8"))
+
+        contract = validate_turn_forward_experiment_contract(summary)
+
+        self.assertEqual("passed", contract["status"])
+        self.assertEqual([], contract["blockers"])
+        self.assertEqual("turn-forward-live-progress-validated", contract["verdict"])
+        self.assertTrue(contract["movementSent"])
+        self.assertTrue(contract["inputSent"])
+        self.assertTrue(contract["navigationControl"])
+
 
 if __name__ == "__main__":
     unittest.main()

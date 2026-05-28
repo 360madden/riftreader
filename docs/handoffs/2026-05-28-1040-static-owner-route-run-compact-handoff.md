@@ -122,6 +122,7 @@ Artifacts:
 | Turn stimulus child summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-turn-forward-experiment-20260528-181318-655031\child-runs\static-owner-turn-stimulus-20260528-181319-685501\summary.json` |
 | Forward route-step child summary | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-turn-forward-experiment-20260528-181318-655031\child-runs\static-owner-nav-route-step-20260528-181323-420245\summary.json` |
 | Experiment contract validation | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-turn-forward-experiment-contract-20260528-181339-107616\summary.json` |
+| Checked-in live-progress fixture | `C:\RIFT MODDING\RiftReader\scripts\navigation\testdata\static-owner-turn-forward-experiment-summary-progress.json` |
 | MCP baseline screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-141309-063.png` |
 | MCP changed-frame screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-141335-342.png` |
 | MCP final screenshot | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260528-141344-131.png` |

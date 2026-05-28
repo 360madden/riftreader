@@ -77,6 +77,11 @@ The experiment may set `safety.navigationControl=true` only when live input was
 actually sent. It still must keep proof, actor-chain, facing promotion,
 provider writes, CE, and x64dbg disabled.
 
+The checked-in live-progress fixture
+`scripts\navigation\testdata\static-owner-turn-forward-experiment-summary-progress.json`
+captures the validated one-step result: `turn-right`, observed yaw change,
+zero turn planar drift, and forward progress toward the destination.
+
 ## Validation commands
 
 ```powershell

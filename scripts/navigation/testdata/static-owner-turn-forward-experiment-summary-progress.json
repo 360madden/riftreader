@@ -1,0 +1,291 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-turn-forward-experiment",
+  "generatedAtUtc": "2026-05-28T18:13:18.655663+00:00",
+  "status": "passed",
+  "verdict": "turn-forward-live-progress-validated",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "operator": {
+    "dryRun": false,
+    "movementApproved": true,
+    "turnApproved": true,
+    "allowCandidateTurnControl": true
+  },
+  "input": {
+    "turnHoldMilliseconds": 175,
+    "forwardKey": "w",
+    "forwardHoldMilliseconds": 250,
+    "inputMode": "ScanCode"
+  },
+  "limits": {
+    "maxInitialTurnDegrees": 90.0,
+    "maxCumulativeTurnDegrees": 90.0,
+    "maxObservedTurnDegrees": 90.0,
+    "maxTotalInputMilliseconds": 600,
+    "maxRouteSteps": 1
+  },
+  "turnAwarePlanSummary": {
+    "schemaVersion": 1,
+    "kind": "static-owner-turn-aware-route-plan",
+    "generatedAtUtc": "2026-05-28T18:13:18.898429+00:00",
+    "status": "passed",
+    "verdict": "turn-aware-route-plan-built",
+    "operator": {
+      "dryRun": true,
+      "allowCandidateTurnControl": true
+    },
+    "navigationTargetRequest": {
+      "sourceKind": "direct-coordinates",
+      "sourceFile": null,
+      "waypointId": null,
+      "destinationLabel": "turn-forward-live-smoke",
+      "destinationX": 7256.371343,
+      "destinationY": null,
+      "destinationZ": 3005.467139,
+      "arrivalRadius": 2.0,
+      "alignmentThresholdDegrees": 15.0
+    },
+    "plan": {
+      "status": "passed",
+      "candidateOnly": true,
+      "dryRunOnly": true,
+      "actionableForNavigation": false,
+      "movementPermission": false,
+      "navigationControl": false,
+      "facingPromotion": false,
+      "requiresFreshPreflightBeforeLiveUse": true,
+      "firstAction": "turn-right",
+      "controlIntent": "turn-right",
+      "reason": "candidate-bearing-requires-turn",
+      "turnMagnitudeClass": "turn-needed",
+      "executionBlocked": false,
+      "executionBlockers": [],
+      "navigationTarget": {
+        "status": "turn-candidate",
+        "sourceKind": "static-owner-relative-target-candidate-facing",
+        "candidateOnly": true,
+        "actionableForMovement": false,
+        "reason": "static-owner-facing-target-is-candidate-only-not-promoted",
+        "destination": {
+          "label": "turn-forward-live-smoke",
+          "x": 7256.371343,
+          "y": 821.450439453125,
+          "z": 3005.467139
+        },
+        "delta": {
+          "x": -4.253168718750203,
+          "y": 0.0,
+          "z": 6.775732749999861
+        },
+        "planarDistance": 7.9999999030984945,
+        "distance3d": 7.9999999030984945,
+        "heightDelta": 0.0,
+        "arrivalRadius": 2.0,
+        "withinArrivalRadius": false,
+        "destinationBearingDegrees": 122.11674253228227,
+        "currentYawDegrees": 92.11673917694314,
+        "signedBearingDeltaDegrees": 30.000003355339118,
+        "absoluteBearingDeltaDegrees": 30.000003355339118,
+        "alignmentThresholdDegrees": 15.0,
+        "withinAlignmentThreshold": false,
+        "suggestedTurnDirection": "right"
+      },
+      "turnControlGate": {
+        "status": "passed",
+        "candidateOnly": true,
+        "allowCandidateTurnControl": true,
+        "turnRequired": true,
+        "turnDirection": "right",
+        "absoluteBearingDeltaDegrees": 30.000003355339118,
+        "maxInitialTurnDegrees": 90.0,
+        "maxCumulativeTurnDegrees": 90.0,
+        "maxTotalInputMilliseconds": 600,
+        "maxRouteSteps": 1,
+        "movementPermission": false,
+        "navigationControl": false,
+        "facingPromotion": false,
+        "blockers": [],
+        "warnings": []
+      }
+    },
+    "blockers": [],
+    "warnings": [
+      "candidate-facing-yaw-not-promoted",
+      "dry-run-only-no-input-sent",
+      "fresh-exact-target-readback-required-before-live-use"
+    ],
+    "errors": [],
+    "safety": {
+      "movementSent": false,
+      "inputSent": false,
+      "reloaduiSent": false,
+      "screenshotKeySent": false,
+      "noCheatEngine": true,
+      "x64dbgAttach": false,
+      "debuggerAttached": false,
+      "providerWrites": false,
+      "gitMutation": false,
+      "proofPromotion": false,
+      "actorChainPromotion": false,
+      "facingPromotion": false,
+      "navigationControl": false,
+      "savedVariablesUsedAsLiveTruth": false
+    },
+    "artifacts": {
+      "runDirectory": "fixture",
+      "summaryJson": "fixture",
+      "summaryMarkdown": "fixture"
+    }
+  },
+  "turnStimulusSummary": {
+    "kind": "static-owner-turn-stimulus-capture",
+    "status": "passed",
+    "verdict": "turn-yaw-delta-validated",
+    "analysis": {
+      "status": "passed",
+      "candidateOnly": true,
+      "actionableForNavigation": false,
+      "movementPermission": false,
+      "facingPromotion": false,
+      "direction": "right",
+      "key": "right",
+      "preYawDegrees": 92.11673917694314,
+      "postYawDegrees": 123.17697774697204,
+      "signedYawDeltaDegrees": 31.0602385700289,
+      "absoluteYawDeltaDegrees": 31.0602385700289,
+      "minimumYawDeltaDegrees": 1.0,
+      "coordinateDelta": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "planar": 0.0,
+        "distance3d": 0.0
+      },
+      "maxPlanarDrift": 1.0,
+      "blockers": [],
+      "warnings": []
+    },
+    "safety": {
+      "movementSent": true,
+      "inputSent": true,
+      "reloaduiSent": false,
+      "screenshotKeySent": false,
+      "noCheatEngine": true,
+      "x64dbgAttach": false,
+      "debuggerAttached": false,
+      "providerWrites": false,
+      "gitMutation": false,
+      "proofPromotion": false,
+      "actorChainPromotion": false,
+      "facingPromotion": false,
+      "navigationControl": false,
+      "savedVariablesUsedAsLiveTruth": false
+    }
+  },
+  "forwardStepSummary": {
+    "kind": "static-owner-nav-route-step",
+    "status": "passed",
+    "verdict": "route-step-live-movement-progress-validated",
+    "initialDecision": {
+      "status": "passed",
+      "reason": "initial-bearing-aligned-forward-step-eligible",
+      "movementRequired": true,
+      "controlIntent": "forward",
+      "suggestedTurnDirection": "aligned",
+      "signedBearingDeltaDegrees": -1.0602352146897829,
+      "absoluteBearingDeltaDegrees": 1.0602352146897829,
+      "planarDistance": 7.9999999030984945
+    },
+    "routeResult": {
+      "status": "passed",
+      "routeStatus": "progress",
+      "stopReason": "distance-decreased",
+      "controllerRecommendedAction": "continue-aligned-candidate",
+      "controllerControlIntent": "continue",
+      "totalProgressDistance": 1.6784812442367274,
+      "initialPlanarDistance": 7.9999999030984945,
+      "finalPlanarDistance": 6.321518658861767,
+      "contractStatus": "passed",
+      "contractMovementPermission": false,
+      "blockers": []
+    },
+    "safety": {
+      "movementSent": true,
+      "inputSent": true,
+      "reloaduiSent": false,
+      "screenshotKeySent": false,
+      "noCheatEngine": true,
+      "x64dbgAttach": false,
+      "debuggerAttached": false,
+      "providerWrites": false,
+      "gitMutation": false,
+      "proofPromotion": false,
+      "actorChainPromotion": false,
+      "facingPromotion": false,
+      "navigationControl": false,
+      "savedVariablesUsedAsLiveTruth": false
+    }
+  },
+  "forwardResult": {
+    "status": "passed",
+    "verdict": "turn-forward-live-progress-validated",
+    "routeStatus": "progress",
+    "blockers": [],
+    "totalProgressDistance": 1.6784812442367274,
+    "initialPlanarDistance": 7.9999999030984945,
+    "finalPlanarDistance": 6.321518658861767
+  },
+  "contract": {
+    "status": "passed",
+    "blockers": [],
+    "warnings": [],
+    "verdict": "turn-forward-live-progress-validated",
+    "movementSent": true,
+    "inputSent": true,
+    "navigationControl": true
+  },
+  "childCommands": [
+    {
+      "label": "01-turn-aware-plan",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "02-turn-stimulus",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "03-forward-route-step",
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "blockers": [],
+  "warnings": [
+    "candidate-facing-yaw-not-promoted",
+    "single-step-experiment-only-not-route-loop"
+  ],
+  "errors": [],
+  "safety": {
+    "movementSent": true,
+    "inputSent": true,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debuggerAttached": false,
+    "providerWrites": false,
+    "gitMutation": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "facingPromotion": false,
+    "navigationControl": true,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "artifacts": {
+    "runDirectory": "fixture",
+    "summaryJson": "fixture",
+    "summaryMarkdown": "fixture"
+  }
+}
