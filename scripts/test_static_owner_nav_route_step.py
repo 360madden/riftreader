@@ -190,7 +190,7 @@ class StaticOwnerNavRouteStepTests(unittest.TestCase):
             {"status": "passed", "contract": {"movementPermission": False}},
         )
         self.assertEqual("blocked", result["status"])
-        self.assertIn("route-step-no-progress", result["blockers"])
+        self.assertIn("route-step-no-progress:minimum-progress-not-met", result["blockers"])
 
     def test_route_result_blocks_overshot(self):
         result = classify_route_result(

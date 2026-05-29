@@ -9,6 +9,7 @@ from scripts.static_owner_nav_route_run import (
     build_report_markdown,
     compact_report,
     report_saved_summary,
+    route_run_step_record,
     summarize_turn_forward_evidence,
     summarize_turn_evidence,
     summarize_route_run_steps,
@@ -275,6 +276,245 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         compact = compact_report(fixture)
         self.assertEqual(1, compact["turnForwardEvidenceCount"])
         self.assertEqual(["passed"], compact["turnForwardEvidenceStatuses"])
+        # Terrain classification should be empty for a passed/arrived report
+        self.assertEqual(0, compact["noProgressStepCount"])
+        self.assertEqual({}, compact["terrainSubClassifications"])
+
+    def test_route_step_record_includes_no_progress_sub_classification(self):
+        """route_run_step_record() passes through noProgressSubClassification from route result."""
+        step = route_step_fixture()
+        step["routeResult"]["routeStatus"] = "no-progress"
+        step["routeResult"]["noProgressSubClassification"] = "blocked-stationary-no-movement"
+        step["routeResult"]["totalProgressDistance"] = 0.0
+        step["routeResult"]["finalPlanarDistance"] = 37.5
+
+        record = route_run_step_record(1, step)
+
+        self.assertEqual("no-progress", record["routeStatus"])
+        self.assertEqual("blocked-stationary-no-movement", record["noProgressSubClassification"])
+
+    def test_route_step_record_no_progress_without_sub_classification(self):
+        """When noProgressSubClassification is not present, it should be None."""
+        step = route_step_fixture()
+
+        record = route_run_step_record(1, step)
+
+        self.assertIsNone(record["noProgressSubClassification"])
+
+    def test_report_markdown_shows_no_progress_reason_column(self):
+        """build_report_markdown() includes no-progress reason column in step table."""
+        summary = {
+            "kind": "static-owner-nav-route-run-report",
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "blocked",
+            "sourceSummaryJson": "captures/run/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "blocked",
+                "verdict": "route-run-blocked",
+                "aggregate": {
+                    "stepsRun": 2,
+                    "maxSteps": 3,
+                    "arrived": False,
+                    "lastRouteStatus": "no-progress",
+                    "totalProgressDistance": 8.5,
+                    "finalPlanarDistance": 29.0,
+                },
+                "steps": [
+                    {
+                        "stepNumber": 1,
+                        "status": "passed",
+                        "routeStatus": "progress",
+                        "noProgressSubClassification": None,
+                        "totalProgressDistance": 8.5,
+                        "initialPlanarDistance": 37.5,
+                        "finalPlanarDistance": 29.0,
+                    },
+                    {
+                        "stepNumber": 2,
+                        "status": "blocked",
+                        "routeStatus": "no-progress",
+                        "noProgressSubClassification": "blocked-stationary-no-movement",
+                        "totalProgressDistance": 0.0,
+                        "initialPlanarDistance": 29.0,
+                        "finalPlanarDistance": 29.0,
+                    },
+                ],
+                "safety": {
+                    "movementSent": True,
+                    "inputSent": True,
+                    "navigationControl": True,
+                },
+            },
+            "contract": {"status": "blocked"},
+            "turnEvidence": [],
+            "turnForwardEvidence": [],
+            "safety": {},
+            "artifacts": {
+                "summaryJson": "captures/report/summary.json",
+                "runDirectory": "captures/report",
+            },
+            "blockers": ["step-2-contract-blocked"],
+            "warnings": [],
+            "errors": [],
+        }
+        md = build_report_markdown(summary)
+        # No-progress reason column header
+        self.assertIn("No-progress reason", md)
+        # Step 1 has no sub-classification — should show em dash
+        self.assertIn("—", md)
+        # Step 2 has blocked-stationary sub-classification — should be formatted in backticks
+        self.assertIn("`blocked-stationary-no-movement`", md)
+
+    def test_report_markdown_terrain_summary_section(self):
+        """build_report_markdown() adds terrain classification section when no-progress steps exist."""
+        summary = {
+            "kind": "static-owner-nav-route-run-report",
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "blocked",
+            "sourceSummaryJson": "captures/run/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "blocked",
+                "verdict": "route-run-blocked",
+                "aggregate": {
+                    "stepsRun": 3,
+                    "maxSteps": 3,
+                    "arrived": False,
+                    "lastRouteStatus": "no-progress",
+                    "totalProgressDistance": 0.2,
+                    "finalPlanarDistance": 37.3,
+                },
+                "steps": [
+                    {
+                        "stepNumber": 1,
+                        "status": "blocked",
+                        "routeStatus": "no-progress",
+                        "noProgressSubClassification": "blocked-stationary-no-movement",
+                        "totalProgressDistance": 0.0,
+                        "initialPlanarDistance": 37.5,
+                        "finalPlanarDistance": 37.5,
+                    },
+                    {
+                        "stepNumber": 2,
+                        "status": "blocked",
+                        "routeStatus": "no-progress",
+                        "noProgressSubClassification": "blocked-stationary-no-movement",
+                        "totalProgressDistance": 0.0,
+                        "initialPlanarDistance": 37.5,
+                        "finalPlanarDistance": 37.5,
+                    },
+                    {
+                        "stepNumber": 3,
+                        "status": "blocked",
+                        "routeStatus": "no-progress",
+                        "noProgressSubClassification": "insufficient-progress-below-threshold",
+                        "totalProgressDistance": 0.2,
+                        "initialPlanarDistance": 37.5,
+                        "finalPlanarDistance": 37.3,
+                    },
+                ],
+                "safety": {
+                    "movementSent": True,
+                    "inputSent": True,
+                    "navigationControl": True,
+                },
+            },
+            "contract": {"status": "blocked"},
+            "turnEvidence": [],
+            "turnForwardEvidence": [],
+            "safety": {},
+            "artifacts": {
+                "summaryJson": "captures/report/summary.json",
+                "runDirectory": "captures/report",
+            },
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+        md = build_report_markdown(summary)
+        # Terrain classification section header
+        self.assertIn("## Terrain classification", md)
+        # Sub-classification table
+        self.assertIn("`blocked-stationary-no-movement`", md)
+        self.assertIn("`insufficient-progress-below-threshold`", md)
+        # Counts
+        self.assertIn("| 2 |", md)  # blocked-stationary-no-movement count
+        self.assertIn("| 1 |", md)  # insufficient-progress-below-threshold count
+        # Total no-progress steps
+        self.assertIn("**Total no-progress steps:** 3", md)
+        # Operator guidance
+        self.assertIn("terrain collision", md)
+        self.assertIn("adjusting the waypoint destination", md)
+
+    def test_report_markdown_no_terrain_section_when_no_no_progress_steps(self):
+        """build_report_markdown() does NOT include terrain section when all steps are progress/arrived."""
+        fixture = route_run_report_with_turn_forward_fixture()
+        md = build_report_markdown(fixture)
+        self.assertNotIn("## Terrain classification", md)
+
+    def test_compact_report_includes_terrain_classification_counts(self):
+        """compact_report() includes noProgressStepCount and terrainSubClassifications."""
+        summary = {
+            "kind": "static-owner-nav-route-run-report",
+            "status": "blocked",
+            "sourceSummaryJson": "captures/run/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "blocked",
+                "verdict": "route-run-blocked",
+                "aggregate": {
+                    "stepsRun": 3,
+                    "arrived": False,
+                    "lastRouteStatus": "no-progress",
+                    "totalProgressDistance": 0.2,
+                    "finalPlanarDistance": 37.3,
+                },
+                "steps": [
+                    {"stepNumber": 1, "routeStatus": "no-progress", "noProgressSubClassification": "blocked-stationary-no-movement"},
+                    {"stepNumber": 2, "routeStatus": "no-progress", "noProgressSubClassification": "blocked-stationary-no-movement"},
+                    {"stepNumber": 3, "routeStatus": "progress", "noProgressSubClassification": None},
+                ],
+            },
+            "contract": {"status": "blocked"},
+            "turnEvidence": [],
+            "turnForwardEvidence": [],
+            "artifacts": {"summaryJson": "captures/summary.json"},
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+        compact = compact_report(summary)
+        self.assertEqual(2, compact["noProgressStepCount"])
+        self.assertEqual({"blocked-stationary-no-movement": 2}, compact["terrainSubClassifications"])
+
+    def test_compact_report_null_sub_classification_defaults_to_unspecified(self):
+        """When noProgressSubClassification is None, it defaults to unspecified."""
+        summary = {
+            "kind": "static-owner-nav-route-run-report",
+            "status": "blocked",
+            "sourceSummaryJson": "captures/run/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "blocked",
+                "verdict": "route-run-blocked",
+                "aggregate": {"stepsRun": 1, "arrived": False, "lastRouteStatus": "no-progress",
+                              "totalProgressDistance": 0.0, "finalPlanarDistance": 37.5},
+                "steps": [
+                    {"stepNumber": 1, "routeStatus": "no-progress", "noProgressSubClassification": None},
+                ],
+            },
+            "contract": {"status": "blocked"},
+            "turnEvidence": [],
+            "turnForwardEvidence": [],
+            "artifacts": {"summaryJson": "captures/summary.json"},
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+        compact = compact_report(summary)
+        self.assertEqual(1, compact["noProgressStepCount"])
+        self.assertEqual({"unspecified": 1}, compact["terrainSubClassifications"])
 
 
 if __name__ == "__main__":

@@ -215,6 +215,7 @@ def route_run_step_record(step_number: int, step_summary: Mapping[str, Any]) -> 
         "finalPlanarDistance": route_result.get("finalPlanarDistance"),
         "routeStatus": route_result.get("routeStatus"),
         "stopReason": route_result.get("stopReason"),
+        "noProgressSubClassification": route_result.get("noProgressSubClassification"),
         "totalProgressDistance": route_result.get("totalProgressDistance"),
         "movementSent": safety.get("movementSent"),
         "inputSent": safety.get("inputSent"),
@@ -573,21 +574,57 @@ def build_report_markdown(summary: Mapping[str, Any]) -> str:
         "",
         "## Steps",
         "",
-        "| Step | Status | Route status | Progress | Initial distance | Final distance |",
-        "|---:|---|---|---:|---:|---:|",
+        "| Step | Status | Route status | No-progress reason | Progress | Initial distance | Final distance |",
+        "|---:|---|---|---|---:|---:|---:|",
     ]
     for step in source.get("steps", []):
         row = safe_mapping(step)
         lines.append(
-            "| {step} | `{status}` | `{route}` | `{progress}` | `{initial}` | `{final}` |".format(
+            "| {step} | `{status}` | `{route}` | {no_progress} | `{progress}` | `{initial}` | `{final}` |".format(
                 step=row.get("stepNumber"),
                 status=row.get("status"),
                 route=row.get("routeStatus"),
+                no_progress="`" + str(row.get("noProgressSubClassification")) + "`" if row.get("noProgressSubClassification") else "—",
                 progress=row.get("totalProgressDistance"),
                 initial=row.get("initialPlanarDistance"),
                 final=row.get("finalPlanarDistance"),
             )
         )
+    # Terrain summary: aggregate no-progress sub-classifications across steps
+    no_progress_steps = [
+        safe_mapping(s) for s in source.get("steps", [])
+        if safe_mapping(s).get("routeStatus") == "no-progress"
+    ]
+    if no_progress_steps:
+        sub_class_counts: dict[str, int] = {}
+        for s in no_progress_steps:
+            sub = s.get("noProgressSubClassification") or "unspecified"
+            sub_class_counts[sub] = sub_class_counts.get(sub, 0) + 1
+        lines.extend([
+            "",
+            "## Terrain classification",
+            "",
+            "| Sub-classification | Count | Meaning |",
+            "|---|---|---|",
+        ])
+        terrain_meanings = {
+            "blocked-stationary-no-movement": "Player position did not change — likely blocked by terrain or obstacle",
+            "drifted-back-after-initial-progress": "Player initially moved forward then drifted back — terrain may have redirected",
+            "insufficient-progress-below-threshold": "Player moved slightly but did not meet the minimum progress threshold",
+            "minimum-progress-not-met": "Progress below minimum threshold (no sub-classification available)",
+            "unspecified": "No-progress without sub-classification",
+        }
+        for sub, count in sorted(sub_class_counts.items()):
+            meaning = terrain_meanings.get(sub, "Unknown")
+            lines.append(f"| `{sub}` | {count} | {meaning} |")
+        lines.extend([
+            "",
+            f"**Total no-progress steps:** {len(no_progress_steps)}",
+            "",
+            "> **Operator note:** Steps classified as `blocked-stationary-no-movement` indicate terrain collision.",
+            "> Consider adjusting the waypoint destination to avoid the obstacle before rerunning.",
+            "> `drifted-back-after-initial-progress` suggests the terrain may have pushed the player off-course.",
+        ])
     if turn_evidence:
         lines.extend(
             [
@@ -1044,6 +1081,15 @@ def compact_report(summary: Mapping[str, Any]) -> dict[str, Any]:
     aggregate = safe_mapping(source.get("aggregate"))
     turn_evidence = [safe_mapping(item) for item in summary.get("turnEvidence", []) if isinstance(item, Mapping)]
     turn_forward_evidence = [safe_mapping(item) for item in summary.get("turnForwardEvidence", []) if isinstance(item, Mapping)]
+    # Terrain classification counts across source steps
+    terrain_sub_counts: dict[str, int] = {}
+    no_progress_step_count = 0
+    for step in source.get("steps", []):
+        row = safe_mapping(step)
+        if row.get("routeStatus") == "no-progress":
+            no_progress_step_count += 1
+            sub = row.get("noProgressSubClassification") or "unspecified"
+            terrain_sub_counts[sub] = terrain_sub_counts.get(sub, 0) + 1
     return {
         "status": summary.get("status"),
         "contractStatus": contract.get("status"),
@@ -1061,6 +1107,8 @@ def compact_report(summary: Mapping[str, Any]) -> dict[str, Any]:
         "turnForwardEvidenceCount": len(turn_forward_evidence),
         "turnForwardVerdicts": [item.get("verdict") for item in turn_forward_evidence],
         "turnForwardEvidenceStatuses": [item.get("contractStatus") for item in turn_forward_evidence],
+        "noProgressStepCount": no_progress_step_count,
+        "terrainSubClassifications": terrain_sub_counts,
         "summaryJson": artifacts.get("summaryJson"),
         "summaryMarkdown": artifacts.get("summaryMarkdown"),
         "blockers": summary.get("blockers", []),
