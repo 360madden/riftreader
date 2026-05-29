@@ -5,10 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import math
+
 from scripts.static_owner_facing_discovery import (
+    DEFAULT_TURN_RATE_THRESHOLD,
     build_yaw_transition_analysis,
     build_progress_analysis,
+    classify_turn_direction_from_rate,
     compare_snapshots,
+    finite_float,
     load_waypoint_destination,
     nav_state_from_owner_window,
     navigation_target_from_state,
@@ -18,9 +23,11 @@ from scripts.static_owner_facing_discovery import (
     run_progress,
     run_route,
     run_validate_route,
+    unpack_float,
     validate_route_summary_contract,
     validate_state_args,
     validate_route_args,
+    vector_from_data,
 )
 
 
@@ -674,6 +681,315 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         )
 
         self.assertTrue(any(item.startswith("coordinate-drift-during-facing-capture") for item in result["warnings"]))
+
+
+class FiniteFloatTests(unittest.TestCase):
+    """Test the finite_float filter."""
+
+    def test_finite_numbers_return_true(self) -> None:
+        self.assertTrue(finite_float(0.0))
+        self.assertTrue(finite_float(1.0))
+        self.assertTrue(finite_float(-1.0))
+        self.assertTrue(finite_float(3.14159))
+        self.assertTrue(finite_float(999_999.999))
+
+    def test_infinity_returns_false(self) -> None:
+        self.assertFalse(finite_float(float("inf")))
+        self.assertFalse(finite_float(float("-inf")))
+
+    def test_nan_returns_false(self) -> None:
+        self.assertFalse(finite_float(float("nan")))
+
+    def test_huge_values_outside_bound_return_false(self) -> None:
+        self.assertFalse(finite_float(1_000_001.0))
+        self.assertFalse(finite_float(-1_000_001.0))
+
+    def test_boundary_just_under_1m(self) -> None:
+        self.assertTrue(finite_float(999_999.999))
+        self.assertTrue(finite_float(-999_999.999))
+
+    def test_exactly_1m_returns_false(self) -> None:
+        self.assertFalse(finite_float(1_000_000.0))
+        self.assertFalse(finite_float(-1_000_000.0))
+
+
+class ClassifyTurnDirectionFromRateTests(unittest.TestCase):
+    """Test the turn-direction classifier with 0x304 turn-rate float."""
+
+    def test_none_rate_returns_unknown(self) -> None:
+        result = classify_turn_direction_from_rate(None)
+        self.assertEqual(result["direction"], "unknown")
+        self.assertIsNone(result["rate"])
+        self.assertFalse(result["turning"])
+
+    def test_infinity_returns_unknown(self) -> None:
+        result = classify_turn_direction_from_rate(float("inf"))
+        self.assertEqual(result["direction"], "unknown")
+        self.assertFalse(result["turning"])
+
+    def test_nan_returns_unknown(self) -> None:
+        result = classify_turn_direction_from_rate(float("nan"))
+        self.assertEqual(result["direction"], "unknown")
+        self.assertFalse(result["turning"])
+
+    def test_negative_infinity_returns_unknown(self) -> None:
+        result = classify_turn_direction_from_rate(float("-inf"))
+        self.assertEqual(result["direction"], "unknown")
+        self.assertFalse(result["turning"])
+
+    # --- Stationary (within ±threshold) ---
+
+    def test_zero_rate_is_stationary(self) -> None:
+        result = classify_turn_direction_from_rate(0.0)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertEqual(result["rate"], 0.0)
+        self.assertFalse(result["turning"])
+
+    def test_small_positive_within_threshold_is_stationary(self) -> None:
+        result = classify_turn_direction_from_rate(0.2)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_small_negative_within_threshold_is_stationary(self) -> None:
+        result = classify_turn_direction_from_rate(-0.2)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_exactly_at_positive_threshold_is_stationary(self) -> None:
+        # threshold is 0.35, rate > threshold → left (strictly greater)
+        result = classify_turn_direction_from_rate(0.35)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_exactly_at_negative_threshold_is_stationary(self) -> None:
+        result = classify_turn_direction_from_rate(-0.35)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_just_above_positive_threshold_is_left(self) -> None:
+        result = classify_turn_direction_from_rate(0.351)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    def test_just_below_negative_threshold_is_right(self) -> None:
+        result = classify_turn_direction_from_rate(-0.351)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    # --- Left turns ---
+
+    def test_large_positive_rate_is_left(self) -> None:
+        result = classify_turn_direction_from_rate(5.0)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    def test_very_large_positive_rate_is_left(self) -> None:
+        result = classify_turn_direction_from_rate(100.0)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    def test_huge_positive_rate_is_left(self) -> None:
+        result = classify_turn_direction_from_rate(999_999.0)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+        self.assertEqual(result["rate"], 999_999.0)
+
+    # --- Right turns ---
+
+    def test_large_negative_rate_is_right(self) -> None:
+        result = classify_turn_direction_from_rate(-5.0)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    def test_very_large_negative_rate_is_right(self) -> None:
+        result = classify_turn_direction_from_rate(-100.0)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    def test_huge_negative_rate_is_right(self) -> None:
+        result = classify_turn_direction_from_rate(-999_999.0)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+        self.assertEqual(result["rate"], -999_999.0)
+
+    # --- Four-pose triangulation regression (from production evidence) ---
+
+    def test_baseline_stationary_0_247(self) -> None:
+        """Baseline (no input): 0.247 → within default 0.35 threshold → stationary."""
+        result = classify_turn_direction_from_rate(0.247)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_turn_right_2_minus_1_18(self) -> None:
+        """Turn-right-2 (D key 500ms): -1.18 → below -0.35 → right."""
+        result = classify_turn_direction_from_rate(-1.18)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    def test_turn_left_3_plus_2_77(self) -> None:
+        """Turn-left-3 (A key 800ms): +2.77 → above +0.35 → left."""
+        result = classify_turn_direction_from_rate(2.77)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    def test_turn_left_symmetric_plus_0_61(self) -> None:
+        """Turn-left-symmetric (A key 1000ms, settling): +0.61 → above +0.35 → left."""
+        result = classify_turn_direction_from_rate(0.61)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    # --- Rate preserved in output ---
+
+    def test_rate_preserved_in_output(self) -> None:
+        result = classify_turn_direction_from_rate(-1.18)
+        self.assertAlmostEqual(result["rate"], -1.18)
+
+        result = classify_turn_direction_from_rate(2.77)
+        self.assertAlmostEqual(result["rate"], 2.77)
+
+    # --- Custom threshold ---
+
+    def test_custom_threshold_stationary(self) -> None:
+        """With a larger threshold, a modest rate can be stationary."""
+        result = classify_turn_direction_from_rate(2.0, threshold=3.0)
+        self.assertEqual(result["direction"], "stationary")
+        self.assertFalse(result["turning"])
+
+    def test_custom_threshold_above(self) -> None:
+        result = classify_turn_direction_from_rate(1.5, threshold=1.0)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+    def test_custom_threshold_below(self) -> None:
+        result = classify_turn_direction_from_rate(-1.5, threshold=1.0)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    def test_zero_threshold_all_nonzero_is_turning(self) -> None:
+        """With threshold=0, any non-zero rate is turning."""
+        result = classify_turn_direction_from_rate(0.01, threshold=0.0)
+        self.assertEqual(result["direction"], "left")
+        self.assertTrue(result["turning"])
+
+        result = classify_turn_direction_from_rate(-0.01, threshold=0.0)
+        self.assertEqual(result["direction"], "right")
+        self.assertTrue(result["turning"])
+
+    # --- Default threshold constant ---
+
+    def test_default_threshold_is_0_35(self) -> None:
+        self.assertAlmostEqual(DEFAULT_TURN_RATE_THRESHOLD, 0.35)
+
+
+class UnpackFloatTests(unittest.TestCase):
+    """Test the memory-data unpacker."""
+
+    def test_unpack_valid_float(self) -> None:
+        data = struct.pack("<f", 3.14159)
+        result = unpack_float(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result, 3.14159, places=5)
+
+    def test_unpack_negative_float(self) -> None:
+        data = struct.pack("<f", -42.5)
+        result = unpack_float(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result, -42.5)
+
+    def test_unpack_at_offset(self) -> None:
+        data = struct.pack("<ff", 1.0, 2.0)
+        result = unpack_float(data, 4)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result, 2.0)
+
+    def test_unpack_past_end_returns_none(self) -> None:
+        data = b"\x00" * 2
+        result = unpack_float(data, 0)
+        self.assertIsNone(result)
+
+    def test_unpack_nan_returns_none(self) -> None:
+        data = struct.pack("<f", float("nan"))
+        result = unpack_float(data, 0)
+        self.assertIsNone(result)
+
+    def test_unpack_inf_returns_none(self) -> None:
+        data = struct.pack("<f", float("inf"))
+        result = unpack_float(data, 0)
+        self.assertIsNone(result)
+
+
+class VectorFromDataTests(unittest.TestCase):
+    """Test the vector/unpacker."""
+
+    def test_valid_unit_vector(self) -> None:
+        data = struct.pack("<fff", 1.0, 0.0, 0.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["x"], 1.0)
+        self.assertAlmostEqual(result["y"], 0.0)
+        self.assertAlmostEqual(result["z"], 0.0)
+        self.assertAlmostEqual(result["length"], 1.0)
+        self.assertAlmostEqual(result["yawDegrees"], 0.0)
+        self.assertAlmostEqual(result["pitchDegrees"], 0.0)
+
+    def test_z_axis_vector(self) -> None:
+        data = struct.pack("<fff", 0.0, 0.0, 1.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["length"], 1.0)
+        self.assertAlmostEqual(result["yawDegrees"], 90.0)
+
+    def test_diagonal_vector(self) -> None:
+        data = struct.pack("<fff", 1.0, 0.0, 1.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["x"], 1.0)
+        self.assertAlmostEqual(result["z"], 1.0)
+        self.assertAlmostEqual(result["length"], math.sqrt(2))
+        self.assertAlmostEqual(result["yawDegrees"], 45.0)
+
+    def test_vector_with_pitch(self) -> None:
+        data = struct.pack("<fff", 1.0, 1.0, 0.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["length"], math.sqrt(2))
+        self.assertAlmostEqual(result["pitchDegrees"], 45.0, places=5)
+        self.assertAlmostEqual(result["yawDegrees"], 0.0)
+
+    def test_zero_vector_returns_none(self) -> None:
+        data = struct.pack("<fff", 0.0, 0.0, 0.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNone(result)
+
+    def test_nan_in_vector_returns_none(self) -> None:
+        data = struct.pack("<fff", float("nan"), 0.0, 1.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNone(result)
+
+    def test_inf_in_vector_returns_none(self) -> None:
+        data = struct.pack("<fff", float("inf"), 0.0, 1.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNone(result)
+
+    def test_negative_coordinates_vector(self) -> None:
+        """All-negative vector should still have positive length."""
+        data = struct.pack("<fff", -1.0, 0.0, 0.0)
+        result = vector_from_data(data, 0)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["length"], 1.0)
+        self.assertAlmostEqual(result["yawDegrees"], 180.0)
+
+    def test_offset_into_buffer(self) -> None:
+        data = struct.pack("<ffffff", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        result = vector_from_data(data, 12)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["x"], 1.0)
+        self.assertAlmostEqual(result["length"], 1.0)
+
+    def test_truncated_buffer_returns_none(self) -> None:
+        data = b"\x00" * 8
+        result = vector_from_data(data, 0)
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
