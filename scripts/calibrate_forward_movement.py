@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import subprocess
@@ -13,12 +14,26 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO_ROOT / "scripts"
-PID = "34176"
-HWND = "4003140"
 
-DURATIONS_MS = [250, 500, 750, 1000]
+DEFAULT_DURATIONS_MS = [250, 500, 750, 1000]
 SETTLE_SECONDS = 0.75
 COMMAND_TIMEOUT = 60
+
+
+def load_target(truth_path: Path) -> dict[str, str]:
+    """Load PID and HWND from current-truth.json."""
+    try:
+        data = json.loads(truth_path.read_text(encoding="utf-8"))
+        target = data.get("target") or {}
+        pid = str(target.get("processId", ""))
+        hwnd_hex = str(target.get("targetWindowHandle", ""))
+        hwnd_is_hex = hwnd_hex.startswith("0x")
+        if not pid or not hwnd_hex:
+            return {"pid": pid, "hwnd": hwnd_hex}
+        hwnd = str(int(hwnd_hex, 16)) if hwnd_is_hex else hwnd_hex
+        return {"pid": pid, "hwnd": hwnd}
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, KeyError) as exc:
+        return {"pid": "", "hwnd": "", "error": f"{type(exc).__name__}:{exc}"}
 
 
 def read_state() -> dict[str, Any]:
@@ -32,7 +47,7 @@ def read_state() -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
-def send_key(hold_ms: int) -> dict[str, Any]:
+def send_key(hold_ms: int, pid: str, hwnd: str) -> dict[str, Any]:
     ps1 = SCRIPTS / "send-rift-key-csharp.ps1"
     result = subprocess.run(
         ["pwsh", "-NoProfile", "-NoLogo", "-ExecutionPolicy", "Bypass",
@@ -40,8 +55,8 @@ def send_key(hold_ms: int) -> dict[str, Any]:
          "--key", "w",
          "--hold-ms", str(hold_ms),
          "--process-name", "rift_x64",
-         "--pid", PID,
-         "--hwnd", HWND,
+         "--pid", pid,
+         "--hwnd", hwnd,
          "--input-mode", "ScanCode",
          "--focus-delay-ms", "250",
          "--json"],
@@ -53,27 +68,21 @@ def send_key(hold_ms: int) -> dict[str, Any]:
         return {"raw": result.stdout[:200], "error": "JSON parse failed"}
 
 
-def main() -> int:
+def run_calibration(*, durations_ms: list[int], pid: str, hwnd: str) -> dict[str, Any]:
+    """Run forward movement calibration for each duration. Returns structured results."""
     results: list[dict[str, Any]] = []
     errors: list[str] = []
 
-    for i, dur_ms in enumerate(DURATIONS_MS):
-        print(f"\n=== Calibration {i+1}/{len(DURATIONS_MS)}: {dur_ms}ms forward ===")
-
+    for i, dur_ms in enumerate(durations_ms):
         # 1. Pre-state
         pre = read_state()
         pre_coord = pre.get("coordinate", {}) or {}
         pre_x = pre_coord.get("x")
         pre_z = pre_coord.get("z")
         pre_yaw = pre.get("yawDegrees")
-        print(f"  Pre:  ({pre_x:.2f}, {pre_z:.2f})  yaw={pre_yaw:.2f}°")
 
         # 2. Send W key
-        print(f"  Sending W for {dur_ms}ms...")
-        send_result = send_key(dur_ms)
-        if send_result.get("ok") is None:
-            print(f"  ⚠ Send JSON unusual: {json.dumps(send_result, default=str)[:100]}")
-        print(f"  Waiting {SETTLE_SECONDS}s settle...")
+        send_key(dur_ms, pid, hwnd)
         time.sleep(SETTLE_SECONDS)
 
         # 3. Post-state
@@ -82,7 +91,6 @@ def main() -> int:
         post_x = post_coord.get("x")
         post_z = post_coord.get("z")
         post_yaw = post.get("yawDegrees")
-        print(f"  Post: ({post_x:.2f}, {post_z:.2f})  yaw={post_yaw:.2f}°")
 
         # 4. Compute planar distance
         if None not in (pre_x, pre_z, post_x, post_z):
@@ -103,20 +111,8 @@ def main() -> int:
             "yawDelta": (float(post_yaw) - float(pre_yaw)) if pre_yaw is not None and post_yaw is not None else None,
         }
         results.append(cal)
-        speed = cal.get("speedMetersPerSecond")
-        if speed is not None:
-            print(f"  -> Planar distance: {planar:.3f}m  (speed: {speed:.2f} m/s)")
-        else:
-            print(f"  -> Planar distance: {planar:.3f}m")
 
-    # Summary
-    print("\n" + "=" * 60)
-    print("FORWARD MOVEMENT CALIBRATION SUMMARY")
-    print("=" * 60)
-    for r in results:
-        print(f"  {r['holdMs']:5d}ms → {r['planarDistance']:.3f}m  ({r['speedMetersPerSecond']:.2f} m/s)")
-
-    output = {
+    return {
         "kind": "forward-movement-calibration",
         "count": len(results),
         "results": results,
@@ -128,7 +124,46 @@ def main() -> int:
         },
     }
 
-    print(f"\n{json.dumps(output, indent=2)}")
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Calibrate forward movement: measure planar distance per W-key hold duration")
+    parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
+    parser.add_argument("--durations-ms", nargs="+", type=int, default=DEFAULT_DURATIONS_MS)
+    parser.add_argument("--output-root")
+    parser.add_argument("--json", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    truth_path = Path(str(args.current_truth_json))
+    target = load_target(truth_path)
+    pid = target.get("pid", "")
+    hwnd = target.get("hwnd", "")
+    if not pid or not hwnd:
+        print(json.dumps({"status": "failed", "error": f"target-info-not-found:{target.get('error', 'missing-pid-or-hwnd')}"}))
+        return 1
+
+    output_root = Path(str(args.output_root)).resolve() if args.output_root else REPO_ROOT / "scripts" / "captures"
+    run_dir = output_root / f"forward-movement-calibration-{time.strftime('%Y%m%d-%H%M%S-%f')}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    output = run_calibration(durations_ms=list(args.durations_ms), pid=pid, hwnd=hwnd)
+    output["generatedAtUtc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    output["summaryJson"] = str(run_dir / "summary.json")
+
+    # Write artifacts
+    summary_path = run_dir / "summary.json"
+    summary_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
+    summary_md = run_dir / "summary.md"
+    lines = ["# Forward movement calibration", "",
+             f"Generated: `{output['generatedAtUtc']}`", "",
+             "| Duration | Distance | Speed |", "|---|---|---|"]
+    for r in output.get("results", []):
+        lines.append(f"| {r['holdMs']}ms | {r['planarDistance']:.3f}m | {r['speedMetersPerSecond']:.2f} m/s |")
+    summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    print(json.dumps(output, indent=2) if not args.json else json.dumps(output))
     return 0
 
 
