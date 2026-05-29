@@ -123,7 +123,8 @@ def run_calibration(*, durations_ms: list[int], pid: str, hwnd: str) -> dict[str
 
 
 def utc_stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S") + f"-{datetime.now(UTC).microsecond // 1000:03d}"
+    now = datetime.now(UTC)
+    return now.strftime("%Y%m%d-%H%M%S") + f"-{now.microsecond // 1000:03d}"
 
 
 def utc_iso() -> str:
@@ -135,6 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
     parser.add_argument("--durations-ms", nargs="+", type=int, default=DEFAULT_DURATIONS_MS)
     parser.add_argument("--output-root")
+    parser.add_argument("--movement-approved", action="store_true",
+                        help="Required: explicitly approve sending W-key forward movement input")
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -148,6 +151,10 @@ def main(argv: list[str] | None = None) -> int:
     if not pid or not hwnd:
         print(json.dumps({"status": "failed", "error": f"target-info-not-found:{target.get('error', 'missing-pid-or-hwnd')}"}))
         return 1
+
+    if not args.movement_approved:
+        print(json.dumps({"status": "blocked", "error": "movement-approved-flag-required"}))
+        return 2
 
     output_root = Path(str(args.output_root)).resolve() if args.output_root else REPO_ROOT / "scripts" / "captures"
     run_dir = output_root / f"forward-movement-calibration-{utc_stamp()}"
