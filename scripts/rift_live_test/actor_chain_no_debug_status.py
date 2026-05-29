@@ -12,6 +12,40 @@ from .reports import write_json, write_text_atomic
 
 SCHEMA_VERSION = 1
 
+# ── Per-blocker diagnostic guidance ────────────────────────────────────────
+# Each entry maps a blocker prefix (matched via str.startswith) to a
+# human-readable diagnostic: what the blocker means and what to do about it.
+BLOCKER_DIAGNOSTICS: dict[str, dict[str, str]] = {
+    "current-proof-anchor-not-passed": {
+        "meaning": "The current ProofOnly anchor is not passing for the active target PID/HWND.",
+        "action": "Re-run proof-anchor validation against the exact live PID/HWND. If the target has restarted, reacquire a fresh proof anchor before attempting promotion.",
+    },
+    "actor-candidate-readback-not-passed": {
+        "meaning": "The actor-chain candidate readback did not return a passing best candidate.",
+        "action": "Rerun candidate readback against the current live process. Check that the candidate address is readable and the offset-corrected delta is within tolerance.",
+    },
+    "static-resolver-candidate-not-promoted": {
+        "meaning": "A static resolver candidate exists but has not been through the full promotion gate suite (displacement validation, reboot survival, API-now cross-check).",
+        "action": "Complete the promotion gate suite: displacement validation, reboot/relogin survival test, and API-now vs static-chain-now cross-check before promotion review.",
+    },
+    "no-static-resolver-promoted": {
+        "meaning": "No static resolver chain has been promoted. The actor chain remains candidate-only.",
+        "action": "Continue no-debug root discovery to find a viable static resolver candidate. Once found, run the full promotion gate suite before promotion review.",
+    },
+    "no-debug-root-lanes-exhausted": {
+        "meaning": "All no-debugger root discovery lanes have been exhausted without finding viable module/RVA hits.",
+        "action": "Broaden pointer-scan targets or request explicit approval for a single bounded debugger access-provenance step to unblock discovery.",
+    },
+    "blocked-no-debugger-access-provenance": {
+        "meaning": "The current-truth static chain status reports a debugger-access-provenance blocker. The chain cannot be promoted without debugger-backed evidence.",
+        "action": "Either resolve the debugger-access-provenance gap with a bounded x64dbg/CE session (requires explicit approval), or pursue alternative no-debug evidence lanes.",
+    },
+    "artifact-missing": {
+        "meaning": "One or more required artifact files are missing from the expected paths.",
+        "action": "Check the artifact paths listed in the blockers. Regenerate missing artifacts from the current live session or restore them from backups.",
+    },
+}
+
 
 def utc_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -175,6 +209,32 @@ def build_self_test() -> dict[str, Any]:
     return {"status": "passed" if summary["verdict"] == "candidate-only-no-debug-root-blocked" else "failed", "summary": summary}
 
 
+def _build_blocker_diagnostics(blockers: list[str]) -> list[dict[str, str]]:
+    """Build per-blocker diagnostic guidance for each active blocker."""
+    diagnostics: list[dict[str, str]] = []
+    seen_prefixes: set[str] = set()
+    for blocker in blockers:
+        matched = False
+        for prefix, diag in BLOCKER_DIAGNOSTICS.items():
+            if blocker.startswith(prefix):
+                if prefix not in seen_prefixes:
+                    diagnostics.append({
+                        "blocker": blocker,
+                        "meaning": diag["meaning"],
+                        "action": diag["action"],
+                    })
+                    seen_prefixes.add(prefix)
+                matched = True
+                break
+        if not matched:
+            diagnostics.append({
+                "blocker": blocker,
+                "meaning": "Unrecognized blocker. Review the blocker string for context.",
+                "action": "Inspect related artifacts and gates to determine the root cause.",
+            })
+    return diagnostics
+
+
 def build_summary_from_documents(
     *,
     repo_root: Path,
@@ -224,6 +284,7 @@ def build_summary_from_documents(
         verdict = "static-resolver-candidate-found-not-promoted"
     else:
         verdict = "candidate-only-no-debug-root-blocked"
+    deduped_blockers = sorted(set(blockers))
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "actor-chain-no-debug-status",
@@ -270,7 +331,8 @@ def build_summary_from_documents(
             "restartValidated": bool(static_resolver.get("restartValidated")),
             "promotionAllowed": promotion_allowed,
         },
-        "blockers": sorted(set(blockers)),
+        "blockers": deduped_blockers,
+        "blockerDiagnostics": _build_blocker_diagnostics(deduped_blockers),
         "warnings": [],
         "safety": {
             "offlineArtifactOnly": True,
@@ -398,8 +460,17 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         row = safe_mapping(scan)
         lines.append(f"| `{display_artifact_path(str(row.get('path') or ''))}` | `{row.get('scannedTargetCount')}` | `{row.get('totalHits')}` | `{row.get('moduleHitCount')}` | `{row.get('riftModuleHitCount')}` |")
     if summary.get("blockers"):
-        lines.extend(["", "## Blockers"])
-        lines.extend(f"- `{blocker}`" for blocker in summary.get("blockers") or [])
+        lines.extend(["", "## Blockers", ""])
+        for blocker in summary.get("blockers") or []:
+            lines.append(f"- `{blocker}`")
+    blocker_diags = [safe_mapping(item) for item in summary.get("blockerDiagnostics", []) if isinstance(item, Mapping)]
+    if blocker_diags:
+        lines.extend(["", "## Blocker diagnostics", ""])
+        for diag in blocker_diags:
+            lines.append(f"### `{diag.get('blocker')}`")
+            lines.append(f"- **What this means:** {diag.get('meaning')}")
+            lines.append(f"- **What to do:** {diag.get('action')}")
+            lines.append("")
     next_section = safe_mapping(summary.get("next"))
     if next_section.get("recommendedAction"):
         lines.extend([
