@@ -19,11 +19,16 @@ from scripts.static_owner_continuous_route_runner import (
     FORWARD_SPEED_M_PER_S,
     TURN_RATE_DEGREES_PER_MS,
     build_markdown,
+    build_sequence_markdown,
     compact,
     compact_plan,
+    compact_sequence_summary,
     compute_forward_hold_ms,
     compute_turn_hold_ms,
+    load_waypoint_sequence,
+    make_waypoint_args,
     run,
+    run_sequence,
     safe_mapping,
     validate_args,
 )
@@ -43,6 +48,8 @@ def _make_args(**overrides: Any) -> Any:
         "destination_label": "ne-35m",
         "destination_waypoint_json": None,
         "destination_waypoint_id": None,
+        "waypoint_sequence_json": None,
+        "waypoint_sequence_ids": None,
         "arrival_radius": DEFAULT_ARRIVAL_RADIUS,
         "alignment_threshold_degrees": DEFAULT_ALIGNMENT_THRESHOLD_DEGREES,
         "minimum_progress_distance": 0.35,
@@ -978,5 +985,471 @@ class MockedIntegrationTests(unittest.TestCase):
         self.assertTrue(any("forward-json-missing" in (w or "") for w in result.get("warnings", [])))
 
 
-if __name__ == "__main__":
-    unittest.main()
+class LoadWaypointSequenceTests(unittest.TestCase):
+    """Test loading waypoints from JSON for multi-waypoint sequencing."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name)
+        self.waypoints_file = self.root / "waypoints.json"
+        self.waypoints_file.write_text(json.dumps({
+            "schemaVersion": 1,
+            "waypoints": [
+                {"id": "wp1", "label": "Waypoint 1", "x": 100.0, "y": 50.0, "z": 200.0, "arrivalRadius": 2.5},
+                {"id": "wp2", "label": "Waypoint 2", "x": 300.0, "y": 60.0, "z": 400.0},
+                {"id": "wp3", "label": "Waypoint 3", "x": 500.0, "y": 70.0, "z": 600.0, "arrivalRadius": 1.0},
+            ],
+        }), encoding="utf-8")
+
+    def test_loads_all_waypoints_when_no_ids_specified(self) -> None:
+        result = load_waypoint_sequence(self.root, str(self.waypoints_file))
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["id"], "wp1")
+        self.assertEqual(result[0]["x"], 100.0)
+        self.assertEqual(result[0]["y"], 50.0)
+        self.assertEqual(result[0]["z"], 200.0)
+        self.assertEqual(result[0]["arrivalRadius"], 2.5)
+        self.assertEqual(result[1]["id"], "wp2")
+        self.assertIsNone(result[1]["arrivalRadius"])
+
+    def test_filters_by_specific_ids(self) -> None:
+        result = load_waypoint_sequence(self.root, str(self.waypoints_file), "wp1,wp3")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["id"], "wp1")
+        self.assertEqual(result[1]["id"], "wp3")
+
+    def test_filters_preserves_requested_order(self) -> None:
+        result = load_waypoint_sequence(self.root, str(self.waypoints_file), "wp3,wp1")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["id"], "wp3")
+        self.assertEqual(result[1]["id"], "wp1")
+
+    def test_single_id_filter(self) -> None:
+        result = load_waypoint_sequence(self.root, str(self.waypoints_file), "wp2")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "wp2")
+        self.assertEqual(result[0]["label"], "Waypoint 2")
+
+    def test_raises_on_missing_id(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            load_waypoint_sequence(self.root, str(self.waypoints_file), "wp1,wp999")
+        self.assertIn("waypoint-ids-not-found", str(ctx.exception))
+        self.assertIn("wp999", str(ctx.exception))
+
+    def test_raises_on_empty_ids_string(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            load_waypoint_sequence(self.root, str(self.waypoints_file), "")
+        self.assertIn("waypoint-sequence-ids-empty", str(ctx.exception))
+
+    def test_raises_on_missing_coordinate(self) -> None:
+        bad_file = self.root / "bad.json"
+        bad_file.write_text(json.dumps({
+            "waypoints": [
+                {"id": "wp1", "x": 100.0, "z": 200.0},  # missing y
+            ],
+        }), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            load_waypoint_sequence(self.root, str(bad_file))
+        self.assertIn("waypoint-missing-coordinate:y", str(ctx.exception))
+
+    def test_raises_on_empty_waypoints_array(self) -> None:
+        empty_file = self.root / "empty.json"
+        empty_file.write_text(json.dumps({"waypoints": []}), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            load_waypoint_sequence(self.root, str(empty_file))
+        self.assertIn("waypoint-sequence-empty", str(ctx.exception))
+
+    def test_uses_id_as_label_when_label_missing(self) -> None:
+        no_label_file = self.root / "no_label.json"
+        no_label_file.write_text(json.dumps({
+            "waypoints": [{"id": "start", "x": 0.0, "y": 0.0, "z": 0.0}],
+        }), encoding="utf-8")
+        result = load_waypoint_sequence(self.root, str(no_label_file))
+        self.assertEqual(result[0]["label"], "start")
+
+    def test_loads_from_relative_path(self) -> None:
+        result = load_waypoint_sequence(self.root, "waypoints.json")
+        self.assertEqual(len(result), 3)
+
+
+class MakeWaypointArgsTests(unittest.TestCase):
+    """Test creation of per-leg args from waypoint data."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.output_root = Path(self.temp_dir.name) / "captures"
+
+    def test_sets_coordinates_and_label(self) -> None:
+        args = _make_args()
+        waypoint = {"id": "wp1", "label": "Start", "x": 100.0, "y": 50.0, "z": 200.0, "arrivalRadius": None}
+        leg_args = make_waypoint_args(args, waypoint, 1, self.output_root)
+        self.assertEqual(leg_args.destination_x, 100.0)
+        self.assertEqual(leg_args.destination_y, 50.0)
+        self.assertEqual(leg_args.destination_z, 200.0)
+        self.assertEqual(leg_args.destination_label, "Start")
+        self.assertIsNone(leg_args.destination_waypoint_json)
+        self.assertIsNone(leg_args.destination_waypoint_id)
+
+    def test_overrides_arrival_radius(self) -> None:
+        args = _make_args()
+        waypoint = {"id": "wp1", "label": "Target", "x": 100.0, "y": 0.0, "z": 200.0, "arrivalRadius": 1.5}
+        leg_args = make_waypoint_args(args, waypoint, 1, self.output_root)
+        self.assertEqual(leg_args.arrival_radius, 1.5)
+
+    def test_preserves_default_arrival_radius(self) -> None:
+        args = _make_args()
+        waypoint = {"id": "wp1", "label": "Target", "x": 100.0, "y": 0.0, "z": 200.0, "arrivalRadius": None}
+        leg_args = make_waypoint_args(args, waypoint, 1, self.output_root)
+        self.assertEqual(leg_args.arrival_radius, DEFAULT_ARRIVAL_RADIUS)
+
+    def test_sets_per_leg_output_root(self) -> None:
+        args = _make_args()
+        waypoint = {"id": "wp1", "label": "A", "x": 0.0, "y": 0.0, "z": 0.0, "arrivalRadius": None}
+        leg_args = make_waypoint_args(args, waypoint, 2, self.output_root)
+        expected_output = str(self.output_root / "leg-02")
+        self.assertEqual(leg_args.output_root, expected_output)
+
+    def test_preserves_other_args_unchanged(self) -> None:
+        args = _make_args(max_iterations=5)
+        waypoint = {"id": "wp1", "label": "A", "x": 0.0, "y": 0.0, "z": 0.0, "arrivalRadius": None}
+        leg_args = make_waypoint_args(args, waypoint, 1, self.output_root)
+        self.assertEqual(leg_args.max_iterations, 5)
+        self.assertEqual(leg_args.turn_approved, True)
+        self.assertEqual(leg_args.movement_approved, True)
+
+
+class CompactSequenceSummaryTests(unittest.TestCase):
+    """Test sequence summary compaction."""
+
+    def test_compact_preserves_all_sequence_keys(self) -> None:
+        summary = {
+            "status": "passed",
+            "verdict": "sequence-all-waypoints-reached",
+            "kind": "static-owner-continuous-route-sequence",
+            "total": {
+                "totalLegs": 3,
+                "legsArrived": 3,
+                "legsFailed": 0,
+                "totalDurationSeconds": 120.0,
+                "totalTurnsExecuted": 4,
+                "totalForwardSteps": 6,
+                "totalProgressDistance": 150.0,
+            },
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "navigationControl": True,
+            },
+            "destinationRequest": {
+                "waypointSequenceJson": "waypoints.json",
+                "waypointSequenceIds": "wp1,wp2,wp3",
+            },
+            "artifacts": {
+                "summaryJson": "captures/sequence/summary.json",
+                "summaryMarkdown": "captures/sequence/summary.md",
+            },
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+        result = compact_sequence_summary(summary)
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "sequence-all-waypoints-reached")
+        self.assertEqual(result["totalLegs"], 3)
+        self.assertEqual(result["legsArrived"], 3)
+        self.assertEqual(result["totalTurnsExecuted"], 4)
+        self.assertEqual(result["totalForwardSteps"], 6)
+        self.assertEqual(result["totalProgressDistance"], 150.0)
+        self.assertTrue(result["movementSent"])
+
+    def test_compact_with_blocked_sequence(self) -> None:
+        summary = {
+            "status": "blocked",
+            "verdict": "sequence-blocked",
+            "kind": "static-owner-continuous-route-sequence",
+            "total": {
+                "totalLegs": 3,
+                "legsArrived": 1,
+                "legsFailed": 1,
+                "totalDurationSeconds": 45.0,
+                "totalTurnsExecuted": 2,
+                "totalForwardSteps": 3,
+                "totalProgressDistance": 50.0,
+            },
+            "safety": {"movementSent": True, "inputSent": True, "navigationControl": False},
+            "destinationRequest": {},
+            "artifacts": {},
+            "blockers": ["leg-2-forward-no-progress-3-consecutive-stuck"],
+            "warnings": ["leg-2-dry-run-only-no-input-sent"],
+            "errors": [],
+        }
+        result = compact_sequence_summary(summary)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["legsArrived"], 1)
+        self.assertEqual(result["legsFailed"], 1)
+        self.assertIn("leg-2-forward-no-progress-3-consecutive-stuck", result["blockers"])
+
+
+class BuildSequenceMarkdownTests(unittest.TestCase):
+    """Test sequence markdown builder."""
+
+    def test_full_sequence_markdown(self) -> None:
+        summary = {
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "passed",
+            "verdict": "sequence-all-waypoints-reached",
+            "waypointSequence": [
+                {"id": "wp1", "label": "Waypoint 1"},
+                {"id": "wp2", "label": "Waypoint 2"},
+            ],
+            "total": {
+                "totalLegs": 2,
+                "legsArrived": 2,
+                "legsFailed": 0,
+                "totalDurationSeconds": 65.0,
+                "totalTurnsExecuted": 3,
+                "totalForwardSteps": 5,
+                "totalProgressDistance": 100.0,
+            },
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "navigationControl": True,
+            },
+            "legs": [
+                {
+                    "status": "passed",
+                    "verdict": "route-loop-arrived",
+                    "total": {"iterationCount": 2, "turnsExecuted": 1, "forwardSteps": 2},
+                },
+                {
+                    "status": "passed",
+                    "verdict": "route-loop-arrived",
+                    "total": {"iterationCount": 3, "turnsExecuted": 2, "forwardSteps": 3},
+                },
+            ],
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+        md = build_sequence_markdown(summary)
+        self.assertIn("Static owner continuous route sequence", md)
+        self.assertIn("Status: `passed`", md)
+        self.assertIn("Total legs: `2`", md)
+        self.assertIn("Arrived: `2`", md)
+        self.assertIn("Failed: `0`", md)
+        self.assertIn("Total progress: `100.0`", md)
+        self.assertIn("### Leg 1: Waypoint 1", md)
+        self.assertIn("### Leg 2: Waypoint 2", md)
+        self.assertIn("Iterations: `2`", md)
+
+    def test_sequence_markdown_with_blockers(self) -> None:
+        summary = {
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "blocked",
+            "verdict": "sequence-blocked",
+            "waypointSequence": [{"id": "wp1", "label": "Failed Waypoint"}],
+            "total": {
+                "totalLegs": 1,
+                "legsArrived": 0,
+                "legsFailed": 1,
+                "totalDurationSeconds": 10.0,
+                "totalTurnsExecuted": 1,
+                "totalForwardSteps": 0,
+                "totalProgressDistance": 0.0,
+            },
+            "safety": {"movementSent": True, "inputSent": True, "navigationControl": False},
+            "legs": [{
+                "status": "blocked",
+                "verdict": "route-loop-blocked",
+                "total": {"iterationCount": 1, "turnsExecuted": 1, "forwardSteps": 0},
+            }],
+            "blockers": ["leg-1-forward-no-progress-3-consecutive-stuck"],
+            "warnings": [],
+            "errors": [],
+        }
+        md = build_sequence_markdown(summary)
+        self.assertIn("## Blockers", md)
+        self.assertIn("leg-1-forward-no-progress-3-consecutive-stuck", md)
+
+    def test_sequence_markdown_with_errors(self) -> None:
+        summary = {
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "failed",
+            "verdict": "sequence-error",
+            "waypointSequence": [],
+            "total": {"totalLegs": 0, "legsArrived": 0, "legsFailed": 0},
+            "safety": {},
+            "legs": [],
+            "blockers": [],
+            "warnings": [],
+            "errors": ["ValueError:waypoint-sequence-empty"],
+        }
+        md = build_sequence_markdown(summary)
+        self.assertIn("## Errors", md)
+        self.assertIn("ValueError:waypoint-sequence-empty", md)
+
+
+class MockedSequenceTests(unittest.TestCase):
+    """Test run_sequence() with mocked run() calls."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name)
+
+        # Create a waypoints file
+        self.waypoints_file = self.root / "waypoints.json"
+        self.waypoints_file.write_text(json.dumps({
+            "waypoints": [
+                {"id": "wp1", "label": "First", "x": 100.0, "y": 50.0, "z": 200.0, "arrivalRadius": 2.0},
+                {"id": "wp2", "label": "Second", "x": 300.0, "y": 60.0, "z": 400.0},
+            ],
+        }), encoding="utf-8")
+
+    def test_two_waypoint_sequence_both_arrived(self) -> None:
+        """Both waypoints reached — status is passed."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        # Mock run() to return passed for both legs
+        def mock_run_pass(args: Any) -> dict[str, Any]:
+            return {
+                "status": "passed",
+                "verdict": "route-loop-arrived",
+                "total": {
+                    "iterationCount": 2,
+                    "turnsExecuted": 1,
+                    "forwardSteps": 2,
+                    "totalProgressDistance": 35.0,
+                },
+                "safety": {
+                    "movementSent": True,
+                    "inputSent": True,
+                    "navigationControl": True,
+                },
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+            }
+
+        args = _make_args(
+            waypoint_sequence_json=str(self.waypoints_file),
+            waypoint_sequence_ids="wp1,wp2",
+            repo_root=str(self.root),
+            output_root=str(self.root / "out"),
+        )
+
+        with mock.patch.object(route_runner, "run", side_effect=mock_run_pass):
+            result = route_runner.run_sequence(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "sequence-all-waypoints-reached")
+        self.assertEqual(result["total"]["totalLegs"], 2)
+        self.assertEqual(result["total"]["legsArrived"], 2)
+        self.assertEqual(result["total"]["legsFailed"], 0)
+        self.assertEqual(result["total"]["totalTurnsExecuted"], 2)  # 1 per leg
+        self.assertEqual(result["total"]["totalForwardSteps"], 4)  # 2 per leg
+        self.assertEqual(result["total"]["totalProgressDistance"], 70.0)  # 35 per leg
+        self.assertEqual(len(result["legs"]), 2)
+        self.assertEqual(len(result["waypointSequence"]), 2)
+
+    def test_first_leg_fails_sequence_stops(self) -> None:
+        """If first waypoint fails, sequence stops and does not attempt second."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        call_count: list[int] = [0]
+
+        def mock_run_fail_first(args: Any) -> dict[str, Any]:
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return {
+                    "status": "blocked",
+                    "verdict": "route-loop-blocked",
+                    "total": {"iterationCount": 1, "turnsExecuted": 1, "forwardSteps": 0, "totalProgressDistance": 0.0},
+                    "safety": {"movementSent": True, "inputSent": True, "navigationControl": False},
+                    "blockers": ["forward-no-progress-3-consecutive-stuck"],
+                    "warnings": [],
+                    "errors": [],
+                }
+            return {
+                "status": "passed",
+                "verdict": "route-loop-arrived",
+                "total": {"iterationCount": 2, "turnsExecuted": 1, "forwardSteps": 2, "totalProgressDistance": 30.0},
+                "safety": {"movementSent": True, "inputSent": True, "navigationControl": True},
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+            }
+
+        args = _make_args(
+            waypoint_sequence_json=str(self.waypoints_file),
+            waypoint_sequence_ids="wp1,wp2",
+            repo_root=str(self.root),
+            output_root=str(self.root / "out"),
+        )
+
+        with mock.patch.object(route_runner, "run", side_effect=mock_run_fail_first):
+            result = route_runner.run_sequence(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["verdict"], "sequence-blocked")
+        self.assertEqual(result["total"]["legsArrived"], 0)
+        self.assertEqual(result["total"]["legsFailed"], 1)
+        self.assertIn("leg-1-forward-no-progress-3-consecutive-stuck", result["blockers"])
+        # run() should only have been called once (second leg never attempted)
+        self.assertEqual(call_count[0], 1)
+
+    def test_single_waypoint_sequence(self) -> None:
+        """Single waypoint should work as a degenerate case."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        def mock_run_single(args: Any) -> dict[str, Any]:
+            return {
+                "status": "passed",
+                "verdict": "route-loop-arrived",
+                "total": {"iterationCount": 1, "turnsExecuted": 0, "forwardSteps": 1, "totalProgressDistance": 5.0},
+                "safety": {"movementSent": True, "inputSent": True, "navigationControl": True},
+                "blockers": [],
+                "warnings": [],
+                "errors": [],
+            }
+
+        single_file = self.root / "single.json"
+        single_file.write_text(json.dumps({
+            "waypoints": [{"id": "only", "label": "Only WP", "x": 10.0, "y": 0.0, "z": 20.0}],
+        }), encoding="utf-8")
+
+        args = _make_args(
+            waypoint_sequence_json=str(single_file),
+            waypoint_sequence_ids=None,
+            repo_root=str(self.root),
+            output_root=str(self.root / "out"),
+        )
+
+        with mock.patch.object(route_runner, "run", side_effect=mock_run_single):
+            result = route_runner.run_sequence(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "sequence-all-waypoints-reached")
+        self.assertEqual(result["total"]["totalLegs"], 1)
+        self.assertEqual(result["total"]["legsArrived"], 1)
+        self.assertEqual(len(result["legs"]), 1)
+
+    def test_load_error_propagates_to_summary(self) -> None:
+        """If waypoint file is malformed, sequence returns failed."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        args = _make_args(
+            waypoint_sequence_json=str(self.root / "nonexistent.json"),
+            repo_root=str(self.root),
+            output_root=str(self.root / "out"),
+        )
+
+        result = route_runner.run_sequence(args)
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["verdict"], "sequence-error")
+        self.assertTrue(any("FileNotFoundError" in (e or "") for e in result.get("errors", [])))
+

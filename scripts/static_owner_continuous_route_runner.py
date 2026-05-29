@@ -17,6 +17,7 @@ Calibrated controllers (from sweep data):
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import subprocess
@@ -55,6 +56,7 @@ DEFAULT_TURN_SETTLE_SECONDS = 1.0
 DEFAULT_FORWARD_SETTLE_SECONDS = 0.75
 DEFAULT_SAMPLES = 3
 DEFAULT_INTERVAL_SECONDS = 0.1
+DEFAULT_WAYPOINT_SEQUENCE_TIMEOUT = 3600
 
 
 def utc_iso() -> str:
@@ -320,9 +322,308 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turn-approved", action="store_true", help="Required: approve sending turn key input")
     parser.add_argument("--movement-approved", action="store_true", help="Required: approve sending forward movement input")
     parser.add_argument("--allow-candidate-turn-control", action="store_true", help="Required: approve candidate yaw turning")
+    parser.add_argument("--waypoint-sequence-json", help="JSON file with waypoint array for multi-waypoint sequencing")
+    parser.add_argument("--waypoint-sequence-ids", help="Comma-separated waypoint IDs to visit (omit for all in file)")
     parser.add_argument("--dry-run", action="store_true", help="Read-only: plan only, no input sent")
     parser.add_argument("--json", action="store_true")
     return parser
+
+
+def load_waypoint_sequence(
+    root: Path,
+    sequence_json: str,
+    sequence_ids: str | None = None,
+) -> list[dict[str, Any]]:
+    """Load waypoints from a JSON file, optionally filtered by comma-separated IDs."""
+    path = Path(sequence_json)
+    if not path.is_absolute():
+        path = root / path
+    data = load_json_object(path)
+    waypoints = data.get("waypoints")
+    if not isinstance(waypoints, list):
+        raise ValueError("waypoint-sequence-missing-waypoints-array")
+    if not waypoints:
+        raise ValueError("waypoint-sequence-empty")
+    if sequence_ids is not None:
+        id_order = [s.strip() for s in sequence_ids.split(",") if s.strip()]
+        if not id_order:
+            raise ValueError("waypoint-sequence-ids-empty")
+        id_map: dict[str, Any] = {}
+        for w in waypoints:
+            if isinstance(w, Mapping):
+                wid = str(w.get("id", ""))
+                if wid:
+                    id_map[wid] = w
+        missing = [wid for wid in id_order if wid not in id_map]
+        if missing:
+            raise ValueError(f"waypoint-ids-not-found:{','.join(missing)}")
+        waypoints = [id_map[wid] for wid in id_order]
+    result: list[dict[str, Any]] = []
+    for w in waypoints:
+        if not isinstance(w, Mapping):
+            raise ValueError("waypoint-item-must-be-object")
+        missing_axes = [axis for axis in ("x", "y", "z") if w.get(axis) is None]
+        if missing_axes:
+            raise ValueError(f"waypoint-missing-coordinate:{','.join(missing_axes)}")
+        result.append({
+            "id": str(w.get("id", "") or ""),
+            "label": str(w.get("label") or w.get("id") or "waypoint"),
+            "x": float(w["x"]),
+            "y": float(w["y"]),
+            "z": float(w["z"]),
+            "arrivalRadius": None if w.get("arrivalRadius") is None else float(w["arrivalRadius"]),
+        })
+    return result
+
+
+def make_waypoint_args(args: argparse.Namespace, waypoint: Mapping[str, Any], leg_index: int, output_root: Path) -> argparse.Namespace:
+    """Create a new args Namespace for a single waypoint leg."""
+    d = vars(args).copy()
+    d.update({
+        "destination_x": float(waypoint["x"]),
+        "destination_y": float(waypoint["y"]),
+        "destination_z": float(waypoint["z"]),
+        "destination_label": str(waypoint.get("label") or waypoint.get("id") or f"waypoint-{leg_index}"),
+        "destination_waypoint_json": None,
+        "destination_waypoint_id": None,
+        "output_root": str(output_root / f"leg-{leg_index:02d}"),
+    })
+    if waypoint.get("arrivalRadius") is not None:
+        d["arrival_radius"] = float(waypoint["arrivalRadius"])
+    return argparse.Namespace(**d)
+
+
+def compact_sequence_summary(summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Compact a multi-waypoint sequence summary."""
+    total = safe_mapping(summary.get("total"))
+    safety = safe_mapping(summary.get("safety"))
+    artifacts = safe_mapping(summary.get("artifacts"))
+    destination_request = safe_mapping(summary.get("destinationRequest"))
+    return {
+        "status": summary.get("status"),
+        "verdict": summary.get("verdict"),
+        "kind": summary.get("kind"),
+        "totalLegs": total.get("totalLegs"),
+        "legsArrived": total.get("legsArrived"),
+        "legsFailed": total.get("legsFailed"),
+        "totalDurationSeconds": total.get("totalDurationSeconds"),
+        "totalTurnsExecuted": total.get("totalTurnsExecuted"),
+        "totalForwardSteps": total.get("totalForwardSteps"),
+        "totalProgressDistance": total.get("totalProgressDistance"),
+        "movementSent": safety.get("movementSent"),
+        "inputSent": safety.get("inputSent"),
+        "destinationRequest": destination_request,
+        "summaryJson": artifacts.get("summaryJson"),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "blockers": summary.get("blockers", []),
+        "warnings": summary.get("warnings", []),
+        "errors": summary.get("errors", []),
+    }
+
+
+def build_sequence_markdown(summary: Mapping[str, Any]) -> str:
+    """Build markdown for a multi-waypoint sequence summary."""
+    total = safe_mapping(summary.get("total"))
+    safety = safe_mapping(summary.get("safety"))
+    legs = summary.get("legs", []) if isinstance(summary.get("legs"), list) else []
+    waypoints = summary.get("waypointSequence", [])
+    errors = summary.get("errors", [])
+    blockers = summary.get("blockers", [])
+    warnings = summary.get("warnings", [])
+
+    lines: list[str] = [
+        "# Static owner continuous route sequence",
+        "",
+        f"Generated: `{summary.get('generatedAtUtc')}`",
+        f"Status: `{summary.get('status')}`",
+        f"Verdict: `{summary.get('verdict')}`",
+        "",
+        "## Waypoint sequence",
+        "",
+        f"Total legs: `{total.get('totalLegs')}`",
+        f"Arrived: `{total.get('legsArrived')}`",
+        f"Failed: `{total.get('legsFailed')}`",
+        "",
+        "## Totals",
+        "",
+        f"- Total time: `{total.get('totalDurationSeconds')}`",
+        f"- Total turns: `{total.get('totalTurnsExecuted')}`",
+        f"- Total forward steps: `{total.get('totalForwardSteps')}`",
+        f"- Total progress: `{total.get('totalProgressDistance')}`",
+        "",
+        "## Safety",
+        "",
+        f"- Movement sent: `{safety.get('movementSent')}`",
+        f"- Input sent: `{safety.get('inputSent')}`",
+        f"- Navigation control: `{safety.get('navigationControl')}`",
+        "",
+        "## Legs",
+        "",
+    ]
+
+    for i, leg in enumerate(legs):
+        leg_safe = safe_mapping(leg)
+        waypoint = waypoints[i] if i < len(waypoints) else {}
+        wp_label = waypoint.get("label", f"leg-{i}") if isinstance(waypoint, Mapping) else f"leg-{i}"
+        leg_total = safe_mapping(leg_safe.get("total"))
+        lines.append(f"### Leg {i + 1}: {wp_label}")
+        lines.append(f"- Status: `{leg_safe.get('status')}`")
+        lines.append(f"- Verdict: `{leg_safe.get('verdict')}`")
+        lines.append(f"- Iterations: `{leg_total.get('iterationCount')}`")
+        lines.append(f"- Turns: `{leg_total.get('turnsExecuted')}`")
+        lines.append(f"- Forward steps: `{leg_total.get('forwardSteps')}`")
+        lines.append("")
+
+    if blockers:
+        lines.extend(["## Blockers", ""])
+        lines.extend(f"- `{item}`" for item in blockers)
+    if warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in warnings)
+    if errors:
+        lines.extend(["", "## Errors", ""])
+        lines.extend(f"- `{item}`" for item in errors)
+    return "\n".join(lines) + "\n"
+
+
+def run_sequence(args: argparse.Namespace) -> dict[str, Any]:
+    """Run a multi-waypoint route sequence, navigating to each waypoint in order.
+
+    Each leg reuses the single-destination run() function with per-waypoint args.
+    The sequence advances to the next waypoint upon arrival and stops on any failure.
+    """
+    root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
+    output_root = Path(args.output_root).resolve() if args.output_root else root / "scripts" / "captures"
+    run_dir = output_root / f"static-owner-continuous-route-sequence-{utc_stamp()}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    operator = {
+        "dryRun": bool(args.dry_run),
+        "movementApproved": bool(args.movement_approved),
+        "turnApproved": bool(args.turn_approved),
+        "allowCandidateTurnControl": bool(args.allow_candidate_turn_control),
+        "maxIterations": int(args.max_iterations),
+        "maxTotalSeconds": float(args.max_total_seconds),
+    }
+    safety = base_safety()
+    safety["facingPromotion"] = False
+    safety["navigationControl"] = False
+
+    # Initialize summary with safe defaults before try block so the except
+    # handler can safely access blockers/warnings/errors fields
+    sequence_summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-continuous-route-sequence",
+        "generatedAtUtc": utc_iso(),
+        "status": "pending",
+        "verdict": None,
+        "repoRoot": str(root),
+        "destinationRequest": {
+            "waypointSequenceJson": args.waypoint_sequence_json,
+            "waypointSequenceIds": args.waypoint_sequence_ids,
+            "arrivalRadius": float(args.arrival_radius),
+            "alignmentThresholdDegrees": float(args.alignment_threshold_degrees),
+        },
+        "operator": operator,
+        "waypointSequence": [],
+        "legs": [],
+        "total": {
+            "totalLegs": 0,
+            "legsArrived": 0,
+            "legsFailed": 0,
+            "totalDurationSeconds": 0.0,
+            "totalTurnsExecuted": 0,
+            "totalForwardSteps": 0,
+            "totalProgressDistance": 0.0,
+        },
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": safety,
+        "artifacts": {
+            "runDirectory": str(run_dir),
+            "summaryJson": str(run_dir / "summary.json"),
+            "summaryMarkdown": str(run_dir / "summary.md"),
+        },
+    }
+
+    started = time.perf_counter()
+    try:
+        waypoints = load_waypoint_sequence(root, args.waypoint_sequence_json, args.waypoint_sequence_ids)
+        sequence_summary["waypointSequence"] = waypoints
+        sequence_summary["total"]["totalLegs"] = len(waypoints)
+
+        for i, waypoint in enumerate(waypoints):
+            leg_args = make_waypoint_args(args, waypoint, i + 1, run_dir)
+            leg_result = run(leg_args)
+            sequence_summary["legs"].append(leg_result)
+
+            if leg_result.get("status") == "passed":
+                sequence_summary["total"]["legsArrived"] += 1
+            else:
+                sequence_summary["total"]["legsFailed"] += 1
+                if leg_result.get("blockers"):
+                    sequence_summary["blockers"].extend(
+                        f"leg-{i + 1}-{blocker}" for blocker in leg_result.get("blockers", [])
+                    )
+                if leg_result.get("warnings"):
+                    sequence_summary["warnings"].extend(
+                        f"leg-{i + 1}-{w}" for w in leg_result.get("warnings", [])
+                    )
+                if leg_result.get("errors"):
+                    sequence_summary["errors"].extend(
+                        f"leg-{i + 1}-{err}" for err in leg_result.get("errors", [])
+                    )
+                # Stop on first failure — don't attempt remaining waypoints
+                break
+
+            # Check sequence-level timeout between legs
+            elapsed = time.perf_counter() - started
+            if elapsed > DEFAULT_WAYPOINT_SEQUENCE_TIMEOUT:
+                sequence_summary["blockers"].append(f"sequence-timeout-after-leg-{i + 1}")
+                break
+
+        # Aggregate totals
+        legs_arrived = sequence_summary["total"]["legsArrived"]
+        sequence_summary["total"]["totalDurationSeconds"] = time.perf_counter() - started
+        for leg in sequence_summary["legs"]:
+            leg_safe = safe_mapping(leg)
+            leg_total = safe_mapping(leg_safe.get("total"))
+            sequence_summary["total"]["totalTurnsExecuted"] += int(leg_total.get("turnsExecuted") or 0)
+            sequence_summary["total"]["totalForwardSteps"] += int(leg_total.get("forwardSteps") or 0)
+            sequence_summary["total"]["totalProgressDistance"] += float(leg_total.get("totalProgressDistance") or 0)
+            leg_safety = safe_mapping(leg_safe.get("safety"))
+            if leg_safety.get("movementSent"):
+                safety["movementSent"] = True
+            if leg_safety.get("inputSent"):
+                safety["inputSent"] = True
+            if leg_safety.get("navigationControl"):
+                safety["navigationControl"] = True
+
+        # Determine final status
+        total_legs = len(waypoints)
+        if legs_arrived == total_legs:
+            sequence_summary["status"] = "passed"
+            sequence_summary["verdict"] = "sequence-all-waypoints-reached"
+        elif sequence_summary.get("blockers"):
+            sequence_summary["status"] = "blocked"
+            sequence_summary["verdict"] = "sequence-blocked"
+        else:
+            sequence_summary["status"] = "blocked"
+            sequence_summary["verdict"] = "sequence-incomplete"
+            sequence_summary["blockers"].append(
+                f"sequence-incomplete-{legs_arrived}-of-{total_legs}-waypoints-reached"
+            )
+
+    except Exception as exc:  # noqa: BLE001
+        sequence_summary["status"] = "failed"
+        sequence_summary["verdict"] = "sequence-error"
+        sequence_summary["errors"].append(f"{type(exc).__name__}:{exc}")
+
+    sequence_summary["blockers"] = sorted(set(sequence_summary["blockers"]))
+    sequence_summary["warnings"] = sorted(set(sequence_summary["warnings"]))
+    sequence_summary["errors"] = sorted(set(sequence_summary["errors"]))
+    return sequence_summary
 
 
 def build_markdown(summary: Mapping[str, Any]) -> str:
@@ -767,11 +1068,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    summary = run(args)
-    artifacts = safe_mapping(summary.get("artifacts"))
-    write_json(Path(str(artifacts["summaryJson"])), summary)
-    Path(str(artifacts["summaryMarkdown"])).write_text(build_markdown(summary), encoding="utf-8")
-    print(json.dumps(compact(summary)) if args.json else json.dumps(compact(summary), indent=2))
+    if args.waypoint_sequence_json:
+        summary = run_sequence(args)
+        artifacts = safe_mapping(summary.get("artifacts"))
+        write_json(Path(str(artifacts["summaryJson"])), summary)
+        Path(str(artifacts["summaryMarkdown"])).write_text(build_sequence_markdown(summary), encoding="utf-8")
+        print(json.dumps(compact_sequence_summary(summary)) if args.json else json.dumps(compact_sequence_summary(summary), indent=2))
+    else:
+        summary = run(args)
+        artifacts = safe_mapping(summary.get("artifacts"))
+        write_json(Path(str(artifacts["summaryJson"])), summary)
+        Path(str(artifacts["summaryMarkdown"])).write_text(build_markdown(summary), encoding="utf-8")
+        print(json.dumps(compact(summary)) if args.json else json.dumps(compact(summary), indent=2))
     return 0 if summary.get("status") == "passed" else 2 if summary.get("status") == "blocked" else 1
 
 
