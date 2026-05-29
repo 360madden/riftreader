@@ -733,6 +733,214 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("actor-chain-candidate-only", packet["blockers"])
         self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
 
+    def _write_route_run_report(self, root: Path, *, terrain_blocked: bool = False, no_progress_count: int = 0, arrived: bool = True, steps_run: int = 2) -> None:
+        """Write a route-run report fixture with configurable terrain evidence."""
+        report_dir = root / "scripts" / "captures" / "2026-05-29" / "static-owner-nav-route-run-report" / "test"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        steps: list[dict[str, Any]] = []
+        for i in range(1, steps_run + 1):
+            is_last = i == steps_run
+            if is_last and arrived:
+                steps.append({
+                    "stepNumber": i, "status": "passed",
+                    "verdict": "route-step-live-movement-progress-validated",
+                    "routeStatus": "arrived", "stopReason": "within-arrival-radius",
+                })
+            elif terrain_blocked and i <= no_progress_count:
+                steps.append({
+                    "stepNumber": i, "status": "blocked",
+                    "verdict": "route-step-blocked", "routeStatus": "no-progress",
+                    "stopReason": "no-progress",
+                    "noProgressSubClassification": "blocked-stationary-no-movement",
+                })
+            elif no_progress_count > 0 and i <= no_progress_count:
+                steps.append({
+                    "stepNumber": i, "status": "blocked",
+                    "verdict": "route-step-blocked", "routeStatus": "no-progress",
+                    "stopReason": "no-progress",
+                    "noProgressSubClassification": "insufficient-progress-below-threshold",
+                })
+            else:
+                steps.append({
+                    "stepNumber": i, "status": "passed",
+                    "verdict": "route-step-live-movement-progress-validated",
+                    "routeStatus": "progress", "stopReason": "distance-decreased",
+                })
+        report = {
+            "schemaVersion": 1,
+            "kind": "static-owner-nav-route-run-report",
+            "generatedAtUtc": "2026-05-29T00:00:00Z",
+            "status": "passed" if arrived else "blocked",
+            "sourceSummaryJson": "fixture/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "passed" if arrived else "blocked",
+                "verdict": "route-run-arrived" if arrived else "route-run-blocked",
+                "aggregate": {
+                    "stepsRun": steps_run, "arrived": arrived,
+                    "lastRouteStatus": "arrived" if arrived else "no-progress",
+                },
+                "steps": steps,
+            },
+            "contract": {"status": "passed" if arrived else "blocked", "stepsRun": steps_run, "arrived": arrived},
+        }
+        report_path = report_dir / "summary.json"
+        write_json(report_path, report)
+
+    def test_route_run_report_terrain_missing_when_no_captures_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_empty_repo(root)
+
+            terrain = decision_packet._summarize_latest_route_run_report_terrain(root)
+
+        self.assertEqual(terrain["status"], "route-run-report-missing")
+        self.assertFalse(terrain["capturesDirectoryExists"])
+
+    def test_route_run_report_terrain_missing_when_no_report_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            (root / "scripts" / "captures").mkdir(parents=True, exist_ok=True)
+            write_json(root / "scripts" / "captures" / "other" / "summary.json", {"kind": "not-a-route-run-report"})
+
+            terrain = decision_packet._summarize_latest_route_run_report_terrain(root)
+
+        self.assertEqual(terrain["status"], "route-run-report-missing")
+        self.assertTrue(terrain["capturesDirectoryExists"])
+        self.assertEqual(terrain["candidateCount"], 0)
+
+    def test_route_run_report_terrain_found_with_clean_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, arrived=True, steps_run=2)
+
+            terrain = decision_packet._summarize_latest_route_run_report_terrain(root)
+
+        self.assertEqual(terrain["status"], "route-run-report-found")
+        self.assertTrue(terrain["arrived"])
+        self.assertEqual(terrain["stepsRun"], 2)
+        self.assertEqual(terrain["noProgressStepCount"], 0)
+        self.assertEqual(terrain["terrainSubClassifications"], {})
+        self.assertFalse(terrain["terrainBlockerPresent"])
+
+    def test_route_run_report_terrain_found_with_blocked_stationary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=1, arrived=False, steps_run=2)
+
+            terrain = decision_packet._summarize_latest_route_run_report_terrain(root)
+
+        self.assertEqual(terrain["status"], "route-run-report-found")
+        self.assertFalse(terrain["arrived"])
+        self.assertEqual(terrain["noProgressStepCount"], 1)
+        self.assertEqual(terrain["terrainSubClassifications"], {"blocked-stationary-no-movement": 1})
+        self.assertTrue(terrain["terrainBlockerPresent"])
+
+    def test_route_run_report_terrain_count_aggregates_multiple_no_progress_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=2, arrived=False, steps_run=3)
+
+            terrain = decision_packet._summarize_latest_route_run_report_terrain(root)
+
+        self.assertEqual(terrain["noProgressStepCount"], 2)
+        self.assertEqual(terrain["terrainSubClassifications"], {"blocked-stationary-no-movement": 2})
+        self.assertTrue(terrain["terrainBlockerPresent"])
+
+    def test_decision_packet_includes_navigation_terrain_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=1, arrived=False, steps_run=2)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertIn("navigationTerrain", packet)
+        terrain = packet["navigationTerrain"]
+        self.assertEqual(terrain["status"], "route-run-report-found")
+        self.assertTrue(terrain["terrainBlockerPresent"])
+        self.assertEqual(terrain["noProgressStepCount"], 1)
+        self.assertEqual(terrain["terrainSubClassifications"], {"blocked-stationary-no-movement": 1})
+
+    def test_decision_packet_surfaces_terrain_blocker_as_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=1, arrived=False, steps_run=2)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        terrain_warnings = [w for w in packet["warnings"] if w.startswith("navigation-terrain-blocked-stationary")]
+        self.assertEqual(len(terrain_warnings), 1)
+        self.assertIn("count=1", terrain_warnings[0])
+        self.assertIn("check navigation resume status for terrain scouting guidance", terrain_warnings[0])
+
+    def test_decision_packet_surfaces_no_progress_counts_as_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=False, no_progress_count=2, arrived=False, steps_run=3)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        terrain_warnings = [w for w in packet["warnings"] if w.startswith("navigation-terrain-no-progress-steps")]
+        self.assertEqual(len(terrain_warnings), 1)
+        self.assertIn("count=2", terrain_warnings[0])
+
+    def test_decision_packet_no_terrain_warning_without_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        terrain_warnings = [w for w in packet["warnings"] if w.startswith("navigation-terrain-")]
+        self.assertEqual(terrain_warnings, [])
+        self.assertEqual(packet["navigationTerrain"]["status"], "route-run-report-missing")
+
+    def test_compact_packet_includes_terrain_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=1, arrived=False, steps_run=2)
+
+            packet = decision_packet.build_decision_packet(root)
+            compact = decision_packet.compact_decision_packet(packet)
+
+        self.assertIn("navigationTerrain", compact)
+        terrain = compact["navigationTerrain"]
+        self.assertEqual(terrain["status"], "route-run-report-found")
+        self.assertTrue(terrain["terrainBlockerPresent"])
+        self.assertEqual(terrain["noProgressStepCount"], 1)
+
+    def test_markdown_includes_terrain_context_when_report_found(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            self._write_route_run_report(root, terrain_blocked=True, no_progress_count=1, arrived=False, steps_run=2)
+
+            packet = decision_packet.build_decision_packet(root)
+            markdown = decision_packet.build_markdown(packet)
+
+        self.assertIn("## Navigation terrain context (from latest route-run report)", markdown)
+        self.assertIn("`blocked-stationary-no-movement`", markdown)
+        self.assertIn("Terrain blocker detected", markdown)
+
+    def test_markdown_reports_missing_terrain_context_gracefully(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+
+            packet = decision_packet.build_decision_packet(root)
+            markdown = decision_packet.build_markdown(packet)
+
+        self.assertIn("## Navigation terrain context", markdown)
+        self.assertIn("No route-run report available for terrain context", markdown)
+
     def test_full_packet_schema_preserves_required_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -755,6 +963,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "targetEpoch",
                 "truth",
                 "toolCatalog",
+                "navigationTerrain",
                 "retiredSurfaces",
                 "allowedActions",
                 "forbiddenActions",
@@ -1183,6 +1392,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "commitPlan",
                 "agentPlan",
                 "toolCatalog",
+                "navigationTerrain",
                 "retiredSurfaces",
                 "blockers",
                 "warnings",

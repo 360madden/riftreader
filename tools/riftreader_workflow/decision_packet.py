@@ -310,6 +310,74 @@ def collect_git(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def _summarize_latest_route_run_report_terrain(repo_root: Path) -> dict[str, Any]:
+    """Read the latest route-run report and extract terrain classification evidence.
+
+    Searches scripts/captures/ for summary.json files whose path contains
+    'static-owner-nav-route-run-report'. Extracts terrain sub-classification
+    counts from step records so the decision packet can surface terrain risk
+    context for the operator.
+    """
+    capture_root = repo_root / "scripts" / "captures"
+    if not capture_root.exists():
+        return {"status": "route-run-report-missing", "capturesDirectoryExists": False}
+
+    candidates: list[Path] = []
+    for path in capture_root.rglob("summary.json"):
+        if not path.is_file():
+            continue
+        if "static-owner-nav-route-run-report" not in str(path).lower():
+            continue
+        candidates.append(path)
+
+    if not candidates:
+        return {"status": "route-run-report-missing", "capturesDirectoryExists": True, "candidateCount": 0}
+
+    latest = max(candidates, key=lambda p: p.stat().st_mtime)
+    data, error = try_load_json_object(latest)
+    if error is not None or data is None:
+        return {
+            "status": "route-run-report-parse-error",
+            "path": repo_rel(repo_root, latest),
+            "error": error or "empty-or-null-object",
+        }
+
+    source = safe_mapping(data.get("source"))
+    contract = safe_mapping(data.get("contract"))
+    steps = safe_list(source.get("steps"))
+    aggregate = safe_mapping(source.get("aggregate"))
+
+    terrain_sub_classifications: dict[str, int] = {}
+    no_progress_step_count = 0
+    terrain_blocker_present = False
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if step.get("routeStatus") == "no-progress":
+            no_progress_step_count += 1
+            sub = step.get("noProgressSubClassification") or "unspecified"
+            if isinstance(sub, str):
+                terrain_sub_classifications[sub] = terrain_sub_classifications.get(sub, 0) + 1
+                if sub == "blocked-stationary-no-movement":
+                    terrain_blocker_present = True
+
+    return {
+        "status": "route-run-report-found",
+        "path": repo_rel(repo_root, latest),
+        "sourceKind": source.get("kind"),
+        "sourceVerdict": source.get("verdict"),
+        "sourceStatus": source.get("status"),
+        "contractStatus": contract.get("status"),
+        "stepsRun": aggregate.get("stepsRun") or contract.get("stepsRun"),
+        "arrived": aggregate.get("arrived") or contract.get("arrived"),
+        "noProgressStepCount": no_progress_step_count,
+        "terrainSubClassifications": terrain_sub_classifications,
+        "terrainBlockerPresent": terrain_blocker_present,
+        "generatedAtUtc": data.get("generatedAtUtc"),
+    }
+
+
 def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | None) -> dict[str, Any]:
     truth = safe_mapping(truth)
     proof = safe_mapping(proof)
@@ -1100,6 +1168,20 @@ def build_decision_packet(
             "proofUseAllowed": False,
         }
     truth_summary = summarize_truth(truth, proof, now=now)
+    navigation_terrain = _summarize_latest_route_run_report_terrain(repo_root)
+    terrain_classifications = navigation_terrain.get("terrainSubClassifications") or {}
+    if navigation_terrain.get("terrainBlockerPresent"):
+        terrain_count = terrain_classifications.get("blocked-stationary-no-movement", 0)
+        warnings.append(
+            f"navigation-terrain-blocked-stationary:count={terrain_count} — "
+            "prior route-run recorded stationary (zero-movement) forward pulses; "
+            "check navigation resume status for terrain scouting guidance"
+        )
+    if navigation_terrain.get("noProgressStepCount", 0) > 0:
+        warnings.append(
+            f"navigation-terrain-no-progress-steps:count={navigation_terrain.get('noProgressStepCount')} — "
+            "prior route-run had no-progress steps; check terrain classification for details"
+        )
     tool_catalog_summary = build_decision_packet_tool_catalog(repo_root)
     warnings.extend(f"tool-catalog:{item}" for item in safe_list(tool_catalog_summary.get("warnings")))
     lane = classify_lane(git_state, target_epoch, truth_summary)
@@ -1137,6 +1219,7 @@ def build_decision_packet(
         "targetEpoch": target_epoch,
         "truth": truth_summary,
         "toolCatalog": tool_catalog_summary,
+        "navigationTerrain": navigation_terrain,
         "retiredSurfaces": retired_guardrail,
         "allowedActions": list(ALLOWED_ACTIONS),
         "forbiddenActions": list(FORBIDDEN_ACTIONS),
@@ -1216,6 +1299,11 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "blockers": safe_mapping(packet.get("targetEpoch")).get("blockers"),
         },
         "safeNextAction": packet.get("safeNextAction"),
+        "navigationTerrain": {
+            "status": safe_mapping(packet.get("navigationTerrain")).get("status"),
+            "terrainBlockerPresent": safe_mapping(packet.get("navigationTerrain")).get("terrainBlockerPresent"),
+            "noProgressStepCount": safe_mapping(packet.get("navigationTerrain")).get("noProgressStepCount"),
+        },
         "llmReminder": packet.get("llmReminder"),
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
@@ -1318,6 +1406,37 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"| Total duration seconds | `{performance.get('totalDurationSeconds')}` |",
             ]
         )
+    navigation_terrain = safe_mapping(packet.get("navigationTerrain"))
+    if navigation_terrain and navigation_terrain.get("status") == "route-run-report-found":
+        terrain_sub = navigation_terrain.get("terrainSubClassifications") or {}
+        lines.extend(
+            [
+                "",
+                "## Navigation terrain context (from latest route-run report)",
+                "",
+                f"- Verdict: `{navigation_terrain.get('sourceVerdict', 'unknown')}` | Arrived: `{navigation_terrain.get('arrived')}` | Steps: `{navigation_terrain.get('stepsRun')}`",
+                f"- No-progress steps: `{navigation_terrain.get('noProgressStepCount')}`",
+            ]
+        )
+        if terrain_sub:
+            lines.append("")
+            lines.append("| Sub-classification | Count |")
+            lines.append("|---|---|")
+            for sub, count in sorted(terrain_sub.items()):
+                icon = "🛑" if sub == "blocked-stationary-no-movement" else ("⚠️" if sub == "drifted-back-after-initial-progress" else "ℹ️")
+                lines.append(f"| {icon} `{sub}` | `{count}` |")
+        if navigation_terrain.get("terrainBlockerPresent"):
+            lines.append("")
+            lines.append("- ⚠️ **Terrain blocker detected** — check navigation resume status for scouting guidance.")
+    elif navigation_terrain and navigation_terrain.get("status") == "route-run-report-missing":
+        lines.extend(
+            [
+                "",
+                "## Navigation terrain context",
+                "",
+                "- No route-run report available for terrain context.",
+            ]
+        )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
@@ -1414,6 +1533,7 @@ def build_schema_contract() -> dict[str, Any]:
             "truth",
             "retiredSurfaces",
             "toolCatalog",
+            "navigationTerrain",
             "allowedActions",
             "forbiddenActions",
             "safeNextAction",
