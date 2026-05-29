@@ -9,6 +9,7 @@ import math
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,9 +48,9 @@ def read_state() -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
-def send_key(hold_ms: int, pid: str, hwnd: str) -> dict[str, Any]:
+def send_key(hold_ms: int, pid: str, hwnd: str) -> None:
     ps1 = SCRIPTS / "send-rift-key-csharp.ps1"
-    result = subprocess.run(
+    subprocess.run(
         ["pwsh", "-NoProfile", "-NoLogo", "-ExecutionPolicy", "Bypass",
          "-File", str(ps1),
          "--key", "w",
@@ -62,10 +63,6 @@ def send_key(hold_ms: int, pid: str, hwnd: str) -> dict[str, Any]:
          "--json"],
         cwd=str(REPO_ROOT), text=True, capture_output=True, timeout=COMMAND_TIMEOUT, check=False,
     )
-    try:
-        return json.loads(result.stdout) if result.stdout.strip() else {}
-    except json.JSONDecodeError:
-        return {"raw": result.stdout[:200], "error": "JSON parse failed"}
 
 
 def run_calibration(*, durations_ms: list[int], pid: str, hwnd: str) -> dict[str, Any]:
@@ -73,7 +70,7 @@ def run_calibration(*, durations_ms: list[int], pid: str, hwnd: str) -> dict[str
     results: list[dict[str, Any]] = []
     errors: list[str] = []
 
-    for i, dur_ms in enumerate(durations_ms):
+    for dur_ms in durations_ms:
         # 1. Pre-state
         pre = read_state()
         pre_coord = pre.get("coordinate", {}) or {}
@@ -125,6 +122,14 @@ def run_calibration(*, durations_ms: list[int], pid: str, hwnd: str) -> dict[str
     }
 
 
+def utc_stamp() -> str:
+    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S") + f"-{datetime.now(UTC).microsecond // 1000:03d}"
+
+
+def utc_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Calibrate forward movement: measure planar distance per W-key hold duration")
     parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
@@ -145,11 +150,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     output_root = Path(str(args.output_root)).resolve() if args.output_root else REPO_ROOT / "scripts" / "captures"
-    run_dir = output_root / f"forward-movement-calibration-{time.strftime('%Y%m%d-%H%M%S-%f')}"
+    run_dir = output_root / f"forward-movement-calibration-{utc_stamp()}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
     output = run_calibration(durations_ms=list(args.durations_ms), pid=pid, hwnd=hwnd)
-    output["generatedAtUtc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    output["generatedAtUtc"] = utc_iso()
     output["summaryJson"] = str(run_dir / "summary.json")
 
     # Write artifacts
@@ -160,7 +165,11 @@ def main(argv: list[str] | None = None) -> int:
              f"Generated: `{output['generatedAtUtc']}`", "",
              "| Duration | Distance | Speed |", "|---|---|---|"]
     for r in output.get("results", []):
-        lines.append(f"| {r['holdMs']}ms | {r['planarDistance']:.3f}m | {r['speedMetersPerSecond']:.2f} m/s |")
+        speed = r.get("speedMetersPerSecond")
+        speed_str = f"{speed:.2f} m/s" if speed is not None else "N/A"
+        dist = r.get("planarDistance")
+        dist_str = f"{dist:.3f}m" if dist is not None else "N/A"
+        lines.append(f"| {r['holdMs']}ms | {dist_str} | {speed_str} |")
     summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(json.dumps(output, indent=2) if not args.json else json.dumps(output))
