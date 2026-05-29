@@ -67,6 +67,7 @@ def _make_args(**overrides: Any) -> Any:
         "allow_candidate_turn_control": True,
         "dry_run": False,
         "json": False,
+        "skip_readback_freshness_gate": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -545,6 +546,7 @@ class DryRunTests(unittest.TestCase):
             tmp_path = Path(tmp)
             args = _make_args(
                 dry_run=True,
+                skip_readback_freshness_gate=True,
                 repo_root=str(tmp_path),
                 output_root=str(tmp_path / "out"),
                 current_truth_json=str(tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -590,9 +592,29 @@ class RoutePersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             # Mock run_child to return a failed envelope (no JSON, no process)
-            with mock.patch.object(route_runner, "run_child") as mock_run:
-                mock_run.return_value = {
-                    "label": "00-initial-state",
+        with mock.patch.object(route_runner, "run_child") as mock_run:
+            # The readback freshness gate runs first; mock it to pass so we
+            # reach the initial-state call that this test targets.
+            def _mock_run_side_effect(*, label: str, command: Sequence[str], cwd: Path,
+                                        child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+                if label == "00-readback-freshness":
+                    return {
+                        "label": label,
+                        "ok": True,
+                        "exitCode": 0,
+                        "json": {
+                            "summaryJson": str(tmp_path / "mocked-readback-summary.json"),
+                            "status": "passed",
+                        },
+                        "commandPath": str(tmp_path / "cmd.json"),
+                        "stdoutPath": str(tmp_path / "stdout.txt"),
+                        "stderrPath": str(tmp_path / "stderr.txt"),
+                        "stdoutPreview": "",
+                        "stderrPreview": "",
+                        "durationSeconds": 0.05,
+                    }
+                return {
+                    "label": label,
                     "ok": False,
                     "exitCode": 1,
                     "json": None,
@@ -603,12 +625,14 @@ class RoutePersistenceTests(unittest.TestCase):
                     "stderrPreview": "",
                     "durationSeconds": 0.05,
                 }
-                args = _make_args(
-                    repo_root=str(tmp_path),
-                    output_root=str(tmp_path / "out"),
-                    current_truth_json=str(tmp_path / "nonexistent.json"),
-                )
-                result = route_runner.run(args)
+
+            mock_run.side_effect = _mock_run_side_effect
+            args = _make_args(
+                repo_root=str(tmp_path),
+                output_root=str(tmp_path / "out"),
+                current_truth_json=str(tmp_path / "nonexistent.json"),
+            )
+            result = route_runner.run(args)
 
             self.assertEqual(result["status"], "failed")
             self.assertEqual(result["verdict"], "initial-state-readback-failed")
@@ -783,6 +807,7 @@ class MockedIntegrationTests(unittest.TestCase):
         add_forward("forward-001", "arrived", 33.0, 4.5, 0.5)
 
         args = _make_args(
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -830,6 +855,7 @@ class MockedIntegrationTests(unittest.TestCase):
 
         args = _make_args(
             max_iterations=5,
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -857,6 +883,7 @@ class MockedIntegrationTests(unittest.TestCase):
                  0.5, 0.5, 1.5, True, True, False, "stationary")
 
         args = _make_args(
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -889,6 +916,7 @@ class MockedIntegrationTests(unittest.TestCase):
 
         args = _make_args(
             max_iterations=5,
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -933,6 +961,7 @@ class MockedIntegrationTests(unittest.TestCase):
         add_forward("forward-001", "arrived", 33.0, 4.5, 0.5)
 
         args = _make_args(
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -972,6 +1001,7 @@ class MockedIntegrationTests(unittest.TestCase):
 
         args = _make_args(
             max_iterations=5,
+            skip_readback_freshness_gate=True,
             repo_root=str(self.tmp_path),
             output_root=str(self.tmp_path / "out"),
             current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
@@ -1290,6 +1320,242 @@ class BuildSequenceMarkdownTests(unittest.TestCase):
         md = build_sequence_markdown(summary)
         self.assertIn("## Errors", md)
         self.assertIn("ValueError:waypoint-sequence-empty", md)
+
+
+class ReadbackFreshnessGateTests(unittest.TestCase):
+    """Test the pre-movement static resolver readback freshness gate."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.tmp_path = Path(self.temp_dir.name)
+        truth_dir = self.tmp_path / "docs" / "recovery"
+        truth_dir.mkdir(parents=True, exist_ok=True)
+        (truth_dir / "current-truth.json").write_text(
+            json.dumps({"target": {"processName": "rift_x64"}}), encoding="utf-8",
+        )
+
+    def test_readback_freshness_gate_blocks_when_no_json_returned(self) -> None:
+        """Gate should block (failed) when readback returns no parseable JSON."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        def mock_run(*, label: str, command: Sequence[str], cwd: Path,
+                     child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            if label == "00-readback-freshness":
+                return {
+                    "label": label,
+                    "ok": False,
+                    "exitCode": 1,
+                    "json": None,
+                    "commandPath": str(self.tmp_path / "cmd.json"),
+                    "stdoutPath": str(self.tmp_path / "stdout.txt"),
+                    "stderrPath": str(self.tmp_path / "stderr.txt"),
+                    "stdoutPreview": "",
+                    "stderrPreview": "",
+                    "durationSeconds": 0.05,
+                }
+            return {
+                "label": label,
+                "ok": True,
+                "exitCode": 0,
+                "json": {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+                "commandPath": str(self.tmp_path / f"{label}.command.json"),
+                "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+                "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+                "stdoutPreview": "",
+                "stderrPreview": "",
+                "durationSeconds": 0.05,
+            }
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run):
+            result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["verdict"], "static-resolver-readback-freshness-failed")
+        self.assertIn("static-resolver-readback-freshness-gate-no-json", result["blockers"])
+
+    def test_readback_freshness_gate_blocks_when_status_is_blocked(self) -> None:
+        """Gate should block when readback returns status=blocked."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        def mock_run(*, label: str, command: Sequence[str], cwd: Path,
+                     child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            if label == "00-readback-freshness":
+                return {
+                    "label": label,
+                    "ok": True,
+                    "exitCode": 2,
+                    "json": {
+                        "summaryJson": str(self.tmp_path / "mocked-readback-summary.json"),
+                        "status": "blocked",
+                    },
+                    "commandPath": str(self.tmp_path / "cmd.json"),
+                    "stdoutPath": str(self.tmp_path / "stdout.txt"),
+                    "stderrPath": str(self.tmp_path / "stderr.txt"),
+                    "stdoutPreview": "",
+                    "stderrPreview": "",
+                    "durationSeconds": 0.05,
+                }
+            return {
+                "label": label,
+                "ok": True,
+                "exitCode": 0,
+                "json": {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+                "commandPath": str(self.tmp_path / f"{label}.command.json"),
+                "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+                "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+                "stdoutPreview": "",
+                "stderrPreview": "",
+                "durationSeconds": 0.05,
+            }
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run):
+            result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["verdict"], "static-resolver-readback-freshness-blocked")
+        self.assertIn("static-resolver-readback-freshness-gate:blocked", result["blockers"])
+
+    def test_readback_freshness_gate_blocks_when_status_is_failed(self) -> None:
+        """Gate should block when readback returns status=failed."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        def mock_run(*, label: str, command: Sequence[str], cwd: Path,
+                     child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            if label == "00-readback-freshness":
+                return {
+                    "label": label,
+                    "ok": True,
+                    "exitCode": 1,
+                    "json": {
+                        "summaryJson": str(self.tmp_path / "mocked-readback-summary.json"),
+                        "status": "failed",
+                    },
+                    "commandPath": str(self.tmp_path / "cmd.json"),
+                    "stdoutPath": str(self.tmp_path / "stdout.txt"),
+                    "stderrPath": str(self.tmp_path / "stderr.txt"),
+                    "stdoutPreview": "",
+                    "stderrPreview": "",
+                    "durationSeconds": 0.05,
+                }
+            return {
+                "label": label,
+                "ok": True,
+                "exitCode": 0,
+                "json": {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+                "commandPath": str(self.tmp_path / f"{label}.command.json"),
+                "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+                "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+                "stdoutPreview": "",
+                "stderrPreview": "",
+                "durationSeconds": 0.05,
+            }
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run):
+            result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["verdict"], "static-resolver-readback-freshness-failed")
+        self.assertIn("static-resolver-readback-freshness-gate:failed", result["blockers"])
+
+    def test_readback_freshness_gate_passes_when_status_is_passed(self) -> None:
+        """Gate should allow route loop when readback returns status=passed."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        # We need the full mock setup to test past the gate.
+        # Mock run_child to return readback-passed, then initial state + plan showing arrival.
+        def mock_run_passed(*, label: str, command: Sequence[str], cwd: Path,
+                            child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            envelope: dict[str, Any] = {
+                "label": label,
+                "ok": True,
+                "exitCode": 0,
+                "json": {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+                "commandPath": str(self.tmp_path / f"{label}.command.json"),
+                "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+                "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+                "stdoutPreview": "",
+                "stderrPreview": "",
+                "durationSeconds": 0.05,
+            }
+            if label == "00-readback-freshness":
+                envelope["json"] = {
+                    "summaryJson": str(self.tmp_path / "mocked-readback-summary.json"),
+                    "status": "passed",
+                }
+            return envelope
+
+        # Register summaries for downstream calls (initial state, initial plan)
+        full_summaries: dict[str, dict[str, Any]] = {}
+        summary_path_state = str(self.tmp_path / "mocked-00-initial-state-summary.json")
+        full_summaries[summary_path_state] = {
+            "status": "passed",
+            "latestState": {
+                "coordinate": {"x": 7285.0, "y": 821.0, "z": 2980.0},
+                "yawDegrees": 45.0,
+                "turnRateClassification": "stationary",
+            },
+        }
+        summary_path_plan = str(self.tmp_path / "mocked-00-initial-plan-summary.json")
+        full_summaries[summary_path_plan] = {
+            "status": "passed",
+            "plan": {
+                "firstAction": "stop",
+                "navigationTarget": {
+                    "suggestedTurnDirection": "aligned",
+                    "signedBearingDeltaDegrees": 0.5,
+                    "absoluteBearingDeltaDegrees": 0.5,
+                    "planarDistance": 1.5,
+                    "withinArrivalRadius": True,
+                    "withinAlignmentThreshold": True,
+                },
+                "executionBlocked": False,
+                "executionBlockers": [],
+            },
+        }
+
+        def get_summary(path: str) -> dict[str, Any]:
+            if path in full_summaries:
+                return full_summaries[path]
+            raise ValueError(f"Unexpected mocked summary path: {path}")
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run_passed):
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "already-arrived")
+        # Verify the readback command was recorded in childCommands
+        child_labels = [
+            item["label"]
+            for item in result.get("childCommands", [])
+            if isinstance(item, dict)
+        ]
+        self.assertIn("00-readback-freshness", child_labels)
 
 
 class MockedSequenceTests(unittest.TestCase):

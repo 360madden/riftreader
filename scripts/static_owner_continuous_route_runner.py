@@ -238,6 +238,20 @@ def turn_command(args: argparse.Namespace, root: Path, output_root: Path, direct
     ]
 
 
+def readback_freshness_command(args: argparse.Namespace, root: Path, output_root: Path) -> list[str]:
+    """Pre-flight static resolver readback freshness gate."""
+    return [
+        sys.executable,
+        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
+        "--repo-root", str(root),
+        "--output-root", str(output_root),
+        "--use-current-truth",
+        "--current-truth-json", str(args.current_truth_json),
+        "--samples", "1",
+        "--json",
+    ]
+
+
 def forward_command(args: argparse.Namespace, root: Path, output_root: Path, hold_ms: int) -> list[str]:
     command = [
         sys.executable,
@@ -325,6 +339,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--waypoint-sequence-json", help="JSON file with waypoint array for multi-waypoint sequencing")
     parser.add_argument("--waypoint-sequence-ids", help="Comma-separated waypoint IDs to visit (omit for all in file)")
     parser.add_argument("--dry-run", action="store_true", help="Read-only: plan only, no input sent")
+    parser.add_argument(
+        "--skip-readback-freshness-gate",
+        action="store_true",
+        help="Skip the pre-movement static resolver readback freshness gate (testing escape hatch).",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -785,6 +804,40 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         summary["verdict"] = "candidate-turn-control-approval-required"
         summary["blockers"].append("allow-candidate-turn-control-flag-required")
         return summary
+
+    # --- Pre-flight static resolver readback freshness gate ---
+    if not args.skip_readback_freshness_gate:
+        readback_child = run_child(
+            label="00-readback-freshness",
+            command=readback_freshness_command(args, root, child_output_root),
+            cwd=root,
+            child_dir=child_dir,
+            timeout_seconds=float(args.command_timeout_seconds),
+        )
+        summary["childCommands"] = summary.get("childCommands", []) + [readback_child]
+
+        if not isinstance(readback_child.get("json"), Mapping):
+            summary["status"] = "failed"
+            summary["verdict"] = "static-resolver-readback-freshness-failed"
+            summary["blockers"].append("static-resolver-readback-freshness-gate-no-json")
+            summary["errors"].append("readback-freshness-gate-json-parse-failed")
+            return summary
+
+        readback_compact = safe_mapping(readback_child["json"])
+        readback_status = str(readback_compact.get("status") or "")
+        if readback_status != "passed":
+            if readback_status == "blocked":
+                summary["status"] = "blocked"
+                summary["verdict"] = "static-resolver-readback-freshness-blocked"
+            else:
+                summary["status"] = "failed"
+                summary["verdict"] = "static-resolver-readback-freshness-failed"
+            summary["blockers"].append(f"static-resolver-readback-freshness-gate:{readback_status}")
+            summary["warnings"].append(
+                f"Static resolver readback pre-flight returned status={readback_status}. "
+                "Re-run readback or validate resolver health before attempting movement."
+            )
+            return summary
 
     started = time.perf_counter()
     try:

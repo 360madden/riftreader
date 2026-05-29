@@ -453,6 +453,11 @@ def summarize_truth(
     movement_status = movement_gate.get("status")
     movement_reason = movement_gate.get("reason")
     movement_blockers: list[str] = []
+
+    # When the promoted static resolver exists, it supersedes the per-PID proof
+    # anchor for movement gating. Proof-anchor staleness alone does not block
+    # movement; instead we rely on static resolver validation freshness.
+    static_resolver_promoted = bool(static_resolver.get("promoted"))
     if (
         movement_allowed is True
         and (validation_movement_allowed or proof_status == "current-target-proofonly-passed" or proofonly_passed)
@@ -460,7 +465,12 @@ def summarize_truth(
     ):
         age = proof_freshness.get("ageSeconds")
         max_age = proof_freshness.get("maxAgeSeconds")
-        if proof_freshness.get("status") == "stale":
+        if static_resolver_promoted:
+            # Static resolver is promoted — proof-anchor staleness is expected
+            # and does not block movement. The proofFreshness field already
+            # carries the staleness diagnostic for consumers that need it.
+            pass
+        elif proof_freshness.get("status") == "stale":
             movement_status = "blocked-proof-anchor-age-out-of-range"
             movement_reason = (
                 "Current-truth movement status was historically allowed, but the proof-anchor/readback timestamp "
@@ -482,7 +492,8 @@ def summarize_truth(
                 "timestamp is available. Run a fresh same-target ProofOnly/proof-anchor refresh before any movement."
             )
             movement_blockers.append("proof-anchor-freshness-unknown-for-movement")
-        movement_allowed = False
+        if not static_resolver_promoted:
+            movement_allowed = False
     elif movement_allowed is False:
         movement_blockers.append(f"movement-not-allowed:{movement_status or 'unknown'}")
     return {
