@@ -56,6 +56,10 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
     )
     turn_backend = _summarize_turn_backend(recovery_root / "turn-key-profile-evidence.json", repo_root)
     latest_navigation_handoff = _summarize_latest_navigation_handoff(handoffs_root, repo_root)
+    route_run_report = _summarize_route_run_report(
+        _latest_file(capture_root, ("summary.json",), required_path_part="static-owner-nav-route-run-report"),
+        repo_root,
+    )
 
     blockers: list[str] = []
     warnings: list[str] = [
@@ -99,6 +103,8 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
     if not turn_backend.get("hasPromotedCandidate"):
         warnings.append("auto-turn-not-promoted")
 
+    _append_terrain_warnings(route_run_report, warnings)
+
     status = "blocked-for-live-input" if blockers else "ready-for-pre-live-recheck"
     blockers = _unique_strings(blockers)
     warnings = _unique_strings(warnings)
@@ -109,6 +115,7 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
         proof_only,
         navigation_run,
         turn_backend,
+        route_run_report,
     )
 
     generated_at = _utc_now()
@@ -138,6 +145,7 @@ def build_navigation_resume_status(options: NavigationResumeStatusOptions) -> di
             "latestProofOnly": proof_only,
             "latestNavigationRun": navigation_run,
             "turnBackend": turn_backend,
+            "latestRouteRunReport": route_run_report,
         },
         "recommendedActions": recommended_actions,
         "artifacts": {},
@@ -360,6 +368,116 @@ def _summarize_latest_navigation_handoff(handoffs_root: Path, repo_root: Path) -
     }
 
 
+def _summarize_route_run_report(path: Path | None, repo_root: Path) -> dict[str, Any]:
+    """Read the latest route-run report and surface terrain classification evidence.
+
+    The route-run REPORT (from report_saved_summary in static_owner_nav_route_run.py)
+    contains steps with noProgressSubClassification fields. This function extracts
+    terrain sub-classification counts and terrain blocker presence so operators can
+    see terrain risk context before approving a new route.
+    """
+    if path is None:
+        return _missing("route-run-report-missing")
+
+    data, error = _read_json(path)
+    if error is not None:
+        return _json_error(path, repo_root, error)
+
+    source = _pick(data, "source", default={}) if isinstance(_pick(data, "source"), dict) else {}
+    steps = _pick(source, "steps", default=[]) if isinstance(_pick(source, "steps"), list) else []
+    contract = _pick(data, "contract", default={}) if isinstance(_pick(data, "contract"), dict) else {}
+
+    aggregate = _pick(source, "aggregate", default={}) if isinstance(_pick(source, "aggregate"), dict) else {}
+
+    terrain_sub_classifications: dict[str, int] = {}
+    no_progress_step_count = 0
+    terrain_blocker_present = False
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if step.get("routeStatus") == "no-progress":
+            no_progress_step_count += 1
+            sub = step.get("noProgressSubClassification") or "unspecified"
+            if isinstance(sub, str):
+                terrain_sub_classifications[sub] = terrain_sub_classifications.get(sub, 0) + 1
+                if sub == "blocked-stationary-no-movement":
+                    terrain_blocker_present = True
+
+    return {
+        "path": _display_path(path, repo_root),
+        "lastWriteTimeUtc": _mtime_utc(path),
+        "status": _pick(data, "status"),
+        "sourceKind": _pick(source, "kind"),
+        "sourceVerdict": _pick(source, "verdict"),
+        "sourceStatus": _pick(source, "status"),
+        "contractStatus": _pick(contract, "status"),
+        "stepsRun": _pick(aggregate, "stepsRun") or _pick(contract, "stepsRun"),
+        "arrived": _pick(aggregate, "arrived") or _pick(contract, "arrived"),
+        "noProgressStepCount": no_progress_step_count,
+        "terrainSubClassifications": terrain_sub_classifications,
+        "terrainBlockerPresent": terrain_blocker_present,
+        "terrainBlockerTypes": [sub for sub, count in terrain_sub_classifications.items() if sub == "blocked-stationary-no-movement" and count > 0],
+    }
+
+
+_TERRAIN_MEANINGS: dict[str, str] = {
+    "blocked-stationary-no-movement": "Terrain/obstacle — player did not move at all during the forward pulse",
+    "drifted-back-after-initial-progress": "Player moved forward then drifted back — terrain may have redirected",
+    "insufficient-progress-below-threshold": "Player moved slightly but below the minimum progress threshold",
+}
+
+
+def _append_terrain_warnings(route_run_report: dict[str, Any], warnings: list[str]) -> None:
+    """Surface terrain context from a prior route-run report as operator warnings.
+
+    These are warnings, not blockers — a terrain-stalled previous route does not
+    prevent a fresh route from succeeding. The warnings provide operator context
+    for decision-making before approving movement.
+    """
+    if route_run_report.get("status") == "route-run-report-missing":
+        warnings.append("no-route-run-report-available-for-terrain-context")
+        return
+
+    terrain_classifications = route_run_report.get("terrainSubClassifications") or {}
+    if not terrain_classifications:
+        return
+
+    no_progress_count = route_run_report.get("noProgressStepCount") or 0
+    terrain_count = (terrain_classifications.get("blocked-stationary-no-movement") or 0)
+    drifted_count = (terrain_classifications.get("drifted-back-after-initial-progress") or 0)
+    insufficient_count = (terrain_classifications.get("insufficient-progress-below-threshold") or 0)
+    unspecified_count = (terrain_classifications.get("unspecified") or 0)
+
+    if no_progress_count > 0:
+        warnings.append(f"prior-route-run-had-no-progress-steps:count={no_progress_count}")
+
+    if terrain_count > 0:
+        warnings.append(
+            f"prior-route-run-terrain-blocked-stationary:count={terrain_count} — "
+            "player was stationary (zero movement) during forward pulses; "
+            "consider scouting the route area before rerunning"
+        )
+
+    if drifted_count > 0:
+        warnings.append(
+            f"prior-route-run-drifted-back:{drifted_count} — "
+            "player moved forward then drifted back; terrain slope or obstacle may have redirected"
+        )
+
+    if insufficient_count > 0:
+        warnings.append(
+            f"prior-route-run-insufficient-progress:{insufficient_count} — "
+            "player made forward progress below the minimum threshold"
+        )
+
+    if unspecified_count > 0:
+        warnings.append(
+            f"prior-route-run-unspecified-no-progress:{unspecified_count} — "
+            "no-progress steps without sub-classification (report was generated before terrain classification was added)"
+        )
+
+
 def _recommended_actions(
     blockers: list[str],
     target_control: dict[str, Any],
@@ -367,6 +485,7 @@ def _recommended_actions(
     proof_only: dict[str, Any],
     navigation_run: dict[str, Any],
     turn_backend: dict[str, Any],
+    route_run_report: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     actions: list[dict[str, str]] = []
 
@@ -440,6 +559,21 @@ def _recommended_actions(
             {
                 "action": "Keep auto-turn disabled",
                 "why": "No current promoted turn backend exists.",
+            }
+        )
+
+    if route_run_report and route_run_report.get("terrainBlockerPresent"):
+        terrain_sub = route_run_report.get("terrainSubClassifications") or {}
+        terrain_count = terrain_sub.get("blocked-stationary-no-movement", 0)
+        actions.append(
+            {
+                "action": f"Review terrain safety: {terrain_count} blocked-stationary step(s) in prior route-run",
+                "why": (
+                    "The last route-run report recorded stationary (zero-movement) forward pulses. "
+                    "Before rerunning the same route, consider a short scouting pass or repositioning "
+                    "the character away from potential obstacles. The terrain classification is a warning "
+                    "only — it does not block a fresh route."
+                ),
             }
         )
 
@@ -548,6 +682,16 @@ def _render_markdown(summary: dict[str, Any]) -> str:
                 "",
                 evidence["turnBackend"].get("path"),
             ),
+            _evidence_row(
+                "Route-run report",
+                evidence["latestRouteRunReport"].get("status"),
+                _route_run_report_target_text(evidence["latestRouteRunReport"]),
+                evidence["latestRouteRunReport"].get("path"),
+            ),
+            "",
+            "## Terrain classification (from latest route-run report)",
+            "",
+            *_render_terrain_section(evidence["latestRouteRunReport"]),
             "",
             "## Top 10 recommended next actions",
             "",
@@ -558,6 +702,62 @@ def _render_markdown(summary: dict[str, Any]) -> str:
     for index, item in enumerate(summary["recommendedActions"], start=1):
         lines.append(f"| {index} | {item['action']} | {item['why']} |")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _route_run_report_target_text(data: dict[str, Any]) -> str:
+    parts = []
+    verdict = data.get("sourceVerdict")
+    if verdict:
+        parts.append(str(verdict))
+    steps = data.get("stepsRun")
+    if steps is not None:
+        parts.append(f"{steps} steps")
+    no_progress = data.get("noProgressStepCount")
+    if no_progress:
+        parts.append(f"{no_progress} no-progress")
+    return "; ".join(parts)
+
+
+def _render_terrain_section(report: dict[str, Any]) -> list[str]:
+    status = str(report.get("status") or "")
+    if status in ("route-run-report-missing", "json-read-error"):
+        return [
+            f"- Status: `{status}` — no terrain context available",
+            "- Run `static-owner-nav-report-route-run` after a route run to generate terrain evidence.",
+        ]
+
+    terrain = report.get("terrainSubClassifications") or {}
+    no_progress = report.get("noProgressStepCount") or 0
+    steps = report.get("stepsRun") or 0
+    arrived = report.get("arrived")
+    verdict = report.get("sourceVerdict", "unknown")
+
+    lines = [
+        f"- Route verdict: `{verdict}` | Arrived: `{arrived}` | Steps: `{steps}`",
+        f"- No-progress steps: `{no_progress}`",
+    ]
+
+    if not terrain:
+        lines.append("- No terrain sub-classifications recorded (all steps progressed or arrived).")
+        return lines
+
+    lines.append("")
+    lines.append("| Sub-classification | Count | Meaning |")
+    lines.append("|---|---|---|")
+    for sub, count in sorted(terrain.items()):
+        meaning = _TERRAIN_MEANINGS.get(sub, "No-progress without sub-classification detail")
+        icon = "🛑" if sub == "blocked-stationary-no-movement" else ("⚠️" if sub == "drifted-back-after-initial-progress" else "ℹ️")
+        lines.append(f"| {icon} `{sub}` | `{count}` | {meaning} |")
+
+    if report.get("terrainBlockerPresent"):
+        lines.append("")
+        lines.append(
+            f"- ⚠️ **Terrain blocker detected** (`blocked-stationary-no-movement`). "
+            "This is a warning only — it does not prevent a fresh route. "
+            "Consider scouting the area or repositioning before rerunning the same waypoint."
+        )
+
+    return lines
 
 
 def _evidence_row(surface: str, status: Any, target: str, artifact: Any) -> str:

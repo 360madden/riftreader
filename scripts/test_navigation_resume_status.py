@@ -176,6 +176,170 @@ class NavigationResumeStatusTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    @staticmethod
+    def _write_route_run_report(
+        root: Path,
+        *,
+        arrived: bool = True,
+        steps_run: int = 2,
+        terrain_blocked: bool = False,
+        drifted_back: bool = False,
+    ) -> None:
+        steps = []
+        for i in range(1, steps_run + 1):
+            is_last = i == steps_run
+            route_status = "arrived" if (is_last and arrived) else "progress"
+            step = {
+                "stepNumber": i,
+                "status": "passed",
+                "verdict": "route-step-live-movement-progress-validated",
+                "routeStatus": route_status,
+                "stopReason": "within-arrival-radius" if route_status == "arrived" else "distance-decreased",
+                "totalProgressDistance": 1.5,
+                "movementSent": True,
+                "inputSent": True,
+            }
+            if not arrived and is_last and terrain_blocked:
+                step["routeStatus"] = "no-progress"
+                step["stopReason"] = "minimum-progress-not-met"
+                step["noProgressSubClassification"] = "blocked-stationary-no-movement"
+                step["status"] = "blocked"
+                step["verdict"] = "route-step-blocked"
+            steps.append(step)
+
+        aggregate = {
+            "status": "passed" if arrived else "blocked",
+            "verdict": "route-run-arrived" if arrived else "route-run-blocked",
+            "stepsRun": steps_run,
+            "maxSteps": steps_run,
+            "arrived": arrived,
+            "arrivalStep": steps_run if arrived else None,
+            "lastRouteStatus": "arrived" if arrived else "no-progress",
+            "totalProgressDistance": 1.5 * (steps_run - (0 if arrived else 1)),
+            "finalPlanarDistance": 1.0 if arrived else 7.5,
+            "movementSent": True,
+            "inputSent": True,
+        }
+
+        report = {
+            "schemaVersion": 1,
+            "kind": "static-owner-nav-route-run-report",
+            "generatedAtUtc": "2026-05-29T00:00:00Z",
+            "status": "passed" if arrived else "blocked",
+            "sourceSummaryJson": "fixture/summary.json",
+            "source": {
+                "kind": "static-owner-nav-route-run",
+                "status": "passed" if arrived else "blocked",
+                "verdict": "route-run-arrived" if arrived else "route-run-blocked",
+                "generatedAtUtc": "2026-05-29T00:00:00Z",
+                "aggregate": aggregate,
+                "steps": steps,
+            },
+            "contract": {
+                "status": "passed",
+                "blockers": [],
+                "stepsRun": steps_run,
+                "arrived": arrived,
+            },
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+        }
+
+        path = root / "scripts" / "captures" / "static-owner-nav-route-run-report-20260529" / "summary.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report), encoding="utf-8")
+
+    def test_clean_route_run_report_no_terrain_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_current_truth(root, "Navigation-first. Current proof anchor promoted.")
+            self._write_target_control(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_visual_gate(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_proof_only(root, pid=2928, hwnd="0xC0994", passed=True)
+            self._write_navigation_run(root, pid=2928)
+            self._write_turn_evidence(root, promoted=True)
+            self._write_route_run_report(root, arrived=True, steps_run=2, terrain_blocked=False)
+
+            summary = build_navigation_resume_status(NavigationResumeStatusOptions(repo_root=root))
+
+        evidence = summary["evidence"]["latestRouteRunReport"]
+        self.assertEqual("passed", evidence["status"])
+        self.assertEqual("route-run-arrived", evidence["sourceVerdict"])
+        self.assertEqual(2, evidence["stepsRun"])
+        self.assertTrue(evidence["arrived"])
+        self.assertEqual(0, evidence["noProgressStepCount"])
+        self.assertEqual({}, evidence["terrainSubClassifications"])
+        self.assertFalse(evidence["terrainBlockerPresent"])
+        self.assertEqual("ready-for-pre-live-recheck", summary["status"])
+
+    def test_route_run_report_with_terrain_blocked_stationary_warns_operator(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_current_truth(root, "Navigation-first. Current proof anchor promoted.")
+            self._write_target_control(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_visual_gate(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_proof_only(root, pid=2928, hwnd="0xC0994", passed=True)
+            self._write_navigation_run(root, pid=2928)
+            self._write_turn_evidence(root, promoted=True)
+            self._write_route_run_report(root, arrived=False, steps_run=3, terrain_blocked=True)
+
+            summary = build_navigation_resume_status(NavigationResumeStatusOptions(repo_root=root))
+
+        evidence = summary["evidence"]["latestRouteRunReport"]
+        self.assertEqual("blocked", evidence["status"])
+        self.assertEqual("route-run-blocked", evidence["sourceVerdict"])
+        self.assertEqual(3, evidence["stepsRun"])
+        self.assertFalse(evidence["arrived"])
+        self.assertEqual(1, evidence["noProgressStepCount"])
+        self.assertEqual({"blocked-stationary-no-movement": 1}, evidence["terrainSubClassifications"])
+        self.assertTrue(evidence["terrainBlockerPresent"])
+
+        warnings = summary["warnings"]
+        self.assertTrue(any("prior-route-run-had-no-progress-steps:count=1" in w for w in warnings))
+        self.assertTrue(any("prior-route-run-terrain-blocked-stationary" in w for w in warnings))
+        self.assertEqual("ready-for-pre-live-recheck", summary["status"])
+
+    def test_route_run_report_missing_graceful(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_current_truth(root, "Navigation-first. Current proof anchor promoted.")
+            self._write_target_control(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_visual_gate(root, pid=2928, hwnd="0xC0994", ready=True)
+            self._write_proof_only(root, pid=2928, hwnd="0xC0994", passed=True)
+            self._write_navigation_run(root, pid=2928)
+            self._write_turn_evidence(root, promoted=True)
+
+            summary = build_navigation_resume_status(NavigationResumeStatusOptions(repo_root=root))
+
+        evidence = summary["evidence"]["latestRouteRunReport"]
+        self.assertEqual("route-run-report-missing", evidence["status"])
+        self.assertEqual(0, evidence.get("noProgressStepCount", 0))
+        self.assertIn("no-route-run-report-available-for-terrain-context", summary["warnings"])
+        self.assertEqual("ready-for-pre-live-recheck", summary["status"])
+
+    def test_markdown_includes_route_run_report_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output_dir = root / "out"
+            self._write_current_truth(root, "Coordinate truth is not promoted. Navigation-first.")
+            self._write_route_run_report(root, arrived=False, steps_run=2, terrain_blocked=True)
+
+            summary = build_navigation_resume_status(
+                NavigationResumeStatusOptions(
+                    repo_root=root,
+                    output_dir=output_dir,
+                    write_summary=True,
+                )
+            )
+
+            summary_md = Path(summary["artifacts"]["summaryMarkdown"])
+            md_text = summary_md.read_text(encoding="utf-8")
+
+        self.assertIn("Route-run report", md_text)
+        self.assertIn("Terrain classification", md_text)
+        self.assertIn("blocked-stationary-no-movement", md_text)
+
 
 if __name__ == "__main__":
     unittest.main()
