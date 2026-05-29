@@ -688,6 +688,9 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         lines.append(f"- Turn: `{it_map.get('turnDirection')}` ({it_map.get('computedTurnHoldMs')}ms)")
         lines.append(f"- Turn result: `{turn.get('status')}`")
         lines.append(f"- Forward result: `{forward.get('status')}`")
+        sub_class = forward.get("noProgressSubClassification")
+        if sub_class:
+            lines.append(f"- No-progress reason: `{sub_class}`")
         lines.append("")
 
     if summary.get("blockers"):
@@ -1046,6 +1049,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                         "totalProgressDistance": route_result.get("totalProgressDistance"),
                         "initialPlanarDistance": route_result.get("initialPlanarDistance"),
                         "finalPlanarDistance": route_result.get("finalPlanarDistance"),
+                        "noProgressSubClassification": route_result.get("noProgressSubClassification"),
                     }
                     if forward_ok:
                         safety["movementSent"] = True
@@ -1071,9 +1075,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                         prev_distance = current_distance
                     else:
                         # Forward no-progress — track consecutive failures
+                        # Terrain sub-classification differentiates stuck from slight movement
+                        no_progress_sub = route_result.get("noProgressSubClassification")
                         consecutive_no_progress += 1
                         if consecutive_no_progress >= 3:
-                            summary["blockers"].append("forward-no-progress-3-consecutive-stuck")
+                            if no_progress_sub == "blocked-stationary-no-movement":
+                                summary["blockers"].append("forward-no-progress-3-consecutive-blocked-stationary-terrain")
+                            else:
+                                summary["blockers"].append("forward-no-progress-3-consecutive-stuck")
                             summary["iterations"].append(iteration_record)
                             break
 

@@ -761,7 +761,8 @@ class MockedIntegrationTests(unittest.TestCase):
             }
 
         def add_forward(label: str, route_status: str, progress: float,
-                        initial_dist: float, final_dist: float) -> None:
+                        initial_dist: float, final_dist: float,
+                        no_progress_sub: str | None = None) -> None:
             summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
             full_summaries[summary_path] = {
                 "status": "passed" if route_status in ("progress", "arrived") else "blocked",
@@ -770,6 +771,7 @@ class MockedIntegrationTests(unittest.TestCase):
                     "totalProgressDistance": progress,
                     "initialPlanarDistance": initial_dist,
                     "finalPlanarDistance": final_dist,
+                    "noProgressSubClassification": no_progress_sub if route_status == "no-progress" else None,
                 },
             }
 
@@ -1558,7 +1560,242 @@ class ReadbackFreshnessGateTests(unittest.TestCase):
         self.assertIn("00-readback-freshness", child_labels)
 
 
-class MockedSequenceTests(unittest.TestCase):
+class TerrainNoProgressSubClassificationTests(unittest.TestCase):
+    """Test that terrain sub-classification from child forward results is surfaced."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.tmp_path = Path(self.temp_dir.name)
+        truth_dir = self.tmp_path / "docs" / "recovery"
+        truth_dir.mkdir(parents=True, exist_ok=True)
+        (truth_dir / "current-truth.json").write_text(
+            json.dumps({"target": {"processName": "rift_x64"}}), encoding="utf-8",
+        )
+
+    def _mock_run_child_fn(self) -> Any:
+        """Return a side_effect function with terrain-aware forward support."""
+        full_summaries: dict[str, dict[str, Any]] = {}
+
+        def add_state(label: str, coord: dict[str, float], yaw: float, turn_class: str) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "latestState": {
+                    "coordinate": coord,
+                    "yawDegrees": yaw,
+                    "turnRateClassification": turn_class,
+                },
+            }
+
+        def add_plan(label: str, first_action: str, turn_magnitude: str, turn_dir: str | None,
+                     signed_delta: float, abs_delta: float, plan_dist: float,
+                     within_radius: bool, within_align: bool, exec_blocked: bool,
+                     engine_class: str, blockers: list[str] | None = None) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            nav_target: dict[str, Any] = {
+                "suggestedTurnDirection": turn_dir,
+                "signedBearingDeltaDegrees": signed_delta,
+                "absoluteBearingDeltaDegrees": abs_delta,
+                "planarDistance": plan_dist,
+                "withinArrivalRadius": within_radius,
+                "withinAlignmentThreshold": within_align,
+            }
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "plan": {
+                    "firstAction": first_action,
+                    "turnMagnitudeClass": turn_magnitude,
+                    "navigationTarget": nav_target,
+                    "executionBlocked": exec_blocked,
+                    "executionBlockers": blockers or [],
+                    "engineTurnRateClassification": engine_class,
+                },
+            }
+
+        def add_turn(label: str, post_yaw: float, abs_delta: float) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "turnSamples": [{"postYawDegrees": post_yaw, "absoluteYawDeltaDegrees": abs_delta}],
+            }
+
+        def add_forward(label: str, route_status: str, progress: float,
+                        initial_dist: float, final_dist: float,
+                        no_progress_sub: str | None = None) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed" if route_status in ("progress", "arrived") else "blocked",
+                "routeResult": {
+                    "routeStatus": route_status,
+                    "totalProgressDistance": progress,
+                    "initialPlanarDistance": initial_dist,
+                    "finalPlanarDistance": final_dist,
+                    "noProgressSubClassification": no_progress_sub if route_status == "no-progress" else None,
+                },
+            }
+
+        def get_summary(path: str) -> dict[str, Any]:
+            if path in full_summaries:
+                return full_summaries[path]
+            raise ValueError(f"Unexpected mocked summary path: {path}")
+
+        def mock_run(*, label: str, command: Sequence[str], cwd: Path,
+                     child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            return {
+                "label": label,
+                "ok": True,
+                "exitCode": 0,
+                "json": {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+                "commandPath": str(self.tmp_path / f"{label}.command.json"),
+                "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+                "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+                "stdoutPreview": "",
+                "stderrPreview": "",
+                "durationSeconds": 0.05,
+            }
+
+        return add_state, add_plan, add_turn, add_forward, get_summary, mock_run
+
+    def test_forward_result_includes_no_progress_sub_classification(self) -> None:
+        """When forward returns no-progress with sub-classification, it appears in iteration record."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_turn("turn-001-left", -36.35, 42.35)
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+        # Need plan-002 for iteration 2
+        add_plan("plan-002", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-002", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+        # Also need plan-003 for iteration 3
+        add_plan("plan-003", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-003", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+
+        args = _make_args(
+            max_iterations=5,
+            skip_readback_freshness_gate=True,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        # Verify the sub-classification appears in the iteration record
+        self.assertEqual(len(result["iterations"]), 3)
+        for it in result["iterations"]:
+            forward = it.get("forwardResult", {})
+            self.assertEqual(forward.get("noProgressSubClassification"), "blocked-stationary-no-movement")
+
+    def test_blocked_stationary_triggers_terrain_specific_blocker(self) -> None:
+        """3 consecutive blocked-stationary forwards → terrain-specific blocker."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_turn("turn-001-left", -36.35, 42.35)
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_plan("plan-002", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+        add_plan("plan-003", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-002", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+        add_forward("forward-003", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="blocked-stationary-no-movement")
+
+        args = _make_args(
+            max_iterations=5,
+            skip_readback_freshness_gate=True,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("forward-no-progress-3-consecutive-blocked-stationary-terrain", result["blockers"])
+        self.assertNotIn("forward-no-progress-3-consecutive-stuck", result["blockers"])
+
+    def test_markdown_shows_no_progress_sub_classification(self) -> None:
+        """Markdown output includes sub-classification when present in forward result."""
+        summary = {
+            "generatedAtUtc": "2026-05-29T12:00:00Z",
+            "status": "blocked",
+            "verdict": "route-loop-blocked",
+            "total": {
+                "iterationCount": 2,
+                "totalDurationSeconds": 15.0,
+                "initialPlanarDistance": 37.5,
+                "finalPlanarDistance": 37.5,
+                "totalProgressDistance": 0.0,
+                "turnsExecuted": 1,
+                "forwardSteps": 0,
+            },
+            "iterations": [
+                {
+                    "iteration": 1,
+                    "planarDistance": 37.5,
+                    "plan": {"firstAction": "turn-left"},
+                    "turnDirection": "left",
+                    "computedTurnHoldMs": 226,
+                    "turnResult": {"status": "passed"},
+                    "forwardResult": {"status": "not-needed"},
+                },
+                {
+                    "iteration": 2,
+                    "planarDistance": 37.5,
+                    "plan": {"firstAction": "forward"},
+                    "turnResult": {"status": "not-needed"},
+                    "forwardResult": {
+                        "status": "blocked",
+                        "routeStatus": "no-progress",
+                        "noProgressSubClassification": "blocked-stationary-no-movement",
+                    },
+                },
+            ],
+            "blockers": ["forward-no-progress-3-consecutive-blocked-stationary-terrain"],
+            "warnings": [],
+            "errors": [],
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "navigationControl": False,
+                "facingPromotion": False,
+            },
+        }
+        md = build_markdown(summary)
+        self.assertIn("No-progress reason: `blocked-stationary-no-movement`", md)
+
+
+class WaypointSequenceIntegrationTests(unittest.TestCase):
     """Test run_sequence() with mocked run() calls."""
 
     def setUp(self) -> None:
