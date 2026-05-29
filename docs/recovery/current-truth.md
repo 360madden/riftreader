@@ -94,7 +94,8 @@ Movement displacement agreed between the API surface and chain readback:
 
 ## Required operating rule
 
-Use the promoted resolver as the current coordinate source, but keep live workflows fail-closed:
+Use the promoted resolver as the current coordinate source, but keep live workflows fail-closed.
+See **[Coordinate Recovery & Reacquisition Workflow](coordinate-recovery-workflow.md)** for the full tiered guide.
 
 1. Verify exact PID/HWND/process-start/module-base.
 2. Resolve owner from `moduleBase + 0x32EBC80`.
