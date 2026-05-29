@@ -477,6 +477,78 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         self.assertEqual("progress", analysis["status"])
         self.assertIsNone(analysis["noProgressSubClassification"])
 
+    def test_no_progress_fallthrough_gap_best_between_near_zero_and_minimum(self):
+        """When total_progress <= NEAR_ZERO_PROGRESS but best_progress is
+        between NEAR_ZERO_PROGRESS and minimum_progress_distance, none of
+        the three specific sub-classification branches match — it falls through
+        to the generic 'minimum-progress-not-met' default with None
+        sub-classification.
+
+        Scenario: three samples where the middle one showed slight progress
+        (best_progress=0.2, between 0.001 and 0.35) but final is back at start.
+        With default tolerance=0.75, the overshot gate requires
+        best_progress >= 0.35, so it does NOT fire.
+        """
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.8, "withinArrivalRadius": False},
+                {"sampleIndex": 2, "planarDistance": 10.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("minimum-progress-not-met", analysis["stopReason"])
+        self.assertIsNone(analysis["noProgressSubClassification"])
+
+    def test_no_progress_fallthrough_gap_with_wide_tolerance_reaches_drifted_back(self):
+        """Same scenario but with wide wrong_way_tolerance=2.0 so the overshot
+        gate does not fire. Now best_progress=0.2 (below minimum_progress_distance
+        of 0.35), so drifted-back also does NOT match — falls through to generic
+        'minimum-progress-not-met' since best_progress < minimum_progress_distance.
+        """
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.8, "withinArrivalRadius": False},
+                {"sampleIndex": 2, "planarDistance": 10.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=2.0,
+            arrival_radius=2.0,
+        )
+        # With wide tolerance, overshot does NOT fire.
+        # total_progress=0.0, best_progress=0.2.
+        # drifted-back requires best_progress >= 0.35 → doesn't match.
+        # blocked-stationary requires best_progress <= 0.001 → doesn't match.
+        # insufficient-progress requires total_progress > 0 → doesn't match.
+        # Falls through to generic default.
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("minimum-progress-not-met", analysis["stopReason"])
+        self.assertIsNone(analysis["noProgressSubClassification"])
+
+    def test_negative_total_progress_tiny_wrong_way_no_gate(self):
+        """Tiny wrong-way movement (final distance 10.0005 > initial 10.0)
+        that does NOT trigger the wrong-way gate (delta=0.0005 < tolerance=0.75).
+        Falls into no-progress with total_progress=-0.0005 ≤ NEAR_ZERO_PROGRESS,
+        best_progress=-0.0005 ≤ NEAR_ZERO_PROGRESS → blocked-stationary.
+        """
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 10.0005, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("blocked-stationary-no-movement", analysis["stopReason"])
+        self.assertEqual("blocked-stationary-no-movement", analysis["noProgressSubClassification"])
+        self.assertAlmostEqual(-0.0005, analysis["totalProgressDistance"], places=6)
+
     def test_run_progress_builds_dry_run_progress_from_saved_plan_summaries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
