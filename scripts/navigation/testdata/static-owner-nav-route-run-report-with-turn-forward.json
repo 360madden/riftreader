@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-nav-route-run-report",
+  "generatedAtUtc": "2026-05-29T00:00:00Z",
+  "status": "passed",
+  "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+  "sourceSummaryJson": "scripts/navigation/testdata/static-owner-nav-route-run-summary-arrived.json",
+  "turnSummaryJson": [],
+  "turnForwardSummaryJson": [
+    "scripts/navigation/testdata/static-owner-turn-forward-experiment-summary-progress.json"
+  ],
+  "source": {
+    "kind": "static-owner-nav-route-run",
+    "status": "passed",
+    "verdict": "route-run-arrived",
+    "generatedAtUtc": "2026-05-28T10:29:49Z",
+    "operator": {
+      "dryRun": false,
+      "movementApproved": true,
+      "maxSteps": 2
+    },
+    "input": {
+      "key": "w",
+      "holdMilliseconds": 250,
+      "inputMode": "ScanCode"
+    },
+    "aggregate": {
+      "status": "passed",
+      "verdict": "route-run-arrived",
+      "stepsRun": 2,
+      "maxSteps": 2,
+      "arrived": true,
+      "arrivalStep": 2,
+      "lastRouteStatus": "arrived",
+      "totalProgressDistance": 3.2040832966875277,
+      "finalPlanarDistance": 6.308612762675733,
+      "movementSent": true,
+      "inputSent": true,
+      "blockers": [],
+      "warnings": [],
+      "errors": []
+    },
+    "steps": [
+      {
+        "stepNumber": 1,
+        "status": "passed",
+        "verdict": "route-step-live-movement-progress-validated",
+        "initialDecisionReason": "initial-bearing-aligned-forward-step-eligible",
+        "suggestedTurnDirection": "aligned",
+        "initialPlanarDistance": 9.512696059363261,
+        "finalPlanarDistance": 7.983648384735263,
+        "routeStatus": "progress",
+        "stopReason": "distance-decreased",
+        "totalProgressDistance": 1.5290476746279982,
+        "movementSent": true,
+        "inputSent": true,
+        "summaryJson": "fixture/step1/summary.json",
+        "summaryMarkdown": "fixture/step1/summary.md",
+        "contract": {
+          "status": "passed",
+          "blockers": [],
+          "warnings": [],
+          "routeStatus": "progress",
+          "routeVerdict": "route-step-live-movement-progress-validated",
+          "movementSent": true,
+          "inputSent": true,
+          "totalProgressDistance": 1.5290476746279982
+        },
+        "blockers": [],
+        "warnings": [],
+        "errors": []
+      },
+      {
+        "stepNumber": 2,
+        "status": "passed",
+        "verdict": "route-step-live-movement-progress-validated",
+        "initialDecisionReason": "initial-bearing-aligned-forward-step-eligible",
+        "suggestedTurnDirection": "aligned",
+        "initialPlanarDistance": 7.983648384735263,
+        "finalPlanarDistance": 6.308612762675733,
+        "routeStatus": "arrived",
+        "stopReason": "within-arrival-radius",
+        "totalProgressDistance": 1.6750356220595295,
+        "movementSent": true,
+        "inputSent": true,
+        "summaryJson": "fixture/step2/summary.json",
+        "summaryMarkdown": "fixture/step2/summary.md",
+        "contract": {
+          "status": "passed",
+          "blockers": [],
+          "warnings": [],
+          "routeStatus": "arrived",
+          "routeVerdict": "route-step-live-movement-progress-validated",
+          "movementSent": true,
+          "inputSent": true,
+          "totalProgressDistance": 1.6750356220595295
+        },
+        "blockers": [],
+        "warnings": [],
+        "errors": []
+      }
+    ],
+    "safety": {
+      "movementSent": true,
+      "inputSent": true,
+      "reloaduiSent": false,
+      "screenshotKeySent": false,
+      "noCheatEngine": true,
+      "x64dbgAttach": false,
+      "debuggerAttached": false,
+      "providerWrites": false,
+      "gitMutation": false,
+      "proofPromotion": false,
+      "actorChainPromotion": false,
+      "facingPromotion": false,
+      "navigationControl": true,
+      "savedVariablesUsedAsLiveTruth": false
+    },
+    "artifacts": {
+      "runDirectory": "fixture",
+      "summaryJson": "fixture/summary.json",
+      "summaryMarkdown": "fixture/summary.md"
+    }
+  },
+  "turnEvidence": [],
+  "turnForwardEvidence": [
+    {
+      "index": 1,
+      "path": "scripts/navigation/testdata/static-owner-turn-forward-experiment-summary-progress.json",
+      "kind": "static-owner-turn-forward-experiment",
+      "status": "passed",
+      "verdict": "turn-forward-live-progress-validated",
+      "contractStatus": "passed",
+      "firstAction": "turn-right",
+      "controlIntent": "turn-right",
+      "turnMagnitudeClass": "turn-needed",
+      "signedBearingDeltaDegrees": 30.000003355339118,
+      "absoluteBearingDeltaDegrees": 30.000003355339118,
+      "observedYawDeltaDegrees": 31.0602385700289,
+      "observedPlanarDrift": 0.0,
+      "routeStatus": "progress",
+      "totalProgressDistance": 1.6784812442367274,
+      "initialPlanarDistance": 7.9999999030984945,
+      "finalPlanarDistance": 6.321518658861767,
+      "movementSent": true,
+      "inputSent": true,
+      "navigationControl": true,
+      "blockers": [],
+      "warnings": []
+    }
+  ],
+  "contract": {
+    "status": "passed",
+    "blockers": [],
+    "warnings": [],
+    "stepsRun": 2,
+    "arrived": true,
+    "movementSent": true,
+    "inputSent": true,
+    "navigationControl": true
+  },
+  "blockers": [],
+  "warnings": [],
+  "errors": [],
+  "safety": {
+    "movementSent": false,
+    "inputSent": false,
+    "reloaduiSent": false,
+    "screenshotKeySent": false,
+    "noCheatEngine": true,
+    "x64dbgAttach": false,
+    "debuggerAttached": false,
+    "providerWrites": false,
+    "gitMutation": false,
+    "proofPromotion": false,
+    "actorChainPromotion": false,
+    "facingPromotion": false,
+    "navigationControl": false,
+    "savedVariablesUsedAsLiveTruth": false
+  },
+  "artifacts": {
+    "runDirectory": "fixture",
+    "summaryJson": "fixture/summary.json",
+    "summaryMarkdown": "fixture/summary.md"
+  }
+}

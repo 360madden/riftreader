@@ -347,6 +347,7 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual("arrived", arrived["status"])
         self.assertEqual("within-arrival-radius", arrived["stopReason"])
+        self.assertIsNone(arrived["noProgressSubClassification"])
 
         progress = build_progress_analysis(
             [
@@ -358,6 +359,7 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             arrival_radius=2.0,
         )
         self.assertEqual("progress", progress["status"])
+        self.assertIsNone(progress["noProgressSubClassification"])
 
         wrong_way = build_progress_analysis(
             [
@@ -369,6 +371,7 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
             arrival_radius=2.0,
         )
         self.assertEqual("wrong-way", wrong_way["status"])
+        self.assertIsNone(wrong_way["noProgressSubClassification"])
 
         overshot = build_progress_analysis(
             [
@@ -382,6 +385,97 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual("overshot", overshot["status"])
         self.assertFalse(overshot["actionableForMovement"])
+        self.assertIsNone(overshot["noProgressSubClassification"])
+
+    def test_no_progress_sub_classification_blocked_stationary(self):
+        """Zero movement in both total and best progress → blocked-stationary."""
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 2, "planarDistance": 10.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("blocked-stationary-no-movement", analysis["stopReason"])
+        self.assertEqual("blocked-stationary-no-movement", analysis["noProgressSubClassification"])
+        self.assertAlmostEqual(0.0, analysis["totalProgressDistance"])
+        self.assertAlmostEqual(0.0, analysis["bestProgressDistance"])
+
+    def test_no_progress_sub_classification_drifted_back(self):
+        """Made progress then drifted back but within overshot tolerance -> drifted-back.
+
+        The drifted-back sub-classification is reachable when the wrong_way
+        tolerance is wide enough that the overshot gate does NOT fire.
+        With the default 0.75 tolerance, the overshot gate catches most
+        drifted-back cases first (since the best-to-final gap exceeds 0.75
+        when total progress is near zero). Use a wide 2.0 tolerance here.
+        """
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.0, "withinArrivalRadius": False},
+                {"sampleIndex": 2, "planarDistance": 10.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=2.0,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("drifted-back-after-initial-progress", analysis["stopReason"])
+        self.assertEqual("drifted-back-after-initial-progress", analysis["noProgressSubClassification"])
+        self.assertAlmostEqual(0.0, analysis["totalProgressDistance"])
+        self.assertAlmostEqual(1.0, analysis["bestProgressDistance"])
+
+    def test_no_progress_drifted_back_is_overshot_with_default_tolerance(self):
+        """With default tolerance, drifted-back triggers overshot gate first."""
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.0, "withinArrivalRadius": False},
+                {"sampleIndex": 2, "planarDistance": 10.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("overshot", analysis["status"])
+        self.assertEqual("moved-away-after-closest-approach", analysis["stopReason"])
+        self.assertIsNone(analysis["noProgressSubClassification"])
+
+    def test_no_progress_sub_classification_insufficient_progress(self):
+        """Moved slightly but didn't meet minimum threshold → insufficient-progress."""
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.8, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("no-progress", analysis["status"])
+        self.assertEqual("insufficient-progress-below-threshold", analysis["stopReason"])
+        self.assertEqual("insufficient-progress-below-threshold", analysis["noProgressSubClassification"])
+        self.assertAlmostEqual(0.2, analysis["totalProgressDistance"])
+        self.assertAlmostEqual(0.2, analysis["bestProgressDistance"])
+
+    def test_no_progress_sub_classification_only_on_no_progress_status(self):
+        """Sub-classification is None for non-no-progress statuses."""
+        analysis = build_progress_analysis(
+            [
+                {"sampleIndex": 0, "planarDistance": 10.0, "withinArrivalRadius": False},
+                {"sampleIndex": 1, "planarDistance": 9.0, "withinArrivalRadius": False},
+            ],
+            minimum_progress_distance=0.35,
+            wrong_way_tolerance_distance=0.75,
+            arrival_radius=2.0,
+        )
+        self.assertEqual("progress", analysis["status"])
+        self.assertIsNone(analysis["noProgressSubClassification"])
 
     def test_run_progress_builds_dry_run_progress_from_saved_plan_summaries(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -30,6 +30,12 @@ DEFAULT_KEY = "w"
 DEFAULT_HOLD_MS = 250
 PASS_ROUTE_STATUSES = {"progress", "arrived"}
 BLOCK_ROUTE_STATUSES = {"no-progress", "wrong-way", "overshot"}
+NO_PROGRESS_SUB_CLASSIFICATIONS = {
+    "blocked-stationary-no-movement": "Player position did not change — likely blocked by terrain or obstacle",
+    "drifted-back-after-initial-progress": "Player initially moved forward then drifted back — terrain may have redirected",
+    "insufficient-progress-below-threshold": "Player moved slightly but did not meet the minimum progress threshold",
+    "minimum-progress-not-met": "Progress below minimum threshold (no sub-classification available)",
+}
 
 
 def utc_iso() -> str:
@@ -242,13 +248,19 @@ def classify_route_result(route_summary: Mapping[str, Any], validation_summary: 
     if validation_summary.get("status") != "passed":
         blockers.append("route-contract-validation-not-passed")
     if route_status in BLOCK_ROUTE_STATUSES:
-        blockers.append(f"route-step-{route_status}")
+        if route_status == "no-progress":
+            sub_classification = analysis.get("noProgressSubClassification") or "minimum-progress-not-met"
+            sub_label = NO_PROGRESS_SUB_CLASSIFICATIONS.get(sub_classification, sub_classification)
+            blockers.append(f"route-step-no-progress:{sub_classification}")
+        else:
+            blockers.append(f"route-step-{route_status}")
     elif route_status not in PASS_ROUTE_STATUSES:
         blockers.append(f"route-step-status-unrecognized:{route_status}")
     return {
         "status": "blocked" if blockers else "passed",
         "routeStatus": route_status,
         "stopReason": analysis.get("stopReason"),
+        "noProgressSubClassification": analysis.get("noProgressSubClassification") if route_status == "no-progress" else None,
         "controllerRecommendedAction": controller.get("recommendedAction"),
         "controllerControlIntent": controller.get("controlIntent"),
         "totalProgressDistance": analysis.get("totalProgressDistance"),

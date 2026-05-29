@@ -16,6 +16,7 @@ from scripts.static_owner_nav_route_run import (
     validate_route_run_summary_contract,
     validate_saved_summary,
 )
+from scripts.static_owner_facing_discovery import build_progress_analysis
 
 
 def route_step_fixture() -> dict:
@@ -25,6 +26,16 @@ def route_step_fixture() -> dict:
 
 def route_run_fixture() -> dict:
     fixture = Path(__file__).resolve().parent / "navigation" / "testdata" / "static-owner-nav-route-run-summary-arrived.json"
+    return json.loads(fixture.read_text(encoding="utf-8"))
+
+
+def route_run_report_with_turn_forward_fixture() -> dict:
+    fixture = (
+        Path(__file__).resolve().parent
+        / "navigation"
+        / "testdata"
+        / "static-owner-nav-route-run-report-with-turn-forward.json"
+    )
     return json.loads(fixture.read_text(encoding="utf-8"))
 
 
@@ -239,6 +250,31 @@ class StaticOwnerNavRouteRunTests(unittest.TestCase):
         self.assertEqual([], evidence)
         self.assertIn("turn-forward-evidence-1-load-or-contract-failed", blockers)
         self.assertTrue(warnings)
+
+    def test_saved_route_run_report_with_turn_forward_fixture_loads(self):
+        fixture = route_run_report_with_turn_forward_fixture()
+
+        self.assertEqual("static-owner-nav-route-run-report", fixture["kind"])
+        self.assertEqual("passed", fixture["status"])
+        self.assertEqual(2, fixture["contract"]["stepsRun"])
+        self.assertTrue(fixture["contract"]["arrived"])
+        self.assertTrue(fixture["contract"]["movementSent"])
+        self.assertTrue(fixture["contract"]["navigationControl"])
+        self.assertEqual(1, len(fixture["turnForwardEvidence"]))
+        tf_evidence = fixture["turnForwardEvidence"][0]
+        self.assertEqual("turn-forward-live-progress-validated", tf_evidence["verdict"])
+        self.assertEqual("passed", tf_evidence["contractStatus"])
+        self.assertEqual("progress", tf_evidence["routeStatus"])
+        self.assertEqual("turn-needed", tf_evidence["turnMagnitudeClass"])
+        self.assertAlmostEqual(30.0, tf_evidence["signedBearingDeltaDegrees"], delta=0.01)
+        self.assertTrue(tf_evidence["movementSent"])
+        self.assertTrue(tf_evidence["navigationControl"])
+        markdown = build_report_markdown(fixture)
+        self.assertIn("## Turn-forward evidence", markdown)
+        # verify compact report includes turn-forward counts
+        compact = compact_report(fixture)
+        self.assertEqual(1, compact["turnForwardEvidenceCount"])
+        self.assertEqual(["passed"], compact["turnForwardEvidenceStatuses"])
 
 
 if __name__ == "__main__":

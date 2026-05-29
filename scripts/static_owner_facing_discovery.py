@@ -44,6 +44,7 @@ DEFAULT_MAX_TARGET_DISTANCE = 100.0
 DEFAULT_MIN_SCALAR_DELTA = 0.001
 DEFAULT_MIN_YAW_DELTA_DEGREES = 1.0
 COORD_OFFSETS = {0x320, 0x324, 0x328}
+NEAR_ZERO_PROGRESS = 0.001  # 1 mm — treat progress at or below this as effectively zero
 
 
 def utc_iso() -> str:
@@ -912,6 +913,26 @@ def build_progress_analysis(
     else:
         status = "no-progress"
         stop_reason = "minimum-progress-not-met"
+        # Sub-classify no-progress for terrain/obstacle diagnostics.
+        # Truly zero movement = blocked by terrain/obstacle.
+        # Tiny movement below threshold = insufficient progress (stalled).
+        # Progress-then-regress = drifted back after initial gain.
+        #
+        # NOTE: drifted-back-after-initial-progress is only reachable with
+        # unusually wide wrong_way_tolerance (>= best_distance - start_distance)
+        # because the overshot gate normally fires first. This branch exists for
+        # explicit diagnostic configurations where tolerance is intentionally wide.
+        #
+        # NOTE: When total_progress <= NEAR_ZERO_PROGRESS but best_progress is
+        # between NEAR_ZERO_PROGRESS and minimum_progress_distance, no specific
+        # branch matches — it falls through to the generic "minimum-progress-not-met"
+        # default, which is acceptable for this rare edge case.
+        if total_progress <= NEAR_ZERO_PROGRESS and best_progress <= NEAR_ZERO_PROGRESS:
+            stop_reason = "blocked-stationary-no-movement"
+        elif best_progress >= minimum_progress_distance and total_progress <= NEAR_ZERO_PROGRESS:
+            stop_reason = "drifted-back-after-initial-progress"
+        elif 0.0 < total_progress < minimum_progress_distance:
+            stop_reason = "insufficient-progress-below-threshold"
 
     transitions: list[dict[str, Any]] = []
     for index in range(1, len(plan_targets)):
@@ -945,6 +966,7 @@ def build_progress_analysis(
         "arrivedAtAnySample": arrived_at_any_sample,
         "candidateOnly": True,
         "actionableForMovement": False,
+        "noProgressSubClassification": stop_reason if status == "no-progress" and stop_reason != "minimum-progress-not-met" else None,
         "transitions": transitions,
     }
 
