@@ -106,7 +106,7 @@ def find_summaries(captures_root: Path) -> list[Path]:
 def format_counter(value: dict[str, Any]) -> str:
     if not value:
         return "-"
-    return ", ".join(f"{key}:{count}" for key, count in value.items())
+    return ", ".join(f"{key}:{count}" for key, count in sorted(value.items()))
 
 
 def format_markdown(rows: list[dict[str, Any]], repo_root: Path) -> str:
