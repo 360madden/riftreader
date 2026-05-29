@@ -4,7 +4,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
+from unittest import mock
 
 from scripts.static_owner_continuous_route_runner import (
     DEFAULT_ALIGNMENT_THRESHOLD_DEGREES,
@@ -577,16 +578,33 @@ class RoutePersistenceTests(unittest.TestCase):
 
     def test_run_on_missing_truth_file_still_returns_structured_output(self) -> None:
         """Even without a truth file, the run() function should return structured JSON."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            args = _make_args(
-                repo_root=str(tmp_path),
-                output_root=str(tmp_path / "out"),
-                current_truth_json=str(tmp_path / "nonexistent.json"),
-            )
-            result = run(args)
-            # The state command will fail (no JSON parse), resulting in a failed status
-            self.assertIn(result["status"], ("failed", "blocked"))
+            # Mock run_child to return a failed envelope (no JSON, no process)
+            with mock.patch.object(route_runner, "run_child") as mock_run:
+                mock_run.return_value = {
+                    "label": "00-initial-state",
+                    "ok": False,
+                    "exitCode": 1,
+                    "json": None,
+                    "commandPath": str(tmp_path / "cmd.json"),
+                    "stdoutPath": str(tmp_path / "stdout.txt"),
+                    "stderrPath": str(tmp_path / "stderr.txt"),
+                    "stdoutPreview": "",
+                    "stderrPreview": "",
+                    "durationSeconds": 0.05,
+                }
+                args = _make_args(
+                    repo_root=str(tmp_path),
+                    output_root=str(tmp_path / "out"),
+                    current_truth_json=str(tmp_path / "nonexistent.json"),
+                )
+                result = route_runner.run(args)
+
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["verdict"], "initial-state-readback-failed")
             self.assertIn("kind", result)
             self.assertEqual(result["kind"], "static-owner-continuous-route")
 
@@ -631,6 +649,333 @@ class UtilityFunctionTests(unittest.TestCase):
         holds = [compute_turn_hold_ms(d) for d in [0, 10, 30, 45, 90, 135, 180]]
         for i in range(1, len(holds)):
             self.assertGreaterEqual(holds[i], holds[i - 1])
+
+
+class MockedIntegrationTests(unittest.TestCase):
+    """Full run() pipeline with mocked subprocess calls."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.tmp_path = Path(self.temp_dir.name)
+
+        # Create a minimal truth file so path resolution doesn't fail
+        truth_dir = self.tmp_path / "docs" / "recovery"
+        truth_dir.mkdir(parents=True, exist_ok=True)
+        (truth_dir / "current-truth.json").write_text(
+            json.dumps({"target": {"processName": "rift_x64"}}), encoding="utf-8",
+        )
+
+    def _make_envelope(self, label: str, json_data: dict[str, Any] | None) -> dict[str, Any]:
+        """Create a run_child envelope with a deterministic summaryJson path."""
+        summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+        return {
+            "label": label,
+            "ok": json_data is not None,
+            "exitCode": 0 if json_data is not None else 1,
+            "json": {"summaryJson": summary_path} if json_data else None,
+            "commandPath": str(self.tmp_path / f"{label}.command.json"),
+            "stdoutPath": str(self.tmp_path / f"{label}.stdout.txt"),
+            "stderrPath": str(self.tmp_path / f"{label}.stderr.txt"),
+            "stdoutPreview": "",
+            "stderrPreview": "",
+            "durationSeconds": 0.05,
+        }
+
+    def _mock_run_child_fn(self) -> Any:
+        """Return a side_effect function that uses label to determine the envelope."""
+        full_summaries: dict[str, dict[str, Any]] = {}
+
+        def add_state(label: str, coord: dict[str, float], yaw: float, turn_class: str) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "latestState": {
+                    "coordinate": coord,
+                    "yawDegrees": yaw,
+                    "turnRateClassification": turn_class,
+                },
+            }
+
+        def add_plan(label: str, first_action: str, turn_magnitude: str, turn_dir: str | None,
+                     signed_delta: float, abs_delta: float, plan_dist: float,
+                     within_radius: bool, within_align: bool, exec_blocked: bool,
+                     engine_class: str, blockers: list[str] | None = None) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            nav_target: dict[str, Any] = {
+                "suggestedTurnDirection": turn_dir,
+                "signedBearingDeltaDegrees": signed_delta,
+                "absoluteBearingDeltaDegrees": abs_delta,
+                "planarDistance": plan_dist,
+                "withinArrivalRadius": within_radius,
+                "withinAlignmentThreshold": within_align,
+            }
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "plan": {
+                    "firstAction": first_action,
+                    "turnMagnitudeClass": turn_magnitude,
+                    "navigationTarget": nav_target,
+                    "executionBlocked": exec_blocked,
+                    "executionBlockers": blockers or [],
+                    "engineTurnRateClassification": engine_class,
+                },
+            }
+
+        def add_turn(label: str, post_yaw: float, abs_delta: float) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed",
+                "turnSamples": [{"postYawDegrees": post_yaw, "absoluteYawDeltaDegrees": abs_delta}],
+            }
+
+        def add_forward(label: str, route_status: str, progress: float,
+                        initial_dist: float, final_dist: float) -> None:
+            summary_path = str(self.tmp_path / f"mocked-{label}-summary.json")
+            full_summaries[summary_path] = {
+                "status": "passed" if route_status in ("progress", "arrived") else "blocked",
+                "routeResult": {
+                    "routeStatus": route_status,
+                    "totalProgressDistance": progress,
+                    "initialPlanarDistance": initial_dist,
+                    "finalPlanarDistance": final_dist,
+                },
+            }
+
+        def get_summary(path: str) -> dict[str, Any]:
+            if path in full_summaries:
+                return full_summaries[path]
+            raise ValueError(f"Unexpected mocked summary path: {path}")
+
+        def mock_run(*, label: str, command: Sequence[str], cwd: Path,
+                     child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            return self._make_envelope(
+                label,
+                {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+            )
+
+        return add_state, add_plan, add_turn, add_forward, get_summary, mock_run
+
+    # --- Tests ---
+
+    def test_two_iteration_arrival(self) -> None:
+        """Full happy path: state → plan → turn → replan → forward → arrived."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        # Register all expected summaries
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_turn("turn-001-left", -36.35, 42.35)
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "arrived", 33.0, 4.5, 0.5)
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "route-loop-arrived")
+        self.assertEqual(result["total"]["iterationCount"], 1)
+        self.assertEqual(result["total"]["turnsExecuted"], 1)
+        self.assertEqual(result["total"]["forwardSteps"], 1)
+        self.assertGreater(result["total"]["totalProgressDistance"], 0)
+        self.assertTrue(result["safety"]["inputSent"])
+        self.assertTrue(result["safety"]["movementSent"])
+        self.assertTrue(result["safety"]["navigationControl"])
+        self.assertEqual(result["iterations"][0]["turnDirection"], "left")
+
+    def test_three_consecutive_forward_no_progress_blocks(self) -> None:
+        """3 consecutive forward failures should trigger no-progress guard."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        # Initial state and plan — need a turn first, then aligned
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_turn("turn-001-left", -36.35, 42.35)
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        # 3 forward attempts — all fail (no progress, not arrived)
+        # Each iteration re-plans before forward, so register plan-002/003 too
+        add_plan("plan-002", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "blocked", 0.0, 4.5, 4.5)
+        add_plan("plan-003", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-002", "blocked", 0.0, 4.5, 4.5)
+        add_forward("forward-003", "blocked", 0.0, 4.5, 4.5)
+
+        args = _make_args(
+            max_iterations=5,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("forward-no-progress-3-consecutive-stuck", result["blockers"])
+        # 3 iterations ran, but all forwards failed — total_forwards stays 0
+        self.assertEqual(result["total"]["iterationCount"], 3)
+        self.assertEqual(result["total"]["forwardSteps"], 0)
+        self.assertEqual(result["total"]["totalProgressDistance"], 0.0)
+
+    def test_already_arrived_returns_immediately(self) -> None:
+        """If initial plan shows withinArrivalRadius, skip loop."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7285.0, "y": 821.0, "z": 2980.0}, 45.0, "stationary")
+        add_plan("00-initial-plan", "stop", "aligned", "aligned",
+                 0.5, 0.5, 1.5, True, True, False, "stationary")
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "already-arrived")
+        self.assertIn("destination-already-within-arrival-radius", result["warnings"])
+        self.assertEqual(result["total"]["iterationCount"], 0)
+        # No input was sent since we never entered the loop
+        self.assertFalse(result["safety"]["inputSent"])
+
+    def test_execution_blocked_breaks_loop(self) -> None:
+        """If plan shows executionBlocked, break out of loop."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        # Plan iteration 1 is execution blocked
+        add_plan("plan-001", "blocked", "blocked", None,
+                 0.0, 0.0, 37.49, False, False, True, "unknown",
+                 blockers=["turn-direction-mismatch-atan2-wants-left-but-engine-0x304-is-turning-right"])
+
+        args = _make_args(
+            max_iterations=5,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["verdict"], "route-loop-plan-execution-blocked")
+        self.assertIn(
+            "turn-direction-mismatch-atan2-wants-left-but-engine-0x304-is-turning-right",
+            result["blockers"],
+        )
+
+    def test_turn_json_missing_does_not_block_loop(self) -> None:
+        """If turn returns no JSON, the loop should continue with a warning."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        # We'll mock run_child directly: return a valid envelope for most calls,
+        # but a failed one for the turn call
+        def mock_break(*, label: str, command: Sequence[str], cwd: Path,
+                       child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            # Return failed envelope for turn-001, valid for everything else
+            if label == "turn-001-left":
+                return self._make_envelope(label, None)
+            return self._make_envelope(
+                label,
+                {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+            )
+
+        add_state, add_plan, add_turn, add_forward, get_summary, _ = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "arrived", 33.0, 4.5, 0.5)
+
+        args = _make_args(
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_break):
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "route-loop-arrived")
+        self.assertTrue(any("turn-json-missing" in (w or "") for w in result.get("warnings", [])))
+
+    def test_forward_json_missing_does_not_block_loop(self) -> None:
+        """If forward returns no JSON, the loop should continue with a warning."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        def mock_break(*, label: str, command: Sequence[str], cwd: Path,
+                       child_dir: Path, timeout_seconds: float) -> dict[str, Any]:
+            if label == "forward-001":
+                return self._make_envelope(label, None)
+            return self._make_envelope(
+                label,
+                {"summaryJson": str(self.tmp_path / f"mocked-{label}-summary.json")},
+            )
+
+        add_state, add_plan, add_turn, add_forward, get_summary, _ = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_plan("plan-001", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+        add_turn("turn-001-left", -36.35, 42.35)
+        add_plan("replan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+
+        args = _make_args(
+            max_iterations=5,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_break):
+            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertIn(result["status"], ("blocked", "failed"))
+        self.assertTrue(any("forward-json-missing" in (w or "") for w in result.get("warnings", [])))
 
 
 if __name__ == "__main__":

@@ -725,11 +725,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
             summary["total"]["finalPlanarDistance"] = current_distance
             summary["iterations"].append(iteration_record)
-            summary["total"]["iterationCount"] = iteration
-            summary["total"]["turnsExecuted"] = total_turns
-            summary["total"]["forwardSteps"] = total_forwards
 
-        # End of loop
+        # End of loop — set totals here so they're correct regardless of which break fired
+        summary["total"]["iterationCount"] = iteration
+        summary["total"]["turnsExecuted"] = total_turns
+        summary["total"]["forwardSteps"] = total_forwards
         summary["total"]["totalDurationSeconds"] = time.perf_counter() - started
         summary["total"]["totalProgressDistance"] = total_progress
         summary["total"]["finalPlanarDistance"] = current_distance if not arrived else None
