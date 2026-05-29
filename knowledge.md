@@ -7,7 +7,7 @@ This file gives Codebuff context about your project: goals, commands, convention
 RiftReader is a **hybrid reverse-engineering and memory-reading toolkit** for the RIFT MMORPG client. It combines:
 - **Lua addons** (`addon/`) — in-game validation exports (ReaderBridgeExport, RiftReaderValidator)
 - **.NET 10 C# memory reader** (`reader/`) — external process memory reads for player/target state
-- **PowerShell & Python scripts** (`scripts/`) — automation, discovery, capture, and workflow orchestration
+- **Python & PowerShell scripts** (`scripts/`) — automation, discovery, capture, and workflow orchestration
 - **Cheat Engine / x64dbg** — reverse-engineering aid for address/offset discovery
 
 **Primary data source:** the C# memory reader. Addon exports validate reader anchors.
@@ -31,16 +31,15 @@ dotnet run --project .\reader\RiftReader.Reader\RiftReader.Reader.csproj -- --pr
 # or: scripts\run-reader.cmd -- --process-name rift_x64 --read-player-current --json
 ```
 
-### Lua addon validation
+### Validate custom agents (after editing .agents/)
 ```powershell
-scripts\validate-addon.cmd       # syntax-check all Lua addons with luac
-scripts\deploy-addon.cmd         # deploy to all detected Rift AddOns folders
-scripts\sync-addon.cmd           # validate + deploy in one step
+python scripts/agent-validate.py --verbose --json
 ```
 
-### Cheat Engine workflow
+### Agent snapshot/rollback
 ```powershell
-scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstrap
+python scripts/agent-snapshot.py                        # backup all .agents/*.ts
+python scripts/agent-rollback.py <snapshot-dir-name>    # restore from snapshot
 ```
 
 ## Architecture
@@ -50,8 +49,25 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 |---|---|
 | `reader/RiftReader.Reader/` | C# memory reader: CLI, Memory, Scanning, Models, Formatting, Navigation, Sessions, Telemetry |
 | `reader/RiftReader.Reader.Tests/` | C# unit tests (xUnit + coverlet) |
-| `tools/RiftReader.SendInput/` | C# SendInput tool — posts keystrokes to RIFT windows |
+| `tools/RiftReader.SendInput/` | C# SendInput tool — posts keystrokes to RIFT windows (use `--input-mode ScanCode` first) |
 | `tools/RiftReader.WindowTools/` | C# window enumeration and targeting utilities |
+
+### Custom Codebuff agents (`.agents/`)
+| Agent | Model | Purpose | When to spawn |
+|---|---|---|---|
+| `rift-readback` | `deepseek/deepseek-v4-pro` | Read-only coordinate/facing recovery | Every session — instant static chain readback |
+| `rift-discovery` | `anthropic/claude-opus-4.7` | Static chain reverse-engineering | Per discovery campaign |
+| `rift-proof` | `anthropic/claude-opus-4.7` | Promotion gate evaluation | Per promotion candidate |
+
+**Interaction flow:** Discovery spawns readback for candidate validation; proof spawns readback for gate evidence. All three are backed by `.agents/backup/` snapshot system.
+
+### Promoted static resolvers (current truth)
+| Field | Chain expression | Offsets |
+|---|---|---|
+| Player coordinates | `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` | Owner + 0x320 (X), +0x324 (Y), +0x328 (Z) |
+| Facing target | `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` | 20 bytes before coords, same owner object |
+| Yaw formula | `atan2(Z_at_0x314 - playerZ, X_at_0x30C - playerX)` | Read both chains in same cycle |
+| Turn rate | `[rift_x64+0x32EBC80]+0x304` (float) | Positive = turning left, negative = right |
 
 ### Key directories
 | Directory | Purpose |
@@ -59,16 +75,18 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 | `addon/ReaderBridgeExport/` | Lua addon exporting ReaderBridge telemetry to disk |
 | `addon/RiftReaderValidator/` | Lua addon for manual snapshots + validation UI |
 | `addon/ReaderBridge/` | Referenced ReaderBridge addon (not owned by this repo) |
-| `scripts/` | PowerShell/Python automation, discovery helpers, captures, tests |
+| `scripts/` | Python/PowerShell automation, discovery helpers, captures, tests |
 | `scripts/captures/` | Discovery artifacts (JSON trace files, family data) |
 | `scripts/navigation/` | Waypoint JSON for in-game navigation |
+| `.agents/` | Custom Codebuff agent definitions (TypeScript) — backed up under `.agents/backup/` |
 | `tools/dashboard/` | HTML/JS live data dashboard |
 | `tools/rift-game-mcp/` | Node.js MCP server for RIFT game interaction |
 | `tools/rift-window-capture/` | C# tool for RIFT window capture (PrintWindow, WGC, DirectX) |
 | `tools/reverse-engineering/` | Staged ReClass.NET and x64dbg installs |
-| `tools/*.py` | Top-level desktop harness (`riftreader_desktop_harness.py`) and drive inbox (`riftreader_drive_inbox.py`) |
+| `tools/*.py` | Top-level desktop harness and drive inbox |
+| `tools/riftreader_workflow/` | Python workflow orchestration (decision packet, MCP, operator-lite, etc.) |
 | `docs/` | Recovery runbooks, analysis, workflow policies, handoffs |
-| `docs/recovery/` | Current truth, rebuild runbook, proof anchors |
+| `docs/recovery/` | Current truth, rebuild runbook, proof anchors, static chain proofs |
 | `TomTom/` | TomTom waypoint import/export |
 
 ### Data flow
@@ -89,6 +107,15 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 --read-player-coord-anchor
 # Target snapshot
 --read-target-current
+```
+
+### Static chain readback (instant, no movement needed)
+```powershell
+# Coordinates (2 ReadProcessMemory calls, milliseconds)
+python scripts/static_owner_coordinate_chain_readback.py --use-current-truth --json
+
+# Facing + nav state (same owner, reads 0x30C-0x328)
+python scripts/static_owner_facing_discovery.py nav-state --pid <pid> --json
 ```
 
 ### Discovery / scanning
@@ -113,9 +140,30 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 --navigate-waypoints               # Single-segment travel
 ```
 
+### Facing/yaw discovery pipeline (snapshot → compare → trace)
+```powershell
+# Phase 1: Baseline + displaced snapshots
+python scripts/static_owner_facing_discovery.py snapshot --pid <pid> --hwnd <hwnd> --json
+python scripts/static_owner_facing_discovery.py compare --baseline <path> --displaced <path> --json
+
+# Phase 2: Pointer trace
+python scripts/pointer_owner_neighborhood_inspector.py ...
+
+# Turn-aware route plan (cross-checks atan2 vs engine 0x304 turn rate)
+python scripts/static_owner_turn_aware_route_plan.py ...
+```
+
 ### Helper scripts (key ones)
 | Script | Purpose |
 |---|---|
+| `scripts/static_owner_coordinate_chain_readback.py` | Instant static chain readback (promoted resolver) |
+| `scripts/static_owner_facing_discovery.py` | Owner window snapshots, comparison, nav state with turn rate |
+| `scripts/static_owner_turn_aware_route_plan.py` | Turn-aware route planning with engine turn rate cross-check |
+| `scripts/static_owner_nav_route_run.py` | Navigation route execution |
+| `scripts/static_chain_promotion_readiness.py` | Promotion gate check (all 5 gates) |
+| `scripts/agent-validate.py` | Validate custom agent definitions (syntax, schema, tool names) |
+| `scripts/agent-snapshot.py` | Snapshot all `.agents/*.ts` files |
+| `scripts/agent-rollback.py` | Rollback agents from a snapshot |
 | `scripts/read-player-current.cmd` | One-command player snapshot |
 | `scripts/trace-player-coord-write.cmd` | Capture coord-write instruction via CE |
 | `scripts/smart-capture-player-family.cmd` | CE-assisted player-family confirmation |
@@ -141,6 +189,7 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 - Process memory reads must include bounds checks and null guards
 - Key dependency: `Reloaded.Memory.Sigscan` for AOB/signature scanning
 - Tests: xUnit + coverlet.collector + Microsoft.NET.Test.Sdk
+- SendInput: prefer `--input-mode ScanCode` for movement tests; supports Space, Left, Up, Right, Down, Enter, Esc, Backspace, Tab, PageUp, PageDown
 
 ### Lua (5.1 only)
 - All `Inspect.*` / `Command.*` wrapped in `pcall()`; nil-check results
@@ -164,6 +213,15 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 - Stage explicit paths only (`git add path/to/file`); never `git add .`
 - Do not push, branch-rewrite, or remote-mutate without explicit approval
 - Use `git --no-pager` for diff/log to avoid pager stalls
+
+### Custom Codebuff agents (`.agents/`)
+- Three agents defined: `rift-readback` (read-only), `rift-discovery` (RE pipeline), `rift-proof` (promotion gates)
+- Run `python scripts/agent-validate.py --verbose --json` after editing any `.agents/*.ts` file
+- Snapshots live under `.agents/backup/snapshot-<timestamp>/`
+- `rift-readback` has NO write tools — cannot modify files
+- `rift-discovery` can spawn `rift-readback` for candidate validation; NEVER promotes
+- `rift-proof` can spawn `rift-readback` for gate evidence; `promotionPerformed` is ALWAYS false
+- Agent tool names must match the validated tool set (e.g., `researcher_web` not `web_search`)
 
 ## Gotchas & constraints
 
@@ -192,6 +250,9 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 
 ### Player facing / orientation
 - **NOT exposed by RIFT Lua API.** Derive from memory basis matrix or position deltas.
+- **Promoted facing target:** `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` — same owner as coordinates, 20 bytes before
+- **Yaw formula:** `atan2(Z_at_0x314 - playerZ, X_at_0x30C - playerX)`
+- **Turn rate discriminator:** offset 0x304 (float) — positive = left turn, negative = right turn
 - Actor basis matrix: forward row at `+0x60`, duplicate basis at `+0x94` (historical, revalidate after updates)
 
 ### Target process
@@ -206,6 +267,11 @@ scripts\sync-cheatengine.cmd     # regenerate CE probe + refresh autorun bootstr
 - **OpenCode is retired** for this repo — do not create/modify OpenCode code unless explicitly re-authorized
 - **Model routing:** prefer stronger reasoning for live RIFT, x64dbg, coordinate truth, proof work; simpler models OK for docs/status
 - **Context7:** use for .NET, PowerShell, library docs; do NOT use for local RiftReader debugging
+- **Custom agents:** spawn `rift-readback` for coordinates, `rift-discovery` for RE, `rift-proof` for promotion gates
+- **Non-Codex workflow:** use when Codex is unavailable — GitHub connector read-only, deliver edits as ZIP or applier
+
+### Turn-aware route plan engine cross-check
+The route planner cross-checks atan2-derived turn direction against the engine's 0x304 turn rate discriminator. If they disagree (e.g., atan2 says "left" but 0x304 says "right"), the route is **blocked** with a `turn-direction-mismatch` blocker. This prevents sending input when atan2 might be ambiguous.
 
 ## Recovery docs (when state drifts)
 
@@ -213,3 +279,4 @@ Start here:
 - `docs/recovery/README.md`
 - `docs/recovery/current-truth.md`
 - `docs/recovery/rebuild-runbook.md`
+- `docs/recovery/coordinate-recovery-workflow.md`

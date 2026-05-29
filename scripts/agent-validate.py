@@ -45,9 +45,9 @@ KNOWN_TOOLS = {
     "add_message", "apply_patch", "ask_user", "code_search", "end_turn",
     "find_files", "glob", "gravity_index", "list_directory", "lookup_agent_info",
     "propose_str_replace", "propose_write_file", "read_docs", "read_files",
-    "read_subtree", "read_url", "render_ui", "run_file_change_hooks",
-    "run_terminal_command", "set_messages", "set_output", "skill",
-    "spawn_agents", "str_replace", "suggest_followups", "task_completed",
+    "read_subtree", "read_url", "render_ui", "researcher_docs", "researcher_web",
+    "run_file_change_hooks", "run_terminal_command", "set_messages", "set_output",
+    "skill", "spawn_agents", "str_replace", "suggest_followups", "task_completed",
     "think_deeply", "web_search", "write_file", "write_todos",
 }
 

@@ -61,6 +61,39 @@ def finite_float(value: float) -> bool:
     return math.isfinite(value) and abs(value) < 1_000_000
 
 
+DEFAULT_TURN_RATE_THRESHOLD = 0.35
+
+
+def classify_turn_direction_from_rate(
+    rate: float | None,
+    threshold: float = DEFAULT_TURN_RATE_THRESHOLD,
+) -> dict[str, Any]:
+    """Classify turn direction from the 0x304 directional turn rate sign.
+
+    Positive rate (> +threshold) = turning left.
+    Negative rate (< −threshold) = turning right.
+    Within ±threshold = stationary / no active turn.
+
+    This is a single 4-byte float read that discriminates left-from-right
+    without the full atan2(yaw) computation (which requires reading 6 floats
+    from 0x30C–0x314 and 0x320–0x328).
+
+    Evidence: 4-pose triangulation (baseline / turn-right-2 / turn-left-3 /
+    turn-left-symmetric):
+      - baseline (stationary): 0.247  → within threshold → stationary
+      - turn-right-2 (D 500ms):  −1.18 → below −threshold  → right
+      - turn-left-3 (A 800ms):   +2.77 → above +threshold  → left
+      - turn-left-sym (A 1000ms):+0.61 → above +threshold  → left (settling)
+    """
+    if rate is None or not math.isfinite(rate):
+        return {"direction": "unknown", "rate": rate, "turning": False}
+    if rate > float(threshold):
+        return {"direction": "left", "rate": rate, "turning": True}
+    if rate < -float(threshold):
+        return {"direction": "right", "rate": rate, "turning": True}
+    return {"direction": "stationary", "rate": rate, "turning": False}
+
+
 def unpack_float(data: bytes, offset: int) -> float | None:
     try:
         value = struct.unpack_from("<f", data, offset)[0]
@@ -171,6 +204,8 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
     distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
     yaw = math.degrees(math.atan2(dz, dx))
     pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
+    turn_rate = unpack_float(data, 0x304)
+    turn_discriminator = classify_turn_direction_from_rate(turn_rate)
     return {
         "ownerAddress": int_hex(owner_address),
         "coordinate": position,
@@ -180,8 +215,12 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
         "pitchDegrees": pitch,
         "planarLookaheadDistance": planar,
         "lookaheadDistance3d": distance,
+        "turnRate0x304": turn_rate,
+        "turnRateClassification": turn_discriminator["direction"],
+        "turnRateDiscriminator": turn_discriminator,
         "positionOffset": "0x320",
         "facingTargetOffset": "0x30C",
+        "turnRateOffset": "0x304",
     }
 
 

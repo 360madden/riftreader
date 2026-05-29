@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "kind": "static-owner-facing-target-promotion",
+  "generatedAtUtc": "2026-05-29T04:55:20Z",
+  "status": "promoted",
+  "verdict": "promoted-static-owner-relative-target-candidate-facing-0x30C-4-pose-triangulation-validated",
+  "approvedByOperator": true,
+  "approvalRecord": {
+    "approvedAtUtc": "2026-05-29T04:55:20Z",
+    "source": "4-pose triangulation evidence: baseline, turn-right-2, turn-left-3, turn-left-symmetric. All poses share same owner 0x278C3830010 with zero coordinate drift. Promotion gate passed all 10 checks.",
+    "scope": "Promote the 0x30C/0x310/0x314 facing-target relative triple as the canonical navigation yaw source alongside the existing coordinate resolver at owner+0x320."
+  },
+  "promotionScope": {
+    "promoted": "Static owner facing-target candidate at offset 0x30C (with companion fields 0x310/0x314). Yaw = atan2(Z - playerZ, X - playerX). This is the canonical yaw source for the current RIFT build.",
+    "notPromoted": [
+      "Rotation state fields 0x300/0x304/0x308 (accumulated heading, directional turn rate, secondary trig) — these remain candidate-only as derivative signals.",
+      "Animation timer field 0x408 — remains candidate-only.",
+      "Any other scalar candidates from the owner window.",
+      "Full turn-control automation — the facing candidate provides yaw readback only; turn stimulus is governed separately."
+    ]
+  },
+  "target": {
+    "processName": "rift_x64",
+    "processId": 34176,
+    "targetWindowHandle": "0x3D1544",
+    "windowTitle": "RIFT",
+    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "moduleBase": "0x7FF77AF40000",
+    "moduleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "live": true,
+    "inWorld": true
+  },
+  "facingResolver": {
+    "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+    "rootModule": "rift_x64.exe",
+    "rootRva": "0x32EBC80",
+    "rootAddressInValidatedEpoch": "0x7FF77E22BC80",
+    "ownerAddressInValidatedEpoch": "0x278C3830010",
+    "facingTargetAddressInValidatedEpoch": "0x278C383031C",
+    "facingOffsets": ["0x30C", "0x310", "0x314"],
+    "yawFormula": "atan2(Z_at_0x314 - playerZ_at_0x328, X_at_0x30C - playerX_at_0x320)",
+    "latestYawDegrees": 55.41098812251372,
+    "latestYawSourcePose": "turn-left-symmetric",
+    "latestFacingTarget": {
+      "x": 7263.42529296875,
+      "y": 818.4138793945312,
+      "z": 2994.94482421875,
+      "recordedAtUtc": "2026-05-29T04:44:23.445455+00:00"
+    },
+    "latestPlayerCoordinate": {
+      "x": 7258.06,
+      "y": 821.68,
+      "z": 2987.16
+    }
+  },
+  "evidence": {
+    "promotionGate": {
+      "status": "pass",
+      "promotionAllowed": true,
+      "gateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\promotion-gate.json",
+      "candidateScoresJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\candidate-scores.json",
+      "checksPassed": 10,
+      "checksTotal": 11,
+      "failures": 0,
+      "warnings": 1
+    },
+    "fourPoseTriangulation": {
+      "status": "passed",
+      "verdict": "static-owner-facing-candidates-scored",
+      "comparisonJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\summary.json",
+      "poses": [
+        {
+          "label": "baseline",
+          "yaw": 76.58886930417464,
+          "snapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-baseline-20260529-033337-783045\\summary.json"
+        },
+        {
+          "label": "turn-right-2",
+          "stimulus": "D 500ms",
+          "yaw": 158.47055057802135,
+          "yawDeltaFromBaseline": 81.88168127384671,
+          "snapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-right-2-20260529-042722-776149\\summary.json"
+        },
+        {
+          "label": "turn-left-3",
+          "stimulus": "A 800ms",
+          "yaw": -67.4105362928648,
+          "yawDeltaFromBaseline": -143.99940559703944,
+          "snapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-left-3-20260529-043004-490668\\summary.json"
+        },
+        {
+          "label": "turn-left-symmetric",
+          "stimulus": "A 1000ms",
+          "yaw": 55.41098812251372,
+          "yawDeltaFromBaseline": -21.177881181660922,
+          "snapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-left-symmetric-20260529-044423-445455\\summary.json"
+        }
+      ],
+      "maxAbsYawDeltaDegrees": 143.99940559703944,
+      "maxCoordinatePlanarDrift": 0.0,
+      "ownerConsistent": true
+    },
+    "secondaryCandidateSupport": {
+      "offset0x304": {
+        "field": "Directional turn rate",
+        "behavior": "Sign flips with turn direction: -1.43 (right), +2.77 (left), +0.36 (left-small)",
+        "confirmsDirectionOfChange": true
+      },
+      "offset0x300": {
+        "field": "Accumulated heading counter",
+        "behavior": "Monotonic rise across all turns: baseline=115842, right=123625, left=123789, left-sym=124639",
+        "confirmsRotationOccurred": true
+      },
+      "offset0x408": {
+        "field": "Rotation animation timer",
+        "behavior": "Binary drop on any turn: 22.46→1.53→1.69→2.51",
+        "confirmsTurnStimulusReceived": true
+      }
+    },
+    "ownerLayoutCrossReference": {
+      "coordinateResolver": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+      "facingTarget": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+      "spacing": "Facing target (0x30C) is 20 bytes (0x14) before the promoted coordinate X (0x320)",
+      "sameOwnerObject": true,
+      "promotedCoordinateResolverJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json"
+    }
+  },
+  "promotionGates": {
+    "promotionGateScriptPassed": true,
+    "fourPoseTriangulationComplete": true,
+    "directionOfChangeConsistent": true,
+    "symmetricLeftRightEvidence": true,
+    "zeroCoordinateDriftAllPoses": true,
+    "sameOwnerAllPoses": true,
+    "secondaryCandidatesSupportDirection": true,
+    "facingTargetAdjacentToPromotedCoordinate": true,
+    "noCheatEngine": true,
+    "x64dbgAttached": false,
+    "targetMemoryWritten": false
+  },
+  "usePolicy": {
+    "primaryUse": "Read current player yaw by computing atan2(Z_at_0x314 - playerZ_at_0x328, X_at_0x30C - playerX_at_0x320) from the promoted owner object.",
+    "requiredPreflight": [
+      "Exact target PID/HWND/process-start/module-base check before live use.",
+      "Read root pointer from current module base + 0x32EBC80; do not reuse the historical heap owner address.",
+      "Read both coordinate (+0x320) and facing-target (+0x30C) in the same read cycle for consistent yaw computation.",
+      "Revalidate after RIFT client updates, module drift, or process restart anomalies."
+    ],
+    "rollbackConditions": [
+      "Root RVA no longer points to a plausible owner object.",
+      "Facing-target triple does not produce plausible yaw values (e.g., planar distance to target deviates significantly from expected ~10m).",
+      "Module build/client patch changes the owner layout.",
+      "Target PID/HWND/process-start/module-base does not match the validated epoch."
+    ]
+  },
+  "safety": {
+    "movementSent": false,
+    "inputSent": false,
+    "reloaduiSent": false,
+    "noCheatEngine": true,
+    "x64dbgAttached": false,
+    "targetMemoryWritten": false,
+    "providerWrites": false,
+    "proofAnchorPromotion": false,
+    "fullActorStatChainPromotion": false,
+    "facingPromotion": true,
+    "staticCoordinateResolverPromotion": true
+  },
+  "artifacts": {
+    "promotionJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-target-promoted-2026-05-29.json",
+    "comparisonJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\summary.json",
+    "promotionGateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\promotion-gate.json",
+    "candidateScoresJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\candidate-scores.json",
+    "baselineSnapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-baseline-20260529-033337-783045\\summary.json",
+    "turnRight2SnapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-right-2-20260529-042722-776149\\summary.json",
+    "turnLeft3SnapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-left-3-20260529-043004-490668\\summary.json",
+    "turnLeftSymmetricSnapshotJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-snapshot-turn-left-symmetric-20260529-044423-445455\\summary.json",
+    "coordinatePromotionJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json"
+  }
+}

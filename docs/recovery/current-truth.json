@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-27T22:50:24Z",
-  "status": "current_pid_34176_static_player_coordinate_resolver_promoted_live_displacement_validated",
+  "updatedAtUtc": "2026-05-29T04:55:20Z",
+  "status": "current_pid_34176_static_player_coordinate_and_facing_target_resolvers_promoted_4pose_yaw_triangulation_validated",
   "target": {
     "processName": "rift_x64",
     "processId": 34176,
@@ -620,7 +620,7 @@
     "latestReverseRrapicoordApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-34176-20260527-221337.json",
     "latestReversePromotedStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-221323-713371\\summary.json"
   },
-  "nextRecommendedAction": "Use the promoted static player-coordinate resolver for current-coordinate readback, with exact PID/HWND/process-start/module-base targeting and a fresh chain readback before live movement or long captures. Do not treat this as full actor/stat-chain proof; continue actor/stat discovery separately from the promoted coordinate resolver.",
+  "nextRecommendedAction": "Use the promoted static player-coordinate resolver (owner+0x320) and facing-target resolver (owner+0x30C) for current-coordinate and current-yaw readback. Compute yaw as atan2(Z_at_0x314 - playerZ, X_at_0x30C - playerX). Read both coordinate and facing-target in the same cycle before live movement, turn-aware routing, or long captures. Do not treat this as full actor/stat-chain proof; continue actor/stat discovery separately.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",
@@ -709,6 +709,68 @@
   "currentWarnings": [
     "promotion-is-coordinate-resolver-only-not-full-actor-stat-chain",
     "old-pid-12148-proof-anchor-is-historical-and-superseded",
-    "future-live-use-still-requires-exact-target-and-fresh-chain-readback-preflight"
-  ]
+    "future-live-use-still-requires-exact-target-and-fresh-chain-readback-preflight",
+    "facing-promotion-is-candidate-only-without-independent-truth-surface-reference",
+    "yaw-readback-requires-reading-both-coordinate-and-facing-target-in-same-cycle"
+  ],
+  "staticOwnerFacing": {
+    "status": "promoted-static-owner-relative-target-candidate-facing-0x30C",
+    "promotionAllowed": true,
+    "promotedAtUtc": "2026-05-29T04:55:20Z",
+    "primaryCandidate": {
+      "candidateId": "static-owner-relative-target-candidate-facing-0x30C",
+      "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+      "yawFormula": "atan2(Z_at_0x314 - playerZ_at_0x328, X_at_0x30C - playerX_at_0x320)",
+      "rootModule": "rift_x64.exe",
+      "rootRva": "0x32EBC80",
+      "rootAddress": "0x7FF77E22BC80",
+      "ownerAddress": "0x278C3830010",
+      "facingTargetAddress": "0x278C383031C",
+      "facingOffsets": ["0x30C", "0x310", "0x314"],
+      "latestYawDegrees": 55.41098812251372,
+      "latestYawSourcePose": "turn-left-symmetric",
+      "yawByPose": {
+        "baseline": 76.58886930417464,
+        "turn-right-2": 158.47055057802135,
+        "turn-left-3": -67.4105362928648,
+        "turn-left-symmetric": 55.41098812251372
+      },
+      "maxAbsYawDeltaDegrees": 143.99940559703944,
+      "coordinateDriftAllPoses": 0.0
+    },
+    "fourPoseTriangulation": {
+      "status": "passed",
+      "comparisonJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\summary.json",
+      "poseCount": 4,
+      "poses": ["baseline", "turn-right-2", "turn-left-3", "turn-left-symmetric"],
+      "directionConsistency": "confirmed-all-4-poses",
+      "symmetricLeftRightEvidence": true
+    },
+    "promotionGate": {
+      "status": "pass",
+      "promotionAllowed": true,
+      "gateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\promotion-gate.json",
+      "candidateScoresJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-facing-comparison-20260529-044858-914801\\candidate-scores.json",
+      "checksPassed": 10,
+      "checksTotal": 11
+    },
+    "secondaryCandidateSupport": {
+      "offset0x304": "Directional turn rate — sign flips with turn direction",
+      "offset0x300": "Accumulated heading — monotonic rise across all turns",
+      "offset0x408": "Rotation animation timer — binary drop on any turn"
+    },
+    "ownerLayoutContext": {
+      "coordinateResolver": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+      "facingTargetResolver": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+      "spacingNote": "Facing target (0x30C) is 20 bytes (0x14) before coordinate X (0x320) in the same owner object.",
+      "sameOwnerObject": true
+    },
+    "blockers": [],
+    "promotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-target-promoted-2026-05-29.json",
+    "doesNotPromote": [
+      "Rotation state fields 0x300/0x304/0x308 — derivative signals only",
+      "Animation timer 0x408 — candidate-only",
+      "Full turn-control automation — facing provides yaw readback only"
+    ]
+  }
 }

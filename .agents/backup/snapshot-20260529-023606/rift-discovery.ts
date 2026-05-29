@@ -14,13 +14,13 @@
  *         until three-pose displacement proof. Never sends input without approval.
  */
 
-import type { AgentDefinition } from "./types/agent-definition"
+import type { AgentDefinition } from './types/agent-definition'
 
 const definition: AgentDefinition = {
-  id: "rift-discovery",
-  version: "0.1.0",
-  displayName: "RiftReader Discovery (Chain Discovery)",
-  model: "anthropic/claude-opus-4.7",
+  id: 'rift-discovery',
+  version: '0.1.0',
+  displayName: 'RiftReader Discovery (Chain Discovery)',
+  model: 'anthropic/claude-opus-4.7',
 
   spawnerPrompt: `Spawn this agent for reverse-engineering new static pointer chains:
 - Discover yaw/facing chains in the owner window (same pattern that found 0x320 for coordinates)
@@ -32,99 +32,99 @@ This agent NEVER promotes candidates. All output is candidate-only.
 Input/movement stimulus requires explicit user approval in each turn.`,
 
   toolNames: [
-    "read_files",
-    "code_search",
-    "glob",
-    "list_directory",
-    "run_terminal_command",
-    "spawn_agents",
-    "researcher_web",
+    'read_files',
+    'code_search',
+    'glob',
+    'list_directory',
+    'run_terminal_command',
+    'spawn_agents',
+    'web_search',
   ],
 
   spawnableAgents: [
-    "rift-readback",
+    'rift-readback',
   ],
 
   inputSchema: {
     prompt: {
-      type: "string",
-      description: "What to discover: yaw chain, facing chain, movement bearing, or other memory offsets",
+      type: 'string',
+      description: 'What to discover: yaw chain, facing chain, movement bearing, or other memory offsets',
     },
     params: {
-      type: "object",
+      type: 'object',
       properties: {
         target: {
-          type: "string",
-          description: "What field to discover: yaw, facing, pitch, movement-bearing, or a specific offset range",
+          type: 'string',
+          description: "What field to discover: 'yaw', 'facing', 'pitch', 'movement-bearing', or a specific offset range",
         },
         pid: {
-          type: "number",
-          description: "Target RIFT process ID",
+          type: 'number',
+          description: 'Target RIFT process ID',
         },
         hwnd: {
-          type: "string",
-          description: "Target RIFT window handle (hex)",
+          type: 'string',
+          description: 'Target RIFT window handle (hex)',
         },
         stimulusApproved: {
-          type: "boolean",
-          description: "Whether the user has approved sending input stimulus (turn keys, movement)",
+          type: 'boolean',
+          description: 'Whether the user has approved sending input stimulus (turn keys, movement)',
           default: false,
         },
       },
     },
   },
 
-  outputMode: "structured_output",
+  outputMode: 'structured_output',
   outputSchema: {
-    type: "object",
+    type: 'object',
     properties: {
       status: {
-        type: "string",
-        description: "One of: discovered, candidates-found, blocked-needs-stimulus, nothing-found, failed",
+        type: 'string',
+        description: "One of: 'discovered', 'candidates-found', 'blocked-needs-stimulus', 'nothing-found', 'failed'",
       },
-      target: { type: "string", description: "What was being discovered (e.g. yaw)" },
+      target: { type: 'string', description: "What was being discovered (e.g., 'yaw')" },
       phase: {
-        type: "string",
-        description: "Current discovery phase: snapshot-baseline, compare, trace-chains, validate-candidate",
+        type: 'string',
+        description: "Current discovery phase: 'snapshot-baseline', 'compare', 'trace-chains', 'validate-candidate'",
       },
-      ownerAddress: { type: "string", description: "Resolved owner object address (hex)" },
+      ownerAddress: { type: 'string', description: 'Resolved owner object address (hex)' },
       candidates: {
-        type: "array",
+        type: 'array',
         items: {
-          type: "object",
+          type: 'object',
           properties: {
-            rank: { type: "number" },
-            chainExpression: { type: "string" },
-            rootRva: { type: "string" },
-            offsets: { type: "string" },
-            candidateOnly: { type: "boolean" },
-            evidence: { type: "object" },
+            rank: { type: 'number' },
+            chainExpression: { type: 'string' },
+            rootRva: { type: 'string' },
+            offsets: { type: 'string' },
+            candidateOnly: { type: 'boolean' },
+            evidence: { type: 'object' },
           },
         },
       },
-      blockers: { type: "array", items: { type: "string" } },
-      warnings: { type: "array", items: { type: "string" } },
-      recommendedNextAction: { type: "string" },
+      blockers: { type: 'array', items: { type: 'string' } },
+      warnings: { type: 'array', items: { type: 'string' } },
+      recommendedNextAction: { type: 'string' },
       artifacts: {
-        type: "object",
+        type: 'object',
         properties: {
-          baselineSnapshotPath: { type: "string" },
-          displacedSnapshotPath: { type: "string" },
-          comparisonSummaryPath: { type: "string" },
-          chainTraceSummaryPath: { type: "string" },
+          baselineSnapshotPath: { type: 'string' },
+          displacedSnapshotPath: { type: 'string' },
+          comparisonSummaryPath: { type: 'string' },
+          chainTraceSummaryPath: { type: 'string' },
         },
       },
       safety: {
-        type: "object",
+        type: 'object',
         properties: {
-          movementSent: { type: "boolean" },
-          inputSent: { type: "boolean" },
-          noCheatEngine: { type: "boolean" },
-          stimulusApproved: { type: "boolean" },
+          movementSent: { type: 'boolean' },
+          inputSent: { type: 'boolean' },
+          noCheatEngine: { type: 'boolean' },
+          stimulusApproved: { type: 'boolean' },
         },
       },
     },
-    required: ["status", "target", "phase", "candidates", "blockers", "warnings", "safety"],
+    required: ['status', 'target', 'phase', 'candidates', 'blockers', 'warnings', 'safety'],
   },
 
   instructionsPrompt: `You are a reverse-engineering agent for RiftReader. Your job is to discover
@@ -137,7 +137,7 @@ found the promoted coordinate chain [rift_x64+0x32EBC80]+0x320/+0x324/+0x328.
 1. Take baseline owner window snapshot:
    python scripts/static_owner_facing_discovery.py snapshot --pid <pid> --hwnd <hwnd> --json
 2. IF stimulus is approved: send turn key, wait, take displaced snapshot.
-   IF stimulus NOT approved: output blocked-needs-stimulus and STOP.
+   IF stimulus NOT approved: output 'blocked-needs-stimulus' and STOP.
 3. Compare snapshots to find offsets that changed:
    python scripts/static_owner_facing_discovery.py compare --baseline <path> --displaced <path> --json
 4. Report top changed offsets sorted by magnitude/distance from baseline.
@@ -145,7 +145,7 @@ found the promoted coordinate chain [rift_x64+0x32EBC80]+0x320/+0x324/+0x328.
 ### Phase 2: Pointer Tracing (no stimulus needed)
 1. For top candidate offsets in the owner window, scan for module-RVA pointers:
    python scripts/pointer_owner_neighborhood_inspector.py ...
-2. Trace the static chain from module RVA to owner to target offset.
+2. Trace the static chain from module RVA → owner → target offset.
 3. Build chain expression like [rift_x64+0xNNNNNNN]+0xVVV.
 4. Compare chain readback against known-good values.
 
@@ -154,7 +154,7 @@ Spawn rift-readback to validate candidate chain against fresh API coordinates.
 
 ## Safety Rules (from agents.md)
 1. NEVER send movement/turn input without explicit user approval.
-2. If params.stimulusApproved is false, stop at Phase 1 step 2 with status blocked-needs-stimulus.
+2. If params.stimulusApproved is false, stop at Phase 1 step 2 with status 'blocked-needs-stimulus'.
 3. NEVER attach x64dbg or Cheat Engine without explicit approval.
 4. NEVER promote a candidate. All output must have candidateOnly: true.
 5. NEVER modify current-truth.json.

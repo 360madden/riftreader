@@ -53,7 +53,9 @@ internal static class Program
         ["ESC"] = 0x1B,
         ["ESCAPE"] = 0x1B,
         ["BACKSPACE"] = 0x08,
-        ["TAB"] = 0x09
+        ["TAB"] = 0x09,
+        ["PAGEUP"] = 0x21,
+        ["PAGEDOWN"] = 0x22
     };
 
     public static int Main(string[] args)
@@ -325,7 +327,7 @@ internal static class Program
 
         if (trimmed.Length != 1)
         {
-            throw new ArgumentException("Key must be a single character or one of: Space, Left, Up, Right, Down, Enter, Esc, Backspace, Tab.");
+            throw new ArgumentException("Key must be a single character or one of: Space, Left, Up, Right, Down, Enter, Esc, Backspace, Tab, PageUp, PageDown.");
         }
 
         var vkScan = Native.VkKeyScan(trimmed[0]);

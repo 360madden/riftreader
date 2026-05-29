@@ -322,6 +322,24 @@ def build_turn_aware_plan(
         max_route_steps=max_route_steps,
     )
     execution_blockers = list(gate["blockers"]) if first_action.startswith("turn-") else []
+
+    # Cross-check atan2-derived turn direction against the engine's 0x304 turn rate.
+    # 0x304 sign-flip pattern: positive = left turn, negative = right turn.
+    # This is a single 4-byte float read vs. the full atan2 (6 floats, 24 bytes).
+    engine_turn_classification = str(latest_state.get("turnRateClassification") or "unknown")
+    if engine_turn_classification == "unknown":
+        gate.setdefault("warnings", []).append("turn-rate-discriminator-unavailable-stale-or-old-state-format")
+    if suggested_turn in {"left", "right"} and engine_turn_classification in {"left", "right"}:
+        if suggested_turn != engine_turn_classification:
+            conflict_msg = (
+                f"turn-direction-mismatch-atan2-wants-{suggested_turn}"
+                f"-but-engine-0x304-is-turning-{engine_turn_classification}"
+            )
+            gate["blockers"].append(conflict_msg)
+            gate["blockers"] = sorted(set(gate["blockers"]))
+            gate["status"] = "blocked"
+            execution_blockers.append(conflict_msg)
+
     return {
         "status": "passed",
         "candidateOnly": True,
@@ -335,6 +353,8 @@ def build_turn_aware_plan(
         "controlIntent": control_intent,
         "reason": reason,
         "turnMagnitudeClass": magnitude,
+        "engineTurnRateClassification": engine_turn_classification,
+        "engineTurnRateDiscriminator": latest_state.get("turnRateDiscriminator"),
         "executionBlocked": bool(execution_blockers),
         "executionBlockers": sorted(set(execution_blockers)),
         "navigationTarget": navigation_target,
@@ -399,6 +419,7 @@ def validate_turn_aware_plan_contract(summary: Mapping[str, Any]) -> dict[str, A
         "warnings": sorted(set(warnings)),
         "firstAction": plan.get("firstAction"),
         "turnMagnitudeClass": plan.get("turnMagnitudeClass"),
+        "engineTurnRateClassification": plan.get("engineTurnRateClassification"),
         "executionBlocked": plan.get("executionBlocked"),
         "turnControlGateStatus": gate.get("status"),
     }
@@ -633,6 +654,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "executionBlocked": plan.get("executionBlocked"),
         "executionBlockers": plan.get("executionBlockers", []),
         "turnControlGateStatus": gate.get("status"),
+        "engineTurnRateClassification": plan.get("engineTurnRateClassification"),
         "movementSent": safe_mapping(summary.get("safety")).get("movementSent"),
         "inputSent": safe_mapping(summary.get("safety")).get("inputSent"),
         "summaryJson": artifacts.get("summaryJson"),

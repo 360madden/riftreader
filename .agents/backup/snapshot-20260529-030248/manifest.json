@@ -1,0 +1,18 @@
+{
+  "snapshotCreatedUtc": "2026-05-29T03:02:48.524569+00:00",
+  "snapshotDir": "C:\\RIFT MODDING\\RiftReader\\.agents\\backup\\snapshot-20260529-030248",
+  "files": [
+    {
+      "name": "rift-discovery.ts",
+      "size": 7057
+    },
+    {
+      "name": "rift-proof.ts",
+      "size": 8437
+    },
+    {
+      "name": "rift-readback.ts",
+      "size": 6259
+    }
+  ]
+}

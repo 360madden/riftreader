@@ -179,6 +179,153 @@ file ownership, and expected output. Workers must be told they are not alone in
 the codebase and must not revert or overwrite others' work. The main agent must
 integrate and validate results before making final claims or committing.
 
+## Custom Codebuff Agent Policy
+
+The repo defines three custom Codebuff agents under `.agents/`. Each has a
+specific model, tool set, and operating contract. The main agent should spawn
+them instead of handling their specialized work directly.
+
+### Agent Catalog
+
+| Agent | Model | Purpose | Frequency | Blast Radius |
+|---|---|---|---|---|
+| `rift-readback` | `deepseek/deepseek-v4-pro` | Read-only coordinate recovery | Every session | Low — read-only tools |
+| `rift-discovery` | `anthropic/claude-opus-4.7` | Static chain reverse-engineering | Per discovery campaign | Medium — may run terminal commands |
+| `rift-proof` | `anthropic/claude-opus-4.7` | Promotion gate evaluation | Per promotion candidate | High — promotion decisions are irreversible |
+
+### rift-readback — Spawn Policy
+
+All agents obey the **hard stop conditions** defined above (live RIFT input, movement, debugger attach,
+proof promotion all require explicit approval). The gates encoded here (`stimulusApproved`,
+`movementApproved`, `promotionAllowed`) are programmatic enforcement of those hard stops.
+
+**When to spawn:**
+- Reading current player coordinates (instant static chain readback)
+- Comparing API coordinates against chain readback (verified mode)
+- Running a promotion readiness check
+- Diagnosing RRAPICOORD resolver health
+- Any task listed in Tier 1–3 of the coordinate recovery workflow
+
+**Do NOT spawn for:**
+- Discovery work (use `rift-discovery`)
+- Promotion gate evaluation (use `rift-proof`)
+- Any task that sends game input, attaches debuggers, or writes files
+
+**Defensive properties:**
+- Tools: `read_files`, `code_search`, `glob`, `list_directory`, `run_terminal_command`
+- No `write_file`, `str_replace`, or `spawn_agents` (cannot modify files or delegate)
+- All output is structured JSON with `status`, `blockers`, `warnings`, `safety`
+- Never sends input, attaches debuggers, or mutates repo unless explicitly asked
+- Primary tools: `scripts/static_owner_coordinate_chain_readback.py --use-current-truth --json` (instant),
+  `scripts/capture-rift-api-reference-coordinate.ps1` (API capture for verified mode)
+- Promoted resolver: `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
+- This is the **canonical agent for the no-movement current-PID proof-recovery lane** (Tier 1–3)
+
+**Input contract:**
+- `mode`: `instant`, `verified`, `readiness`, or `diagnostic`
+- Optional: `pid`, `hwnd`, `tolerance`
+
+### rift-discovery — Spawn Policy
+
+**When to spawn:**
+- Discovering new static pointer chains (yaw, facing, pitch, movement bearing)
+- Comparing owner window memory snapshots to find stimulus-changing offsets
+- Tracing module-RVA pointers near candidate offsets
+- Running the discovery pipeline: snapshot → compare → trace → score
+- Any reverse-engineering task that requires strongest reasoning
+
+**Do NOT spawn for:**
+- Routine coordinate readback (use `rift-readback`)
+- Promotion gate evaluation (use `rift-proof`)
+- Simple docs updates, formatting, or status boards
+
+**Defensive properties:**
+- Tools: `read_files`, `code_search`, `glob`, `list_directory`, `run_terminal_command`, `spawn_agents`, `researcher_web`
+- Can spawn `rift-readback` for candidate validation
+- All output has `candidateOnly: true` — never promotes
+- Blocks safely with `blocked-needs-stimulus` if turn/movement input is needed but not approved
+- Requires `stimulusApproved: true` in params before sending any game input
+- Never attaches x64dbg or Cheat Engine without explicit approval
+- Never modifies `current-truth.json`
+
+**Input contract:**
+- `target`: `yaw`, `facing`, `pitch`, or `movement-bearing`
+- Optional: `pid`, `hwnd`, `stimulusApproved` (defaults to `false`)
+
+**Discovery pipeline:**
+1. Baseline owner window snapshot (`static_owner_facing_discovery.py snapshot`)
+2. Stimulus (turn key, movement) — **skipped** if `stimulusApproved` is `false`
+3. Displaced snapshot
+4. Compare (`static_owner_facing_discovery.py compare`)
+5. Pointer trace (`pointer_owner_neighborhood_inspector.py`)
+6. Candidate chain readback (delegated to `rift-readback`)
+
+### rift-proof — Spawn Policy
+
+**When to spawn:**
+- Evaluating whether a candidate chain is ready for promotion
+- Running three-pose displacement validation
+- Testing reboot/relog survival of a promoted chain
+- Checking API-now versus chain-now agreement
+- Producing a gate-by-gate promotion readiness report
+
+**Do NOT spawn for:**
+- Routine coordinate readback (use `rift-readback`)
+- Discovery work (use `rift-discovery`)
+- Actually performing promotion — this agent only reports, never promotes
+
+**Defensive properties:**
+- Tools: `read_files`, `code_search`, `glob`, `list_directory`, `run_terminal_command`, `spawn_agents`
+- No `write_file` or `str_replace` — cannot modify files
+- Can spawn `rift-readback` for coordinate validation
+- `promotionAllowed` is `false` unless **all** gates pass
+- `safety.promotionPerformed` is **always** `false`
+- Blocks safely if `movementApproved` is `false` and three-pose proof is needed
+- Fail-closed: blocks on any ambiguity rather than risking false approval
+
+**Input contract:**
+- `chainExpression`: the candidate chain to proof
+- `targetField`: what it resolves to (`coordinates`, `yaw`, `facing`, `pitch`)
+- `proofType`: `three-pose-displacement`, `reboot-survival`, `promotion-readiness`, or `full`
+- Optional: `movementApproved` (defaults to `false`), `pid`, `hwnd`, `tolerance`
+
+**Required promotion gates:**
+1. `staticResolverComplete` — chain resolves and root RVA is documented
+2. `restartRelogSurvived` — chain survives a RIFT restart
+3. `threePoseDisplacement` — chain delta matches ground truth across three poses
+4. `apiNowVsChainNow` — fresh API capture matches chain readback within tolerance
+5. `artifactFreshness` — proof artifacts are recent
+
+### Agent Interaction Flow
+
+```
+User request
+    │
+    ├─ Read coordinates? ──────────────► rift-readback
+    │
+    ├─ Discover new chain? ────────────► rift-discovery
+    │       │
+    │       └─ Validate candidate? ────► rift-readback (spawned by discovery)
+    │
+    └─ Proof candidate for promotion? ─► rift-proof
+            │
+            └─ Read coordinates? ──────► rift-readback (spawned by proof)
+```
+
+### Recovery System
+
+All agents are backed by a recovery system under `.agents/backup/` and `scripts/`:
+
+| Tool | Command | Purpose |
+|---|---|---|
+| Snapshot | `python scripts/agent-snapshot.py` | Create timestamped backup of all agent `.ts` files |
+| Rollback | `python scripts/agent-rollback.py <snapshot>` | Restore agents from a snapshot (creates safety snapshot first) |
+| Validate | `python scripts/agent-validate.py --verbose --json` | CI pipeline: checks syntax, required fields, model validity, tool names, output schemas |
+
+Run `agent-validate.py --verbose --json` after any agent edit. The validator checks all three
+agents in a single pass and reports per-agent results. The `--json` flag enables structured
+output for CI integration; omit `--skip-ts-check` when TypeScript is available.
+
 ## Escalation / anti-loop rules
 
 - Start simple. Validate quickly. Escalate only on evidence.

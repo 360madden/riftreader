@@ -38,7 +38,7 @@ Input/movement stimulus requires explicit user approval in each turn.`,
     "list_directory",
     "run_terminal_command",
     "spawn_agents",
-    "researcher_web",
+    "web_search",
   ],
 
   spawnableAgents: [
