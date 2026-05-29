@@ -105,7 +105,8 @@ the capture chain aligned while the typed reader work advances:
 
 Start here if state drifts or gets corrupted:
 
-- C:\RIFT MODDING\RiftReader\docs\recovery\README.md
+- `C:\RIFT MODDING\RiftReader\docs\recovery\README.md`
+- **[Coordinate Recovery & Reacquisition Workflow](docs/recovery/coordinate-recovery-workflow.md)** — fastest-path guide for recovering player coordinates using the promoted static resolver
 
 ## Assistant Policy
 
