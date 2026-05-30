@@ -378,6 +378,96 @@ def _summarize_latest_route_run_report_terrain(repo_root: Path) -> dict[str, Any
     }
 
 
+def _read_nav_state(repo_root: Path, target: dict[str, Any]) -> dict[str, Any]:
+    """Run the promoted static resolver with --nav-state and return structured pointer-chain data.
+
+    This is a read-only subprocess call to the coordinate chain readback script.
+    No game input, debugger attach, or mutation is performed.
+    """
+
+    pid = target.get("pid")
+    hwnd = target.get("hwnd")
+    module_base = target.get("moduleBase")
+    process_name = target.get("processName") or "rift_x64"
+
+    missing = [f for f in ["pid", "hwnd", "moduleBase"] if not target.get(f)]
+    if missing:
+        return {
+            "status": "unavailable",
+            "reason": "missing-target-fields",
+            "missingFields": missing,
+            "targetSource": "current-truth.target",
+        }
+
+    args = [
+        "python",
+        "scripts\\static_owner_coordinate_chain_readback.py",
+        "--pid", str(pid),
+        "--hwnd", str(hwnd),
+        "--module-base", str(module_base),
+        "--process-name", str(process_name),
+        "--nav-state",
+        "--json",
+    ]
+    envelope = run_command_envelope(
+        "nav-state-readback",
+        args,
+        repo_root,
+        timeout_seconds=30,
+        expected_exit_codes={0},
+        capture_full_output=True,
+    )
+
+    if not envelope.get("ok"):
+        return {
+            "status": "readback-failed",
+            "command": strip_command_output(envelope),
+            "exitCode": envelope.get("exitCode"),
+            "stderrPreview": envelope.get("stderrPreview"),
+        }
+
+    stdout = envelope.get("stdout") or ""
+    try:
+        data = json.loads(stdout)
+        if not isinstance(data, dict):
+            raise ValueError("readback output is not a JSON object")
+    except (json.JSONDecodeError, ValueError) as exc:
+        return {
+            "status": "parse-error",
+            "error": f"{type(exc).__name__}: {exc}",
+            "stdoutPreview": preview_text(stdout),
+        }
+
+    nav_state = safe_mapping(data.get("navState"))
+
+    return {
+        "status": data.get("verdict", "unknown"),
+        "generatedAtUtc": data.get("generatedAtUtc"),
+        "navState": {
+            "yawDegrees": nav_state.get("yawDegrees"),
+            "pitchDegrees": nav_state.get("pitchDegrees"),
+            "turnRate0x304": nav_state.get("turnRate0x304"),
+            "turnRateClassification": nav_state.get("turnRateClassification"),
+            "facingTargetCoordinate": nav_state.get("facingTargetCoordinate"),
+            "playerCoordinate": nav_state.get("playerCoordinate"),
+            "planarLookaheadDistance": nav_state.get("planarLookaheadDistance"),
+            "navStateError": nav_state.get("navStateError"),
+            "navStateCandidateOnly": nav_state.get("navStateCandidateOnly", True),
+            "actionableForNavigation": nav_state.get("actionableForNavigation", False),
+        },
+        "ownerAddress": safe_mapping(data.get("reads")).get("ownerAddress"),
+        "verdict": data.get("verdict"),
+        "readbackCommand": args,
+        "safety": {
+            **safe_mapping(data.get("safety")),
+            "readOnlySubprocess": True,
+            "noLiveInput": True,
+            "noDebuggerAttach": True,
+            "noMutation": True,
+        },
+    }
+
+
 def classify_target_epoch(truth: dict[str, Any] | None, proof: dict[str, Any] | None) -> dict[str, Any]:
     truth = safe_mapping(truth)
     proof = safe_mapping(proof)
@@ -1121,6 +1211,7 @@ def build_decision_packet(
     proof_json: Path | None = None,
     use_cache: bool = False,
     cache_dir: Path = DEFAULT_OUTPUT_DIR,
+    include_nav_state: bool = False,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     build_started = time.monotonic()
@@ -1130,7 +1221,7 @@ def build_decision_packet(
     errors: list[str] = []
     git_state = collect_git(repo_root)
     fingerprint = build_fingerprint(repo_root, git_state, truth_path, proof_path)
-    if use_cache and not run_safe_checks:
+    if use_cache and not run_safe_checks and not include_nav_state:
         cached = load_cached_packet(repo_root, cache_dir, fingerprint)
         if cached is not None:
             cached["performance"] = {
@@ -1169,6 +1260,14 @@ def build_decision_packet(
         }
     truth_summary = summarize_truth(truth, proof, now=now)
     navigation_terrain = _summarize_latest_route_run_report_terrain(repo_root)
+    nav_state_data: dict[str, Any] | None = None
+    if include_nav_state:
+        truth_target = target_from_document(truth)
+        nav_state_data = _read_nav_state(repo_root, truth_target)
+        if nav_state_data.get("status") not in {"unavailable", "readback-failed", "parse-error"}:
+            pass  # nav-state data is in the payload; no warning needed for success
+        else:
+            warnings.append(f"nav-state-unavailable:{nav_state_data.get('status')}:{nav_state_data.get('reason', '')}")
     terrain_classifications = navigation_terrain.get("terrainSubClassifications") or {}
     if navigation_terrain.get("terrainBlockerPresent"):
         terrain_count = terrain_classifications.get("blocked-stationary-no-movement", 0)
@@ -1220,6 +1319,7 @@ def build_decision_packet(
         "truth": truth_summary,
         "toolCatalog": tool_catalog_summary,
         "navigationTerrain": navigation_terrain,
+        "navigationPointerChains": nav_state_data,
         "retiredSurfaces": retired_guardrail,
         "allowedActions": list(ALLOWED_ACTIONS),
         "forbiddenActions": list(FORBIDDEN_ACTIONS),
@@ -1287,6 +1387,25 @@ def milestone_banner(state: str) -> str:
     return "# **🚦 MILESTONE — 🔄 CONTINUING**"
 
 
+def _compact_nav_state(nav_state_data: Any) -> dict[str, Any] | None:
+    """Compact the navigation pointer-chains data for the decision packet."""
+
+    if not isinstance(nav_state_data, dict):
+        return None
+    nav_state = safe_mapping(nav_state_data.get("navState"))
+    return {
+        "status": nav_state_data.get("status"),
+        "yawDegrees": nav_state.get("yawDegrees"),
+        "pitchDegrees": nav_state.get("pitchDegrees"),
+        "turnRate0x304": nav_state.get("turnRate0x304"),
+        "turnRateClassification": nav_state.get("turnRateClassification"),
+        "navStateError": nav_state.get("navStateError"),
+        "navStateCandidateOnly": nav_state.get("navStateCandidateOnly"),
+        "actionableForNavigation": nav_state.get("actionableForNavigation"),
+        "ownerAddress": nav_state_data.get("ownerAddress"),
+    }
+
+
 def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
     return {
         "schemaVersion": packet.get("schemaVersion"),
@@ -1304,6 +1423,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "terrainBlockerPresent": safe_mapping(packet.get("navigationTerrain")).get("terrainBlockerPresent"),
             "noProgressStepCount": safe_mapping(packet.get("navigationTerrain")).get("noProgressStepCount"),
         },
+        "navigationPointerChains": _compact_nav_state(packet.get("navigationPointerChains")),
         "llmReminder": packet.get("llmReminder"),
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
@@ -1437,6 +1557,42 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 "- No route-run report available for terrain context.",
             ]
         )
+    nav_chain = safe_mapping(packet.get("navigationPointerChains"))
+    if nav_chain and nav_chain.get("status") not in {None, "unavailable", "readback-failed", "parse-error"}:
+        nav_state = safe_mapping(nav_chain.get("navState"))
+        yaw = nav_state.get("yawDegrees")
+        pitch = nav_state.get("pitchDegrees")
+        turn = nav_state.get("turnRate0x304")
+        classification = nav_state.get("turnRateClassification")
+        err = nav_state.get("navStateError")
+        lines.extend(
+            [
+                "",
+                "## Navigation pointer chains (live readback)",
+                "",
+                f"- Status: `{nav_chain.get('status')}`",
+                f"- Owner address: `{nav_chain.get('ownerAddress')}`",
+                f"- Yaw: `{yaw:.2f}°`" if isinstance(yaw, (int, float)) else (f"- Yaw: `{yaw}`" if yaw is not None else "- Yaw: *unavailable*"),
+                f"- Pitch: `{pitch:.2f}°`" if isinstance(pitch, (int, float)) else (f"- Pitch: `{pitch}`" if pitch is not None else "- Pitch: *unavailable*"),
+                f"- Turn rate (+0x304): `{turn}` | Classification: `{classification}`",
+                f"- Candidate only: `{nav_state.get('navStateCandidateOnly')}` | Actionable: `{nav_state.get('actionableForNavigation')}`",
+            ]
+        )
+        if err:
+            lines.append(f"- ⚠️ **Nav-state error**: `{err}`")
+        if nav_state.get("facingTargetCoordinate"):
+            ftc = nav_state["facingTargetCoordinate"]
+            if isinstance(ftc, dict):
+                lines.append(f"- Facing target: `({ftc.get('x')}, {ftc.get('y')}, {ftc.get('z')})`")
+    elif nav_chain and nav_chain.get("status") == "unavailable":
+        lines.extend(
+            [
+                "",
+                "## Navigation pointer chains",
+                "",
+                f"- Status: `unavailable` — missing target fields: `{nav_chain.get('missingFields')}`",
+            ]
+        )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
@@ -1534,6 +1690,7 @@ def build_schema_contract() -> dict[str, Any]:
             "retiredSurfaces",
             "toolCatalog",
             "navigationTerrain",
+            "navigationPointerChains",
             "allowedActions",
             "forbiddenActions",
             "safeNextAction",
@@ -1556,6 +1713,27 @@ def build_schema_contract() -> dict[str, Any]:
         "statusValues": ["passed", "blocked", "failed"],
         "milestoneStates": sorted(MILESTONE_STATES),
         "repoChangedFileFields": ["status", "path", "generated", "liveTruth", "retiredSurface", "retiredSurfacePolicy"],
+        "navigationPointerChainsFields": [
+            "status",
+            "generatedAtUtc",
+            "navState",
+            "ownerAddress",
+            "verdict",
+            "readbackCommand",
+            "safety",
+        ],
+        "navigationPointerChainsNavStateFields": [
+            "yawDegrees",
+            "pitchDegrees",
+            "turnRate0x304",
+            "turnRateClassification",
+            "facingTargetCoordinate",
+            "playerCoordinate",
+            "planarLookaheadDistance",
+            "navStateError",
+            "navStateCandidateOnly",
+            "actionableForNavigation",
+        ],
         "retiredSurfaceFields": ["paths", "policy", "blocker", "requiresExplicitReauthorization", "recommendedAction"],
         "commitPlanFields": [
             "recommended",
@@ -1605,6 +1783,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--schema-json", action="store_true", help="Print the static decision packet schema contract.")
     parser.add_argument("--explain", action="store_true", help="Print Markdown explanation.")
     parser.add_argument("--lane", default=None, help="Override lane label after packet construction.")
+    parser.add_argument("--nav-state", action="store_true", help="Run the promoted static resolver with --nav-state and embed pointer-chain data.")
     parser.add_argument("--agent-plan", action="store_true", help="Print only the agent plan JSON.")
     return parser
 
@@ -1628,6 +1807,7 @@ def main(argv: list[str] | None = None) -> int:
             run_safe_checks=args.run_safe_checks,
             use_cache=args.use_cache,
             cache_dir=args.output_dir,
+            include_nav_state=args.nav_state,
         )
         if args.lane:
             packet["lane"] = args.lane
