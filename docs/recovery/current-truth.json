@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-30T00:00:00Z",
+  "updatedAtUtc": "2026-05-30T15:57:00Z",
   "status": "current_pid_34176_static_player_coordinate_and_facing_target_resolvers_promoted_4pose_yaw_triangulation_validated",
   "target": {
     "processName": "rift_x64",
     "processId": 25668,
     "targetWindowHandle": "0x320CB0",
     "windowTitle": "RIFT",
-    "processStartUtc": "2026-05-27T18:06:53.0701460Z",
+    "processStartUtc": "2026-05-30T02:46:41.581536+00:00",
     "moduleBase": "0x7FF6EE5D0000",
     "moduleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
     "live": true,
