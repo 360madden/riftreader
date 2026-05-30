@@ -211,6 +211,8 @@ def plan_command(args: argparse.Namespace, root: Path, output_root: Path) -> lis
         "--command-timeout-seconds", "30",
         "--json",
     ]
+    if args.nav_state:
+        command += ["--nav-state"]
     command += destination_args(args)
     return command
 
@@ -344,6 +346,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the pre-movement static resolver readback freshness gate (testing escape hatch).",
     )
+    parser.add_argument("--nav-state", action="store_true",
+        help="Run pointer-chain nav-state readback for per-iteration yaw/turn-rate health monitoring.")
     parser.add_argument("--json", action="store_true")
     return parser
 

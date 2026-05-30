@@ -273,6 +273,32 @@ python scripts/static_owner_turn_aware_route_plan.py ...
 ### Turn-aware route plan engine cross-check
 The route planner cross-checks atan2-derived turn direction against the engine's 0x304 turn rate discriminator. If they disagree (e.g., atan2 says "left" but 0x304 says "right"), the route is **blocked** with a `turn-direction-mismatch` blocker. This prevents sending input when atan2 might be ambiguous.
 
+### `--nav-state` pointer-chain readback pipeline
+
+A read-only pointer-chain nav-state pipeline that independently reads yaw, turn rate (0x304), facing target, and pitch from the promoted static resolver — without game input, debuggers, or mutation.
+
+**Architecture:** 6 tools use a single shared helper (`scripts/nav_state_readback.py`) to spawn the coordinate chain readback subprocess:
+
+| Tool | `--nav-state` flag | How it uses the result |
+|---|---|---|
+| `static_owner_coordinate_chain_readback.py` | `--nav-state` | Produces nav-state (yaw, turn rate, facing target, pitch) |
+| `decision_packet.py` | `--nav-state` | Includes `navigationPointerChains` in decision payload |
+| `nav_state_freshness_watchdog.py` | N/A (always on) | Compares two reads 0.5s apart for correlation/drift |
+| `static_owner_turn_aware_route_plan.py` | `--nav-state` | Cross-checks pointer-chain vs facing-discovery yaw/turn-rate |
+| `static_owner_continuous_route_runner.py` | `--nav-state` | Per-iteration nav-state health monitoring during multi-segment routes |
+| `navigation_target_watch.py` | `--nav-state` | Validates resolver health after finding RIFT window |
+
+**Shared helper:** `scripts/nav_state_readback.py` — `read_nav_state()`
+- Supports explicit target mode (`--pid`/`--hwnd`/`--module-base`)
+- Supports current-truth mode (`--use-current-truth`/`--current-truth-json`)
+- Returns standardized flat dict with all nav-state fields
+- Handles subprocess spawning, JSON parsing, timeouts, and errors
+
+**Safety markers (present on all paths):**
+- `candidateOnly: true` — never used for auto-navigation decisions
+- `actionableForNavigation: false` — no game input triggered
+- Read-only subprocess — no debugger attach, no mutation
+
 ## Recovery docs (when state drifts)
 
 Start here:
