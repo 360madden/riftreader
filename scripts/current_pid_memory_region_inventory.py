@@ -15,9 +15,10 @@ import math
 import sys
 from collections import Counter, defaultdict
 from ctypes import wintypes
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from .workflow_common import utc_iso, utc_stamp, write_json
 
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -100,14 +101,6 @@ if sys.platform == "win32":
     user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 
 
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-
-
 def find_repo_root(start: Path) -> Path:
     current = start.resolve()
     for candidate in [current, *current.parents]:
@@ -130,11 +123,6 @@ def parse_hwnd(value: str) -> int:
 def win_error(label: str) -> str:
     code = ctypes.get_last_error()
     return f"{label}: win32={code}"
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
 def state_name(value: int) -> str:

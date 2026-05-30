@@ -12,10 +12,11 @@ import argparse
 import json
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from itertools import combinations
 from pathlib import Path
 from typing import Any
+
+from .workflow_common import utc_iso, utc_stamp, write_json
 
 SCHEMA_VERSION = 1
 DEFAULT_CANDIDATE_GLOB = "scripts/captures/family-scan-currentpid-{pid}-*/api-family-vec3-candidates.jsonl"
@@ -24,19 +25,6 @@ DEFAULT_OUTPUT_ROOT = Path("scripts/captures")
 FAMILY_SPAN_16MIB = 0x1000000
 MEGAPAGE_SPAN_1MIB = 0x100000
 PAGE_SPAN_4KIB = 0x1000
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
 def family_base(value: int, span: int) -> int:

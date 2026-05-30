@@ -15,17 +15,10 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+from .workflow_common import utc_iso, utc_stamp, write_json
 
 
 def find_repo_root(start: Path) -> Path:
@@ -34,11 +27,6 @@ def find_repo_root(start: Path) -> Path:
         if (candidate / ".git").exists() and (candidate / "scripts").is_dir():
             return candidate
     raise RuntimeError(f"Could not find RiftReader repo root from {start}")
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
 def extract_json(text: str) -> Any:

@@ -22,10 +22,10 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .workflow_common import utc_iso, utc_stamp, write_json
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -81,19 +81,6 @@ class CommandEnvelopeError(RuntimeError):
     def __init__(self, message: str, envelope: dict[str, Any]) -> None:
         super().__init__(message)
         self.envelope = envelope
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
 def load_json(path: Path) -> Any:

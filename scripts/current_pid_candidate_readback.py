@@ -17,7 +17,6 @@ import json
 import math
 import struct
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,21 +38,10 @@ from scan_current_pid_coordinate_family import (  # noqa: E402
     verify_hwnd_owner,
 )
 
+from .workflow_common import utc_iso, utc_stamp, write_json
+
 
 SCHEMA_VERSION = 1
-
-
-def utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
 def to_float(value: Any) -> float | None:
