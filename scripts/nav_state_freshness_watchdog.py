@@ -62,7 +62,7 @@ def _read_one_nav_state(
     """Run a single nav-state readback and return the parsed payload."""
     command = [sys.executable, str(root / "scripts" / "static_owner_coordinate_chain_readback.py"), "--nav-state", "--json"]
     if use_current_truth:
-        command += ["--current-truth-json", str(current_truth_json), "--use-current-truth"]
+        command += ["--repo-root", str(root), "--current-truth-json", str(current_truth_json), "--use-current-truth"]
     else:
         if pid is not None:
             command += ["--pid", str(pid)]
@@ -80,7 +80,7 @@ def _read_one_nav_state(
             parsed = json.loads(result.stdout)
             if isinstance(parsed, dict):
                 return {
-                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error"),
+                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
                     "exitCode": result.returncode,
                     "status": parsed.get("status"),
                     "verdict": parsed.get("verdict"),
