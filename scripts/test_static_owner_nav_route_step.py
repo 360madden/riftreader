@@ -12,7 +12,6 @@ from scripts.static_owner_nav_route_step import (
     classify_route_result,
     compact,
     destination_args,
-    full_summary_from_compact,
     repo_root,
     route_command,
     send_key_command,
@@ -21,6 +20,7 @@ from scripts.static_owner_nav_route_step import (
     validate_route_command,
     validate_route_step_summary_contract,
 )
+from scripts.workflow_common import full_summary_from_compact
 
 
 class StaticOwnerNavRouteStepTests(unittest.TestCase):

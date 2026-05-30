@@ -20,9 +20,35 @@ import json
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+try:
+    from .workflow_common import (
+        base_safety,
+        full_summary_from_compact,
+        load_json_object,
+        preview,
+        repo_root,
+        run_child,
+        safe_mapping,
+        utc_iso,
+        utc_stamp,
+        write_json,
+    )
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import (  # type: ignore
+        base_safety,
+        full_summary_from_compact,
+        load_json_object,
+        preview,
+        repo_root,
+        run_child,
+        safe_mapping,
+        utc_iso,
+        utc_stamp,
+        write_json,
+    )
 
 
 SCHEMA_VERSION = 1
@@ -36,59 +62,6 @@ NO_PROGRESS_SUB_CLASSIFICATIONS = {
     "insufficient-progress-below-threshold": "Player moved slightly but did not meet the minimum progress threshold",
     "minimum-progress-not-met": "Progress below minimum threshold (no sub-classification available)",
 }
-
-
-def utc_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def utc_stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
-
-
-def safe_mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, Mapping) else {}
-
-
-def preview(text: str, *, limit: int = 2000) -> str:
-    return text if len(text) <= limit else text[:limit] + "...<truncated>"
-
-
-def load_json_object(path: str | Path) -> dict[str, Any]:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"JSON file is not an object: {path}")
-    return data
-
-
-def write_json(path: Path, value: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
-
-
-def base_safety() -> dict[str, Any]:
-    return {
-        "movementSent": False,
-        "inputSent": False,
-        "reloaduiSent": False,
-        "screenshotKeySent": False,
-        "noCheatEngine": True,
-        "x64dbgAttach": False,
-        "debuggerAttached": False,
-        "providerWrites": False,
-        "gitMutation": False,
-        "proofPromotion": False,
-        "actorChainPromotion": False,
-        "facingPromotion": False,
-        "navigationControl": False,
-        "savedVariablesUsedAsLiveTruth": False,
-        "navStateCandidateOnly": True,
-        "actionableForNavigation": False,
-    }
 
 
 def _read_nav_state(*, root: Path, current_truth_json: str, command_timeout_seconds: float, repo_root_path: str | None = None) -> dict[str, Any]:
@@ -164,65 +137,6 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         errors.append("command-timeout-seconds-must-be-positive")
     return errors
 
-
-def run_child(
-    *,
-    label: str,
-    command: Sequence[str],
-    cwd: Path,
-    child_dir: Path,
-    timeout_seconds: float,
-) -> dict[str, Any]:
-    child_dir.mkdir(parents=True, exist_ok=True)
-    stdout_path = child_dir / f"{label}.stdout.txt"
-    stderr_path = child_dir / f"{label}.stderr.txt"
-    command_path = child_dir / f"{label}.command.json"
-    started = time.perf_counter()
-    started_utc = utc_iso()
-    result = subprocess.run(
-        list(command),
-        cwd=str(cwd),
-        text=True,
-        capture_output=True,
-        timeout=timeout_seconds,
-        check=False,
-    )
-    duration = time.perf_counter() - started
-    stdout_path.write_text(result.stdout, encoding="utf-8")
-    stderr_path.write_text(result.stderr, encoding="utf-8")
-    parsed: Any = None
-    parse_error: str | None = None
-    if result.stdout.strip():
-        try:
-            parsed = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            parse_error = f"JSONDecodeError:{exc}"
-    envelope = {
-        "label": label,
-        "command": list(command),
-        "cwd": str(cwd),
-        "startedAtUtc": started_utc,
-        "endedAtUtc": utc_iso(),
-        "durationSeconds": duration,
-        "exitCode": result.returncode,
-        "ok": result.returncode == 0,
-        "stdoutPath": str(stdout_path),
-        "stderrPath": str(stderr_path),
-        "stdoutPreview": preview(result.stdout),
-        "stderrPreview": preview(result.stderr),
-        "json": parsed,
-        "jsonParseError": parse_error,
-    }
-    write_json(command_path, {key: value for key, value in envelope.items() if key != "json"})
-    envelope["commandPath"] = str(command_path)
-    return envelope
-
-
-def full_summary_from_compact(compact: Mapping[str, Any]) -> dict[str, Any]:
-    path = compact.get("summaryJson")
-    if not path:
-        raise ValueError("child-compact-summary-json-missing")
-    return load_json_object(str(path))
 
 
 def enrich_decision_with_nav_state(decision: dict[str, Any], nav_state_result: dict[str, Any] | None) -> dict[str, Any]:

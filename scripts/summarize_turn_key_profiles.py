@@ -6,7 +6,9 @@ import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
+
+from workflow_common import repo_root, safe_mapping
 
 
 SUMMARY_NAME = "turn-key-profile-summary.json"
@@ -18,14 +20,6 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"Expected JSON object in {path}")
     return value
-
-
-def repo_root_from_script() -> Path:
-    return Path(__file__).resolve().parent.parent
-
-
-def safe_mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _read_nav_state(*, root: Path, current_truth_json: str, timeout_seconds: float = 30.0) -> dict[str, Any]:
@@ -202,7 +196,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    repo_root = repo_root_from_script()
+    repo_root = repo_root()
     captures_root = args.captures_root or (repo_root / "scripts" / "captures")
     if not captures_root.exists():
         raise SystemExit(f"captures root not found: {captures_root}")

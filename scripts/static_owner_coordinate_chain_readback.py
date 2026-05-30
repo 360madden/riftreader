@@ -21,9 +21,10 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from rift_live_test.current_pid_family_neighborhood_inspector import close_handle, open_process_for_read, read_memory, verify_hwnd_owner
+from workflow_common import load_json_object, repo_root, safe_mapping, utc_iso, utc_stamp
 
 DEFAULT_ROOT_RVA = 0x32EBC80
 DEFAULT_COORD_OFFSET = 0x320
@@ -37,18 +38,6 @@ FILETIME_UNIX_EPOCH_100NS = 116444736000000000
 
 def int_hex(value: int | None) -> str | None:
     return None if value is None else f"0x{int(value):X}"
-
-
-def utc_stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def utc_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
 
 
 def qword(data: bytes, offset: int = 0) -> int:
@@ -74,6 +63,7 @@ def unpack_float_safe(data: bytes, offset: int) -> float | None:
     if not math.isfinite(value) or abs(value) >= 1_000_000:
         return None
     return float(value)
+
 
 
 def nav_state_from_owner_bytes(
@@ -146,17 +136,6 @@ def nav_state_from_owner_bytes(
         "facingTargetOffset": int_hex(facing_offset),
         "turnRateOffset": int_hex(turn_rate_offset),
     }
-
-
-def safe_mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, Mapping) else {}
-
-
-def load_json_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"JSON document is not an object: {path}")
-    return value
 
 
 def first_nonempty(*values: Any) -> Any:

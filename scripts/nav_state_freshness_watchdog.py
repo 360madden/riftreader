@@ -27,25 +27,14 @@ import math
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
+
+from workflow_common import repo_root, safe_mapping, utc_iso
 
 SCHEMA_VERSION = 1
 DEFAULT_INTERVAL_SECONDS = 0.5
 DEFAULT_TIMEOUT_SECONDS = 30.0
-
-
-def utc_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def safe_mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, Mapping) else {}
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
 
 
 def _read_one_nav_state(

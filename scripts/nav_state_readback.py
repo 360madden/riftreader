@@ -42,15 +42,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
-
-def safe_mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, Mapping) else {}
-
-
-def preview(text: str, *, limit: int = 2000) -> str:
-    return text if len(text) <= limit else text[:limit] + "...<truncated>"
+from workflow_common import preview, safe_mapping
 
 
 def read_nav_state(

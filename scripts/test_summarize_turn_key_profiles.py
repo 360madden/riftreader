@@ -11,10 +11,10 @@ from scripts.summarize_turn_key_profiles import (
     format_markdown,
     load_json,
     relative,
-    repo_root_from_script,
     summarize_attempts,
     summarize_file,
 )
+from scripts.workflow_common import repo_root as wc_repo_root
 
 
 class LoadJsonTests(unittest.TestCase):
@@ -282,7 +282,7 @@ class FindSummariesTests(unittest.TestCase):
 
 class FormatMarkdownTests(unittest.TestCase):
     def test_empty_rows_produces_header_and_no_notable(self):
-        md = format_markdown([], repo_root_from_script())
+        md = format_markdown([], wc_repo_root())
         self.assertIn("Turn key profile evidence", md)
         self.assertIn("Notable attempts", md)
         self.assertIn("None; all attempts were no-turn/no-movement", md)
@@ -308,7 +308,7 @@ class FormatMarkdownTests(unittest.TestCase):
                 ],
             }
         ]
-        md = format_markdown(rows, repo_root_from_script())
+        md = format_markdown(rows, wc_repo_root())
         self.assertIn("Turn key profile evidence", md)
         # Row has notable attempts, so notable section should show them
         self.assertIn("1 a/ScanCode: turn-candidate", md)
@@ -355,7 +355,7 @@ class FormatMarkdownTests(unittest.TestCase):
                 ],
             },
         ]
-        md = format_markdown(rows, repo_root_from_script())
+        md = format_markdown(rows, wc_repo_root())
         # Two table rows (plus header + separator = 4 lines in table section)
         self.assertIn("run1/summary.json", md)
         self.assertIn("run2/summary.json", md)

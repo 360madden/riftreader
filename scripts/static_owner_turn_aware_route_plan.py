@@ -14,16 +14,29 @@ import json
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 try:
     from .static_owner_facing_discovery import navigation_target_from_state, resolve_navigation_target_request
     from .static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json
+    from .workflow_common import (
+        full_summary_from_compact,
+        repo_root,
+        run_child,
+        utc_iso,
+        utc_stamp,
+    )
 except ImportError:  # pragma: no cover - direct script execution path
     from static_owner_facing_discovery import navigation_target_from_state, resolve_navigation_target_request  # type: ignore
     from static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json  # type: ignore
+    from workflow_common import (  # type: ignore
+        full_summary_from_compact,
+        repo_root,
+        run_child,
+        utc_iso,
+        utc_stamp,
+    )
 
 
 SCHEMA_VERSION = 1
@@ -33,18 +46,6 @@ DEFAULT_MAX_INITIAL_TURN_DEGREES = 90.0
 DEFAULT_MAX_CUMULATIVE_TURN_DEGREES = 90.0
 DEFAULT_MAX_TOTAL_INPUT_MS = 700
 DEFAULT_MAX_ROUTE_STEPS = 1
-
-
-def utc_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def utc_stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
 
 
 def destination_args(args: argparse.Namespace) -> list[str]:
@@ -103,68 +104,6 @@ def validate_args(args: argparse.Namespace) -> list[str]:
     return sorted(set(errors))
 
 
-def run_child(
-    *,
-    label: str,
-    command: Sequence[str],
-    cwd: Path,
-    child_dir: Path,
-    timeout_seconds: float,
-) -> dict[str, Any]:
-    child_dir.mkdir(parents=True, exist_ok=True)
-    stdout_path = child_dir / f"{label}.stdout.txt"
-    stderr_path = child_dir / f"{label}.stderr.txt"
-    command_path = child_dir / f"{label}.command.json"
-    started = time.perf_counter()
-    started_utc = utc_iso()
-    parsed: Any = None
-    parse_error: str | None = None
-    try:
-        result = subprocess.run(
-            list(command),
-            cwd=str(cwd),
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-        stdout = result.stdout
-        stderr = result.stderr
-        exit_code = result.returncode
-        if stdout.strip():
-            try:
-                parsed = json.loads(stdout)
-            except json.JSONDecodeError as exc:
-                parse_error = f"JSONDecodeError:{exc}"
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-        exit_code = 124
-        parse_error = f"TimeoutExpired:{exc}"
-
-    duration = time.perf_counter() - started
-    stdout_path.write_text(stdout, encoding="utf-8")
-    stderr_path.write_text(stderr, encoding="utf-8")
-    envelope = {
-        "label": label,
-        "command": list(command),
-        "cwd": str(cwd),
-        "startedAtUtc": started_utc,
-        "endedAtUtc": utc_iso(),
-        "durationSeconds": duration,
-        "exitCode": exit_code,
-        "ok": exit_code == 0,
-        "stdoutPath": str(stdout_path),
-        "stderrPath": str(stderr_path),
-        "stdoutPreview": preview(stdout),
-        "stderrPreview": preview(stderr),
-        "json": parsed,
-        "jsonParseError": parse_error,
-    }
-    write_json(command_path, {key: value for key, value in envelope.items() if key != "json"})
-    envelope["commandPath"] = str(command_path)
-    return envelope
-
 
 def state_command(args: argparse.Namespace, root: Path) -> list[str]:
     command = [
@@ -186,13 +125,6 @@ def state_command(args: argparse.Namespace, root: Path) -> list[str]:
         command += ["--output-root", str(args.output_root)]
     command += destination_args(args)
     return command
-
-
-def full_summary_from_compact(compact: Mapping[str, Any]) -> dict[str, Any]:
-    path = compact.get("summaryJson")
-    if not path:
-        raise ValueError("child-compact-summary-json-missing")
-    return load_json_object(str(path))
 
 
 def load_or_read_state(args: argparse.Namespace, root: Path, child_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:

@@ -29,6 +29,7 @@ from scripts.static_owner_continuous_route_runner import (
     safe_mapping,
     validate_args,
 )
+from scripts import workflow_common as workflow_common_module
 
 # Turn calibration constants (local copies; originals moved to local scope in compute_turn_hold_ms)
 _DEFAULT_MIN_TURN_HOLD_MS = 150
@@ -819,7 +820,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "passed")
@@ -867,7 +868,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "blocked")
@@ -895,7 +896,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "passed")
@@ -928,7 +929,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "blocked")
@@ -973,7 +974,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_break):
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "passed")
@@ -1013,7 +1014,7 @@ class MockedIntegrationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_break):
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertIn(result["status"], ("blocked", "failed"))
@@ -1549,7 +1550,7 @@ class ReadbackFreshnessGateTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run_passed):
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "passed")
@@ -1696,7 +1697,7 @@ class TerrainNoProgressSubClassificationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "blocked")
@@ -1740,7 +1741,7 @@ class TerrainNoProgressSubClassificationTests(unittest.TestCase):
         )
 
         with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
-            with mock.patch.object(route_runner, "load_json_object", side_effect=get_summary):
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
                 result = route_runner.run(args)
 
         self.assertEqual(result["status"], "blocked")

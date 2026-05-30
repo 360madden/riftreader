@@ -34,11 +34,22 @@ try:
     from .nav_state_readback import read_nav_state
     from .static_owner_facing_discovery import normalize_degrees
     from .static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json
+    from .workflow_common import (
+        repo_root,
+        run_child,
+        utc_iso,
+        utc_stamp,
+    )
 except ImportError:  # pragma: no cover — direct script execution path
     from nav_state_readback import read_nav_state  # type: ignore
     from static_owner_facing_discovery import normalize_degrees  # type: ignore
     from static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json  # type: ignore
-
+    from workflow_common import (  # type: ignore
+        repo_root,
+        run_child,
+        utc_iso,
+        utc_stamp,
+    )
 
 SCHEMA_VERSION = 1
 
@@ -60,83 +71,6 @@ DEFAULT_KEYS: dict[str, str] = {
     "left": "left",
     "right": "right",
 }
-
-
-def utc_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def utc_stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
-
-
-def run_child(
-    *,
-    label: str,
-    command: Sequence[str],
-    cwd: Path,
-    child_dir: Path,
-    timeout_seconds: float,
-) -> dict[str, Any]:
-    """Run a subprocess and capture its JSON output."""
-    child_dir.mkdir(parents=True, exist_ok=True)
-    stdout_path = child_dir / f"{label}.stdout.txt"
-    stderr_path = child_dir / f"{label}.stderr.txt"
-    command_path = child_dir / f"{label}.command.json"
-    started = time.perf_counter()
-    started_utc = utc_iso()
-    parsed: Any = None
-    parse_error: str | None = None
-    try:
-        result = subprocess.run(
-            list(command),
-            cwd=str(cwd),
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-        stdout = result.stdout
-        stderr = result.stderr
-        exit_code = result.returncode
-        if stdout.strip():
-            try:
-                parsed = json.loads(stdout)
-            except json.JSONDecodeError as exc:
-                parse_error = f"JSONDecodeError:{exc}"
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-        exit_code = 124
-        parse_error = f"TimeoutExpired:{exc}"
-
-    duration = time.perf_counter() - started
-    stdout_path.write_text(stdout, encoding="utf-8")
-    stderr_path.write_text(stderr, encoding="utf-8")
-    envelope: dict[str, Any] = {
-        "label": label,
-        "command": list(command),
-        "cwd": str(cwd),
-        "startedAtUtc": started_utc,
-        "endedAtUtc": utc_iso(),
-        "durationSeconds": duration,
-        "exitCode": exit_code,
-        "ok": exit_code == 0,
-        "stdoutPath": str(stdout_path),
-        "stderrPath": str(stderr_path),
-        "stdoutPreview": preview(stdout),
-        "stderrPreview": preview(stderr),
-        "json": parsed,
-        "jsonParseError": parse_error,
-    }
-    write_json(command_path, {key: value for key, value in envelope.items() if key != "json"})
-    envelope["commandPath"] = str(command_path)
-    return envelope
-
 
 def send_pulse_command(
     *,
