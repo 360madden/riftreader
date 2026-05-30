@@ -1,0 +1,131 @@
+# Owner Layout Reference
+
+**What this covers:** The canonical memory layout of the player owner object
+dereferenced from `[rift_x64+0x32EBC80]`.
+
+**When to use:** Understanding what fields are available, discovering new fields,
+or validating after a game update.
+
+**Status:** Promoted (coordinates, facing target, turn rate). Some fields are
+historical/candidate-only.
+
+---
+
+## Owner object at a glance
+
+```
+Owner object: [[rift_x64+0x32EBC80]]
+Size: at least 0x380+ bytes (observed window 0x2C0-0x35F)
+Classification: Player position/rotation controller object
+```
+
+## Known field layout
+
+| Offset | Size | Type | Field | Status | Notes |
+|---|---|---|---|---|---|
+| `+0x000` | 8 | ptr | vtable[0] | Candidate | Module-relative function table |
+| `+0x008` | 8 | ptr | vtable[1] | Candidate | Second vtable entry |
+| `+0x010` | 8 | ptr | self-pointer | Candidate | Points to owner itself |
+| `+0x060` | 12 | vec3 | Actor basis forward row | Historical | Different object (actor, not owner). Revalidate after updates. |
+| `+0x094` | 12 | vec3 | Actor basis duplicate | Historical | Duplicate basis at different object |
+| `+0x2F8` | 1 | byte | Flag byte | Candidate | Set to 0x1 in some states |
+| `+0x300` | 4 | float | Accumulated heading | **Promoted (diagnostic)** | Monotonic counter of total lifetime degrees turned |
+| `+0x304` | 4 | float | **Turn rate discriminator** | **Promoted** | Positive = turning left, negative = turning right |
+| `+0x308` | 4 | float | (unknown) | Candidate | Adjacent to turn rate |
+| `+0x30C` | 4 | float | **Facing target X** | **Promoted** | World-space look-at point |
+| `+0x310` | 4 | float | **Facing target Y** | **Promoted** | Elevation of look-at point |
+| `+0x314` | 4 | float | **Facing target Z** | **Promoted** | World-space look-at point |
+| `+0x318` | 8 | — | Padding/gap | — | 8 bytes between facing target and coordinates |
+| `+0x320` | 4 | float | **Player coordinate X** | **Promoted** | East-west position |
+| `+0x324` | 4 | float | **Player coordinate Y** | **Promoted** | Elevation |
+| `+0x328` | 4 | float | **Player coordinate Z** | **Promoted** | North-south position |
+| `+0x400` | 8 | ptr | Source cache pointer | Historical | Points to source+0x48 coordinate cache |
+| `+0x408` | 4 | float | Rotation animation timer | Candidate | Binary drop on any turn |
+
+## Key relationships
+
+```
+owner+0x320 → player X    ┐
+owner+0x324 → player Y    │  Same object, 12-byte contiguous vec3
+owner+0x328 → player Z    ┘
+
+owner+0x30C → facing X    ┐
+owner+0x310 → facing Y    │  Same object, 20 bytes (0x14) before coordinates
+owner+0x314 → facing Z    ┘
+
+Yaw = atan2(facingZ - playerZ, facingX - playerX)
+Turn direction = sign(owner+0x304)  →  + = left, - = right
+```
+
+## Behavioral notes
+
+### 0x30C — Facing target
+
+- **NOT a target NPC position.** Tab-selecting a nearby NPC does NOT change this value.
+- It's a **camera look-at point** — a point ~10 units ahead of the player in their facing direction.
+- Can be (0,0,0) on fresh zone-in — guarded by zero-vector check (#2 gate).
+- Validated through 4-pose yaw triangulation (baseline, turn-right, turn-left, symmetric-left).
+
+### 0x304 — Turn rate
+
+- Positive float = turning left (counter-clockwise)
+- Negative float = turning right (clockwise)
+- Near zero when stationary (< 0.01)
+- Cross-checked against atan2-derived turn direction in the route planner
+
+### 0x300 — Accumulated heading
+
+- Monotonic counter, not a normalized angle
+- Increases with every turn regardless of direction
+- Useful as a "did we turn at all?" diagnostic, not for yaw calculation
+
+## Neighborhood scan results
+
+Last `pointer_owner_neighborhood_inspector.py` scan (2026-05-27, ±64KB around root):
+
+| Finding | Count |
+|---|---|
+| Region matches | 380 |
+| Module pointers (rift_x64.exe) | 379 |
+| Owner-window module pointers | 4 |
+| Exact owner pointer | **1** — `0x32EBC80` |
+| Coordinate field pointers | 0 |
+
+**Interpretation:** Only ONE module-RVA pointer reaches the owner object in the
+scanned region. There is no backup chain in the immediate neighborhood.
+
+## Pointer family scan results
+
+Last `pointer_family_scan.py` (2026-05-27):
+
+| Finding | Count |
+|---|---|
+| Scanned targets | 20 |
+| Owner hits | 20 |
+| Module hits | 1 |
+| rift_x64.exe hits | 1 |
+| Module hit address | `0x7FF77E22BC80` (=`rift_x64+0x32EBC80`) |
+
+**Interpretation:** The owner is reachable from 20 different heap pointers, but
+only ONE of those is a module-RVA pointer. All other paths are heap-to-heap
+and won't survive a process restart.
+
+## Behavior during combat (UNKNOWN)
+
+The behavior of 0x30C during combat is **not yet characterized**:
+
+- It might continue tracking camera facing (current assumption)
+- It might snap to the selected enemy (would break yaw calculation)
+- It might be the same as out-of-combat behavior
+
+This needs a live discovery session with `rift-discovery` during combat.
+
+## After a game update — what to re-validate
+
+| Priority | Check | How |
+|---|---|---|
+| P0 | Root RVA still valid | AOB signature scan or `--scan-module-pattern` |
+| P0 | Owner layout unchanged | Read owner+0x300 through +0x340, verify floats are plausible |
+| P1 | 0x30C is still 0x14 before 0x320 | Neighborhood inspector scan for vec3 pairs 20 bytes apart |
+| P2 | 0x304 turn rate still works | Send turn key, verify sign flips |
+| P3 | Full layout scan | Pointer owner neighborhood inspector, full window dump |

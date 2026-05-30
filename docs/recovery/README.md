@@ -4,6 +4,14 @@ Start here if artifacts, notes, or workflow state drift or get corrupted.
 
 Last reviewed: May 13, 2026 16:57 EDT / May 13, 2026 20:57 UTC.
 
+> **⚠️ NEW — Structured workflows:** Most common tasks now have dedicated
+> workflow docs with decision trees and step-by-step instructions.
+> **Start at [`docs/workflows/README.md`](../workflows/README.md)** for the
+> master index and quick decision tree.
+>
+> This file remains as the historical recovery reference and for
+> specialized reverse-engineering workflows not yet migrated.
+
 ## Current repo focus
 
 As of May 13, 2026, the repo focus is **RIFT MMO navigation**. The recent
