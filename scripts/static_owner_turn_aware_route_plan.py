@@ -280,40 +280,29 @@ def _read_nav_state(
     current_truth_json: str = "docs/recovery/current-truth.json",
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
-    """Run a pointer-chain nav-state readback and return the parsed payload."""
-    command = [
-        sys.executable,
-        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
-        "--repo-root", str(root),
-        "--current-truth-json", current_truth_json,
-        "--use-current-truth",
-        "--nav-state",
-        "--json",
-    ]
-    try:
-        result = subprocess.run(
-            command, cwd=str(root), text=True, capture_output=True, timeout=timeout_seconds, check=False,
-        )
-        if result.stdout.strip():
-            parsed = json.loads(result.stdout)
-            if isinstance(parsed, dict):
-                nav_state = safe_mapping(parsed.get("navState"))
-                return {
-                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
-                    "exitCode": result.returncode,
-                    "status": parsed.get("status"),
-                    "verdict": parsed.get("verdict"),
-                    "navState": nav_state,
-                    "yawDegrees": nav_state.get("yawDegrees"),
-                    "turnRate0x304": nav_state.get("turnRate0x304"),
-                    "turnRateClassification": nav_state.get("turnRateClassification"),
-                    "stderrPreview": result.stderr[:200] if result.stderr else "",
-                }
-        return {"ok": False, "error": "parse-failed", "status": "parse-error"}
-    except subprocess.TimeoutExpired as exc:
-        return {"ok": False, "error": f"TimeoutExpired:{exc}", "status": "timeout"}
-    except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}:{exc}", "status": "error"}
+    """Run a pointer-chain nav-state readback and return the parsed payload.
+
+    Delegates to the shared nav_state_readback helper.
+    """
+    from scripts.nav_state_readback import read_nav_state
+    result = read_nav_state(
+        root=root,
+        use_current_truth=True,
+        current_truth_json=current_truth_json,
+        timeout_seconds=timeout_seconds,
+    )
+    return {
+        "ok": result["ok"],
+        "exitCode": result["exitCode"],
+        "status": result["status"],
+        "verdict": result["verdict"],
+        "navState": safe_mapping(result["rawJson"].get("navState")) if result["rawJson"] else {},
+        "yawDegrees": result["yawDegrees"],
+        "turnRate0x304": result["turnRate0x304"],
+        "turnRateClassification": result["turnRateClassification"],
+        "stderrPreview": result["stderrPreview"],
+        "error": result.get("error"),
+    }
 
 
 def _build_nav_state_cross_check(

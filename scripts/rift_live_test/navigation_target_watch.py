@@ -3,14 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from rift_live_test.reports import write_json, write_text_atomic
 from rift_live_test.target_control import (
@@ -20,6 +19,12 @@ from rift_live_test.target_control import (
     get_window_snapshot,
     parse_hwnd,
 )
+
+try:
+    from scripts.nav_state_readback import read_nav_state
+except ImportError:  # pragma: no cover - invoked from within scripts/ directory.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.nav_state_readback import read_nav_state  # type: ignore[no-redef]
 
 
 TARGET_FOUND_PASSIVE = "target-found-passive"
@@ -88,7 +93,7 @@ def watch_navigation_target(
     # Optional pointer-chain nav-state health check
     nav_state_check: dict[str, Any] | None = None
     if run_nav_state and selected_window:
-        nav_state_check = _read_nav_state(
+        nav_state_check = read_nav_state(
             root=repo_root,
             pid=selected_window.get("processId"),
             hwnd=selected_window.get("windowHandleHex"),
@@ -254,55 +259,7 @@ def _summary(
     }
 
 
-def _read_nav_state(
-    *,
-    root: Path,
-    pid: int | None = None,
-    hwnd: str | None = None,
-    module_base: str | None = None,
-    timeout_seconds: float = 30.0,
-) -> dict[str, Any]:
-    """Run a pointer-chain nav-state readback to validate resolver health."""
-    command = [
-        sys.executable,
-        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
-        "--repo-root", str(root),
-        "--nav-state",
-        "--json",
-    ]
-    has_explicit_target = pid is not None and hwnd is not None
-    if has_explicit_target:
-        command += ["--pid", str(pid), "--hwnd", str(hwnd)]
-        if module_base is not None:
-            command += ["--module-base", str(module_base)]
-    else:
-        command += [
-            "--current-truth-json", str(root / "docs" / "recovery" / "current-truth.json"),
-            "--use-current-truth",
-        ]
-    try:
-        result = subprocess.run(
-            command, cwd=str(root), text=True, capture_output=True, timeout=timeout_seconds, check=False,
-        )
-        if result.stdout.strip():
-            parsed = json.loads(result.stdout)
-            if isinstance(parsed, dict):
-                nav_state = dict(parsed.get("navState") or {}) if isinstance(parsed.get("navState"), Mapping) else {}
-                return {
-                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
-                    "exitCode": result.returncode,
-                    "status": parsed.get("status"),
-                    "verdict": parsed.get("verdict"),
-                    "yawDegrees": nav_state.get("yawDegrees"),
-                    "turnRate0x304": nav_state.get("turnRate0x304"),
-                    "turnRateClassification": nav_state.get("turnRateClassification"),
-                    "facingTargetCoordinate": nav_state.get("facingTargetCoordinate"),
-                }
-        return {"ok": False, "error": "parse-failed", "status": "parse-error"}
-    except subprocess.TimeoutExpired as exc:
-        return {"ok": False, "error": f"TimeoutExpired:{exc}", "status": "timeout"}
-    except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}:{exc}", "status": "error"}
+
 
 
 def _next_actions(status: str) -> list[dict[str, str]]:

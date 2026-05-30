@@ -31,43 +31,15 @@ def safe_mapping(value: Any) -> dict[str, Any]:
 def _read_nav_state(*, root: Path, current_truth_json: str, timeout_seconds: float = 30.0) -> dict[str, Any]:
     """Run the promoted static resolver with --nav-state as a read-only subprocess.
 
-    Returns nav-state dict or empty dict on failure.
+    Delegates to the shared nav_state_readback helper.
     """
-    command = [
-        sys.executable,
-        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
-        "--repo-root", str(root),
-        "--current-truth-json", current_truth_json,
-        "--use-current-truth",
-        "--nav-state",
-        "--json",
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=str(root),
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-        if result.stdout.strip():
-            parsed = json.loads(result.stdout)
-            if isinstance(parsed, dict):
-                nav = safe_mapping(parsed.get("navState"))
-                return {
-                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error"),
-                    "yawDegrees": nav.get("yawDegrees"),
-                    "turnRate0x304": nav.get("turnRate0x304"),
-                    "turnRateClassification": nav.get("turnRateClassification"),
-                    "pitchDegrees": nav.get("pitchDegrees"),
-                    "facingTargetCoordinate": nav.get("facingTargetCoordinate"),
-                    "status": parsed.get("status"),
-                    "error": None,
-                }
-        return {"ok": False, "error": "nav-state-parse-failed"}
-    except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}:{exc}"}
+    from scripts.nav_state_readback import read_nav_state
+    return read_nav_state(
+        root=root,
+        use_current_truth=True,
+        current_truth_json=current_truth_json,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def relative(path_text: str | None, root: Path) -> str:

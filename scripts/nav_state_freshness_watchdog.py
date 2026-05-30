@@ -59,41 +59,34 @@ def _read_one_nav_state(
     current_truth_json: str = "docs/recovery/current-truth.json",
     use_current_truth: bool = False,
 ) -> dict[str, Any]:
-    """Run a single nav-state readback and return the parsed payload."""
-    command = [sys.executable, str(root / "scripts" / "static_owner_coordinate_chain_readback.py"), "--nav-state", "--json"]
-    if use_current_truth:
-        command += ["--repo-root", str(root), "--current-truth-json", str(current_truth_json), "--use-current-truth"]
-    else:
-        if pid is not None:
-            command += ["--pid", str(pid)]
-        if hwnd is not None:
-            command += ["--hwnd", str(hwnd)]
-        if module_base is not None:
-            command += ["--module-base", str(module_base)]
-    if process_name:
-        command += ["--process-name", str(process_name)]
-    try:
-        result = subprocess.run(
-            command, cwd=str(root), text=True, capture_output=True, timeout=timeout_seconds, check=False,
-        )
-        if result.stdout.strip():
-            parsed = json.loads(result.stdout)
-            if isinstance(parsed, dict):
-                return {
-                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
-                    "exitCode": result.returncode,
-                    "status": parsed.get("status"),
-                    "verdict": parsed.get("verdict"),
-                    "reads": safe_mapping(parsed.get("reads")),
-                    "navState": safe_mapping(parsed.get("navState")),
-                    "stdoutPreview": result.stdout[:500] if len(result.stdout) > 500 else result.stdout,
-                    "stderrPreview": result.stderr[:200] if len(result.stderr) > 200 else result.stderr,
-                }
-        return {"ok": False, "error": "parse-failed", "stdoutPreview": result.stdout[:500]}
-    except subprocess.TimeoutExpired as exc:
-        return {"ok": False, "error": f"TimeoutExpired:{exc}"}
-    except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}:{exc}"}
+    """Run a single nav-state readback and return the parsed payload.
+
+    Delegates to the shared nav_state_readback helper, then adapts the
+    return shape to the watchdog's internal format (navState, reads keys).
+    """
+    from scripts.nav_state_readback import read_nav_state
+    result = read_nav_state(
+        root=root,
+        pid=pid,
+        hwnd=hwnd,
+        module_base=module_base,
+        process_name=process_name,
+        timeout_seconds=timeout_seconds,
+        current_truth_json=current_truth_json,
+        use_current_truth=use_current_truth,
+    )
+    # Adapt to watchdog's internal shape: {ok, reads, navState, ...}
+    return {
+        "ok": result["ok"],
+        "exitCode": result["exitCode"],
+        "status": result["status"],
+        "verdict": result["verdict"],
+        "reads": safe_mapping(result["rawJson"].get("reads")) if result["rawJson"] else {},
+        "navState": safe_mapping(result["rawJson"].get("navState")) if result["rawJson"] else {},
+        "stdoutPreview": result["stdoutPreview"],
+        "stderrPreview": result["stderrPreview"],
+        "error": result.get("error"),
+    }
 
 
 def compute_deltas(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:

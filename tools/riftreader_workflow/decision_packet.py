@@ -22,7 +22,12 @@ try:
     from .status_packet import proof_anchor_freshness_summary
     from .tool_catalog import build_decision_packet_tool_catalog
 except ImportError:  # pragma: no cover - supports direct script execution.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    _script_dir = Path(__file__).resolve().parent
+    sys.path.insert(0, str(_script_dir.parent))  # tools/
+    # Also add the project root so scripts.* imports (e.g. nav_state_readback) resolve.
+    _project_root = str(_script_dir.parent.parent)
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
     from riftreader_workflow.common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
     from riftreader_workflow.status_packet import proof_anchor_freshness_summary
     from riftreader_workflow.tool_catalog import build_decision_packet_tool_catalog
@@ -381,9 +386,11 @@ def _summarize_latest_route_run_report_terrain(repo_root: Path) -> dict[str, Any
 def _read_nav_state(repo_root: Path, target: dict[str, Any]) -> dict[str, Any]:
     """Run the promoted static resolver with --nav-state and return structured pointer-chain data.
 
-    This is a read-only subprocess call to the coordinate chain readback script.
-    No game input, debugger attach, or mutation is performed.
+    Delegates to the shared nav_state_readback helper and transforms the result
+    into the decision packet's expected format.
     """
+    # Lazy import — project root is already on sys.path from the top-level fallback.
+    from scripts.nav_state_readback import read_nav_state  # type: ignore[import-untyped]
 
     pid = target.get("pid")
     hwnd = target.get("hwnd")
@@ -399,67 +406,50 @@ def _read_nav_state(repo_root: Path, target: dict[str, Any]) -> dict[str, Any]:
             "targetSource": "current-truth.target",
         }
 
-    args = [
-        "python",
-        "scripts\\static_owner_coordinate_chain_readback.py",
-        "--pid", str(pid),
-        "--hwnd", str(hwnd),
-        "--module-base", str(module_base),
-        "--process-name", str(process_name),
-        "--nav-state",
-        "--json",
-    ]
-    envelope = run_command_envelope(
-        "nav-state-readback",
-        args,
-        repo_root,
-        timeout_seconds=30,
-        expected_exit_codes={0},
-        capture_full_output=True,
+    result = read_nav_state(
+        root=repo_root,
+        pid=pid,
+        hwnd=hwnd,
+        module_base=module_base,
+        process_name=process_name,
+        timeout_seconds=30.0,
     )
 
-    if not envelope.get("ok"):
+    if not result["ok"]:
         return {
-            "status": "readback-failed",
-            "command": strip_command_output(envelope),
-            "exitCode": envelope.get("exitCode"),
-            "stderrPreview": envelope.get("stderrPreview"),
+            "status": result["status"],
+            "command": {"error": result.get("error"), "exitCode": result["exitCode"]},
+            "exitCode": result["exitCode"],
+            "stderrPreview": result["stderrPreview"],
         }
 
-    stdout = envelope.get("stdout") or ""
-    try:
-        data = json.loads(stdout)
-        if not isinstance(data, dict):
-            raise ValueError("readback output is not a JSON object")
-    except (json.JSONDecodeError, ValueError) as exc:
-        return {
-            "status": "parse-error",
-            "error": f"{type(exc).__name__}: {exc}",
-            "stdoutPreview": preview_text(stdout),
-        }
-
-    nav_state = safe_mapping(data.get("navState"))
-
+    raw = result.get("rawJson") or {}
+    readback_safety = safe_mapping(raw.get("safety")) if isinstance(raw, dict) else {}
     return {
-        "status": data.get("verdict", "unknown"),
-        "generatedAtUtc": data.get("generatedAtUtc"),
+        "status": result.get("verdict") or "unknown",
+        "generatedAtUtc": raw.get("generatedAtUtc") if isinstance(raw, dict) else None,
         "navState": {
-            "yawDegrees": nav_state.get("yawDegrees"),
-            "pitchDegrees": nav_state.get("pitchDegrees"),
-            "turnRate0x304": nav_state.get("turnRate0x304"),
-            "turnRateClassification": nav_state.get("turnRateClassification"),
-            "facingTargetCoordinate": nav_state.get("facingTargetCoordinate"),
-            "playerCoordinate": nav_state.get("playerCoordinate"),
-            "planarLookaheadDistance": nav_state.get("planarLookaheadDistance"),
-            "navStateError": nav_state.get("navStateError"),
-            "navStateCandidateOnly": nav_state.get("navStateCandidateOnly", True),
-            "actionableForNavigation": nav_state.get("actionableForNavigation", False),
+            "yawDegrees": result["yawDegrees"],
+            "pitchDegrees": result["pitchDegrees"],
+            "turnRate0x304": result["turnRate0x304"],
+            "turnRateClassification": result["turnRateClassification"],
+            "facingTargetCoordinate": result["facingTargetCoordinate"],
+            "playerCoordinate": result["playerCoordinate"],
+            "planarLookaheadDistance": result["planarLookaheadDistance"],
+            "navStateError": None,
+            "navStateCandidateOnly": True,
+            "actionableForNavigation": False,
         },
-        "ownerAddress": safe_mapping(data.get("reads")).get("ownerAddress"),
-        "verdict": data.get("verdict"),
-        "readbackCommand": args,
+        "ownerAddress": result["commanderAddress"],
+        "verdict": result["verdict"],
+        "readbackCommand": [
+            "python", "scripts/static_owner_coordinate_chain_readback.py",
+            "--pid", str(pid), "--hwnd", str(hwnd),
+            "--module-base", str(module_base), "--process-name", str(process_name),
+            "--nav-state", "--json",
+        ],
         "safety": {
-            **safe_mapping(data.get("safety")),
+            **readback_safety,
             "readOnlySubprocess": True,
             "noLiveInput": True,
             "noDebuggerAttach": True,

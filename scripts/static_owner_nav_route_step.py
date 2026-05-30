@@ -94,63 +94,27 @@ def base_safety() -> dict[str, Any]:
 def _read_nav_state(*, root: Path, current_truth_json: str, command_timeout_seconds: float, repo_root_path: str | None = None) -> dict[str, Any]:
     """Run the promoted static resolver with --nav-state as a read-only subprocess.
 
-    Returns a dict with keys: ok, json, stdoutPreview, stderrPreview, error.
-    The json field contains the full nav-state payload when ok is True.
+    Delegates to the shared nav_state_readback helper. Returns a dict with
+    keys: ok, json, stdoutPreview, stderrPreview, error — compatible with
+    the existing enrich_decision_with_nav_state() consumer.
     """
+    from scripts.nav_state_readback import read_nav_state
     repo = Path(repo_root_path).resolve() if repo_root_path else root
-    command = [
-        sys.executable,
-        str(repo / "scripts" / "static_owner_coordinate_chain_readback.py"),
-        "--repo-root", str(repo),
-        "--current-truth-json", current_truth_json,
-        "--use-current-truth",
-        "--nav-state",
-        "--json",
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=str(repo),
-            text=True,
-            capture_output=True,
-            timeout=command_timeout_seconds,
-            check=False,
-        )
-        parsed: Any = None
-        parse_error: str | None = None
-        if result.stdout.strip():
-            try:
-                parsed = json.loads(result.stdout)
-            except json.JSONDecodeError as exc:
-                parse_error = f"JSONDecodeError:{exc}"
-        return {
-            "ok": result.returncode == 0 and parse_error is None,
-            "exitCode": result.returncode,
-            "json": parsed if isinstance(parsed, Mapping) else None,
-            "jsonParseError": parse_error,
-            "stdoutPreview": preview(result.stdout),
-            "stderrPreview": preview(result.stderr),
-        }
-    except subprocess.TimeoutExpired as exc:
-        return {
-            "ok": False,
-            "exitCode": 124,
-            "json": None,
-            "jsonParseError": f"TimeoutExpired:{exc}",
-            "stdoutPreview": "",
-            "stderrPreview": preview(exc.stderr if isinstance(exc.stderr, str) else ""),
-            "error": f"nav-state-readback-timeout:{exc}",
-        }
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "ok": False,
-            "exitCode": -1,
-            "json": None,
-            "jsonParseError": f"{type(exc).__name__}:{exc}",
-            "stdoutPreview": "",
-            "stderrPreview": "",
-            "error": f"nav-state-readback-error:{type(exc).__name__}:{exc}",
-        }
+    result = read_nav_state(
+        root=repo,
+        use_current_truth=True,
+        current_truth_json=current_truth_json,
+        timeout_seconds=command_timeout_seconds,
+    )
+    return {
+        "ok": result["ok"],
+        "exitCode": result["exitCode"],
+        "json": result.get("rawJson"),
+        "jsonParseError": None if result.get("rawJson") else result.get("error"),
+        "stdoutPreview": result["stdoutPreview"],
+        "stderrPreview": result["stderrPreview"],
+        "error": result.get("error"),
+    }
 
 
 def destination_args(args: argparse.Namespace) -> list[str]:
