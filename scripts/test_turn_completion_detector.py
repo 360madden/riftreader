@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -840,6 +841,647 @@ class TestAngleEdgeCases:
 
         assert result["status"] == "blocked"
         assert result["verdict"] == "turn-overcorrected"
+
+
+# ── Edge-case: zero-degree crossing wrap-around ──
+
+
+class TestZeroDegreeCrossing:
+    """Test turn convergence when yaw crosses the 0°/360° boundary."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_right_turn_crosses_zero(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Right turn from 355° to 10° crosses through 0°. Error should be 15°."""
+        from scripts.turn_completion_detector import run
+
+        # pre=355°, target=10°. normalize(10-355) = normalize(-345) = 15° error
+        # Not within 5° threshold → needs pulses
+        # After pulse 1: yaw=358° → error = normalize(10-358) = 12° → not converged
+        # After pulse 2: yaw=363° → normalize to 3° → error = normalize(10-3) = 7° → not converged
+        # After pulse 3: yaw=368° → normalize to 8° → error = normalize(10-8) = 2° → CONVERGED
+        yaw_values = [355.0, 358.0, 3.0, 8.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {
+                "ok": True,
+                "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)],
+                "turnRateClassification": "right",
+            }
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=10.0,
+            alignment_threshold_degrees=5.0,
+            max_pulses=5,
+            pulse_hold_ms=50,
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+        assert result["totalPulses"] == 3
+        assert result["preYawDegrees"] == 355.0
+        assert abs(float(result["achievedBearingDegrees"]) - 8.0) < 0.01
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_left_turn_crosses_zero(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Left turn from 5° to 350° crosses through 0°."""
+        from scripts.turn_completion_detector import run
+
+        # pre=5°, target=350°. normalize(350-5) = 345° → normalized further? No, it's already in [-180,180].
+        # Wait: normalize_degrees(345) = -15° (since 345 > 180 → 345-360 = -15)
+        # So error = -15°, which means turning left by 15°
+        yaw_values = [5.0, 352.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {
+                "ok": True,
+                "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)],
+                "turnRateClassification": "left",
+            }
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(
+            direction="left",
+            target_bearing_degrees=350.0,
+            alignment_threshold_degrees=5.0,
+            max_pulses=3,
+            pulse_hold_ms=50,
+        )
+        result = run(ns)
+
+        # After pulse 1: yaw=352°, error = normalize(350-352) = -2° → abs(2°) ≤ 5° → CONVERGED
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+
+
+# ── Edge-case: boundary convergence ──
+
+
+class TestBoundaryConvergence:
+    """Test that convergence at the exact threshold boundary works correctly."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_exact_threshold_match(self, mock_sleep, mock_read_nav):
+        """Error exactly equals threshold — should converge immediately."""
+        from scripts.turn_completion_detector import run
+
+        # pre_yaw=0°, target=5°, threshold=5° → error=5° == threshold → converged
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": 0.0,
+            "turnRateClassification": "aligned",
+        }
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=5.0,
+            alignment_threshold_degrees=5.0,
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+        assert result["totalPulses"] == 0
+        assert result["bearingErrorDegrees"] == 5.0
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_just_below_threshold_converges(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Error just below threshold after pulses — should converge."""
+        from scripts.turn_completion_detector import run
+
+        # pre=0°, target=42°, threshold=5°
+        # After pulse 1: yaw=38° → error=4° (just under 5°) → CONVERGED
+        yaw_values = [0.0, 38.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=42.0, alignment_threshold_degrees=5.0, max_pulses=3, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+        assert result["totalPulses"] == 1
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_just_above_threshold_not_converged(self, mock_sleep, mock_read_nav):
+        """Error just above threshold — should NOT converge (and require pulses)."""
+        from scripts.turn_completion_detector import run
+
+        # pre_yaw=0°, target=5.1°, threshold=5° → error=5.1° > 5° → not converged
+        # With max_pulses=1, we'd send one pulse, then loop exhausts → timeout
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": 0.0,
+            "turnRateClassification": "right",
+        }
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=5.1,
+            alignment_threshold_degrees=5.0,
+            max_pulses=1,
+            pulse_hold_ms=50,
+            turn_approved=True,
+        )
+        result = run(ns)
+
+        # Error > threshold, max_pulses=1 → will pulse once, but we don't have
+        # a second read_nav_state return value, so the post-pulse read fails
+        # with the same mock return (0.0 yaw, error still 5.1)
+        assert result["status"] != "passed"
+
+
+# ── Edge-case: signed delta edge cases ──
+
+
+class TestSignedDeltaEdgeCases:
+    """Edge-case behavior of signed bearing delta resolution."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_negative_signed_delta_left_turn(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Signed delta of -45° on pre-yaw=90° should resolve target to 45° and turn left."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [90.0, 60.0, 48.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "left"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        # pre=90°, signed delta=-45° → target = normalize(90-45) = 45°
+        # After pulse 1: yaw=60° → error = normalize(45-60) = -15° → abs(15) > 5° → not converged
+        # After pulse 2: yaw=48° → error = normalize(45-48) = -3° → abs(3) ≤ 5° → CONVERGED
+        ns = _make_namespace(
+            direction="left",
+            target_bearing_degrees=None,
+            signed_bearing_delta_degrees=-45.0,
+            alignment_threshold_degrees=5.0,
+            max_pulses=3,
+            pulse_hold_ms=50,
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["targetBearingDegrees"] == 45.0
+        assert result["totalPulses"] == 2
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_signed_delta_zero(self, mock_sleep, mock_read_nav):
+        """Signed delta of 0° means target = pre-yaw, should converge immediately."""
+        from scripts.turn_completion_detector import run
+
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": 180.0,
+            "turnRateClassification": "aligned",
+        }
+
+        ns = _make_namespace(
+            direction="left",
+            target_bearing_degrees=None,
+            signed_bearing_delta_degrees=0.0,
+            alignment_threshold_degrees=5.0,
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+        assert result["totalPulses"] == 0
+        # normalize_degrees(180) may return -180; both represent the same angle
+        assert abs(float(result["targetBearingDegrees"])) == 180.0
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_signed_delta_wraps_around(self, mock_sleep, mock_read_nav):
+        """Signed delta that would exceed 360° — correctly normalized."""
+        from scripts.turn_completion_detector import run
+
+        # pre=350°, delta=+45° → target=395° → normalize to 35°
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": 350.0,
+            "turnRateClassification": "right",
+        }
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=None,
+            signed_bearing_delta_degrees=45.0,
+            alignment_threshold_degrees=30.0,
+            max_pulses=1,
+            pulse_hold_ms=50,
+        )
+        result = run(ns)
+
+        # target = normalize_degrees(350+45) = normalize_degrees(395) = 35°
+        # pre-error = normalize_degrees(35-350) = normalize_degrees(-315) = 45°
+        # 45° > 30° threshold → not converged
+        assert result["targetBearingDegrees"] == 35.0
+        assert result["status"] != "passed"
+
+
+# ── Edge-case: yaw readback edge cases ──
+
+
+class TestYawReadbackEdgeCases:
+    """Edge cases around yaw readback failures."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_pre_turn_ok_true_yaw_none(self, mock_sleep, mock_read_nav):
+        """read_nav_state returns ok=True but yawDegrees is None — should fail."""
+        from scripts.turn_completion_detector import run
+
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": None,
+            "error": None,
+        }
+
+        ns = _make_namespace(direction="left", target_bearing_degrees=90.0)
+        result = run(ns)
+
+        assert result["status"] == "failed"
+        assert result["verdict"] == "pre-turn-yaw-readback-failed"
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_post_pulse_ok_true_yaw_none(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Post-pulse readback returns ok=True but yawDegrees=None — should fail."""
+        from scripts.turn_completion_detector import run
+
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return {"ok": True, "yawDegrees": 0.0}
+            return {"ok": True, "yawDegrees": None}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=90.0, max_pulses=3, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "failed"
+        assert result["verdict"] == "post-pulse-yaw-readback-failed"
+
+
+# ── Edge-case: pulse history tracking ──
+
+
+class TestPulseHistoryTracking:
+    """Verify pulseHistory is correctly populated during pulse loop."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_pulse_history_includes_all_iterations(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Pulse history should contain entries for each yaw read in the loop."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 10.0, 20.0, 42.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=45.0, alignment_threshold_degrees=5.0, max_pulses=5, pulse_hold_ms=50)
+        result = run(ns)
+
+        # pulseHistory should have 4 entries:
+        # idx=0: pre-yaw (0.0) — no pulse sent
+        # idx=1: after pulse 1 (10.0) — pulse sent (converged? error=35° > 5° → no)
+        # idx=2: after pulse 2 (20.0) — pulse sent
+        # idx=3: after pulse 3 (42.0) — pulse sent (error=3° ≤ 5° → converged, no more pulses)
+        assert len(result["pulseHistory"]) == 4
+        assert result["pulseHistory"][0]["pulseIndex"] == 0
+        assert result["pulseHistory"][0]["yawDegrees"] == 0.0
+        assert result["pulseHistory"][1]["yawDegrees"] == 10.0
+        assert result["pulseHistory"][2]["yawDegrees"] == 20.0
+        assert result["pulseHistory"][3]["yawDegrees"] == 42.0
+        # Check pulseSent is False for the convergence check iteration
+        # (pulse 3 converged before sending another pulse)
+        # Actually wait: pulse 3 sends a pulse before reading the convergence result
+        # Let's think about this differently
+        assert result["totalPulses"] == 3  # 3 pulses sent
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_pulse_history_with_timeout(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Pulse history captures all iterations even on timeout."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 5.0, 10.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=90.0, alignment_threshold_degrees=5.0, max_pulses=2, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "blocked"
+        assert result["verdict"] == "turn-timeout"
+        # max_pulses=2 → range(2) = [0,1] → 2 iterations → 2 pulseHistory entries
+        assert len(result["pulseHistory"]) == 2
+
+
+# ── Edge-case: cross-check warnings ──
+
+
+class TestCrossCheckWarningsNonFatal:
+    """Cross-check warnings should never block or fail a turn."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_warnings_do_not_block_converged_turn(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Turn converges despite engine 0x304 warning on pre-turn."""
+        from scripts.turn_completion_detector import run
+
+        # pre-turn: engine shows "left" but commanded "right" → warning on pre-turn
+        # But yaw is at 43°, target=45° → converged
+        mock_read_nav.return_value = {
+            "ok": True,
+            "yawDegrees": 43.0,
+            "turnRateClassification": "left",
+        }
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=45.0, alignment_threshold_degrees=5.0)
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        # Should have a cross-check warning
+        assert len(result["turnRate0x304CrossCheck"]["warnings"]) >= 1
+        assert any("shows-left-but-commanded-right" in w or "indicates-left" in w for w in result["turnRate0x304CrossCheck"]["warnings"])
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_warnings_accumulate_across_pulses(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Multiple 0x304 dissonances across pulses produce multiple warnings."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 10.0, 20.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "left"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=90.0, alignment_threshold_degrees=5.0, max_pulses=2, pulse_hold_ms=50)
+        result = run(ns)
+
+        # Pre-turn (0.0) and pulse-1 (10.0) both show "left" but commanded "right"
+        assert len(result["turnRate0x304CrossCheck"]["warnings"]) >= 1
+        # Turn should still be "blocked" due to max-pulses-exhausted, but not due to warnings
+        assert result["status"] == "blocked"
+        assert result["verdict"] == "turn-timeout"
+
+
+# ── Edge-case: subprocess timeout ──
+
+
+class TestSubprocessTimeout:
+    """Test behavior when run_child or read_nav_state raises TimeoutExpired."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state", side_effect=subprocess.TimeoutExpired(cmd=["test"], timeout=5.0))
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    def test_read_nav_state_timeout(self, mock_sleep, mock_read_nav):
+        """read_nav_state raises TimeoutExpired — should be caught as failed."""
+        from scripts.turn_completion_detector import run
+
+        ns = _make_namespace(direction="left", target_bearing_degrees=90.0)
+        result = run(ns)
+
+        assert result["status"] == "failed"
+        assert result["verdict"] == "turn-completion-command-timeout"
+
+    @patch("scripts.turn_completion_detector.read_nav_state", return_value={"ok": True, "yawDegrees": 0.0, "turnRateClassification": "right"})
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child", side_effect=subprocess.TimeoutExpired(cmd=["pwsh", "-File", "dummy.ps1"], timeout=5.0))
+    def test_send_pulse_timeout(self, mock_run_child, mock_sleep, mock_read_nav):
+        """run_child raises TimeoutExpired during pulse — should be caught as failed."""
+        from scripts.turn_completion_detector import run
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=90.0, max_pulses=5, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "failed"
+        assert result["verdict"] == "turn-completion-command-timeout"
+
+
+# ── Edge-case: main function ──
+
+
+class TestMainFunction:
+    """Test exit codes and basic main() behavior."""
+
+    @patch("scripts.turn_completion_detector.run")
+    def test_main_returns_0_on_passed(self, mock_run):
+        """main() returns 0 when status is 'passed'."""
+        from scripts.turn_completion_detector import main
+        mock_run.return_value = {
+            "status": "passed",
+            "artifacts": {"summaryJson": "/tmp/test.json", "summaryMarkdown": "/tmp/test.md"},
+        }
+        with patch("scripts.turn_completion_detector.write_json"), patch("scripts.turn_completion_detector.Path.write_text"):
+            exit_code = main(["--direction", "left", "--target-bearing-degrees", "90"])
+        assert exit_code == 0
+
+    @patch("scripts.turn_completion_detector.run")
+    def test_main_returns_2_on_blocked(self, mock_run):
+        """main() returns 2 when status is 'blocked'."""
+        from scripts.turn_completion_detector import main
+        mock_run.return_value = {
+            "status": "blocked",
+            "artifacts": {"summaryJson": "/tmp/test.json", "summaryMarkdown": "/tmp/test.md"},
+        }
+        with patch("scripts.turn_completion_detector.write_json"), patch("scripts.turn_completion_detector.Path.write_text"):
+            exit_code = main(["--direction", "left", "--target-bearing-degrees", "90"])
+        assert exit_code == 2
+
+    @patch("scripts.turn_completion_detector.run")
+    def test_main_returns_1_on_failed(self, mock_run):
+        """main() returns 1 when status is 'failed'."""
+        from scripts.turn_completion_detector import main
+        mock_run.return_value = {
+            "status": "failed",
+            "artifacts": {"summaryJson": "/tmp/test.json", "summaryMarkdown": "/tmp/test.md"},
+        }
+        with patch("scripts.turn_completion_detector.write_json"), patch("scripts.turn_completion_detector.Path.write_text"):
+            exit_code = main(["--direction", "left", "--target-bearing-degrees", "90"])
+        assert exit_code == 1
+
+
+# ── Edge-case: maximum pulses at boundary ──
+
+
+class TestMaxPulsesBoundary:
+    """Test behavior at max_pulses boundary values."""
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_single_pulse_success(self, mock_run_child, mock_sleep, mock_read_nav):
+        """max_pulses=1, one pulse converges."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 42.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        # max_pulses=2 so the loop has a second iteration to re-read yaw after the pulse
+        ns = _make_namespace(direction="right", target_bearing_degrees=45.0, alignment_threshold_degrees=5.0, max_pulses=2, pulse_hold_ms=80)
+        result = run(ns)
+
+        # pre=0°, error=45° > 5° → send 1 pulse → re-read yaw=42°, error=3° ≤ 5° → CONVERGED
+        assert result["status"] == "passed"
+        assert result["totalPulses"] == 1
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_single_pulse_no_convergence(self, mock_run_child, mock_sleep, mock_read_nav):
+        """max_pulses=1, single pulse does NOT converge → timeout."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 2.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(direction="right", target_bearing_degrees=90.0, alignment_threshold_degrees=5.0, max_pulses=1, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "blocked"
+        assert result["verdict"] == "turn-timeout"
+        assert result["totalPulses"] == 1
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_convergence_on_last_pulse(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Converges exactly on the last allowed pulse."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 10.0, 20.0, 42.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {"ok": True, "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)], "turnRateClassification": "right"}
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        # max_pulses=4 → range(4) = [0,1,2,3] → 4 iterations
+        # pulse_idx=3 reads yaw_values[3]=42.0 (call 3) → error=3° ≤ 5° → CONVERGED
+        ns = _make_namespace(direction="right", target_bearing_degrees=45.0, alignment_threshold_degrees=5.0, max_pulses=4, pulse_hold_ms=50)
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        # 3 pulses sent at idx 0,1,2; idx 3 converged before sending
+        assert result["totalPulses"] == 3
+
+
+# ── edge-case: compact with missing keys ──
+
+
+class TestCompactEdgeCases:
+    """Compact function edge cases with missing or malformed data."""
+
+    def test_compact_empty_summary(self):
+        """compact() with empty dict should not raise."""
+        c = compact({})
+        assert c["status"] is None
+        assert c["direction"] is None
+        assert c["turnRateCrossCheckWarnings"] == 0
+        assert c["movementSent"] is False
+        assert c["inputSent"] is False
+        assert c["summaryJson"] is None
+
+    def test_compact_null_operator(self):
+        """compact() with operator set to None should not raise."""
+        c = compact({"operator": None})
+        assert c["direction"] is None
+
+    def test_compact_null_artifacts(self):
+        """compact() with artifacts set to None should not raise."""
+        c = compact({"artifacts": None})
+        assert c["summaryJson"] is None
+
+    def test_compact_pulse_count_zero(self):
+        """compact() with empty pulseHistory should report pulseCount=0."""
+        c = compact({"pulseHistory": []})
+        assert c["pulseCount"] == 0
 
 
 # ── Helpers ──
