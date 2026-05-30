@@ -11,19 +11,34 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from rift_live_test.reports import write_json, write_text_atomic
-from rift_live_test.target_control import (
-    WNDENUMPROC,
-    WindowSnapshot,
-    _load_user32,
-    get_window_snapshot,
-    parse_hwnd,
-)
+# Ensure scripts/ and the project root are on sys.path so both rift_live_test.*
+# and scripts.* imports resolve regardless of invocation directory.
+_script_dir = Path(__file__).resolve().parent  # scripts/rift_live_test/
+_parent_scripts = str(_script_dir.parent)  # scripts/
+_project_root = str(_script_dir.parent.parent)  # RiftReader/
+if _parent_scripts not in sys.path:
+    sys.path.insert(0, _parent_scripts)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+try:
+    from rift_live_test.reports import write_json, write_text_atomic
+    from rift_live_test.target_control import (
+        WNDENUMPROC,
+        WindowSnapshot,
+        _load_user32,
+        get_window_snapshot,
+        parse_hwnd,
+    )
+except ImportError:  # pragma: no cover - alternate invocation paths
+    from rift_live_test.reports import write_json, write_text_atomic  # type: ignore[no-redef]
+    from rift_live_test.target_control import (  # type: ignore[no-redef]
+        WNDENUMPROC, WindowSnapshot, _load_user32, get_window_snapshot, parse_hwnd,
+    )
 
 try:
     from scripts.nav_state_readback import read_nav_state
 except ImportError:  # pragma: no cover - invoked from within scripts/ directory.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.nav_state_readback import read_nav_state  # type: ignore[no-redef]
 
 
@@ -90,13 +105,16 @@ def watch_navigation_target(
         if attempt_number < max(1, options.attempts):
             time.sleep(max(0.0, options.interval_seconds))
 
-    # Optional pointer-chain nav-state health check
+    # Optional pointer-chain nav-state health check.
+    # Uses --use-current-truth because the live window enumeration does not
+    # capture the module base address; the current-truth JSON is validated
+    # separately and contains the correct module base.
     nav_state_check: dict[str, Any] | None = None
     if run_nav_state and selected_window:
         nav_state_check = read_nav_state(
             root=repo_root,
-            pid=selected_window.get("processId"),
-            hwnd=selected_window.get("windowHandleHex"),
+            use_current_truth=True,
+            current_truth_json="docs/recovery/current-truth.json",
         )
 
     summary = _summary(
