@@ -36,6 +36,9 @@ except ImportError:  # pragma: no cover - direct script execution path
 SCHEMA_VERSION = 1
 
 # Calibrated constants (from sweep data)
+# NOTE: TURN_RATE_DEGREES_PER_MS and turn-hold limits are retained for
+# calibration-test validation only. The route loop now uses the pulse-loop
+# turn_completion_detector.py instead of fire-and-forget calibrated holds.
 TURN_RATE_DEGREES_PER_MS = 0.177        # average of left & right at 400-800ms
 FORWARD_SPEED_M_PER_S = 6.1             # cruising speed (post-200ms acceleration)
 FORWARD_ACCEL_DISTANCE_M = 1.0          # approx distance during first 200ms acceleration
@@ -74,6 +77,11 @@ def repo_root() -> Path:
 def compact_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
     plan = safe_mapping(summary.get("plan"))
     target = safe_mapping(plan.get("navigationTarget"))
+    source_state = safe_mapping(summary.get("sourceStateSummary"))
+    # Extract current yaw from the plan source state if available (for target-bearing computation)
+    current_yaw = None
+    if isinstance(summary.get("latestState"), Mapping):
+        current_yaw = summary["latestState"].get("yawDegrees")  # type: ignore
     return {
         "firstAction": plan.get("firstAction"),
         "turnMagnitudeClass": plan.get("turnMagnitudeClass"),
@@ -86,6 +94,7 @@ def compact_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
         "executionBlocked": plan.get("executionBlocked"),
         "executionBlockers": plan.get("executionBlockers", []),
         "engineTurnRateClassification": plan.get("engineTurnRateClassification"),
+        "currentYawDegrees": current_yaw,
     }
 
 
@@ -217,24 +226,27 @@ def plan_command(args: argparse.Namespace, root: Path, output_root: Path) -> lis
     return command
 
 
-def turn_command(args: argparse.Namespace, root: Path, output_root: Path, direction: str, hold_ms: int) -> list[str]:
+def turn_completion_command(
+    args: argparse.Namespace,
+    root: Path,
+    output_root: Path,
+    direction: str,
+    signed_bearing_delta_degrees: float,
+) -> list[str]:
+    """Build a turn-completion-detector subprocess command for pulse-loop convergence verification."""
     return [
         sys.executable,
-        str(root / "scripts" / "static_owner_turn_stimulus_capture.py"),
+        str(root / "scripts" / "turn_completion_detector.py"),
         "--repo-root", str(root),
         "--output-root", str(output_root),
         "--current-truth-json", str(args.current_truth_json),
         "--direction", direction,
-        "--hold-milliseconds", str(hold_ms),
-        "--minimum-yaw-delta-degrees", "1.0",
-        "--max-planar-drift", "1.0",
-        "--samples", str(DEFAULT_SAMPLES),
-        "--interval-seconds", str(DEFAULT_INTERVAL_SECONDS),
-        "--settle-seconds", str(args.turn_settle_seconds),
+        "--signed-bearing-delta-degrees", str(signed_bearing_delta_degrees),
+        "--alignment-threshold-degrees", str(args.alignment_threshold_degrees),
+        "--settle-ms", str(int(float(args.turn_settle_seconds) * 1000)),
         "--input-mode", str(args.input_mode),
         "--title-contains", str(args.title_contains),
-        "--focus-delay-milliseconds", "250",
-        "--command-timeout-seconds", "30",
+        "--command-timeout-seconds", "60",
         "--turn-approved",
         "--json",
     ]
@@ -931,6 +943,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             summary["childCommands"].append(plan_child)
 
+            # Pre-define iteration_record so it's safe in plan-failure early-return paths
+            iteration_record: dict[str, Any] = {
+                "iteration": iteration,
+                "planarDistance": current_distance,
+                "plan": None,
+                "turnDirection": None,
+                "computedTurnHoldMs": None,
+                "turnResult": {"status": "not-needed"},
+                "forwardResult": {"status": "not-needed"},
+                "childCommands": [],
+            }
+
             if not isinstance(plan_child.get("json"), Mapping):
                 summary["warnings"].append(f"plan-failed-at-iteration-{iteration}")
                 summary["total"]["finalPlanarDistance"] = current_distance
@@ -941,16 +965,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             plan_detail = compact_plan(plan_full)
             current_distance = plan_detail.get("planarDistance") or 0
 
-            iteration_record = {
-                "iteration": iteration,
-                "planarDistance": current_distance,
-                "plan": plan_detail,
-                "turnDirection": None,
-                "computedTurnHoldMs": None,
-                "turnResult": {"status": "not-needed"},
-                "forwardResult": {"status": "not-needed"},
-                "childCommands": [],
-            }
+            # Update iteration_record with plan data now that we have it
+            iteration_record["planarDistance"] = current_distance
+            iteration_record["plan"] = plan_detail
 
             # Arrived?
             if plan_detail.get("withinArrivalRadius") is True:
@@ -970,13 +987,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 break
 
             if suggested_turn in {"left", "right"}:
-                turn_ms = compute_turn_hold_ms(bearing_delta)
+                signed_delta = float(plan_detail.get("signedBearingDeltaDegrees") or 0)
                 iteration_record["turnDirection"] = suggested_turn
-                iteration_record["computedTurnHoldMs"] = turn_ms
+                iteration_record["turnMethod"] = "turn-completion-detector-pulse-loop"
 
                 turn_child = run_child(
                     label=f"turn-{iteration:03d}-{suggested_turn}",
-                    command=turn_command(args, root, child_output_root, suggested_turn, turn_ms),
+                    command=turn_completion_command(args, root, child_output_root, suggested_turn, signed_delta),
                     cwd=root,
                     child_dir=child_dir,
                     timeout_seconds=float(args.command_timeout_seconds),
@@ -988,20 +1005,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 if not isinstance(turn_child.get("json"), Mapping):
                     iteration_record["turnResult"] = {"status": "failed", "reason": "turn-json-missing"}
                     summary["warnings"].append(f"turn-json-missing-at-iteration-{iteration}")
-                    # Continue anyway — yaw may have changed
                 else:
-                    turn_full = full_summary_from_compact(turn_child["json"])
-                    turn_ok = turn_full.get("status") == "passed"
-                    iteration_record["turnResult"] = {"status": "passed" if turn_ok else "blocked"}
+                    turn_compact = safe_mapping(turn_child["json"])
+                    turn_verdict = str(turn_compact.get("verdict") or "")
+                    turn_ok = turn_compact.get("status") == "passed"
+                    iteration_record["turnResult"] = {
+                        "status": "passed" if turn_ok else "blocked",
+                        "verdict": turn_verdict,
+                        "preYawDegrees": turn_compact.get("preYawDegrees"),
+                        "postYawDegrees": turn_compact.get("postYawDegrees"),
+                        "achievedBearingDegrees": turn_compact.get("achievedBearingDegrees"),
+                        "bearingErrorDegrees": turn_compact.get("bearingErrorDegrees"),
+                        "totalPulses": turn_compact.get("totalPulses"),
+                        "totalYawDeltaDegrees": turn_compact.get("totalYawDeltaDegrees"),
+                    }
                     total_turns += 1
                     if turn_ok:
                         safety["movementSent"] = True
                         safety["navigationControl"] = True
-                        # Update yaw info from turn result for diagnostics
-                        turn_sample = safe_mapping(turn_full.get("turnSamples") or [None]) if isinstance(turn_full.get("turnSamples"), list) else {}
-                        if turn_sample:
-                            iteration_record["postTurnYaw"] = turn_sample.get("postYawDegrees")
-                            iteration_record["turnYawDelta"] = turn_sample.get("absoluteYawDeltaDegrees")
+                    elif turn_verdict == "turn-overcorrected":
+                        summary["warnings"].append(f"turn-overcorrected-at-iteration-{iteration}")
+                    elif turn_verdict == "turn-timeout":
+                        summary["warnings"].append(f"turn-timeout-at-iteration-{iteration}")
 
                 # Re-plan after turn (bearing will have changed)
                 re_plan = run_child(

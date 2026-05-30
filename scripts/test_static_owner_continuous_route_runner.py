@@ -68,6 +68,7 @@ def _make_args(**overrides: Any) -> Any:
         "dry_run": False,
         "json": False,
         "skip_readback_freshness_gate": False,
+        "nav_state": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)

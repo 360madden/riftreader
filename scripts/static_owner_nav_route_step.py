@@ -286,11 +286,12 @@ def classify_initial_step(pre_state: Mapping[str, Any]) -> dict[str, Any]:
             "status": "blocked",
             "reason": f"initial-bearing-not-aligned:{suggested_turn or 'unknown'}",
             "movementRequired": False,
-            "controlIntent": "blocked-candidate-turn-not-implemented",
+            "controlIntent": "blocked-turn-completion-required",
             "suggestedTurnDirection": suggested_turn,
             "signedBearingDeltaDegrees": navigation_target.get("signedBearingDeltaDegrees"),
             "absoluteBearingDeltaDegrees": navigation_target.get("absoluteBearingDeltaDegrees"),
             "planarDistance": navigation_target.get("planarDistance"),
+            "turnHandlerHint": "use-turn-completion-detector-pulse-loop",
         }
     return {
         "status": "passed",
@@ -352,8 +353,8 @@ def validate_route_step_summary_contract(step_summary: Mapping[str, Any]) -> dic
         blockers.append("initial-decision-status-must-be-passed")
     if decision.get("movementRequired") is not True:
         blockers.append("initial-decision-movement-required-must-be-true")
-    if decision.get("controlIntent") != "forward":
-        blockers.append("initial-decision-control-intent-must-be-forward")
+    if decision.get("controlIntent") not in ("forward", "blocked-turn-completion-required"):
+        blockers.append("initial-decision-control-intent-must-be-forward-or-blocked-turn-completion-required")
     if decision.get("suggestedTurnDirection") != "aligned":
         blockers.append("initial-decision-suggested-turn-must-be-aligned")
 
