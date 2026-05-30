@@ -30,6 +30,7 @@ DEFAULT_COORD_OFFSET = 0x320
 DEFAULT_MAX_PLANAR_JUMP_PER_SAMPLE = 25.0
 DEFAULT_MAX_SAMPLE_GAP_SECONDS = 2.0
 DEFAULT_MAX_STATIONARY_PLANAR_DRIFT = 0.5
+DEFAULT_TURN_RATE_THRESHOLD = 0.35
 FILETIME_UNIX_EPOCH_100NS = 116444736000000000
 
 
@@ -56,6 +57,87 @@ def qword(data: bytes, offset: int = 0) -> int:
 def triplet(data: bytes, offset: int = 0) -> dict[str, float]:
     x, y, z = struct.unpack_from("<fff", data, offset)
     return {"x": float(x), "y": float(y), "z": float(z)}
+
+
+def unpack_float_safe(data: bytes, offset: int) -> float | None:
+    """Unpack a single float, returning None if non-finite or out of bounds."""
+    try:
+        value = struct.unpack_from("<f", data, offset)[0]
+    except (struct.error, IndexError):
+        return None
+    if not math.isfinite(value) or abs(value) >= 1_000_000:
+        return None
+    return float(value)
+
+
+def nav_state_from_owner_bytes(
+    data: bytes,
+    *,
+    owner_address: int,
+    coord_offset: int = DEFAULT_COORD_OFFSET,
+) -> dict[str, Any]:
+    """Extract full navigation state from owner window bytes.
+
+    Reads position at coord_offset, facing target at coord_offset - 0x14
+    (i.e. 0x30C when coord_offset is 0x320), and turn rate at
+    coord_offset - 0x1C (i.e. 0x304).  Computes yaw via atan2 from the
+    vector between position and facing target.
+
+    This is a read-only derivation; it does not promote facing or grant
+    navigation control authority.
+
+    Returns a dict with "navStateError" if the data is unreadable
+    (e.g. non-finite coordinates or offset underrun).
+    """
+    if coord_offset < 0x1C:
+        return {"navStateError": "coord-offset-too-small-for-nav-derivation", "coordOffset": int_hex(coord_offset)}
+    position = triplet(data, coord_offset)
+    if not all(math.isfinite(v) for v in position.values()):
+        return {"navStateError": "non-finite-position-coordinate", "coordinate": position}
+    facing_offset = coord_offset - 0x14
+    turn_rate_offset = coord_offset - 0x1C
+    facing_target = triplet(data, facing_offset)
+    if not all(math.isfinite(v) for v in facing_target.values()):
+        return {"navStateError": "non-finite-facing-target-coordinate", "facingTargetCoordinate": facing_target}
+
+    dx = facing_target["x"] - position["x"]
+    dy = facing_target["y"] - position["y"]
+    dz = facing_target["z"] - position["z"]
+    planar = math.hypot(dx, dz)
+    distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+
+    yaw = math.degrees(math.atan2(dz, dx))
+    pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
+
+    turn_rate = unpack_float_safe(data, turn_rate_offset)
+    turn_direction = "unknown"
+    turning = False
+    if turn_rate is not None:
+        if turn_rate > DEFAULT_TURN_RATE_THRESHOLD:
+            turn_direction = "left"
+            turning = True
+        elif turn_rate < -DEFAULT_TURN_RATE_THRESHOLD:
+            turn_direction = "right"
+            turning = True
+        else:
+            turn_direction = "stationary"
+
+    return {
+        "ownerAddress": int_hex(owner_address),
+        "coordinate": position,
+        "facingTargetCoordinate": facing_target,
+        "facingVector": {"x": dx, "y": dy, "z": dz},
+        "yawDegrees": yaw,
+        "pitchDegrees": pitch,
+        "planarLookaheadDistance": planar,
+        "lookaheadDistance3d": distance,
+        "turnRate0x304": turn_rate,
+        "turnRateClassification": turn_direction,
+        "turnRateTurning": turning,
+        "positionOffset": int_hex(coord_offset),
+        "facingTargetOffset": int_hex(facing_offset),
+        "turnRateOffset": int_hex(turn_rate_offset),
+    }
 
 
 def safe_mapping(value: Any) -> dict[str, Any]:
@@ -287,6 +369,7 @@ def read_chain_sample(
     root_address: int,
     coord_offset: int,
     expected_anchor: int | None,
+    include_nav_state: bool = False,
 ) -> dict[str, Any]:
     owner_address = qword(read_memory(handle, root_address, 8))
     owner_window = read_memory(handle, owner_address, max(0x380, coord_offset + 12))
@@ -303,11 +386,14 @@ def read_chain_sample(
         proof = triplet(read_memory(handle, expected_anchor, 12))
         reads["expectedProofAnchorCoordinate"] = proof
         reads["deltasVsExpectedProofAnchor"] = {axis: abs(coordinate[axis] - proof[axis]) for axis in ("x", "y", "z")}
+    if include_nav_state:
+        reads["navState"] = nav_state_from_owner_bytes(owner_window, owner_address=owner_address, coord_offset=coord_offset)
     return reads
 
 
 def build_markdown(summary: dict[str, Any]) -> str:
     reads = summary.get("reads") if isinstance(summary.get("reads"), dict) else {}
+    nav_state = safe_mapping(reads.get("navState"))
     polling = safe_mapping(summary.get("polling"))
     analysis = safe_mapping(summary.get("analysis"))
     safety = safe_mapping(summary.get("safety"))
@@ -328,6 +414,31 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"- Owner vtable: `{reads.get('ownerVtable')}`",
         f"- Coordinate: `{reads.get('coordinate')}`",
         f"- Proof-anchor deltas: `{reads.get('deltasVsExpectedProofAnchor')}`",
+    ]
+    if nav_state:
+        if nav_state.get("navStateError"):
+            lines.extend([
+                "",
+                "## Navigation state (derivation failed)",
+                "",
+                f"- Error: `{nav_state['navStateError']}`",
+            ])
+        else:
+            lines.extend([
+                "",
+                "## Navigation state (derived from owner window)",
+                "",
+                f"- Yaw: `{nav_state.get('yawDegrees')}` deg",
+                f"- Pitch: `{nav_state.get('pitchDegrees')}` deg",
+                f"- Facing target: `{nav_state.get('facingTargetCoordinate')}`",
+                f"- Facing vector: `{nav_state.get('facingVector')}`",
+                f"- Planar lookahead: `{nav_state.get('planarLookaheadDistance')}`",
+                f"- Turn rate (0x304): `{nav_state.get('turnRate0x304')}`",
+                f"- Turn classification: `{nav_state.get('turnRateClassification')}`",
+                "",
+                "Candidate readback only — not promoted facing/navigation control.",
+            ])
+    lines.extend([
         "",
         "## Polling analysis",
         "",
@@ -338,7 +449,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"- Owner changed count: `{analysis.get('ownerChangedCount')}`",
         f"- Jump count: `{analysis.get('jumpCount')}`",
         f"- Stale gap count: `{analysis.get('staleGapCount')}`",
-    ]
+    ])
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{blocker}`" for blocker in summary.get("blockers", []))
@@ -522,6 +633,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 root_address=root_address,
                 coord_offset=coord_offset,
                 expected_anchor=expected_anchor,
+                include_nav_state=bool(args.nav_state),
             )
             sample.update(
                 {
@@ -548,6 +660,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         summary["warnings"].extend(summary["analysis"].get("warnings", []))
         if expected_anchor is None:
             summary["warnings"].append("proof-anchor-comparison-not-requested")
+        if bool(args.nav_state):
+            nav_error = safe_mapping(summary.get("reads", {}).get("navState", {})).get("navStateError")
+            if nav_error:
+                summary["warnings"].append(f"nav-state-derivation-error:{nav_error}")
         max_delta = max(summary.get("reads", {}).get("deltasVsExpectedProofAnchor", {"x": 0, "y": 0, "z": 0}).values())
         if summary["blockers"]:
             summary["status"] = "blocked"
@@ -595,8 +711,9 @@ def base_safety() -> dict[str, Any]:
 def build_compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     reads = safe_mapping(summary.get("reads"))
+    nav_state = safe_mapping(reads.get("navState"))
     analysis = safe_mapping(summary.get("analysis"))
-    return {
+    compact: dict[str, Any] = {
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
         "classification": summary.get("classification"),
@@ -612,6 +729,25 @@ def build_compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "warnings": summary.get("warnings", []),
         "errors": summary.get("errors", []),
     }
+    if nav_state:
+        if nav_state.get("navStateError"):
+            compact["navState"] = {
+                "navStateError": nav_state["navStateError"],
+                "navStateCandidateOnly": True,
+                "actionableForNavigation": False,
+            }
+        else:
+            compact["navState"] = {
+                "yawDegrees": nav_state.get("yawDegrees"),
+                "pitchDegrees": nav_state.get("pitchDegrees"),
+                "facingTargetCoordinate": nav_state.get("facingTargetCoordinate"),
+                "planarLookaheadDistance": nav_state.get("planarLookaheadDistance"),
+                "turnRate0x304": nav_state.get("turnRate0x304"),
+                "turnRateClassification": nav_state.get("turnRateClassification"),
+                "navStateCandidateOnly": True,
+                "actionableForNavigation": False,
+            }
+    return compact
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -636,6 +772,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-sample-gap-seconds", type=float, default=DEFAULT_MAX_SAMPLE_GAP_SECONDS)
     parser.add_argument("--expect-stationary", action="store_true", help="Block if the no-input baseline drifts more than --max-stationary-planar-drift.")
     parser.add_argument("--max-stationary-planar-drift", type=float, default=DEFAULT_MAX_STATIONARY_PLANAR_DRIFT)
+    parser.add_argument("--nav-state", action="store_true", help="Also read facing target (+0x30C), turn rate (+0x304), and compute yaw from the same owner window.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     summary = run(args)
