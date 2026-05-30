@@ -86,7 +86,71 @@ def base_safety() -> dict[str, Any]:
         "facingPromotion": False,
         "navigationControl": False,
         "savedVariablesUsedAsLiveTruth": False,
+        "navStateCandidateOnly": True,
+        "actionableForNavigation": False,
     }
+
+
+def _read_nav_state(*, root: Path, current_truth_json: str, command_timeout_seconds: float, repo_root_path: str | None = None) -> dict[str, Any]:
+    """Run the promoted static resolver with --nav-state as a read-only subprocess.
+
+    Returns a dict with keys: ok, json, stdoutPreview, stderrPreview, error.
+    The json field contains the full nav-state payload when ok is True.
+    """
+    repo = Path(repo_root_path).resolve() if repo_root_path else root
+    command = [
+        sys.executable,
+        str(repo / "scripts" / "static_owner_coordinate_chain_readback.py"),
+        "--repo-root", str(repo),
+        "--current-truth-json", current_truth_json,
+        "--use-current-truth",
+        "--nav-state",
+        "--json",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(repo),
+            text=True,
+            capture_output=True,
+            timeout=command_timeout_seconds,
+            check=False,
+        )
+        parsed: Any = None
+        parse_error: str | None = None
+        if result.stdout.strip():
+            try:
+                parsed = json.loads(result.stdout)
+            except json.JSONDecodeError as exc:
+                parse_error = f"JSONDecodeError:{exc}"
+        return {
+            "ok": result.returncode == 0 and parse_error is None,
+            "exitCode": result.returncode,
+            "json": parsed if isinstance(parsed, Mapping) else None,
+            "jsonParseError": parse_error,
+            "stdoutPreview": preview(result.stdout),
+            "stderrPreview": preview(result.stderr),
+        }
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "exitCode": 124,
+            "json": None,
+            "jsonParseError": f"TimeoutExpired:{exc}",
+            "stdoutPreview": "",
+            "stderrPreview": preview(exc.stderr if isinstance(exc.stderr, str) else ""),
+            "error": f"nav-state-readback-timeout:{exc}",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "exitCode": -1,
+            "json": None,
+            "jsonParseError": f"{type(exc).__name__}:{exc}",
+            "stdoutPreview": "",
+            "stderrPreview": "",
+            "error": f"nav-state-readback-error:{type(exc).__name__}:{exc}",
+        }
 
 
 def destination_args(args: argparse.Namespace) -> list[str]:
@@ -195,6 +259,43 @@ def full_summary_from_compact(compact: Mapping[str, Any]) -> dict[str, Any]:
     if not path:
         raise ValueError("child-compact-summary-json-missing")
     return load_json_object(str(path))
+
+
+def enrich_decision_with_nav_state(decision: dict[str, Any], nav_state_result: dict[str, Any] | None) -> dict[str, Any]:
+    """Enrich an initial-step decision with live pointer-chain nav-state data.
+
+    Reads yaw, turn rate, and facing target from the nav-state payload and
+    attaches them to the decision for correlation with navigation-target bearing.
+    Does NOT change the decision status — nav-state is candidate-only evidence.
+    """
+    decision["navStateAvailable"] = False
+    decision["navStateError"] = None
+    if nav_state_result is None:
+        return decision
+    if not nav_state_result.get("ok"):
+        decision["navStateAvailable"] = False
+        decision["navStateError"] = nav_state_result.get("error") or nav_state_result.get("jsonParseError") or "nav-state-readback-not-ok"
+        return decision
+    nav_json = safe_mapping(nav_state_result.get("json"))
+    if nav_json.get("status") in ("unavailable", "readback-failed", "parse-error"):
+        decision["navStateAvailable"] = False
+        decision["navStateError"] = f"nav-state-status:{nav_json.get('status')}"
+        return decision
+    nav = safe_mapping(nav_json.get("navState"))
+    decision["navStateAvailable"] = True
+    decision["navStateYawDegrees"] = nav.get("yawDegrees")
+    decision["navStatePitchDegrees"] = nav.get("pitchDegrees")
+    decision["navStateTurnRate0x304"] = nav.get("turnRate0x304")
+    decision["navStateTurnRateClassification"] = nav.get("turnRateClassification")
+    decision["navStateFacingTargetCoordinate"] = nav.get("facingTargetCoordinate")
+    decision["navStateOwnerAddress"] = nav_json.get("reads", {}).get("ownerAddress") if isinstance(nav_json.get("reads"), Mapping) else None
+    # Cross-check: if turn rate says turning right and nav target says turn left, surface dissonance
+    suggested_turn = str(decision.get("suggestedTurnDirection") or "")
+    turn_class = str(nav.get("turnRateClassification") or "")
+    if suggested_turn and turn_class and suggested_turn != "aligned":
+        if (suggested_turn == "left" and turn_class == "right") or (suggested_turn == "right" and turn_class == "left"):
+            decision["navStateTurnRateDissonance"] = f"nav-target:{suggested_turn}-vs-engine:{turn_class}"
+    return decision
 
 
 def classify_initial_step(pre_state: Mapping[str, Any]) -> dict[str, Any]:
@@ -461,8 +562,32 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         f"- Control intent: `{decision.get('controlIntent')}`",
         f"- Movement required: `{decision.get('movementRequired')}`",
         "",
-        "## Route result",
-        "",
+    ]
+    if decision.get("navStateAvailable") is True:
+        yaw = decision.get("navStateYawDegrees")
+        turn_rate = decision.get("navStateTurnRate0x304")
+        turn_class = decision.get("navStateTurnRateClassification")
+        facing = decision.get("navStateFacingTargetCoordinate")
+        yaw_str = f"{yaw:.2f}°" if isinstance(yaw, (int, float)) else str(yaw)
+        lines.extend([
+            "### Pointer-chain nav-state (candidate-only)",
+            "",
+            f"- Yaw: `{yaw_str}`",
+            f"- Turn rate (0x304): `{turn_rate}`",
+            f"- Turn classification: `{turn_class}`",
+            f"- Facing target: `{facing}`",
+            f"- Nav-state available: `{decision.get('navStateAvailable')}`",
+            "",
+            "> **Note:** Nav-state is candidate-only evidence. It does not authorize turns.",
+            "",
+        ])
+        if decision.get("navStateTurnRateDissonance"):
+            lines.extend([
+                f"> ⚠ **Turn-rate dissonance detected:** `{decision['navStateTurnRateDissonance']}`",
+                f"> The engine turn-rate discriminator (+0x304) disagrees with the atan2 bearing. Movement blocked.",
+                "",
+            ])
+    lines.extend(["", "## Route result", "",
         f"- Route status: `{route_result.get('routeStatus')}`",
         f"- Stop reason: `{route_result.get('stopReason')}`",
         f"- Total progress: `{route_result.get('totalProgressDistance')}`",
@@ -481,7 +606,7 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         "",
         f"- Summary JSON: `{artifacts.get('summaryJson')}`",
         f"- Run directory: `{artifacts.get('runDirectory')}`",
-    ]
+    ])
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
@@ -554,6 +679,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["blockers"].append("pre-state-readback-not-passed")
             return summary
         decision = classify_initial_step(pre_full)
+        if args.nav_state:
+            nav_state_result = _read_nav_state(
+                root=root,
+                current_truth_json=args.current_truth_json,
+                command_timeout_seconds=args.command_timeout_seconds,
+                repo_root_path=args.repo_root,
+            )
+            summary["navStateReadback"] = nav_state_result
+            summary["safety"]["navStateCandidateOnly"] = True
+            summary["safety"]["actionableForNavigation"] = False
+            decision = enrich_decision_with_nav_state(decision, nav_state_result)
+            if nav_state_result.get("error"):
+                summary["warnings"].append(f"nav-state-readback-warning:{nav_state_result['error']}")
         summary["initialDecision"] = decision
         if decision["status"] != "passed":
             summary["status"] = "blocked"
@@ -679,7 +817,8 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     route_result = safe_mapping(summary.get("routeResult"))
     decision = safe_mapping(summary.get("initialDecision"))
-    return {
+    nav_state_readback = safe_mapping(summary.get("navStateReadback"))
+    compact_dict: dict[str, Any] = {
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
         "initialDecision": decision or None,
@@ -696,6 +835,14 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "warnings": summary.get("warnings", []),
         "errors": summary.get("errors", []),
     }
+    if nav_state_readback:
+        compact_dict["navStateAvailable"] = decision.get("navStateAvailable")
+        compact_dict["navStateYawDegrees"] = decision.get("navStateYawDegrees")
+        compact_dict["navStateTurnRate0x304"] = decision.get("navStateTurnRate0x304")
+        compact_dict["navStateTurnRateClassification"] = decision.get("navStateTurnRateClassification")
+        compact_dict["navStateError"] = decision.get("navStateError")
+        compact_dict["navStateTurnRateDissonance"] = decision.get("navStateTurnRateDissonance")
+    return compact_dict
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -723,6 +870,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--settle-seconds", type=float, default=0.75)
     parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--nav-state", action="store_true", help="Read live pointer-chain nav-state (yaw, turn rate) from the promoted static resolver alongside pre-state")
     parser.add_argument("--movement-approved", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser

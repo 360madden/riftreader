@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 SUMMARY_NAME = "turn-key-profile-summary.json"
@@ -20,6 +22,52 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def repo_root_from_script() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def safe_mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _read_nav_state(*, root: Path, current_truth_json: str, timeout_seconds: float = 30.0) -> dict[str, Any]:
+    """Run the promoted static resolver with --nav-state as a read-only subprocess.
+
+    Returns nav-state dict or empty dict on failure.
+    """
+    command = [
+        sys.executable,
+        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
+        "--repo-root", str(root),
+        "--current-truth-json", current_truth_json,
+        "--use-current-truth",
+        "--nav-state",
+        "--json",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        if result.stdout.strip():
+            parsed = json.loads(result.stdout)
+            if isinstance(parsed, dict):
+                nav = safe_mapping(parsed.get("navState"))
+                return {
+                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error"),
+                    "yawDegrees": nav.get("yawDegrees"),
+                    "turnRate0x304": nav.get("turnRate0x304"),
+                    "turnRateClassification": nav.get("turnRateClassification"),
+                    "pitchDegrees": nav.get("pitchDegrees"),
+                    "facingTargetCoordinate": nav.get("facingTargetCoordinate"),
+                    "status": parsed.get("status"),
+                    "error": None,
+                }
+        return {"ok": False, "error": "nav-state-parse-failed"}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}:{exc}"}
 
 
 def relative(path_text: str | None, root: Path) -> str:
@@ -73,6 +121,21 @@ def summarize_attempts(summary: dict[str, Any]) -> dict[str, Any]:
         "maxCoordPlanarDelta": max(coord_deltas, default=0.0),
         "notableAttempts": notable[:6],
     }
+
+
+def _enrich_with_nav_state(row: dict[str, Any], nav_state: dict[str, Any]) -> dict[str, Any]:
+    """Attach live pointer-chain nav-state data to a turn-key profile row."""
+    if not nav_state or not nav_state.get("ok"):
+        row["navStateAvailable"] = False
+        row["navStateError"] = nav_state.get("error") if nav_state else "nav-state-not-requested"
+        return row
+    row["navStateAvailable"] = True
+    row["navStateYawDegrees"] = nav_state.get("yawDegrees")
+    row["navStateTurnRate0x304"] = nav_state.get("turnRate0x304")
+    row["navStateTurnRateClassification"] = nav_state.get("turnRateClassification")
+    row["navStatePitchDegrees"] = nav_state.get("pitchDegrees")
+    row["navStateError"] = None
+    return row
 
 
 def summarize_file(path: Path, repo_root: Path) -> dict[str, Any]:
@@ -161,6 +224,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-markdown", type=Path, default=None, help="Optional Markdown output path.")
     parser.add_argument("--process-id", type=int, default=None, help="Only include a process id.")
     parser.add_argument("--limit", type=int, default=0, help="Keep only the newest N summaries after filtering.")
+    parser.add_argument("--nav-state", action="store_true", help="Read live pointer-chain nav-state (yaw, turn rate) and embed alongside turn-key stimulus evidence")
     return parser.parse_args()
 
 
@@ -177,6 +241,16 @@ def main() -> int:
     rows.sort(key=lambda row: str(row.get("generatedAtUtc") or ""))
     if args.limit and args.limit > 0:
         rows = rows[-args.limit :]
+
+    nav_state: dict[str, Any] = {}
+    if args.nav_state:
+        nav_state = _read_nav_state(
+            root=repo_root,
+            current_truth_json="docs/recovery/current-truth.json",
+            timeout_seconds=30.0,
+        )
+        for row in rows:
+            _enrich_with_nav_state(row, nav_state)
 
     payload = {"schemaVersion": 1, "summaryCount": len(rows), "summaries": rows}
     if args.output_json:

@@ -29,6 +29,7 @@ try:
         validate_args as validate_route_step_args,
         validate_route_step_summary_contract,
         write_json,
+        _read_nav_state,
     )
     from .static_owner_turn_forward_experiment import validate_turn_forward_experiment_contract
     from .static_owner_turn_stimulus_capture import validate_turn_capture_summary_contract
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover - direct script execution path
         validate_args as validate_route_step_args,
         validate_route_step_summary_contract,
         write_json,
+        _read_nav_state,
     )
     from static_owner_turn_forward_experiment import validate_turn_forward_experiment_contract  # type: ignore
     from static_owner_turn_stimulus_capture import validate_turn_capture_summary_contract  # type: ignore
@@ -751,6 +753,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.dry_run and args.movement_approved:
         summary["warnings"].append("dry-run-ignores-movement-approved")
 
+    nav_state_data: dict[str, Any] | None = None
+    if args.nav_state:
+        nav_state_data = _read_nav_state(
+            root=root,
+            current_truth_json=args.current_truth_json,
+            command_timeout_seconds=args.command_timeout_seconds,
+            repo_root_path=str(root),
+        )
+        summary["navStateReadback"] = nav_state_data
+        summary["safety"]["navStateCandidateOnly"] = True
+        summary["safety"]["actionableForNavigation"] = False
+        if nav_state_data.get("error"):
+            summary["warnings"].append(f"nav-state-readback-warning:{nav_state_data['error']}")
+
     step_summaries: list[dict[str, Any]] = []
     try:
         iterations = 1 if args.dry_run else args.max_steps
@@ -802,6 +818,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if summary["status"] == "pending":
         aggregate = summarize_route_run_steps(step_summaries, max_steps=args.max_steps, dry_run=bool(args.dry_run))
         summary["aggregate"] = {key: value for key, value in aggregate.items() if key != "stepRecords"}
+        if nav_state_data and nav_state_data.get("ok"):
+            nav_json = safe_mapping(nav_state_data.get("json"))
+            nav = safe_mapping(nav_json.get("navState"))
+            if nav_json.get("status") not in ("unavailable", "readback-failed", "parse-error"):
+                summary["aggregate"]["navStateYawDegrees"] = nav.get("yawDegrees")
+                summary["aggregate"]["navStateTurnRate0x304"] = nav.get("turnRate0x304")
+                summary["aggregate"]["navStateTurnRateClassification"] = nav.get("turnRateClassification")
+                summary["aggregate"]["navStateAvailable"] = True
+            else:
+                summary["aggregate"]["navStateAvailable"] = False
+                summary["aggregate"]["navStateError"] = f"nav-state-status:{nav_json.get('status')}"
         summary["status"] = aggregate["status"]
         summary["verdict"] = aggregate["verdict"]
         summary["blockers"].extend(aggregate["blockers"])
@@ -1149,6 +1176,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
     parser.add_argument("--max-arrival-radius", type=float, default=DEFAULT_MAX_ARRIVAL_RADIUS)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--nav-state", action="store_true", help="Read live pointer-chain nav-state (yaw, turn rate) before executing route steps")
     parser.add_argument("--movement-approved", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser

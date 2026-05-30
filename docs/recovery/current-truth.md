@@ -1,6 +1,6 @@
 # Current RIFT live truth — static player-coordinate resolver PROMOTED
 
-Updated UTC: `2026-05-27T22:50:24Z`
+Updated UTC: `2026-05-30T13:41:00Z`
 
 # **✅ RESULT**
 
@@ -15,16 +15,16 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Field | Value |
 |---|---|
 | Process | `rift_x64.exe` |
-| PID | `34176` |
-| HWND | `0x3D1544` |
-| Process start UTC | `2026-05-27T18:06:53.0701460Z` |
-| Module base | `0x7FF77AF40000` |
-| Static root | `rift_x64+0x32EBC80` = `0x7FF77E22BC80` |
-| Owner in validated epoch | `0x278C3830010` |
-| Coordinate address in validated epoch | `0x278C3830330` |
-| Latest static-chain coordinate | `7260.723144531, 821.425231934, 2995.659667969` |
-| Latest RRAPICOORD API coordinate | `7260.720000000, 821.430000000, 2995.660000000` |
-| Latest API timestamp | `2026-05-27T22:14:02.0252303Z` |
+| PID | `25668` |
+| HWND | `0x320CB0` |
+| Process start UTC | `2026-05-30T13:41:00Z` (session-reacquired) |
+| Module base | `0x7FF6EE5D0000` |
+| Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
+| Owner in validated epoch | `0x1B53D7806A0` |
+| Coordinate address in validated epoch | `0x1B53D7809C0` (owner+0x320) |
+| Latest static-chain coordinate | `7262.019042969, 821.520996094, 3000.512451172` |
+| Latest RRAPICOORD API coordinate | `(pending Tier 2 verified capture)` |
+| Latest API timestamp | `(pending)` |
 | Promotion report | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promoted-2026-05-27.md` |
 
 ## Promotion gate summary
