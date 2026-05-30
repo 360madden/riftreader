@@ -36,17 +36,11 @@ except ImportError:  # pragma: no cover - direct script execution path
 SCHEMA_VERSION = 1
 
 # Calibrated constants (from sweep data)
-# NOTE: TURN_RATE_DEGREES_PER_MS and turn-hold limits are retained for
-# calibration-test validation only. The route loop now uses the pulse-loop
-# turn_completion_detector.py instead of fire-and-forget calibrated holds.
-TURN_RATE_DEGREES_PER_MS = 0.177        # average of left & right at 400-800ms
 FORWARD_SPEED_M_PER_S = 6.1             # cruising speed (post-200ms acceleration)
 FORWARD_ACCEL_DISTANCE_M = 1.0          # approx distance during first 200ms acceleration
 FORWARD_ACCEL_TIME_MS = 200             # acceleration phase duration
 
 # Safety limits
-DEFAULT_MIN_TURN_HOLD_MS = 150
-DEFAULT_MAX_TURN_HOLD_MS = 1200
 DEFAULT_MIN_FORWARD_HOLD_MS = 400
 DEFAULT_MAX_FORWARD_HOLD_MS = 5000
 DEFAULT_ALIGNMENT_THRESHOLD_DEGREES = 7.5
@@ -99,7 +93,15 @@ def compact_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def compute_turn_hold_ms(degrees_delta: float) -> int:
-    """Compute turn hold duration from calibrated turn rate."""
+    """Compute turn hold duration from calibrated turn rate (legacy; used in tests).
+
+    The route loop now uses the pulse-loop turn_completion_detector.py
+    instead of fire-and-forget calibrated holds, but this function is
+    retained for calibration-test validation.
+    """
+    TURN_RATE_DEGREES_PER_MS = 0.177
+    DEFAULT_MIN_TURN_HOLD_MS = 150
+    DEFAULT_MAX_TURN_HOLD_MS = 1200
     clamped = max(0.5, min(abs(degrees_delta), 180.0))
     hold = int(clamped / TURN_RATE_DEGREES_PER_MS)
     return max(DEFAULT_MIN_TURN_HOLD_MS, min(hold, DEFAULT_MAX_TURN_HOLD_MS))

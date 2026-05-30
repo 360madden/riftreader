@@ -11,13 +11,10 @@ from scripts.static_owner_continuous_route_runner import (
     DEFAULT_ALIGNMENT_THRESHOLD_DEGREES,
     DEFAULT_ARRIVAL_RADIUS,
     DEFAULT_MAX_FORWARD_HOLD_MS,
-    DEFAULT_MAX_TURN_HOLD_MS,
     DEFAULT_MIN_FORWARD_HOLD_MS,
-    DEFAULT_MIN_TURN_HOLD_MS,
     FORWARD_ACCEL_DISTANCE_M,
     FORWARD_ACCEL_TIME_MS,
     FORWARD_SPEED_M_PER_S,
-    TURN_RATE_DEGREES_PER_MS,
     build_markdown,
     build_sequence_markdown,
     compact,
@@ -32,6 +29,11 @@ from scripts.static_owner_continuous_route_runner import (
     safe_mapping,
     validate_args,
 )
+
+# Turn calibration constants (local copies; originals moved to local scope in compute_turn_hold_ms)
+_DEFAULT_MIN_TURN_HOLD_MS = 150
+_DEFAULT_MAX_TURN_HOLD_MS = 1200
+_TURN_RATE_DEGREES_PER_MS = 0.177
 
 
 def _make_args(**overrides: Any) -> Any:
@@ -78,12 +80,12 @@ class ComputeTurnHoldMsTests(unittest.TestCase):
     """Test the calibrated turn-hold computation."""
 
     def test_zero_degrees_returns_minimum_hold(self) -> None:
-        self.assertEqual(compute_turn_hold_ms(0.0), DEFAULT_MIN_TURN_HOLD_MS)
+        self.assertEqual(compute_turn_hold_ms(0.0), _DEFAULT_MIN_TURN_HOLD_MS)
 
     def test_small_turn_clamps_to_minimum(self) -> None:
         # 0.5 degrees: 0.5 / 0.177 = 2.8ms → clamped to min (150ms)
         hold = compute_turn_hold_ms(0.5)
-        self.assertEqual(hold, DEFAULT_MIN_TURN_HOLD_MS)
+        self.assertEqual(hold, _DEFAULT_MIN_TURN_HOLD_MS)
 
     def test_typical_40_degree_turn(self) -> None:
         # 40 / 0.177 ≈ 226ms
@@ -98,8 +100,8 @@ class ComputeTurnHoldMsTests(unittest.TestCase):
     def test_max_180_degree_turn_clamps_to_max(self) -> None:
         # 180 / 0.177 ≈ 1017ms → should be within max (1200ms)
         hold = compute_turn_hold_ms(180.0)
-        self.assertLessEqual(hold, DEFAULT_MAX_TURN_HOLD_MS)
-        self.assertGreater(hold, DEFAULT_MIN_TURN_HOLD_MS)
+        self.assertLessEqual(hold, _DEFAULT_MAX_TURN_HOLD_MS)
+        self.assertGreater(hold, _DEFAULT_MIN_TURN_HOLD_MS)
 
     def test_negative_degrees_uses_absolute(self) -> None:
         hold_pos = compute_turn_hold_ms(45.0)
@@ -109,7 +111,7 @@ class ComputeTurnHoldMsTests(unittest.TestCase):
     def test_over_max_clamps_to_max(self) -> None:
         # 250 degrees → clamped to 180 internally → 180 / 0.177 ≈ 1017ms
         hold = compute_turn_hold_ms(250.0)
-        self.assertLessEqual(hold, DEFAULT_MAX_TURN_HOLD_MS)
+        self.assertLessEqual(hold, _DEFAULT_MAX_TURN_HOLD_MS)
 
 
 class ComputeForwardHoldMsTests(unittest.TestCase):
@@ -657,7 +659,7 @@ class UtilityFunctionTests(unittest.TestCase):
         """Verify turn hold roughly matches the calibrated rate."""
         # For a 60-degree turn: 60 / 0.177 ≈ 339ms
         hold = compute_turn_hold_ms(60.0)
-        expected_approx = 60.0 / TURN_RATE_DEGREES_PER_MS
+        expected_approx = 60.0 / _TURN_RATE_DEGREES_PER_MS
         self.assertAlmostEqual(hold, expected_approx, delta=2)
 
     def test_compute_forward_hold_ms_speed_match(self) -> None:
