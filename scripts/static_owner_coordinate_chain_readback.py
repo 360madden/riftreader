@@ -31,6 +31,7 @@ DEFAULT_MAX_PLANAR_JUMP_PER_SAMPLE = 25.0
 DEFAULT_MAX_SAMPLE_GAP_SECONDS = 2.0
 DEFAULT_MAX_STATIONARY_PLANAR_DRIFT = 0.5
 DEFAULT_TURN_RATE_THRESHOLD = 0.35
+DEFAULT_FACING_TARGET_ZERO_EPSILON = 0.001
 FILETIME_UNIX_EPOCH_100NS = 116444736000000000
 
 
@@ -57,6 +58,11 @@ def qword(data: bytes, offset: int = 0) -> int:
 def triplet(data: bytes, offset: int = 0) -> dict[str, float]:
     x, y, z = struct.unpack_from("<fff", data, offset)
     return {"x": float(x), "y": float(y), "z": float(z)}
+
+
+def triplet_is_zero(vec: dict[str, float], *, epsilon: float = DEFAULT_FACING_TARGET_ZERO_EPSILON) -> bool:
+    """Check whether a coordinate triplet is effectively the zero vector."""
+    return abs(vec["x"]) < epsilon and abs(vec["y"]) < epsilon and abs(vec["z"]) < epsilon
 
 
 def unpack_float_safe(data: bytes, offset: int) -> float | None:
@@ -99,6 +105,8 @@ def nav_state_from_owner_bytes(
     facing_target = triplet(data, facing_offset)
     if not all(math.isfinite(v) for v in facing_target.values()):
         return {"navStateError": "non-finite-facing-target-coordinate", "facingTargetCoordinate": facing_target}
+    if triplet_is_zero(facing_target):
+        return {"navStateError": "facing-target-zero-vector", "facingTargetCoordinate": facing_target}
 
     dx = facing_target["x"] - position["x"]
     dy = facing_target["y"] - position["y"]
@@ -160,6 +168,51 @@ def first_nonempty(*values: Any) -> Any:
 
 class FILETIME(ctypes.Structure):
     _fields_ = [("dwLowDateTime", ctypes.c_uint32), ("dwHighDateTime", ctypes.c_uint32)]
+
+
+class MODULEENTRY32(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.c_uint32),
+        ("th32ModuleID", ctypes.c_uint32),
+        ("th32ProcessID", ctypes.c_uint32),
+        ("GlblcntUsage", ctypes.c_uint32),
+        ("ProccntUsage", ctypes.c_uint32),
+        ("modBaseAddr", ctypes.c_void_p),
+        ("modBaseSize", ctypes.c_uint32),
+        ("hModule", ctypes.c_void_p),
+        ("szModule", ctypes.c_char * 256),
+        ("szExePath", ctypes.c_char * 260),
+    ]
+
+
+def get_live_module_base(pid: int, module_name: str = "rift_x64.exe") -> int | None:
+    """Enumerate modules in the target process and return the base address
+    of the named module, or None if not found or enumeration failed.
+
+    Uses CreateToolhelp32Snapshot + Module32First/Module32Next.
+    This is read-only — no debugger attach, no target memory write.
+    """
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    TH32CS_SNAPMODULE = 0x00000008
+    h_snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, ctypes.c_uint32(pid))
+    if h_snap == -1 or h_snap is None:
+        return None
+    try:
+        me = MODULEENTRY32()
+        me.dwSize = ctypes.sizeof(MODULEENTRY32)
+        if not kernel32.Module32First(h_snap, ctypes.byref(me)):
+            return None
+        target_lower = module_name.lower()
+        while True:
+            name = me.szModule.decode("utf-8", errors="replace")
+            if name.lower() == target_lower:
+                base = me.modBaseAddr
+                return int(base) if base is not None else None
+            if not kernel32.Module32Next(h_snap, ctypes.byref(me)):
+                break
+        return None
+    finally:
+        kernel32.CloseHandle(h_snap)
 
 
 def filetime_to_datetime(value: FILETIME) -> datetime:
@@ -613,6 +666,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["verdict"] = "target-process-start-mismatch"
             summary["blockers"].append("target-process-start-mismatch")
             return summary
+
+        # Module base freshness gate — prevent silent garbage reads from stale config.
+        live_base = get_live_module_base(int(args.pid), f"{args.process_name}.exe")
+        summary["target"]["moduleBaseCheck"] = {
+            "liveModuleBase": int_hex(live_base),
+            "storedModuleBase": int_hex(module_base),
+        }
+        if live_base is None:
+            summary["target"]["moduleBaseCheck"]["status"] = "failed-enumeration"
+            summary["status"] = "blocked"
+            summary["verdict"] = "module-base-enumeration-failed"
+            summary["blockers"].append("module-base-enumeration-failed")
+            return summary
+        if live_base != module_base:
+            summary["target"]["moduleBaseCheck"]["status"] = "mismatch"
+            summary["target"]["moduleBaseCheck"]["delta"] = int_hex(live_base - module_base)
+            summary["status"] = "blocked"
+            summary["verdict"] = "module-base-mismatch"
+            summary["blockers"].append(f"module-base-mismatch:live={int_hex(live_base)}-stored={int_hex(module_base)}")
+            return summary
+        summary["target"]["moduleBaseCheck"]["status"] = "passed"
+
         for sample_index in range(int(args.samples)):
             sample_check = verify_hwnd_owner(args.hwnd, int(args.pid))
             sample: dict[str, Any] = {
@@ -713,6 +788,8 @@ def build_compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     reads = safe_mapping(summary.get("reads"))
     nav_state = safe_mapping(reads.get("navState"))
     analysis = safe_mapping(summary.get("analysis"))
+    target = safe_mapping(summary.get("target"))
+    module_base_check = safe_mapping(target.get("moduleBaseCheck"))
     compact: dict[str, Any] = {
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
@@ -729,6 +806,8 @@ def build_compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "warnings": summary.get("warnings", []),
         "errors": summary.get("errors", []),
     }
+    if module_base_check:
+        compact["moduleBaseCheck"] = module_base_check
     if nav_state:
         if nav_state.get("navStateError"):
             compact["navState"] = {
