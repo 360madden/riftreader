@@ -56,15 +56,20 @@ def _read_one_nav_state(
     module_base: str | None,
     process_name: str = "rift_x64",
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    current_truth_json: str = "docs/recovery/current-truth.json",
+    use_current_truth: bool = False,
 ) -> dict[str, Any]:
     """Run a single nav-state readback and return the parsed payload."""
     command = [sys.executable, str(root / "scripts" / "static_owner_coordinate_chain_readback.py"), "--nav-state", "--json"]
-    if pid is not None:
-        command += ["--pid", str(pid)]
-    if hwnd is not None:
-        command += ["--hwnd", str(hwnd)]
-    if module_base is not None:
-        command += ["--module-base", str(module_base)]
+    if use_current_truth:
+        command += ["--current-truth-json", str(current_truth_json), "--use-current-truth"]
+    else:
+        if pid is not None:
+            command += ["--pid", str(pid)]
+        if hwnd is not None:
+            command += ["--hwnd", str(hwnd)]
+        if module_base is not None:
+            command += ["--module-base", str(module_base)]
     if process_name:
         command += ["--process-name", str(process_name)]
     try:
@@ -278,6 +283,8 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
+    current_truth_json = str(args.current_truth_json) if getattr(args, "current_truth_json", None) else "docs/recovery/current-truth.json"
+    use_current_truth = bool(getattr(args, "use_current_truth", False))
     blockers: list[str] = []
     warnings: list[str] = []
     errors: list[str] = []
@@ -321,6 +328,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             module_base=args.module_base,
             process_name=args.process_name,
             timeout_seconds=args.timeout_seconds,
+            current_truth_json=current_truth_json,
+            use_current_truth=use_current_truth,
         )
         summary["navStateBefore"] = before
         if not before.get("ok"):
@@ -338,6 +347,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             module_base=args.module_base,
             process_name=args.process_name,
             timeout_seconds=args.timeout_seconds,
+            current_truth_json=current_truth_json,
+            use_current_truth=use_current_truth,
         )
         summary["navStateAfter"] = after
         if not after.get("ok"):
@@ -415,6 +426,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hwnd")
     parser.add_argument("--module-base")
     parser.add_argument("--process-name", default="rift_x64")
+    parser.add_argument("--current-truth-json", default="docs/recovery/current-truth.json")
+    parser.add_argument("--use-current-truth", action="store_true")
     parser.add_argument("--interval-seconds", type=float, default=DEFAULT_INTERVAL_SECONDS)
     parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--json", action="store_true")

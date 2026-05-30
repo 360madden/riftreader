@@ -274,6 +274,120 @@ def build_turn_control_gate(
     }
 
 
+def _read_nav_state(
+    *,
+    root: Path,
+    current_truth_json: str = "docs/recovery/current-truth.json",
+    timeout_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Run a pointer-chain nav-state readback and return the parsed payload."""
+    command = [
+        sys.executable,
+        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
+        "--repo-root", str(root),
+        "--current-truth-json", current_truth_json,
+        "--use-current-truth",
+        "--nav-state",
+        "--json",
+    ]
+    try:
+        result = subprocess.run(
+            command, cwd=str(root), text=True, capture_output=True, timeout=timeout_seconds, check=False,
+        )
+        if result.stdout.strip():
+            parsed = json.loads(result.stdout)
+            if isinstance(parsed, dict):
+                nav_state = safe_mapping(parsed.get("navState"))
+                return {
+                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
+                    "exitCode": result.returncode,
+                    "status": parsed.get("status"),
+                    "verdict": parsed.get("verdict"),
+                    "navState": nav_state,
+                    "yawDegrees": nav_state.get("yawDegrees"),
+                    "turnRate0x304": nav_state.get("turnRate0x304"),
+                    "turnRateClassification": nav_state.get("turnRateClassification"),
+                    "stderrPreview": result.stderr[:200] if result.stderr else "",
+                }
+        return {"ok": False, "error": "parse-failed", "status": "parse-error"}
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "error": f"TimeoutExpired:{exc}", "status": "timeout"}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}:{exc}", "status": "error"}
+
+
+def _build_nav_state_cross_check(
+    latest_state: Mapping[str, Any],
+    nav_state_readback: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Cross-check pointer-chain nav-state against facing-discovery state."""
+    if nav_state_readback is None or not nav_state_readback.get("ok"):
+        return {
+            "available": False,
+            "status": "unavailable",
+            "reason": nav_state_readback.get("error", "readback-not-requested") if nav_state_readback else "readback-not-requested",
+            "candidateOnly": True,
+            "actionableForNavigation": False,
+        }
+
+    ptr_yaw = nav_state_readback.get("yawDegrees")
+    ptr_turn = nav_state_readback.get("turnRate0x304")
+    ptr_class = str(nav_state_readback.get("turnRateClassification") or "unknown")
+
+    fd_class = str(latest_state.get("turnRateClassification") or "unknown")
+    fd_turn = latest_state.get("turnRateDiscriminator")
+    fd_yaw = latest_state.get("yawDegrees")
+
+    warnings: list[str] = []
+    agreements: list[str] = []
+
+    # Compare turn-rate classifications
+    if ptr_class != "unknown" and fd_class != "unknown":
+        if ptr_class == fd_class:
+            agreements.append(f"turn-rate-classification-agrees:{ptr_class}")
+        else:
+            warnings.append(f"turn-rate-classification-disagrees:pointer-chain={ptr_class},facing-discovery={fd_class}")
+
+    # Compare turn-rate discriminator values (0x304)
+    if isinstance(ptr_turn, (int, float)) and isinstance(fd_turn, (int, float)):
+        turn_delta = abs(float(ptr_turn) - float(fd_turn))
+        if turn_delta < 0.01:
+            agreements.append(f"turn-rate-discriminator-agrees:delta={turn_delta:.4f}")
+        elif turn_delta < 0.5:
+            warnings.append(f"turn-rate-discriminator-close:delta={turn_delta:.4f}")
+        else:
+            warnings.append(f"turn-rate-discriminator-diverges:delta={turn_delta:.4f},pointer-chain={ptr_turn:.4f},facing-discovery={fd_turn:.4f}")
+
+    # Compare yaw values
+    if isinstance(ptr_yaw, (int, float)) and isinstance(fd_yaw, (int, float)):
+        yaw_delta = abs(float(ptr_yaw) - float(fd_yaw))
+        if yaw_delta < 1.0:
+            agreements.append(f"yaw-agrees:delta={yaw_delta:.2f}deg")
+        elif yaw_delta < 5.0:
+            warnings.append(f"yaw-close:delta={yaw_delta:.2f}deg")
+        else:
+            warnings.append(f"yaw-diverges:delta={yaw_delta:.2f}deg,pointer-chain={ptr_yaw:.2f},facing-discovery={fd_yaw:.2f}")
+
+    return {
+        "available": True,
+        "status": "dissonance" if warnings else "agreement",
+        "agreements": agreements,
+        "warnings": warnings,
+        "pointerChain": {
+            "yawDegrees": ptr_yaw,
+            "turnRate0x304": ptr_turn,
+            "turnRateClassification": ptr_class,
+        },
+        "facingDiscovery": {
+            "yawDegrees": fd_yaw,
+            "turnRateDiscriminator": fd_turn,
+            "turnRateClassification": fd_class,
+        },
+        "candidateOnly": True,
+        "actionableForNavigation": False,
+    }
+
+
 def build_turn_aware_plan(
     latest_state: Mapping[str, Any],
     target_request: Mapping[str, Any],
@@ -284,6 +398,7 @@ def build_turn_aware_plan(
     max_total_input_milliseconds: int = DEFAULT_MAX_TOTAL_INPUT_MS,
     max_route_steps: int = DEFAULT_MAX_ROUTE_STEPS,
     opposite_threshold_degrees: float = DEFAULT_OPPOSITE_THRESHOLD_DEGREES,
+    nav_state_readback: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     navigation_target = navigation_target_from_state(
         latest_state,
@@ -340,6 +455,7 @@ def build_turn_aware_plan(
             gate["status"] = "blocked"
             execution_blockers.append(conflict_msg)
 
+    nav_cross_check = _build_nav_state_cross_check(latest_state, nav_state_readback)
     return {
         "status": "passed",
         "candidateOnly": True,
@@ -359,6 +475,7 @@ def build_turn_aware_plan(
         "executionBlockers": sorted(set(execution_blockers)),
         "navigationTarget": navigation_target,
         "turnControlGate": gate,
+        "navStateCrossCheck": nav_cross_check,
     }
 
 
@@ -454,6 +571,31 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         f"- Summary JSON: `{artifacts.get('summaryJson')}`",
         f"- Run directory: `{artifacts.get('runDirectory')}`",
     ]
+    # Pointer-chain nav-state cross-check section
+    cross_check = safe_mapping(plan.get("navStateCrossCheck"))
+    if cross_check.get("available"):
+        ptr_chain = safe_mapping(cross_check.get("pointerChain"))
+        fd = safe_mapping(cross_check.get("facingDiscovery"))
+        lines.extend([
+            "",
+            "## Pointer-chain nav-state cross-check (candidate-only)",
+            "",
+            f"- Status: `{cross_check.get('status')}`",
+            f"- Pointer-chain yaw: `{ptr_chain.get('yawDegrees')}`",
+            f"- Pointer-chain turn rate: `{ptr_chain.get('turnRateClassification')}`",
+            f"- Facing-discovery yaw: `{fd.get('yawDegrees')}`",
+            f"- Facing-discovery turn rate: `{fd.get('turnRateClassification')}`",
+        ])
+        if cross_check.get("agreements"):
+            lines.append("")
+            lines.extend(f"- :white_check_mark: {a}" for a in cross_check.get("agreements", []))
+        if cross_check.get("warnings"):
+            lines.append("")
+            lines.extend(f"- :warning: {w}" for w in cross_check.get("warnings", []))
+        lines.extend([
+            "",
+            "> **Note:** Pointer-chain nav-state is candidate-only and not used for auto-turn control.",
+        ])
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
@@ -562,6 +704,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if not target_request:
             raise ValueError("navigation-target-required")
         summary["navigationTargetRequest"] = target_request
+        
+        # Optional pointer-chain nav-state cross-check
+        nav_state_readback: dict[str, Any] | None = None
+        if args.nav_state:
+            nav_state_readback = _read_nav_state(
+                root=root,
+                current_truth_json=str(args.current_truth_json),
+                timeout_seconds=float(args.command_timeout_seconds),
+            )
+        
         summary["plan"] = build_turn_aware_plan(
             latest_state,
             target_request,
@@ -571,6 +723,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             max_total_input_milliseconds=int(args.max_total_input_milliseconds),
             max_route_steps=int(args.max_route_steps),
             opposite_threshold_degrees=float(args.opposite_threshold_degrees),
+            nav_state_readback=nav_state_readback,
         )
         summary["contract"] = validate_turn_aware_plan_contract(summary | {"status": "passed", "verdict": "turn-aware-route-plan-built"})
         summary["status"] = "passed"
@@ -642,7 +795,8 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     plan = safe_mapping(summary.get("plan"))
     target = safe_mapping(plan.get("navigationTarget"))
     gate = safe_mapping(plan.get("turnControlGate"))
-    return {
+    cross_check = safe_mapping(plan.get("navStateCrossCheck"))
+    result = {
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
         "firstAction": plan.get("firstAction"),
@@ -663,6 +817,15 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "warnings": summary.get("warnings", []),
         "errors": summary.get("errors", []),
     }
+    if cross_check.get("available"):
+        result["navStateCrossCheck"] = {
+            "status": cross_check.get("status"),
+            "agreements": cross_check.get("agreements", []),
+            "warnings": cross_check.get("warnings", []),
+            "ptrYaw": cross_check.get("pointerChain", {}).get("yawDegrees"),
+            "ptrTurnClass": cross_check.get("pointerChain", {}).get("turnRateClassification"),
+        }
+    return result
 
 
 def compact_validation(summary: Mapping[str, Any]) -> dict[str, Any]:
@@ -708,6 +871,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--interval-seconds", type=float, default=0.1)
     parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--dry-run", action="store_true", help="Accepted for interface clarity; this helper is always dry-run.")
+    parser.add_argument("--nav-state", action="store_true", help="Run pointer-chain nav-state readback for cross-check against facing discovery.")
     parser.add_argument("--json", action="store_true")
     return parser
 

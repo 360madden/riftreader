@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from rift_live_test.reports import write_json, write_text_atomic
 from rift_live_test.target_control import (
@@ -39,7 +40,11 @@ class NavigationTargetWatchOptions:
     output_dir: Path | None = None
 
 
-def watch_navigation_target(options: NavigationTargetWatchOptions) -> dict[str, Any]:
+def watch_navigation_target(
+    options: NavigationTargetWatchOptions,
+    *,
+    run_nav_state: bool = False,
+) -> dict[str, Any]:
     repo_root = options.repo_root.resolve()
     output_dir = (options.output_dir or _default_output_dir(repo_root)).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -56,6 +61,7 @@ def watch_navigation_target(options: NavigationTargetWatchOptions) -> dict[str, 
             attempts=[],
             final_status=UNSUPPORTED_NON_WINDOWS,
             blockers=[UNSUPPORTED_NON_WINDOWS],
+            nav_state_check=None,
         )
         _write_summary(summary, output_dir)
         return summary
@@ -63,6 +69,7 @@ def watch_navigation_target(options: NavigationTargetWatchOptions) -> dict[str, 
     user32 = _load_user32()
     final_status = TARGET_MISSING
     blockers = ["target-window-missing"]
+    selected_window: dict[str, Any] | None = None
 
     for attempt_number in range(1, max(1, options.attempts) + 1):
         windows = _find_matching_windows(options, user32)
@@ -71,10 +78,21 @@ def watch_navigation_target(options: NavigationTargetWatchOptions) -> dict[str, 
 
         final_status = str(attempt["status"])
         blockers = list(attempt["blockers"])
+        if attempt.get("selectedWindow"):
+            selected_window = attempt["selectedWindow"]
         if attempt["readyForTargetControl"]:
             break
         if attempt_number < max(1, options.attempts):
             time.sleep(max(0.0, options.interval_seconds))
+
+    # Optional pointer-chain nav-state health check
+    nav_state_check: dict[str, Any] | None = None
+    if run_nav_state and selected_window:
+        nav_state_check = _read_nav_state(
+            root=repo_root,
+            pid=selected_window.get("processId"),
+            hwnd=selected_window.get("windowHandleHex"),
+        )
 
     summary = _summary(
         options=options,
@@ -84,6 +102,7 @@ def watch_navigation_target(options: NavigationTargetWatchOptions) -> dict[str, 
         attempts=attempts,
         final_status=final_status,
         blockers=blockers,
+        nav_state_check=nav_state_check,
     )
     _write_summary(summary, output_dir)
     return summary
@@ -179,6 +198,7 @@ def _summary(
     attempts: list[dict[str, Any]],
     final_status: str,
     blockers: list[str],
+    nav_state_check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ready = final_status == TARGET_FOUND_PASSIVE
     selected = None
@@ -215,6 +235,7 @@ def _summary(
         "blockers": blockers,
         "warnings": ["passive-watch-only-rerun-target-control-before-visual-or-proof"] if ready else [],
         "attempts": attempts,
+        "navStateCheck": nav_state_check,
         "safety": {
             "passiveEnumerationOnly": True,
             "foregroundChanged": False,
@@ -231,6 +252,57 @@ def _summary(
         },
         "next": _next_actions(final_status),
     }
+
+
+def _read_nav_state(
+    *,
+    root: Path,
+    pid: int | None = None,
+    hwnd: str | None = None,
+    module_base: str | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Run a pointer-chain nav-state readback to validate resolver health."""
+    command = [
+        sys.executable,
+        str(root / "scripts" / "static_owner_coordinate_chain_readback.py"),
+        "--repo-root", str(root),
+        "--nav-state",
+        "--json",
+    ]
+    has_explicit_target = pid is not None and hwnd is not None
+    if has_explicit_target:
+        command += ["--pid", str(pid), "--hwnd", str(hwnd)]
+        if module_base is not None:
+            command += ["--module-base", str(module_base)]
+    else:
+        command += [
+            "--current-truth-json", str(root / "docs" / "recovery" / "current-truth.json"),
+            "--use-current-truth",
+        ]
+    try:
+        result = subprocess.run(
+            command, cwd=str(root), text=True, capture_output=True, timeout=timeout_seconds, check=False,
+        )
+        if result.stdout.strip():
+            parsed = json.loads(result.stdout)
+            if isinstance(parsed, dict):
+                nav_state = dict(parsed.get("navState") or {}) if isinstance(parsed.get("navState"), Mapping) else {}
+                return {
+                    "ok": parsed.get("status") not in ("unavailable", "readback-failed", "parse-error", "blocked"),
+                    "exitCode": result.returncode,
+                    "status": parsed.get("status"),
+                    "verdict": parsed.get("verdict"),
+                    "yawDegrees": nav_state.get("yawDegrees"),
+                    "turnRate0x304": nav_state.get("turnRate0x304"),
+                    "turnRateClassification": nav_state.get("turnRateClassification"),
+                    "facingTargetCoordinate": nav_state.get("facingTargetCoordinate"),
+                }
+        return {"ok": False, "error": "parse-failed", "status": "parse-error"}
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "error": f"TimeoutExpired:{exc}", "status": "timeout"}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}:{exc}", "status": "error"}
 
 
 def _next_actions(status: str) -> list[dict[str, str]]:
@@ -348,6 +420,27 @@ def _render_markdown(summary: dict[str, Any]) -> str:
     )
     for index, item in enumerate(summary.get("next") or [], start=1):
         lines.append(f"| {index} | {item.get('action')} | {item.get('why')} |")
+
+    # Pointer-chain nav-state health check
+    nav_check = summary.get("navStateCheck")
+    if nav_check:
+        lines.extend([
+            "",
+            "## Pointer-chain nav-state health check (candidate-only)",
+            "",
+            f"- Status: `{nav_check.get('status')}`",
+            f"- Verdict: `{nav_check.get('verdict')}`",
+            f"- Yaw: `{nav_check.get('yawDegrees')}`",
+            f"- Turn rate (0x304): `{nav_check.get('turnRate0x304')}`",
+            f"- Turn classification: `{nav_check.get('turnRateClassification')}`",
+            "",
+            "> **Note:** Pointer-chain readback is candidate-only and not used for navigation decisions.",
+        ])
+        if not nav_check.get("ok"):
+            lines.extend([
+                "",
+                "> **Warning:** Pointer-chain resolver is not healthy for this target. Navigation should not proceed until the resolver is validated.",
+            ])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -400,10 +493,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=float, default=5.0)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--json", action="store_true")
-    parser.add_argument(
-        "--strict-exit",
+    parser.add_argument("--strict-exit",
         action="store_true",
         help="Return 2 when no visible target is found. Default returns 0 after writing artifacts.",
+    )
+    parser.add_argument("--nav-state", action="store_true",
+        help="Run pointer-chain nav-state readback to validate resolver health after finding the target window.",
     )
     args = parser.parse_args(argv)
 
@@ -417,7 +512,8 @@ def main(argv: list[str] | None = None) -> int:
             attempts=args.attempts,
             interval_seconds=args.interval_seconds,
             output_dir=args.output_dir,
-        )
+        ),
+        run_nav_state=bool(args.nav_state),
     )
     if args.json:
         print(json.dumps(summary, indent=2))
