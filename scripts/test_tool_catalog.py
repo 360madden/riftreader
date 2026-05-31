@@ -32,6 +32,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-workflow-status.cmd",
         "scripts/riftreader-tool-catalog.cmd",
         "scripts/riftreader-policy-lint.cmd",
+        "scripts/riftreader-validation-ledger.cmd",
         "scripts/riftreader-sensitive-artifact-scan.cmd",
         "scripts/riftreader-live-input-surface-audit.cmd",
         "scripts/riftreader-actor-chain-no-debug-status.cmd",
@@ -90,6 +91,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
         self.assertIn("actor-chain-no-debug-status", compact["canonicalToolKeys"])
+        self.assertIn("validation-ledger", compact["canonicalToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
 

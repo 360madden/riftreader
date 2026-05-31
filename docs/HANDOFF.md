@@ -85,6 +85,19 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 | Turn completion detector converged with mouse-look | `scripts\captures\turn-completion-detector-20260531-124210-709153\summary.json`: +10° signed target, 1 pulse, final error `2.94°`. |
 | Bounded movement probe passed | `scripts\captures\static-owner-mouse-arc-recovery-20260531-124230-635784\summary.json`: offset `0°`, 300ms `W`, planar movement `1.82m`, no blockers. |
 
+## Validation timing ledger — 2026-05-31 13:49 UTC
+
+Future repair/testing lanes should use the timestamped validation ledger so long
+test runs show UTC timestamps, durations, heartbeats, and durable logs.
+
+| Check | Evidence |
+|---|---|
+| Full local validation passed | `.riftreader-local\validation-runs\20260531-134923-272027\summary.md` |
+| Total duration | `367.943s` |
+| Longest command | `unittest-discover` at `341.273s` |
+| Slow-budget warnings | None; `unittest-discover` stayed under its `420s` warning budget. |
+| Immediate smoke command | `python tools\riftreader_workflow\validation_ledger.py --tier smoke` |
+
 ## Decision tree
 
 - **"I just logged in"** → `docs/workflows/session-startup.md`
@@ -127,6 +140,12 @@ python scripts/turn_completion_detector.py `
 
 # Run all tests
 python -m unittest discover -s scripts -p "test_*.py"
+
+# Preferred timed validation smoke check
+python tools\riftreader_workflow\validation_ledger.py --tier smoke
+
+# Preferred timed full local validation before push
+python tools\riftreader_workflow\validation_ledger.py --tier full-local
 ```
 
 ## Next steps (priority order)

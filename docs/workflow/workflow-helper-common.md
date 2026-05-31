@@ -40,10 +40,11 @@ The common module must remain deterministic and offline-safe:
 | `tools/riftreader_workflow/apply_package.py` | Repo root, command envelopes, timestamps, output dirs, path rendering, safety flags. |
 | `tools/riftreader_workflow/live_test_triage.py` | Timestamps, output dirs, path rendering, safety flags. |
 | `tools/riftreader_workflow/operator_lite.py` | Repo root, timestamps, safety flags. |
+| `tools/riftreader_workflow/validation_ledger.py` | Timestamped validation run directories, command timing, progress heartbeats, logs, and validation summaries. |
 
 ## Extension rule
 
 Add only small, reusable primitives here. If a function starts making workflow
 decisions, running commands, or owning a state machine, keep it in a dedicated
-module such as `status_packet.py`, `apply_package.py`, or a future
-`validation.py`.
+module such as `status_packet.py`, `apply_package.py`, or
+`validation_ledger.py`.

@@ -381,6 +381,15 @@ output for CI integration; omit `--skip-ts-check` when TypeScript is available.
 - Prefer the smallest correct patch over broad refactors.
 - Preserve existing architecture unless there is a clear reason to change it.
 - Run the most relevant validation available after changes.
+- Prefer the timestamped validation ledger for repeatable validation so long
+  runs record UTC start/end timestamps, durations, logs, and slow-command
+  warnings:
+  - smoke: `python tools\riftreader_workflow\validation_ledger.py --tier smoke`
+  - targeted: `python tools\riftreader_workflow\validation_ledger.py --tier targeted --command "<command>"`
+  - full local: `python tools\riftreader_workflow\validation_ledger.py --tier full-local`
+  - CI parity: `python tools\riftreader_workflow\validation_ledger.py --tier ci-parity --commit HEAD`
+- Include the latest ledger `summary.md` path and timing summary in handoffs
+  after substantial validation runs.
 - Say exactly what was not validated.
 
 ## Context7 documentation lookup policy
