@@ -94,7 +94,7 @@ Safety boundary for the latest run:
 | 2 | Compare `owner+0x300` against visual heading changes. | It changed strongly while `owner+0x30C/+0x310/+0x314` stayed stale. |
 | 3 | Compare `owner+0x304` across left/right pulses. | It may be transient turn/camera rate, not route yaw. |
 | 4 | Keep `owner+0x30C/+0x310/+0x314` candidate-only and stale for current camera-turn state. | Latest live evidence did not update those fields. |
-| 5 | Add a compact multi-pose report mode to `static_owner_camera_yaw_classification.py`. | Reduces manual comparison across multiple classification runs. |
+| 5 | Use the compact report-only multi-pose mode in `static_owner_camera_yaw_classification.py`. | Reduces manual comparison across multiple classification runs without sending new input. |
 | 6 | Do not run turn-dependent routes yet. | No current route-actionable yaw/control field is proven. |
 | 7 | Refresh no-input static coordinate/nav-state before the next live run. | Decision packet marks latest readbacks stale by age. |
 | 8 | Add latest camera-yaw classification indexing to the navigation discovery dashboard. | Keeps resume/status packets aware of this evidence class. |
@@ -140,6 +140,29 @@ Use this order next time:
 | Slow note | `unittest-discover` took `500.293s` vs `420s` budget but passed |
 | GitHub `.NET build and test` | Success for `1807db7` |
 | GitHub `RiftReader Policy` | Success for `1807db7` |
+
+## Safe local continuation — 2026-05-31 23:47 UTC
+
+The 1–10 follow-up pass stayed inside safe local/no-input boundaries.
+
+| Check | Result |
+|---|---|
+| Branch status at continuation start | `main...origin/main [ahead 2]`; push remains gated |
+| Local code commit | `5145e46` — report-only multi-pose aggregation mode |
+| Decision packet after no-input refresh | Passed; stale sources reduced to `currentTruth` only |
+| No-input coordinate readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-234341-274277\summary.json` |
+| No-input nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-234342-003613\summary.json` |
+| Report-only multi-pose artifact | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-multipose-report-20260531-234724-167850\summary.json` |
+| Multi-pose report verdict | `visual-changed-static-yaw-unchanged-across-poses`; one source pose so far |
+| Targeted validation ledger | `C:\RIFT MODDING\RiftReader\.riftreader-local\validation-runs\20260531-235122-118928\summary.md`; duration `33.850s`, 88 focused tests passed |
+| Live input / route movement | Not sent |
+| Proof/facing/actor promotion | Not performed |
+
+Implementation note: `scripts\static_owner_camera_yaw_classification.py` now
+supports report-only aggregation via `--aggregate-summary-json <summary.json>
+[...]`. This mode compares existing classification summaries, writes a
+multi-pose JSON/Markdown report, and does **not** send input or read target
+memory itself.
 
 ## Handoff boundary
 

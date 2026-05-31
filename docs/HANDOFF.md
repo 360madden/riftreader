@@ -220,6 +220,28 @@ current camera-turn state. Next discovery should investigate `owner+0x300` and
 before any turn-dependent route work. `owner+0x304` changed with the visual
 stimulus but is still candidate-only and not route-actionable.
 
+## Safe local 1–10 continuation — 2026-05-31 23:47 UTC
+
+This pass executed the safe parts of the recommended action list and stopped at
+the live-input/push/promotion gates.
+
+| Check | Evidence |
+|---|---|
+| Push decision | Branch was clean and `ahead 2`; no push was performed because remote mutation still requires explicit approval. |
+| Local code commit | `5145e46` — report-only multi-pose aggregation mode. |
+| No-input coordinate readback refreshed | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-234341-274277\summary.json`: coordinate `7261.361328125, 821.6102905273438, 3001.443115234375`, stationary, no blockers. |
+| No-input nav-state refreshed | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-234342-003613\summary.json`: yaw `79.412343321°`, candidate-only, no blockers. |
+| Decision packet refreshed after readbacks | Passed; navigation pointer discovery stale sources reduced to `currentTruth` only. |
+| Report-only multi-pose mode added | `scripts\static_owner_camera_yaw_classification.py --aggregate-summary-json <summary.json> [...] --json` aggregates existing classification summaries without live input. |
+| First report-only aggregate | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-multipose-report-20260531-234724-167850\summary.json`: verdict `visual-changed-static-yaw-unchanged-across-poses`, source count `1`, route-actionable pose count `0`. |
+| Tool catalog | Camera/yaw tool notes now document the report-only aggregate mode separately from the gated live stimulus mode. |
+| Targeted validation ledger | `C:\RIFT MODDING\RiftReader\.riftreader-local\validation-runs\20260531-235122-118928\summary.md`: duration `33.850s`, 88 focused tests passed. |
+| Boundary | No live input, route movement, x64dbg/Cheat Engine, provider writes, proof promotion, actor-chain promotion, or facing/turn-rate promotion. |
+
+Current safe next action: collect the missing left/right/return camera-yaw
+classification summaries only after explicit live stimulus approval, then rerun
+the report-only aggregate mode to compare `owner+0x300/+0x304` directionality.
+
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
 Future repair/testing lanes should use the timestamped validation ledger so long
