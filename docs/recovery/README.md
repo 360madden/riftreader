@@ -288,8 +288,8 @@ current-session truth.
 Durable workflow doc:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`.
 
-Claude/Codex adaptation and source-reference index:
-`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-claude-to-codex-adaptation.md`.
+x64dbg MCP adaptation and source-reference index:
+`C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-adaptation.md`.
 
 Current read-only x64dbg Automate helper status:
 `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-automate-readonly-helper-2026-05-12.md`.
@@ -434,8 +434,8 @@ truth.
    when the task touches promoted current-session actor-yaw truth
 8. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-pointer-chain-workflow.md`
    when the task touches debugger-assisted pointer-chain discovery
-9. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-claude-to-codex-adaptation.md`
-   when the task touches x64dbg Automate MCP, Claude-style x64dbg skills, or
+9. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-mcp-adaptation.md`
+   when the task touches x64dbg Automate MCP, x64dbg skills, or
    Codex/Desktop ChatGPT adaptation of those workflows
 10. `C:\RIFT MODDING\RiftReader\docs\recovery\x64dbg-automate-readonly-helper-2026-05-12.md`
     when the task touches the read-only x64dbg Automate helper, local plugin
