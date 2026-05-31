@@ -10,9 +10,33 @@ update or client restart.
 - "module-base-mismatch" error from the freshness gate
 
 **Time estimate:**
+- Current artifact dashboard / resume orientation: **1–5 seconds**
 - Module base update only (restart, no patch): **30 seconds**
 - Minor patch (root RVA unchanged): **1–2 minutes**
 - Major patch/expansion (root RVA shifted): **5–15 minutes**
+
+---
+
+## Step 0: Build the navigation pointer discovery dashboard
+
+Before live input, debugger work, or proof promotion, index the latest
+repo-owned artifacts so the next action starts from the newest coordinate,
+facing-target, turn-rate, and movement-delta evidence.
+
+```powershell
+cmd /c scripts\riftreader-navigation-pointer-discovery.cmd --json --write
+```
+
+Outputs:
+
+```text
+.riftreader-local\navigation-pointer-discovery\latest\summary.json
+.riftreader-local\navigation-pointer-discovery\latest\summary.md
+```
+
+This helper is read-only: it indexes existing artifacts only and performs no
+live input, movement, target memory read, debugger/CE attach, provider write,
+Git mutation, or proof promotion.
 
 ---
 
