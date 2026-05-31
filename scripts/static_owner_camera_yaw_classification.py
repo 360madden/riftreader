@@ -44,6 +44,10 @@ def json_text(value: Mapping[str, Any]) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False) + "\n"
 
 
+def safe_list(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, list) else []
+
+
 def rel(root: Path, path: str | Path | None) -> str | None:
     if path is None:
         return None
@@ -315,6 +319,188 @@ def self_test_summary() -> dict[str, Any]:
     }
 
 
+def aggregate_camera_yaw_summaries(args: argparse.Namespace, root: Path, run_dir: Path) -> tuple[dict[str, Any], int]:
+    """Build a report-only multi-pose summary from existing classification runs."""
+
+    source_paths = [Path(str(item)) for item in args.aggregate_summary_json or []]
+    resolved_paths = [path if path.is_absolute() else root / path for path in source_paths]
+    summary: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "static-owner-camera-yaw-multipose-report",
+        "generatedAtUtc": utc_iso(),
+        "status": "failed",
+        "verdict": "multipose-report-not-built",
+        "repoRoot": str(root),
+        "runDirectory": str(run_dir),
+        "sourceCount": len(resolved_paths),
+        "poses": [],
+        "offsetAggregate": {},
+        "analysis": {},
+        "blockers": [],
+        "warnings": ["report-only-no-input-sent"],
+        "errors": [],
+        "safety": {
+            **base_safety(),
+            "reportOnly": True,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+        },
+        "sourceSafety": {
+            "inputSent": False,
+            "movementSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+        },
+        "artifacts": {
+            "summaryJson": str(run_dir / "summary.json"),
+            "summaryMarkdown": str(run_dir / "summary.md"),
+        },
+        "next": {
+            "recommendedAction": (
+                "Add left/right/return classification summaries, then compare owner+0x300/+0x304 "
+                "directionality before any turn-dependent route."
+            )
+        },
+    }
+
+    if not resolved_paths:
+        summary["status"] = "blocked"
+        summary["verdict"] = "classification-summary-paths-required"
+        summary["blockers"].append("aggregate-summary-json-required")
+        return summary, 2
+
+    offset_rows: dict[str, list[dict[str, Any]]] = {}
+    route_actionable_count = 0
+    visual_changed_static_unchanged_count = 0
+    classifications: dict[str, int] = {}
+
+    try:
+        for path in resolved_paths:
+            if not path.is_file():
+                summary["blockers"].append(f"classification-summary-not-found:{path}")
+                continue
+            data = load_json_object(path)
+            if data.get("kind") != "static-owner-camera-yaw-classification":
+                summary["warnings"].append(f"unexpected-summary-kind:{path}:{data.get('kind')}")
+            analysis = safe_mapping(data.get("analysis"))
+            stimulus = safe_mapping(data.get("stimulus"))
+            visual = safe_mapping(data.get("visualEvidence"))
+            raw_diff = safe_mapping(visual.get("rawDiff"))
+            source_safety = safe_mapping(data.get("safety"))
+            summary["sourceSafety"]["inputSent"] = bool(summary["sourceSafety"]["inputSent"]) or bool(source_safety.get("inputSent"))
+            summary["sourceSafety"]["movementSent"] = bool(summary["sourceSafety"]["movementSent"]) or bool(source_safety.get("movementSent"))
+            summary["sourceSafety"]["targetMemoryBytesRead"] = bool(summary["sourceSafety"]["targetMemoryBytesRead"]) or bool(
+                source_safety.get("targetMemoryBytesRead")
+            )
+            summary["sourceSafety"]["targetMemoryBytesWritten"] = bool(summary["sourceSafety"]["targetMemoryBytesWritten"]) or bool(
+                source_safety.get("targetMemoryBytesWritten")
+            )
+
+            classification = str(analysis.get("classification") or data.get("verdict") or "unknown")
+            classifications[classification] = classifications.get(classification, 0) + 1
+            actionable = analysis.get("actionableForRouteControl") is True
+            if actionable:
+                route_actionable_count += 1
+            if classification == "visual-changed-static-yaw-unchanged":
+                visual_changed_static_unchanged_count += 1
+
+            changed_offsets = []
+            for item in safe_list(analysis.get("changedFocusOffsets")):
+                row = safe_mapping(item)
+                offset = str(row.get("offset") or "")
+                if offset:
+                    offset_rows.setdefault(offset, []).append(
+                        {
+                            "summaryJson": str(path),
+                            "direction": stimulus.get("direction"),
+                            "pixels": stimulus.get("pixels"),
+                            "delta": row.get("delta"),
+                            "absDelta": row.get("absDelta"),
+                            "before": row.get("before"),
+                            "after": row.get("after"),
+                        }
+                    )
+                changed_offsets.append(
+                    {
+                        "offset": row.get("offset"),
+                        "delta": row.get("delta"),
+                        "absDelta": row.get("absDelta"),
+                    }
+                )
+
+            summary["poses"].append(
+                {
+                    "summaryJson": str(path),
+                    "generatedAtUtc": data.get("generatedAtUtc"),
+                    "status": data.get("status"),
+                    "verdict": data.get("verdict"),
+                    "stimulus": {
+                        "type": stimulus.get("type"),
+                        "direction": stimulus.get("direction"),
+                        "pixels": stimulus.get("pixels"),
+                        "approved": bool(stimulus.get("approved")),
+                    },
+                    "classification": classification,
+                    "visualChanged": analysis.get("visualChanged"),
+                    "staticYawChanged": analysis.get("staticYawChanged"),
+                    "actionableForRouteControl": actionable,
+                    "signedYawDeltaDegrees": analysis.get("signedYawDeltaDegrees"),
+                    "absoluteYawDeltaDegrees": analysis.get("absoluteYawDeltaDegrees"),
+                    "visualRawDiff": {
+                        "status": raw_diff.get("status"),
+                        "changedPercent": raw_diff.get("changedPercent"),
+                    },
+                    "changedFocusOffsets": changed_offsets,
+                }
+            )
+
+        if summary["blockers"]:
+            summary["status"] = "blocked"
+            summary["verdict"] = "multipose-report-blocked"
+            return summary, 2
+
+        offset_aggregate: dict[str, Any] = {}
+        for offset, rows in sorted(offset_rows.items()):
+            numeric_deltas = [float(row["delta"]) for row in rows if isinstance(row.get("delta"), (int, float))]
+            directions = sorted({str(row.get("direction")) for row in rows if row.get("direction")})
+            offset_aggregate[offset] = {
+                "sampleCount": len(rows),
+                "directions": directions,
+                "minDelta": min(numeric_deltas) if numeric_deltas else None,
+                "maxDelta": max(numeric_deltas) if numeric_deltas else None,
+                "maxAbsDelta": max((abs(delta) for delta in numeric_deltas), default=None),
+                "samples": rows[:10],
+            }
+
+        summary["offsetAggregate"] = offset_aggregate
+        summary["analysis"] = {
+            "classificationCounts": classifications,
+            "routeActionablePoseCount": route_actionable_count,
+            "visualChangedStaticYawUnchangedCount": visual_changed_static_unchanged_count,
+            "changedOffsetCount": len(offset_aggregate),
+            "candidateOnly": True,
+            "promotionAllowed": False,
+            "actionableForRouteControl": route_actionable_count > 0,
+        }
+        summary["warnings"].append("candidate-only-multipose-report-no-promotion")
+        if route_actionable_count:
+            summary["verdict"] = "route-actionable-candidate-present-needs-proof"
+            summary["next"]["recommendedAction"] = (
+                "Rerun a bounded proof pack for the route-actionable candidate before any turn-dependent route movement."
+            )
+        elif visual_changed_static_unchanged_count:
+            summary["verdict"] = "visual-changed-static-yaw-unchanged-across-poses"
+        else:
+            summary["verdict"] = "multipose-report-built"
+        summary["status"] = "passed"
+        return summary, 0
+    except Exception as exc:  # noqa: BLE001
+        summary["status"] = "failed"
+        summary["verdict"] = "multipose-report-error"
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+        return summary, 1
+
+
 def dry_run_summary(args: argparse.Namespace, root: Path, run_dir: Path) -> dict[str, Any]:
     truth = load_json_object(root / args.current_truth_json)
     target = safe_mapping(truth.get("target"))
@@ -357,9 +543,13 @@ def run_classification(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     output_root = Path(args.output_root) if args.output_root else root / "scripts" / "captures"
     if not output_root.is_absolute():
         output_root = root / output_root
-    run_dir = output_root / f"static-owner-camera-yaw-classification-{utc_stamp()}"
+    run_prefix = "static-owner-camera-yaw-multipose-report" if args.aggregate_summary_json else "static-owner-camera-yaw-classification"
+    run_dir = output_root / f"{run_prefix}-{utc_stamp()}"
     child_dir = run_dir / "child-outputs"
     run_dir.mkdir(parents=True, exist_ok=False)
+
+    if args.aggregate_summary_json:
+        return aggregate_camera_yaw_summaries(args, root, run_dir)
 
     if args.dry_run:
         summary = dry_run_summary(args, root, run_dir)
@@ -622,6 +812,9 @@ def run_classification(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 def build_markdown(summary: Mapping[str, Any]) -> str:
+    if summary.get("kind") == "static-owner-camera-yaw-multipose-report":
+        return build_multipose_markdown(summary)
+
     analysis = safe_mapping(summary.get("analysis"))
     artifacts = safe_mapping(summary.get("artifacts"))
     visual = safe_mapping(summary.get("visualEvidence"))
@@ -680,6 +873,84 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_multipose_markdown(summary: Mapping[str, Any]) -> str:
+    analysis = safe_mapping(summary.get("analysis"))
+    offset_aggregate = safe_mapping(summary.get("offsetAggregate"))
+    lines = [
+        "# Static owner camera/yaw multi-pose report",
+        "",
+        f"- Status: `{summary.get('status')}`",
+        f"- Verdict: `{summary.get('verdict')}`",
+        f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
+        f"- Run directory: `{summary.get('runDirectory')}`",
+        f"- Source count: `{summary.get('sourceCount')}`",
+        "",
+        "## Analysis",
+        "",
+        f"- Classification counts: `{analysis.get('classificationCounts')}`",
+        f"- Route-actionable pose count: `{analysis.get('routeActionablePoseCount')}`",
+        f"- Visual-changed/static-yaw-unchanged count: `{analysis.get('visualChangedStaticYawUnchangedCount')}`",
+        f"- Changed offset count: `{analysis.get('changedOffsetCount')}`",
+        f"- Candidate only: `{analysis.get('candidateOnly')}`",
+        f"- Promotion allowed: `{analysis.get('promotionAllowed')}`",
+        "",
+        "## Poses",
+        "",
+        "| # | Direction | Pixels | Classification | Static yaw changed | Signed yaw delta | Route-actionable |",
+        "|---:|---|---:|---|---:|---:|---:|",
+    ]
+    poses = safe_list(summary.get("poses"))
+    if poses:
+        for index, pose in enumerate(poses, start=1):
+            item = safe_mapping(pose)
+            stimulus = safe_mapping(item.get("stimulus"))
+            lines.append(
+                "| {index} | `{direction}` | `{pixels}` | `{classification}` | `{static}` | `{delta}` | `{actionable}` |".format(
+                    index=index,
+                    direction=stimulus.get("direction"),
+                    pixels=stimulus.get("pixels"),
+                    classification=item.get("classification"),
+                    static=item.get("staticYawChanged"),
+                    delta=item.get("signedYawDeltaDegrees"),
+                    actionable=item.get("actionableForRouteControl"),
+                )
+            )
+    else:
+        lines.append("| none |  |  |  |  |  |  |")
+
+    lines.extend(["", "## Offset aggregate", "", "| Offset | Samples | Directions | Min delta | Max delta | Max abs delta |", "|---|---:|---|---:|---:|---:|"])
+    if offset_aggregate:
+        for offset, item_value in offset_aggregate.items():
+            item = safe_mapping(item_value)
+            lines.append(
+                f"| `{offset}` | `{item.get('sampleCount')}` | `{item.get('directions')}` | `{item.get('minDelta')}` | `{item.get('maxDelta')}` | `{item.get('maxAbsDelta')}` |"
+            )
+    else:
+        lines.append("| none |  |  |  |  |  |")
+
+    artifacts = safe_mapping(summary.get("artifacts"))
+    lines.extend(["", "## Artifacts", ""])
+    for key, value in artifacts.items():
+        lines.append(f"- `{key}`: `{value}`")
+    lines.extend(["", "## Blockers", ""])
+    for item in summary.get("blockers", []) or ["none"]:
+        lines.append(f"- `{item}`")
+    lines.extend(["", "## Warnings", ""])
+    for item in summary.get("warnings", []) or ["none"]:
+        lines.append(f"- `{item}`")
+    lines.extend(["", "## Errors", ""])
+    for item in summary.get("errors", []) or ["none"]:
+        lines.append(f"- `{item}`")
+    lines.extend(["", "## Safety", "", "| Flag | Value |", "|---|---:|"])
+    for key, value in safe_mapping(summary.get("safety")).items():
+        lines.append(f"| `{key}` | `{value}` |")
+    lines.extend(["", "## Source safety", "", "| Flag | Value |", "|---|---:|"])
+    for key, value in safe_mapping(summary.get("sourceSafety")).items():
+        lines.append(f"| `{key}` | `{value}` |")
+    lines.extend(["", "## Next", "", str(safe_mapping(summary.get("next")).get("recommendedAction") or "none")])
+    return "\n".join(lines) + "\n"
+
+
 def persist(summary: dict[str, Any]) -> None:
     artifacts = safe_mapping(summary.get("artifacts"))
     summary_json = artifacts.get("summaryJson")
@@ -715,6 +986,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-scalar-delta", type=float, default=0.001)
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--stimulus-approved", action="store_true")
+    parser.add_argument(
+        "--aggregate-summary-json",
+        nargs="+",
+        help="Report-only mode: aggregate existing camera/yaw classification summary JSON files without live input.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -722,6 +998,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
+    if summary.get("kind") == "static-owner-camera-yaw-multipose-report":
+        artifacts = safe_mapping(summary.get("artifacts"))
+        analysis = safe_mapping(summary.get("analysis"))
+        return {
+            "status": summary.get("status"),
+            "verdict": summary.get("verdict"),
+            "sourceCount": summary.get("sourceCount"),
+            "classificationCounts": analysis.get("classificationCounts"),
+            "routeActionablePoseCount": analysis.get("routeActionablePoseCount"),
+            "visualChangedStaticYawUnchangedCount": analysis.get("visualChangedStaticYawUnchangedCount"),
+            "changedOffsetCount": analysis.get("changedOffsetCount"),
+            "summaryJson": artifacts.get("summaryJson"),
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "blockers": summary.get("blockers", []),
+            "warnings": summary.get("warnings", []),
+            "errors": summary.get("errors", []),
+            "safety": summary.get("safety", {}),
+            "sourceSafety": summary.get("sourceSafety", {}),
+        }
+
     artifacts = safe_mapping(summary.get("artifacts"))
     analysis = safe_mapping(summary.get("analysis"))
     visual = safe_mapping(summary.get("visualEvidence"))

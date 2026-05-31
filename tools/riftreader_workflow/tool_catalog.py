@@ -348,6 +348,7 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
             notes=[
                 "sends one approved exact-target mouse-look stimulus",
                 "records visual screenshot/raw-diff, nav-state, and owner-window deltas",
+                "report-only --aggregate-summary-json mode compares existing summaries without live input",
                 "never promotes facing, turn-rate, actor chains, or proof",
             ],
         ),
