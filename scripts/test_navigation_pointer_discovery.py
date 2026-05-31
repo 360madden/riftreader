@@ -8,6 +8,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -28,6 +29,7 @@ def seed_navigation_artifacts(root: Path) -> None:
     write_json(
         root / "docs" / "recovery" / "current-truth.json",
         {
+            "updatedAtUtc": "2026-05-31T14:23:12Z",
             "target": {
                 "processName": "rift_x64",
                 "processId": 25668,
@@ -165,7 +167,10 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
             root = Path(temp_name)
             seed_navigation_artifacts(root)
 
-            summary = discovery.build_navigation_pointer_discovery(root)
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
 
         self.assertEqual(summary["status"], "passed")
         self.assertEqual(summary["kind"], "riftreader-navigation-pointer-discovery-status")
@@ -182,6 +187,24 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertFalse(summary["safety"]["gitMutation"])
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertTrue(summary["sourceSafety"]["familySnapshotMovementSent"])
+        self.assertEqual(summary["freshness"]["status"], "fresh")
+        self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
+
+    def test_freshness_classifies_stale_current_readbacks_without_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 16, 0, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["freshness"]["status"], "stale")
+        self.assertIn("coordinateReadback", summary["freshness"]["staleSources"])
+        self.assertIn("navState", summary["freshness"]["staleSources"])
+        self.assertNotIn("facingComparison", summary["freshness"]["staleSources"])
 
     def test_missing_artifacts_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -209,7 +232,10 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
             seed_navigation_artifacts(root)
-            summary = discovery.build_navigation_pointer_discovery(root)
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
 
             artifacts = discovery.write_outputs(root, summary, Path(".riftreader-local") / "navigation-pointer-discovery" / "latest")
 
@@ -221,6 +247,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(loaded["status"], "passed")
         self.assertIn("Navigation Pointer Discovery Status", markdown)
         self.assertIn("Candidate summary", markdown)
+        self.assertIn("Freshness", markdown)
         self.assertIn("Next action", markdown)
 
     def test_main_self_test_json_passes(self) -> None:

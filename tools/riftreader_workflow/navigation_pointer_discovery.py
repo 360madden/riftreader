@@ -31,6 +31,16 @@ TOOL_VERSION = "riftreader-navigation-pointer-discovery-v0.1.0"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "navigation-pointer-discovery" / "latest"
 CAPTURE_ROOT = Path("scripts") / "captures"
+CURRENT_READBACK_MAX_AGE_SECONDS = 1800
+DISCOVERY_EVIDENCE_MAX_AGE_SECONDS = 86400
+SOURCE_FRESHNESS_BUDGETS_SECONDS = {
+    "currentTruth": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "coordinateReadback": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "navState": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "facingComparison": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "pointerNeighborhood": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+}
 
 
 class NavigationPointerDiscoveryError(RuntimeError):
@@ -92,6 +102,50 @@ def artifact_path(repo_root: Path, path: Path | None) -> str | None:
     return repo_rel(repo_root, path)
 
 
+def normalize_now(now: datetime | None) -> datetime:
+    if now is None:
+        return datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        return now.replace(tzinfo=timezone.utc)
+    return now.astimezone(timezone.utc)
+
+
+def freshness_summary(observed_at: Any, *, now: datetime, max_age_seconds: int) -> dict[str, Any]:
+    observed = parse_iso(observed_at)
+    if observed is None:
+        return {
+            "status": "unknown",
+            "ageSeconds": None,
+            "maxAgeSeconds": max_age_seconds,
+            "observedAtUtc": observed_at,
+        }
+    age_seconds = round((now - observed).total_seconds(), 3)
+    if age_seconds < -5:
+        status = "future-clock-skew"
+    elif age_seconds <= max_age_seconds:
+        status = "fresh"
+    else:
+        status = "stale"
+    return {
+        "status": status,
+        "ageSeconds": age_seconds,
+        "maxAgeSeconds": max_age_seconds,
+        "observedAtUtc": observed.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def current_truth_observed_at(current_truth: dict[str, Any] | None) -> Any:
+    truth = safe_mapping(current_truth)
+    target = safe_mapping(truth.get("target"))
+    primary = safe_mapping(safe_mapping(truth.get("staticChainStatus")).get("primaryCandidate"))
+    return (
+        truth.get("updatedAtUtc")
+        or target.get("lastVerifiedUtc")
+        or primary.get("latestCurrentReadbackAtUtc")
+        or target.get("processStartUtc")
+    )
+
+
 def newest_summary(
     repo_root: Path,
     *,
@@ -129,17 +183,63 @@ def newest_summary(
     return path, data, warnings
 
 
-def summarize_source(repo_root: Path, path: Path | None, data: dict[str, Any] | None) -> dict[str, Any]:
+def summarize_source(
+    repo_root: Path,
+    path: Path | None,
+    data: dict[str, Any] | None,
+    *,
+    now: datetime,
+    max_age_seconds: int,
+) -> dict[str, Any]:
     if not path or not data:
-        return {"status": "missing"}
+        return {
+            "status": "missing",
+            "freshness": freshness_summary(None, now=now, max_age_seconds=max_age_seconds),
+        }
     return {
         "status": data.get("status"),
         "kind": data.get("kind") or data.get("mode"),
         "verdict": data.get("verdict"),
         "generatedAtUtc": data.get("generatedAtUtc"),
+        "freshness": freshness_summary(data.get("generatedAtUtc"), now=now, max_age_seconds=max_age_seconds),
         "path": artifact_path(repo_root, path),
         "blockers": safe_list(data.get("blockers")),
         "warnings": safe_list(data.get("warnings")),
+    }
+
+
+def aggregate_source_freshness(sources: dict[str, Any]) -> dict[str, Any]:
+    fresh: list[str] = []
+    stale: list[str] = []
+    unknown: list[str] = []
+    future_skew: list[str] = []
+    ages: list[float] = []
+    for label, source in sources.items():
+        freshness = safe_mapping(safe_mapping(source).get("freshness"))
+        status = freshness.get("status")
+        age = freshness.get("ageSeconds")
+        if isinstance(age, (int, float)):
+            ages.append(float(age))
+        if status == "fresh":
+            fresh.append(label)
+        elif status == "stale":
+            stale.append(label)
+        elif status == "future-clock-skew":
+            future_skew.append(label)
+        else:
+            unknown.append(label)
+    return {
+        "status": "stale" if stale else ("future-clock-skew" if future_skew else ("unknown" if unknown and not fresh else "fresh")),
+        "freshSources": fresh,
+        "staleSources": stale,
+        "unknownSources": unknown,
+        "futureClockSkewSources": future_skew,
+        "oldestAgeSeconds": max(ages) if ages else None,
+        "budgetsSeconds": dict(SOURCE_FRESHNESS_BUDGETS_SECONDS),
+        "interpretation": (
+            "Freshness is an operator resume signal only. Stale candidate artifacts remain historical evidence "
+            "and do not authorize promotion or live input."
+        ),
     }
 
 
@@ -348,7 +448,7 @@ def coordinate_delta_summary(
 
 
 def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None = None) -> dict[str, Any]:
-    _ = now  # Reserved for future freshness classification without changing the public API.
+    now_utc = normalize_now(now)
     warnings: list[str] = []
     errors: list[str] = []
     blockers: list[str] = []
@@ -415,6 +515,54 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         "latestReadbackTargetMemoryBytesRead": bool(coord_safety.get("targetMemoryBytesRead"))
         or bool(nav_safety.get("targetMemoryBytesRead")),
     }
+    sources = {
+        "currentTruth": {
+            "status": "loaded" if current_truth is not None else "missing-or-unreadable",
+            "path": repo_rel(repo_root, truth_path),
+            "generatedAtUtc": current_truth_observed_at(current_truth),
+            "freshness": freshness_summary(
+                current_truth_observed_at(current_truth),
+                now=now_utc,
+                max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["currentTruth"],
+            ),
+        },
+        "coordinateReadback": summarize_source(
+            repo_root,
+            coord_path,
+            coord_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["coordinateReadback"],
+        ),
+        "navState": summarize_source(
+            repo_root,
+            nav_path,
+            nav_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["navState"],
+        ),
+        "facingComparison": summarize_source(
+            repo_root,
+            facing_path,
+            facing_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["facingComparison"],
+        ),
+        "pointerNeighborhood": summarize_source(
+            repo_root,
+            pointer_path,
+            pointer_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["pointerNeighborhood"],
+        ),
+        "familySnapshot": summarize_source(
+            repo_root,
+            family_path,
+            family_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["familySnapshot"],
+        ),
+    }
+    freshness = aggregate_source_freshness(sources)
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
     summary: dict[str, Any] = {
@@ -433,17 +581,8 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "moduleBase": target.get("moduleBase"),
             "status": target.get("status"),
         },
-        "sources": {
-            "currentTruth": {
-                "status": "loaded" if current_truth is not None else "missing-or-unreadable",
-                "path": repo_rel(repo_root, truth_path),
-            },
-            "coordinateReadback": summarize_source(repo_root, coord_path, coord_data),
-            "navState": summarize_source(repo_root, nav_path, nav_data),
-            "facingComparison": summarize_source(repo_root, facing_path, facing_data),
-            "pointerNeighborhood": summarize_source(repo_root, pointer_path, pointer_data),
-            "familySnapshot": summarize_source(repo_root, family_path, family_data),
-        },
+        "sources": sources,
+        "freshness": freshness,
         "candidates": {
             "promotedCoordinate": promoted_coordinate,
             "candidateFacingTarget": facing_target,
@@ -497,6 +636,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
     turn = safe_mapping(candidates.get("candidateTurnRate"))
     delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     artifacts = safe_mapping(summary.get("artifacts"))
+    freshness = safe_mapping(summary.get("freshness"))
     lines = [
         "# RiftReader Navigation Pointer Discovery Status",
         "",
@@ -508,6 +648,8 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Verdict | `{summary.get('verdict')}` |",
         f"| Target PID | `{safe_mapping(summary.get('target')).get('processId')}` |",
         f"| Target HWND | `{safe_mapping(summary.get('target')).get('targetWindowHandle')}` |",
+        f"| Freshness | `{freshness.get('status')}` |",
+        f"| Stale sources | `{', '.join(str(item) for item in freshness.get('staleSources') or []) or 'none'}` |",
         "",
         "## Candidate summary",
         "",
@@ -520,12 +662,16 @@ def build_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Source artifacts",
         "",
-        "| Source | Status | Path |",
-        "|---|---|---|",
+        "| Source | Status | Freshness | Age seconds | Path |",
+        "|---|---|---|---:|---|",
     ]
     for label, source in safe_mapping(summary.get("sources")).items():
         source_map = safe_mapping(source)
-        lines.append(f"| `{label}` | `{source_map.get('status')}` | `{source_map.get('path')}` |")
+        source_freshness = safe_mapping(source_map.get("freshness"))
+        lines.append(
+            f"| `{label}` | `{source_map.get('status')}` | `{source_freshness.get('status')}` | "
+            f"`{source_freshness.get('ageSeconds')}` | `{source_map.get('path')}` |"
+        )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in safe_list(summary.get("blockers")))

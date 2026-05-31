@@ -1423,9 +1423,12 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     facing = safe_mapping(candidates.get("candidateFacingTarget"))
     turn_rate = safe_mapping(candidates.get("candidateTurnRate"))
     coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
+    freshness = safe_mapping(discovery_data.get("freshness"))
     return {
         "status": discovery_data.get("status"),
         "verdict": discovery_data.get("verdict"),
+        "freshnessStatus": freshness.get("status"),
+        "staleSources": freshness.get("staleSources"),
         "promotedCoordinateStatus": promoted.get("status"),
         "promotedCoordinateChain": promoted.get("chain"),
         "facingTargetStatus": facing.get("status"),
@@ -1640,6 +1643,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 "## Navigation pointer discovery dashboard (artifact index)",
                 "",
                 f"- Status: `{nav_discovery.get('status')}` | Verdict: `{nav_discovery.get('verdict')}`",
+                f"- Freshness: `{safe_mapping(nav_discovery.get('freshness')).get('status')}`; stale sources: `{', '.join(str(item) for item in safe_mapping(nav_discovery.get('freshness')).get('staleSources') or []) or 'none'}`",
                 f"- Coordinate resolver: `{promoted.get('status')}` — `{promoted.get('chain')}`",
                 f"- Facing target: `{facing.get('status')}` at `{facing.get('offset')}`; max yaw delta `{facing.get('comparisonMaxAbsYawDeltaDegrees')}`",
                 f"- Turn rate: `{turn_rate.get('status')}` at `{turn_rate.get('offset')}`",
@@ -1794,6 +1798,7 @@ def build_schema_contract() -> dict[str, Any]:
             "verdict",
             "target",
             "sources",
+            "freshness",
             "candidates",
             "promotionReadiness",
             "next",
