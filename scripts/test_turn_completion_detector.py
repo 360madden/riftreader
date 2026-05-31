@@ -11,8 +11,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Import the module under test
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.turn_completion_detector import (
@@ -851,7 +849,7 @@ class TestBuildMarkdown(unittest.TestCase):
 class TestBuildParser(unittest.TestCase):
     def test_required_args(self):
         parser = build_parser()
-        with pytest.raises(SystemExit):
+        with self.assertRaises(SystemExit):
             parser.parse_args([])
 
     def test_minimal_args(self):
@@ -881,7 +879,7 @@ class TestBuildParser(unittest.TestCase):
 
     def test_mutually_exclusive_group_rejects_both(self):
         parser = build_parser()
-        with pytest.raises(SystemExit):
+        with self.assertRaises(SystemExit):
             parser.parse_args(["--direction", "left", "--target-bearing-degrees", "90", "--signed-bearing-delta-degrees", "45"])
 
     def test_all_options_default_values(self):
@@ -1688,4 +1686,4 @@ def _make_namespace(**overrides) -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main(verbosity=2)
