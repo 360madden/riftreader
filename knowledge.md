@@ -56,8 +56,8 @@ python scripts/agent-rollback.py <snapshot-dir-name>    # restore from snapshot
 | Agent | Model | Purpose | When to spawn |
 |---|---|---|---|
 | `rift-readback` | `deepseek/deepseek-v4-pro` | Read-only coordinate/facing recovery | Every session — instant static chain readback |
-| `rift-discovery` | `anthropic/claude-opus-4.7` | Static chain reverse-engineering | Per discovery campaign |
-| `rift-proof` | `anthropic/claude-opus-4.7` | Promotion gate evaluation | Per promotion candidate |
+| `rift-discovery` | `deepseek/deepseek-v4-pro` | Static chain reverse-engineering | Per discovery campaign |
+| `rift-proof` | `deepseek/deepseek-v4-pro` | Promotion gate evaluation | Per promotion candidate |
 
 **Interaction flow:** Discovery spawns readback for candidate validation; proof spawns readback for gate evidence. All three are backed by `.agents/backup/` snapshot system.
 
@@ -265,7 +265,7 @@ python scripts/static_owner_turn_aware_route_plan.py ...
 - Lead with direct answer/result; use tables for status/blocks/options
 - **Autonomous mode:** continue through safe checkpoints; stop only at gated boundaries (live input, debugger, push, promotion)
 - **OpenCode is retired** for this repo — do not create/modify OpenCode code unless explicitly re-authorized
-- **Model routing:** prefer stronger reasoning for live RIFT, x64dbg, coordinate truth, proof work; simpler models OK for docs/status
+- **Custom agent routing:** all three custom agents use `deepseek/deepseek-v4-pro` — choose by tool rights and safety profile, not by model strength. `rift-readback` is read-only (safe for routine use), `rift-discovery` can run terminal commands and spawn sub-agents, `rift-proof` is the strictest (promotion gates only)
 - **Context7:** use for .NET, PowerShell, library docs; do NOT use for local RiftReader debugging
 - **Custom agents:** spawn `rift-readback` for coordinates, `rift-discovery` for RE, `rift-proof` for promotion gates
 - **Non-Codex workflow:** use when Codex is unavailable — GitHub connector read-only, deliver edits as ZIP or applier
@@ -277,16 +277,21 @@ The route planner cross-checks atan2-derived turn direction against the engine's
 
 A read-only pointer-chain nav-state pipeline that independently reads yaw, turn rate (0x304), facing target, and pitch from the promoted static resolver — without game input, debuggers, or mutation.
 
-**Architecture:** 6 tools use a single shared helper (`scripts/nav_state_readback.py`) to spawn the coordinate chain readback subprocess:
+**Architecture:** 9 tools share nav-state via a single helper (`scripts/nav_state_readback.py`).
+The `--nav-state` CLI flag enables nav-state output (producer) or enrichment (consumers).
+Tools without a flag import and call `read_nav_state()` directly.
 
 | Tool | `--nav-state` flag | How it uses the result |
 |---|---|---|
-| `static_owner_coordinate_chain_readback.py` | `--nav-state` | Produces nav-state (yaw, turn rate, facing target, pitch) |
+| `static_owner_coordinate_chain_readback.py` | `--nav-state` | **Producer** — outputs nav-state JSON (yaw, turn rate, facing target, pitch) |
 | `decision_packet.py` | `--nav-state` | Includes `navigationPointerChains` in decision payload |
 | `nav_state_freshness_watchdog.py` | N/A (always on) | Compares two reads 0.5s apart for correlation/drift |
 | `static_owner_turn_aware_route_plan.py` | `--nav-state` | Cross-checks pointer-chain vs facing-discovery yaw/turn-rate |
-| `static_owner_continuous_route_runner.py` | `--nav-state` | Per-iteration nav-state health monitoring during multi-segment routes |
+| `static_owner_nav_route_step.py` | `--nav-state` | Enriches initial forward-step decision with pointer-chain yaw/turn-rate for bearing cross-check |
+| `static_owner_continuous_route_runner.py` | `--nav-state` | **Delegates** — passes flag through to child scripts (turn_aware_route_plan, turn_completion_detector); does not call `read_nav_state()` directly |
 | `navigation_target_watch.py` | `--nav-state` | Validates resolver health after finding RIFT window |
+| `turn_completion_detector.py` | N/A (always on) | Reads nav-state pre/post each pulse for convergence verification |
+| `summarize_turn_key_profiles.py` | `--nav-state` | Reads nav-state for turn-key-to-bearing correlation in profiling |
 
 **Shared helper:** `scripts/nav_state_readback.py` — `read_nav_state()`
 - Supports explicit target mode (`--pid`/`--hwnd`/`--module-base`)

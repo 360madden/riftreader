@@ -190,8 +190,8 @@ them instead of handling their specialized work directly.
 | Agent | Model | Purpose | Frequency | Blast Radius |
 |---|---|---|---|---|
 | `rift-readback` | `deepseek/deepseek-v4-pro` | Read-only coordinate recovery | Every session | Low — read-only tools |
-| `rift-discovery` | `anthropic/claude-opus-4.7` | Static chain reverse-engineering | Per discovery campaign | Medium — may run terminal commands |
-| `rift-proof` | `anthropic/claude-opus-4.7` | Promotion gate evaluation | Per promotion candidate | High — promotion decisions are irreversible |
+| `rift-discovery` | `deepseek/deepseek-v4-pro` | Static chain reverse-engineering | Per discovery campaign | Medium — may run terminal commands |
+| `rift-proof` | `deepseek/deepseek-v4-pro` | Promotion gate evaluation | Per promotion candidate | High — promotion decisions are irreversible |
 
 ### rift-readback — Spawn Policy
 
@@ -232,7 +232,7 @@ proof promotion all require explicit approval). The gates encoded here (`stimulu
 - Comparing owner window memory snapshots to find stimulus-changing offsets
 - Tracing module-RVA pointers near candidate offsets
 - Running the discovery pipeline: snapshot → compare → trace → score
-- Any reverse-engineering task that requires strongest reasoning
+- Any reverse-engineering task that requires new static pointer chain discovery
 
 **Do NOT spawn for:**
 - Routine coordinate readback (use `rift-readback`)

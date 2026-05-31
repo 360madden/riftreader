@@ -9,7 +9,6 @@
  *   - Highest-signal-per-bounded-run discovery (from agents.md)
  *
  * TOOLS: Read + terminal + spawn (can delegate to rift-readback for validation).
- * MODEL: Strongest reasoning (claude-opus-4.7) — high blast radius, low frequency.
  * SAFETY: Never promotes without explicit approval. All discoveries are candidate-only
  *         until three-pose displacement proof. Never sends input without approval.
  */
@@ -20,7 +19,7 @@ const definition: AgentDefinition = {
   id: "rift-discovery",
   version: "0.1.0",
   displayName: "RiftReader Discovery (Chain Discovery)",
-  model: "anthropic/claude-opus-4.7",
+  model: "deepseek/deepseek-v4-pro",
 
   spawnerPrompt: `Spawn this agent for reverse-engineering new static pointer chains:
 - Discover yaw/facing chains in the owner window (same pattern that found 0x320 for coordinates)

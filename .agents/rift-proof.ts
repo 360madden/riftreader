@@ -10,7 +10,6 @@
  *
  * TOOLS: Read + terminal. No write_file/str_replace (promotion docs are created
  *        by the main agent after human approval).
- * MODEL: Strong reasoning (claude-opus-4.7) — promotion is irreversible.
  * SAFETY: Never promotes. Produces a gate-by-gate report. The human must
  *         explicitly approve promotion before current-truth.md is updated.
  */
@@ -21,7 +20,7 @@ const definition: AgentDefinition = {
   id: "rift-proof",
   version: "0.1.0",
   displayName: "RiftReader Proof (Promotion Gates)",
-  model: "anthropic/claude-opus-4.7",
+  model: "deepseek/deepseek-v4-pro",
 
   spawnerPrompt: `Spawn this agent to evaluate whether a candidate static chain is
 ready for promotion. It runs all promotion gates and produces a verdict.

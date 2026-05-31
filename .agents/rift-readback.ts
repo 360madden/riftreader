@@ -7,7 +7,6 @@
  *   3. Readiness gate check (offline artifact analysis)
  *
  * TOOLS: read-only only. No write_file, str_replace, run_terminal_command restricted.
- * MODEL: Fast/cheap (deepseek-v4-pro) — this runs every session.
  * OUTPUT: Structured JSON with verdict, coordinates, deltas, blockers.
  * SAFETY: Never sends input, never attaches debuggers, never mutates repo unless
  *         explicitly asked by the user. The promoted static resolver
