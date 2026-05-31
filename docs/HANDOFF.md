@@ -52,8 +52,11 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
-| `dcfadd8` | AOB signature capture + live signature + structured workflow docs (8 new docs) |
-| `2cc6ace` | Turn completion detector — verified pulse-loop turn convergence (Phase 0 #3) |
+| `52e7bb1` | Timestamped validation ledger for durable command timing |
+| `b3a3922` | Remove pytest dependency from turn detector tests |
+| `b7e01ad` | Refresh handoff with live route evidence |
+| `480a7f9` | Exact-target turn and recovery probes |
+| `4ce6800` | Current truth and helper import hygiene |
 
 ## Latest live finding — 2026-05-31
 
@@ -84,6 +87,24 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 | Mouse-look turn backend produced yaw delta | `scripts\captures\static-owner-mouse-turn-probe-20260531-124158-803473\summary.json`: right 40px, signed yaw delta `+5.65°`, zero coordinate drift. |
 | Turn completion detector converged with mouse-look | `scripts\captures\turn-completion-detector-20260531-124210-709153\summary.json`: +10° signed target, 1 pulse, final error `2.94°`. |
 | Bounded movement probe passed | `scripts\captures\static-owner-mouse-arc-recovery-20260531-124230-635784\summary.json`: offset `0°`, 300ms `W`, planar movement `1.82m`, no blockers. |
+
+## Pointer-chain discovery refresh — 2026-05-31 14:19–14:23 UTC
+
+| Check | Evidence |
+|---|---|
+| Exact target reacquired | PID `25668`, HWND `0x320CB0`, module base `0x7FF6EE5D0000`, owner `0x1B53D7806A0`. |
+| Baseline static-owner snapshot | `scripts\captures\static-owner-facing-snapshot-baseline-20260531-20260531-141907-660274\summary.json` |
+| Mouse-look right yaw stimulus | `scripts\captures\static-owner-mouse-turn-probe-20260531-141920-662365\summary.json`: right `160px`, yaw delta `+49.410772°`, planar drift `0.0`. |
+| Mouse-look left yaw stimulus | `scripts\captures\static-owner-mouse-turn-probe-20260531-141934-149919\summary.json`: left `320px`, yaw delta `-111.529978°`, planar drift `0.0`. |
+| Facing comparison | `scripts\captures\static-owner-facing-comparison-20260531-141949-380215\summary.json`: top relative target `owner+0x30C/+0x310/+0x314`, yaw deltas `+49.410772°` and `-62.119206°` from baseline, coordinate drift `0.0`. |
+| Pointer neighborhood | `scripts\captures\pointer-owner-neighborhood-inspector-20260531-142006-017134\summary.json`: read-only owner neighborhood passed; heap-near-target references only, no promotion. |
+| Memory-region scan plan | `scripts\captures\memory-region-inventory-currentpid-25668-20260531-142058-445123\scan-plan.json` |
+| Bounded movement-family snapshot | `scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\summary.json`: exact-target `W` 350ms, movement/input sent, no CE/x64dbg/provider writes. |
+| Current coordinate candidate reacquired | Delta summary `scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\delta-analysis\delta-summary.json`: best candidate `0x1B53D7809C0` / owner+`0x320`, tracking max abs `0.006398926`, API planar `2.267577m`, memory planar `2.269441m`. |
+| Post-run static readback | `scripts\captures\static-owner-coordinate-chain-readback-20260531-142312-924000\summary.json`: coordinate `7264.431641, 821.697205, 3003.875732`, stationary, no blockers. |
+| Post-run nav-state readback | `scripts\captures\static-owner-nav-state-20260531-142312-943158\summary.json`: yaw `22.940854°`, pitch `-4.941195°`, turn rate `1.171186`, no blockers. |
+
+Outcome: current coordinate/facing pointer-chain evidence is reacquired for PID `25668`; `docs\recovery\current-truth.*` now records the fresh current API-now validation. No new actor/stat chain or proof promotion was performed.
 
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 

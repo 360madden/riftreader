@@ -76,20 +76,21 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
         self.assertNotIn("34176", current_scoped_text)
         self.assertNotIn("0x3D1544", current_scoped_text)
 
-    def test_current_api_now_is_explicitly_pending_for_current_pid(self) -> None:
+    def test_current_api_now_is_fresh_for_current_pid(self) -> None:
         truth = self.load_truth()
         current_pid = int(truth["target"]["processId"])
         live = truth["liveReferenceSurface"]
 
-        self.assertEqual(live["apiNowStatus"], f"pending-current-pid-{current_pid}-api-now-vs-chain-now")
-        self.assertIn(f"current-pid-{current_pid}-api-now-capture-pending", live["apiNowBlockers"])
+        self.assertEqual(live["apiNowStatus"], f"passed-current-pid-{current_pid}-api-now-vs-chain-now")
+        self.assertEqual(live["apiNowBlockers"], [])
         latest_api = live["latestApiCoordinate"]
         self.assertEqual(
             latest_api["status"],
-            f"pending-current-pid-{current_pid}-api-now-vs-chain-now",
+            f"passed-current-pid-{current_pid}-api-now-vs-chain-now",
         )
-        self.assertIsNone(latest_api["coordinate"])
-        self.assertIsNone(latest_api["capturedAtUtc"])
+        self.assertIsNotNone(latest_api["coordinate"])
+        self.assertIsNotNone(latest_api["capturedAtUtc"])
+        self.assertIn(f"currentpid-{current_pid}", latest_api["referenceFile"])
 
     def test_markdown_current_target_matches_json_target(self) -> None:
         truth = self.load_truth()
@@ -105,7 +106,7 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
         self.assertIn(f"| Process start UTC | `{process_start}` |", markdown)
         self.assertIn(f"| Module base | `{module_base}` |", markdown)
         self.assertIn(f"Latest RRAPICOORD API coordinate for PID {pid}", markdown)
-        self.assertIn("(pending current API-now vs chain-now capture)", markdown)
+        self.assertIn("Current PID 25668 API-now validation", markdown)
 
         current_target_section = re.search(
             r"## Current target\n(?P<section>.*?)(?:\n## Promotion gate summary)",

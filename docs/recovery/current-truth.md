@@ -1,6 +1,6 @@
 # Current RIFT live truth — static player-coordinate resolver PROMOTED
 
-Updated UTC: `2026-05-31T12:44:00Z`
+Updated UTC: `2026-05-31T14:23:13Z`
 
 # **✅ RESULT**
 
@@ -8,7 +8,7 @@ The static chain below remains **promoted** as the current static **player-coord
 
 `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
 
-This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `25668` / HWND `0x320CB0`; PID `34176` appears below only as historical promotion-validation evidence.
+This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `25668` / HWND `0x320CB0`; current PID `25668` now has fresh RRAPICOORD API-now vs static-chain validation from the 2026-05-31 bounded family snapshot. PID `34176` appears below only as historical promotion-validation evidence.
 
 ## Current target
 
@@ -22,15 +22,16 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
 | Owner in current readback | `0x1B53D7806A0` |
 | Coordinate address in current readback | `0x1B53D7809C0` (owner+0x320) |
-| Latest recorded coordinate snapshot | `7262.338378906, 821.693603516, 3002.999023438` at `2026-05-31T12:42:43.251181+00:00` — current static-chain readback; do not present this value as current-now/API-confirmed without a fresh API-now vs memory-now comparison. |
-| Latest current nav yaw | `85.060059137°` at `2026-05-31T12:42:44.004951+00:00` |
-| Latest RRAPICOORD API coordinate for PID 25668 | `(pending current API-now vs chain-now capture)` |
-| Latest API timestamp for PID 25668 | `(pending)` |
-| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-124243-250543\summary.json` |
-| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-124244-004288\summary.json` |
+| Latest recorded coordinate snapshot | `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T14:23:12.926638+00:00` — current exact-target static-chain readback after bounded displacement. |
+| Latest current nav yaw | `22.940853610°` at `2026-05-31T14:23:12.943809+00:00` |
+| Latest RRAPICOORD API coordinate for PID 25668 | `7264.4297, 821.7000, 3003.8799` |
+| Latest API timestamp for PID 25668 | `2026-05-31T14:22:56.4433446Z` |
+| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-142312-924000\summary.json` |
+| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-142312-943158\summary.json` |
+| Current PID API-now vs chain-now validation | `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\delta-analysis\delta-summary.json` |
 | Promotion report | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promoted-2026-05-27.md` |
 
-PID/HWND identity is a targeting preflight only; currentness still requires a fresh API-now vs memory-now readback with timestamped API and memory coordinates, per-axis deltas, tolerance, and verdict.
+PID/HWND identity is a targeting preflight only. The current PID `25668` API-now validation below passed at `2026-05-31T14:22:57Z`; refresh it before later live movement or proof promotion because coordinates and target epochs drift over time.
 
 ## Promotion gate summary
 
@@ -46,6 +47,26 @@ PID/HWND identity is a targeting preflight only; currentness still requires a fr
 | Overall max API/chain delta | **Passed** | `0.004768066` <= tolerance `0.25` |
 | Cheat Engine / x64dbg | **Not used** | No CE, no x64dbg attach, no breakpoints/watchpoints |
 | Target memory writes | **None** | Memory reads only |
+
+
+## Current PID 25668 API-now validation — 2026-05-31
+
+This is a **fresh current-target validation**, not a new proof promotion. It used exact PID/HWND targeting, RRAPICOORD memory-scan references, and a bounded `W` 350ms displacement through the C# ScanCode backend.
+
+| Pose | RRAPICOORD API | Static owner memory | Max abs delta / tracking |
+|---|---:|---:|---:|
+| Baseline | `7262.3398, 821.6900, 3003.0000` | `7262.338378906, 821.693603516, 3002.999023438` | baseline max abs `0.003603516` |
+| Forward 350ms displaced | `7264.4297, 821.7000, 3003.8799` | `7264.431640625, 821.697204590, 3003.875732422` | displaced max abs `0.004167578` |
+| Displacement delta | planar API `2.267577125` | planar memory `2.269441179` | tracking max abs `0.006398926` |
+
+Artifacts:
+
+- Sequence summary: `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\summary.json`
+- Delta summary: `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\delta-analysis\delta-summary.json`
+- Candidate vec3: `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\delta-analysis\candidate-vec3.json`
+
+Safety: no Cheat Engine, no x64dbg attach, no target memory writes, no provider writes, and no proof/actor-chain promotion.
+
 
 ## Historical promotion validation samples (PID 34176)
 
