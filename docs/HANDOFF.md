@@ -52,6 +52,7 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
+| `059832a` | Surface truth refresh plan in workflow status |
 | `f5f8bc2` | Document current truth refresh plan |
 | `a539850` | Add current truth refresh plan helper |
 | `16f9323` | Document navigation pointer status workflow |
@@ -127,6 +128,7 @@ Current safe next action: keep using the dashboard/status packet for resume cont
 | Check | Evidence |
 |---|---|
 | Dry-run planner added | `scripts\riftreader-current-truth-refresh-plan.cmd --json --write` calls Python helper `tools\riftreader_workflow\current_truth_refresh_plan.py`. |
+| Compact workflow status now embeds the plan | Commit `059832a`; `cmd /c scripts\riftreader-workflow-status.cmd --compact-json` includes `currentTruthRefreshPlan` with status, update count, proposed artifacts, safety flags, and the explicit apply gate. |
 | Ignored proposal generated | `.riftreader-local\current-truth-refresh-plan\latest\summary.json`, `proposed-current-truth.json`, and `proposed-current-truth.diff`. |
 | Planner result | Status `passed`, `updateCount=9`; it proposes refreshing static-chain readback timestamps/coordinate fields only and keeps API-now/proof/promotion boundaries explicit. |
 | Safety boundary | `trackedTruthWritten=false`, `movementSent=false`, `inputSent=false`, `targetMemoryBytesRead=false`, `proofPromotion=false`, `facingPromotion=false`, `gitMutation=false`. |
