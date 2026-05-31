@@ -29,6 +29,182 @@ def write_text(path: Path, value: str) -> None:
 
 
 class StatusPacketProofFreshnessTests(unittest.TestCase):
+    def test_latest_navigation_pointer_discovery_reads_dashboard_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_json(
+                root / ".riftreader-local" / "navigation-pointer-discovery" / "latest" / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "riftreader-navigation-pointer-discovery-status",
+                    "generatedAtUtc": "2026-05-31T15:00:00Z",
+                    "status": "passed",
+                    "verdict": "navigation-pointer-discovery-indexed",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 25668,
+                        "targetWindowHandle": "0x320CB0",
+                        "processStartUtc": "2026-05-30T02:46:41Z",
+                    },
+                    "freshness": {
+                        "status": "stale",
+                        "staleSources": ["currentTruth"],
+                        "unknownSources": [],
+                    },
+                    "candidates": {
+                        "promotedCoordinate": {
+                            "status": "promoted-static-coordinate-resolver",
+                            "promotionAllowed": True,
+                            "candidateOnly": False,
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootRva": "0x32EBC80",
+                            "coordinateOffset": "0x320",
+                            "latestReadbackStatus": "passed",
+                            "latestReadbackAtUtc": "2026-05-31T14:59:00Z",
+                        },
+                        "candidateFacingTarget": {
+                            "status": "candidate-only",
+                            "candidateOnly": True,
+                            "promotionAllowed": False,
+                            "chainShape": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+                            "offset": "0x30C",
+                            "comparisonMaxAbsYawDeltaDegrees": 14.25,
+                        },
+                        "candidateTurnRate": {
+                            "status": "candidate-only",
+                            "candidateOnly": True,
+                            "promotionAllowed": False,
+                            "offset": "0x304",
+                            "comparisonMaxAbsDelta": 0.5,
+                        },
+                        "coordinateDeltaCandidate": {
+                            "status": "confirms-promoted-coordinate-offset",
+                            "candidateOnly": False,
+                            "ownerOffset": "0x320",
+                            "trackingErrorMaxAbs": 0.01,
+                            "matchesPromotedCoordinateAddress": True,
+                        },
+                    },
+                    "promotionReadiness": {
+                        "coordinateResolver": "promoted",
+                        "facingTarget": "candidate-only-requires-proof",
+                        "proofPromotionPerformed": False,
+                    },
+                    "next": {
+                        "recommendedAction": "Run restart/relog survival plus static-root proof.",
+                        "recommendedActions": ["Run restart/relog survival plus static-root proof."],
+                    },
+                    "blockers": [],
+                    "warnings": ["current-truth-stale"],
+                    "errors": [],
+                    "safety": {
+                        "readOnlyArtifactIndex": True,
+                        "movementSent": False,
+                        "inputSent": False,
+                        "targetMemoryBytesRead": False,
+                        "targetMemoryBytesWritten": False,
+                        "proofPromotion": False,
+                        "actorChainPromotion": False,
+                        "facingPromotion": False,
+                        "gitMutation": False,
+                    },
+                },
+            )
+            write_text(root / ".riftreader-local" / "navigation-pointer-discovery" / "latest" / "summary.md", "# Summary\n")
+
+            summary = status_packet.latest_navigation_pointer_discovery(root)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual("stale", summary["freshnessStatus"])
+        self.assertEqual(["currentTruth"], summary["staleSources"])
+        self.assertEqual(25668, summary["target"]["processId"])
+        self.assertEqual("0x30C", summary["candidateFacingTarget"]["offset"])
+        self.assertEqual(14.25, summary["candidateFacingTarget"]["comparisonMaxAbsYawDeltaDegrees"])
+        self.assertEqual("0x304", summary["candidateTurnRate"]["offset"])
+        self.assertEqual(0.01, summary["coordinateDeltaCandidate"]["trackingErrorMaxAbs"])
+        self.assertFalse(summary["safety"]["movementSent"])
+        self.assertFalse(summary["safety"]["inputSent"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+
+    def test_latest_navigation_pointer_discovery_missing_is_nonblocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            summary = status_packet.latest_navigation_pointer_discovery(Path(temp_dir))
+
+        self.assertEqual("missing", summary["status"])
+        self.assertEqual([], summary["blockers"])
+        self.assertEqual([], summary["warnings"])
+        self.assertFalse(summary["safety"]["movementSent"])
+        self.assertFalse(summary["safety"]["gitMutation"])
+
+    def test_navigation_pointer_discovery_parse_error_stays_inside_compact_field(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(
+                root / ".riftreader-local" / "navigation-pointer-discovery" / "latest" / "summary.json",
+                "{not-json",
+            )
+
+            packet = status_packet.build_status_packet(
+                root,
+                run_coordinate_status=False,
+                check_opencode=False,
+                collect_git_state=False,
+            )
+            compact = status_packet.compact_summary(packet)
+
+        navigation = compact["navigationPointerDiscovery"]
+        self.assertEqual("passed", packet["status"])
+        self.assertEqual([], packet["errors"])
+        self.assertEqual("parse-error", navigation["status"])
+        self.assertIn("navigation-pointer-discovery-summary-unusable", navigation["blockers"])
+        self.assertTrue(navigation["warnings"][0].startswith("navigation-pointer-discovery-summary-parse-error:"))
+        self.assertFalse(navigation["safety"]["movementSent"])
+        self.assertFalse(navigation["safety"]["inputSent"])
+        self.assertFalse(navigation["safety"]["proofPromotion"])
+
+    def test_compact_markdown_includes_navigation_pointer_discovery_section(self) -> None:
+        packet = {
+            "schemaVersion": 1,
+            "kind": "riftreader-local-workflow-status-packet",
+            "generatedAtUtc": "2026-05-31T15:00:00Z",
+            "status": "passed",
+            "repoRoot": str(REPO_ROOT),
+            "blockers": [],
+            "warnings": [],
+            "errors": [],
+            "git": {},
+            "liveTarget": {},
+            "launcher": {},
+            "characterLoginSupervisor": {},
+            "currentProof": {"summary": {}},
+            "currentTruth": {"summary": {}},
+            "latestHandoff": {},
+            "opencode": {"retired": True, "checked": False},
+            "navigationPointerDiscovery": {
+                "status": "passed",
+                "freshnessStatus": "fresh",
+                "staleSources": [],
+                "summaryJson": ".riftreader-local/navigation-pointer-discovery/latest/summary.json",
+                "promotedCoordinate": {"status": "promoted", "chain": "[rift_x64+0x32EBC80]+0x320"},
+                "candidateFacingTarget": {
+                    "status": "candidate-only",
+                    "offset": "0x30C",
+                    "comparisonMaxAbsYawDeltaDegrees": 12.0,
+                },
+                "candidateTurnRate": {"status": "candidate-only", "offset": "0x304"},
+                "nextRecommendedAction": "Run facing proof.",
+            },
+            "safety": {"movementSent": False, "gitMutation": False},
+            "nextRecommendedAction": "none",
+            "artifacts": {},
+        }
+
+        markdown = status_packet.render_compact_markdown(packet)
+
+        self.assertIn("## Navigation pointer discovery", markdown)
+        self.assertIn("0x30C", markdown)
+        self.assertIn("Run facing proof.", markdown)
+
     def test_latest_static_owner_readback_reports_capture_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

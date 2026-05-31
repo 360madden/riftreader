@@ -54,6 +54,9 @@ DEFAULT_STATIC_OWNER_CAPTURE_DIR = Path("scripts") / "captures"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "workflow-status"
 DEFAULT_LAUNCHER_INSPECTION_DIR = Path(".riftreader-local") / "launcher-inspection"
 DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR = Path(".riftreader-local") / "character-login-supervisor"
+DEFAULT_NAVIGATION_POINTER_DISCOVERY_SUMMARY = (
+    Path(".riftreader-local") / "navigation-pointer-discovery" / "latest" / "summary.json"
+)
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
@@ -689,6 +692,190 @@ def latest_static_owner_readback(repo_root: Path, errors: list[str], warnings: l
     }
 
 
+def _summarize_navigation_candidate(candidate: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+    """Copy only stable, compact fields from a navigation discovery candidate."""
+
+    return {field: candidate.get(field) for field in fields}
+
+
+def _list_or_empty(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
+    """Return the latest ignored navigation pointer discovery dashboard.
+
+    This is intentionally non-blocking for the workflow status packet: the
+    dashboard is a read-only convenience surface, so missing or malformed local
+    artifacts are reported inside this field instead of failing the status
+    packet or weakening any live/proof gate.
+    """
+
+    summary_path = repo_root / DEFAULT_NAVIGATION_POINTER_DISCOVERY_SUMMARY
+    markdown_path = summary_path.with_suffix(".md")
+    summary_rel = as_repo_path(repo_root, summary_path)
+    markdown_rel = as_repo_path(repo_root, markdown_path)
+    base = {
+        "status": "missing",
+        "verdict": None,
+        "observedAtUtc": None,
+        "summaryJson": summary_rel,
+        "summaryMarkdown": markdown_rel,
+        "freshnessStatus": None,
+        "staleSources": [],
+        "unknownSources": [],
+        "target": {},
+        "promotedCoordinate": {},
+        "candidateFacingTarget": {},
+        "candidateTurnRate": {},
+        "coordinateDeltaCandidate": {},
+        "promotionReadiness": {},
+        "nextRecommendedAction": None,
+        "recommendedActions": [],
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": {
+            "readOnlyArtifactIndex": True,
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+            "gitMutation": False,
+        },
+    }
+    if not summary_path.is_file():
+        return base
+
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001 - malformed ignored artifacts must not fail the packet.
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = [
+            f"navigation-pointer-discovery-summary-parse-error:{type(exc).__name__}:{preview_text(str(exc))}"
+        ]
+        blocked["blockers"] = ["navigation-pointer-discovery-summary-unusable"]
+        return blocked
+    if not isinstance(payload, dict):
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = ["navigation-pointer-discovery-summary-not-json-object"]
+        blocked["blockers"] = ["navigation-pointer-discovery-summary-unusable"]
+        return blocked
+
+    candidates = payload.get("candidates") if isinstance(payload.get("candidates"), dict) else {}
+    promoted = candidates.get("promotedCoordinate") if isinstance(candidates.get("promotedCoordinate"), dict) else {}
+    facing = candidates.get("candidateFacingTarget") if isinstance(candidates.get("candidateFacingTarget"), dict) else {}
+    turn = candidates.get("candidateTurnRate") if isinstance(candidates.get("candidateTurnRate"), dict) else {}
+    delta = (
+        candidates.get("coordinateDeltaCandidate")
+        if isinstance(candidates.get("coordinateDeltaCandidate"), dict)
+        else {}
+    )
+    freshness = payload.get("freshness") if isinstance(payload.get("freshness"), dict) else {}
+    target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
+    next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
+    promotion_readiness = (
+        payload.get("promotionReadiness") if isinstance(payload.get("promotionReadiness"), dict) else {}
+    )
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    recommended_actions = _list_or_empty(next_section.get("recommendedActions"))
+    if not recommended_actions and next_section.get("recommendedAction"):
+        recommended_actions = [next_section.get("recommendedAction")]
+
+    return {
+        **base,
+        "status": payload.get("status") or "unknown",
+        "verdict": payload.get("verdict"),
+        "observedAtUtc": payload.get("generatedAtUtc"),
+        "freshnessStatus": freshness.get("status"),
+        "staleSources": freshness.get("staleSources") or [],
+        "unknownSources": freshness.get("unknownSources") or [],
+        "target": {
+            "processName": target.get("processName"),
+            "processId": target.get("processId"),
+            "targetWindowHandle": target.get("targetWindowHandle"),
+            "processStartUtc": target.get("processStartUtc"),
+        },
+        "promotedCoordinate": _summarize_navigation_candidate(
+            promoted,
+            [
+                "status",
+                "promotionAllowed",
+                "candidateOnly",
+                "chain",
+                "rootModule",
+                "rootRva",
+                "coordinateOffset",
+                "latestReadbackStatus",
+                "latestReadbackAtUtc",
+                "latestReadbackJson",
+                "apiNowStatus",
+            ],
+        ),
+        "candidateFacingTarget": _summarize_navigation_candidate(
+            facing,
+            [
+                "status",
+                "candidateOnly",
+                "promotionAllowed",
+                "chainShape",
+                "offset",
+                "offsetFromOwner",
+                "latestYawDegrees",
+                "comparisonMaxAbsYawDeltaDegrees",
+                "planarLookaheadDistance",
+            ],
+        ),
+        "candidateTurnRate": _summarize_navigation_candidate(
+            turn,
+            [
+                "status",
+                "candidateOnly",
+                "promotionAllowed",
+                "offset",
+                "latestValue",
+                "latestClassification",
+                "comparisonMaxAbsDelta",
+            ],
+        ),
+        "coordinateDeltaCandidate": _summarize_navigation_candidate(
+            delta,
+            [
+                "status",
+                "candidateOnly",
+                "promotionState",
+                "ownerOffset",
+                "trackingErrorMaxAbs",
+                "matchesPromotedCoordinateAddress",
+                "familySummaryJson",
+            ],
+        ),
+        "promotionReadiness": promotion_readiness,
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "recommendedActions": recommended_actions,
+        "blockers": _list_or_empty(payload.get("blockers")),
+        "warnings": _list_or_empty(payload.get("warnings")),
+        "errors": _list_or_empty(payload.get("errors")),
+        "safety": {
+            **base["safety"],
+            "readOnlyArtifactIndex": bool(safety.get("readOnlyArtifactIndex", True)),
+            "movementSent": bool(safety.get("movementSent")),
+            "inputSent": bool(safety.get("inputSent")),
+            "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
+            "targetMemoryBytesWritten": bool(safety.get("targetMemoryBytesWritten")),
+            "proofPromotion": bool(safety.get("proofPromotion")),
+            "actorChainPromotion": bool(safety.get("actorChainPromotion")),
+            "facingPromotion": bool(safety.get("facingPromotion")),
+            "gitMutation": bool(safety.get("gitMutation")),
+        },
+    }
+
+
 def find_latest_handoff(repo_root: Path, handoff_dir: Path | None = None) -> Path | None:
     directory = handoff_dir if handoff_dir is not None else repo_root / DEFAULT_HANDOFF_DIR
     if not directory.is_dir():
@@ -1109,6 +1296,7 @@ def build_status_packet(
     launcher_summary = latest_launcher_inspection(repo_root, errors, warnings)
     supervisor_summary = latest_character_login_supervisor(repo_root, errors, warnings)
     static_owner_readback = latest_static_owner_readback(repo_root, errors, warnings, now=now)
+    navigation_pointer_discovery = latest_navigation_pointer_discovery(repo_root)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -1268,6 +1456,7 @@ def build_status_packet(
         "launcher": launcher_summary,
         "characterLoginSupervisor": supervisor_summary,
         "staticOwnerReadback": static_owner_readback,
+        "navigationPointerDiscovery": navigation_pointer_discovery,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -1288,6 +1477,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     live_target = packet.get("liveTarget") or coord.get("liveTarget") or {}
     launcher = packet.get("launcher") or {}
     supervisor = packet.get("characterLoginSupervisor") or {}
+    navigation = packet.get("navigationPointerDiscovery") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     proof_freshness = proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {}
     handoff = packet.get("latestHandoff") or {}
@@ -1310,6 +1500,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Live target check: `{live_target.get('verdict')}`; live PIDs `{live_target.get('livePids')}`",
         f"- Launcher: `{launcher.get('state')}`; Glyph PIDs `{launcher.get('launcherPids')}`; RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Character login supervisor: `{supervisor.get('status')}`; approval required `{supervisor.get('approvalTokenRequired')}`",
+        f"- Navigation pointer discovery: `{navigation.get('status')}`; freshness `{navigation.get('freshnessStatus')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -1326,6 +1517,24 @@ def render_markdown(packet: dict[str, Any]) -> str:
     lines.extend(["", "## Warnings", ""])
     for warning in packet.get("warnings") or ["none"]:
         lines.append(f"- `{warning}`")
+    if navigation:
+        facing = navigation.get("candidateFacingTarget") if isinstance(navigation.get("candidateFacingTarget"), dict) else {}
+        turn = navigation.get("candidateTurnRate") if isinstance(navigation.get("candidateTurnRate"), dict) else {}
+        promoted = navigation.get("promotedCoordinate") if isinstance(navigation.get("promotedCoordinate"), dict) else {}
+        lines.extend(
+            [
+                "",
+                "## Navigation pointer discovery",
+                "",
+                f"- Status: `{navigation.get('status')}` / `{navigation.get('verdict')}`",
+                f"- Freshness: `{navigation.get('freshnessStatus')}` stale sources `{navigation.get('staleSources')}`",
+                f"- Promoted coordinate: `{promoted.get('status')}` chain `{promoted.get('chain')}`",
+                f"- Candidate facing target: `{facing.get('status')}` offset `{facing.get('offset')}` max yaw delta `{facing.get('comparisonMaxAbsYawDeltaDegrees')}`",
+                f"- Candidate turn rate: `{turn.get('status')}` offset `{turn.get('offset')}`",
+                f"- Next: {navigation.get('nextRecommendedAction')}",
+                f"- Summary JSON: `{navigation.get('summaryJson')}`",
+            ]
+        )
     lines.extend(["", "## Errors", ""])
     for error in packet.get("errors") or ["none"]:
         lines.append(f"- `{error}`")
@@ -1373,6 +1582,9 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     launcher = packet.get("launcher") if isinstance(packet.get("launcher"), dict) else {}
     supervisor = packet.get("characterLoginSupervisor") if isinstance(packet.get("characterLoginSupervisor"), dict) else {}
     static_owner_readback = packet.get("staticOwnerReadback") if isinstance(packet.get("staticOwnerReadback"), dict) else {}
+    navigation_pointer = (
+        packet.get("navigationPointerDiscovery") if isinstance(packet.get("navigationPointerDiscovery"), dict) else {}
+    )
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
     bridge_commands = bridge_command_capabilities(Path(str(repo_root_raw))) if repo_root_raw else []
@@ -1463,6 +1675,28 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "coordinateChain": static_owner_readback.get("coordinateChain") or {},
             "navState": static_owner_readback.get("navState") or {},
         },
+        "navigationPointerDiscovery": {
+            "status": navigation_pointer.get("status") or "not-collected",
+            "verdict": navigation_pointer.get("verdict"),
+            "observedAtUtc": navigation_pointer.get("observedAtUtc"),
+            "summaryJson": navigation_pointer.get("summaryJson"),
+            "summaryMarkdown": navigation_pointer.get("summaryMarkdown"),
+            "freshnessStatus": navigation_pointer.get("freshnessStatus"),
+            "staleSources": navigation_pointer.get("staleSources") or [],
+            "unknownSources": navigation_pointer.get("unknownSources") or [],
+            "target": navigation_pointer.get("target") or {},
+            "promotedCoordinate": navigation_pointer.get("promotedCoordinate") or {},
+            "candidateFacingTarget": navigation_pointer.get("candidateFacingTarget") or {},
+            "candidateTurnRate": navigation_pointer.get("candidateTurnRate") or {},
+            "coordinateDeltaCandidate": navigation_pointer.get("coordinateDeltaCandidate") or {},
+            "promotionReadiness": navigation_pointer.get("promotionReadiness") or {},
+            "nextRecommendedAction": navigation_pointer.get("nextRecommendedAction"),
+            "recommendedActions": navigation_pointer.get("recommendedActions") or [],
+            "blockers": navigation_pointer.get("blockers") or [],
+            "warnings": navigation_pointer.get("warnings") or [],
+            "errors": navigation_pointer.get("errors") or [],
+            "safety": navigation_pointer.get("safety") or {},
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -1483,6 +1717,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     opencode = summary.get("opencode") or {}
     launcher = summary.get("launcher") or {}
     supervisor = summary.get("characterLoginSupervisor") or {}
+    navigation = summary.get("navigationPointerDiscovery") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -1497,6 +1732,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Movement: `{movement_gate.get('allowed')}` / `{movement_gate.get('status')}`",
         f"- Launcher: `{launcher.get('state')}` Glyph PIDs `{launcher.get('launcherPids')}` RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Character login supervisor: `{supervisor.get('status')}` target `{supervisor.get('targetCharacter')}` approval required `{supervisor.get('approvalTokenRequired')}`",
+        f"- Navigation pointer discovery: `{navigation.get('status')}` freshness `{navigation.get('freshnessStatus')}` stale `{navigation.get('staleSources')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
@@ -1505,6 +1741,14 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Candidate: `{proof.get('staleCandidateId')}`",
         f"- Address: `{proof.get('staleAddressHex')}`",
         f"- Reuse policy: `{proof.get('reusePolicy')}`",
+        "",
+        "## Navigation pointer discovery",
+        "",
+        f"- Summary JSON: `{navigation.get('summaryJson')}`",
+        f"- Promoted coordinate: `{(navigation.get('promotedCoordinate') or {}).get('status')}` chain `{(navigation.get('promotedCoordinate') or {}).get('chain')}`",
+        f"- Candidate facing target: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
+        f"- Candidate turn rate: `{(navigation.get('candidateTurnRate') or {}).get('status')}` offset `{(navigation.get('candidateTurnRate') or {}).get('offset')}`",
+        f"- Next: {navigation.get('nextRecommendedAction')}",
         "",
         "## Bridge commands",
         "",
