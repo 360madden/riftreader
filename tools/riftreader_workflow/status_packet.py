@@ -116,6 +116,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "read-only existing candidate files; no live process reads/input/movement/debugger/provider writes",
     ),
     (
+        "navigation-pointer-discovery",
+        "Navigation pointer discovery dashboard",
+        "scripts\\riftreader-navigation-pointer-discovery.cmd --json --write",
+        "read-only artifact index; no live process reads/input/movement/debugger/provider writes or promotion",
+    ),
+    (
         "actor-chain-no-debug-status",
         "Actor-chain no-debug status",
         "scripts\\riftreader-actor-chain-no-debug-status.cmd --json",

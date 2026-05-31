@@ -965,6 +965,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "toolCatalog",
                 "navigationTerrain",
                 "navigationPointerChains",
+                "navigationPointerDiscovery",
                 "retiredSurfaces",
                 "allowedActions",
                 "forbiddenActions",
@@ -1365,6 +1366,24 @@ class DecisionPacketTests(unittest.TestCase):
             ],
             "blockers": ["target-epoch-pid-drift"],
             "warnings": [],
+            "navigationPointerDiscovery": {
+                "status": "passed",
+                "verdict": "navigation-pointer-discovery-indexed",
+                "candidates": {
+                    "promotedCoordinate": {"status": "promoted", "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328"},
+                    "candidateFacingTarget": {
+                        "status": "candidate-only",
+                        "offset": "0x30C",
+                        "comparisonMaxAbsYawDeltaDegrees": 62.1,
+                    },
+                    "candidateTurnRate": {"status": "candidate-only", "offset": "0x304"},
+                    "coordinateDeltaCandidate": {
+                        "status": "confirms-promoted-coordinate-offset",
+                        "trackingErrorMaxAbs": 0.006,
+                    },
+                },
+                "next": {"recommendedAction": "fixture"},
+            },
             "retiredSurfaces": {
                 "paths": ["tools/riftreader_workflow/opencode_bridge.py"],
                 "policy": decision_packet.RETIRED_OPENCODE_POLICY,
@@ -1395,6 +1414,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "toolCatalog",
                 "navigationTerrain",
                 "navigationPointerChains",
+                "navigationPointerDiscovery",
                 "retiredSurfaces",
                 "blockers",
                 "warnings",

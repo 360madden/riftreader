@@ -19,6 +19,7 @@ from typing import Any, Iterable
 
 try:
     from .common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
+    from .navigation_pointer_discovery import build_navigation_pointer_discovery
     from .status_packet import proof_anchor_freshness_summary
     from .tool_catalog import build_decision_packet_tool_catalog
 except ImportError:  # pragma: no cover - supports direct script execution.
@@ -29,6 +30,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     if _project_root not in sys.path:
         sys.path.insert(0, _project_root)
     from riftreader_workflow.common import find_repo_root, preview_text, repo_rel, run_command_envelope, safety_flags, utc_iso
+    from riftreader_workflow.navigation_pointer_discovery import build_navigation_pointer_discovery
     from riftreader_workflow.status_packet import proof_anchor_freshness_summary
     from riftreader_workflow.tool_catalog import build_decision_packet_tool_catalog
 
@@ -1250,6 +1252,20 @@ def build_decision_packet(
         }
     truth_summary = summarize_truth(truth, proof, now=now)
     navigation_terrain = _summarize_latest_route_run_report_terrain(repo_root)
+    try:
+        navigation_pointer_discovery = build_navigation_pointer_discovery(repo_root, now=now)
+    except Exception as exc:  # noqa: BLE001 - packet should record discovery-index failures without hiding them.
+        navigation_pointer_discovery = {
+            "schemaVersion": 1,
+            "kind": "riftreader-navigation-pointer-discovery-status",
+            "status": "failed",
+            "verdict": "navigation-pointer-discovery-index-error",
+            "errors": [f"{type(exc).__name__}:{exc}"],
+            "warnings": [],
+            "blockers": ["navigation-pointer-discovery-index-error"],
+            "safety": {**safety_flags(), "targetMemoryBytesRead": False, "proofPromotion": False},
+        }
+        warnings.append(f"navigation-pointer-discovery-index-error:{type(exc).__name__}:{preview_text(str(exc))}")
     nav_state_data: dict[str, Any] | None = None
     if include_nav_state:
         truth_target = target_from_document(truth)
@@ -1310,6 +1326,7 @@ def build_decision_packet(
         "toolCatalog": tool_catalog_summary,
         "navigationTerrain": navigation_terrain,
         "navigationPointerChains": nav_state_data,
+        "navigationPointerDiscovery": navigation_pointer_discovery,
         "retiredSurfaces": retired_guardrail,
         "allowedActions": list(ALLOWED_ACTIONS),
         "forbiddenActions": list(FORBIDDEN_ACTIONS),
@@ -1396,6 +1413,32 @@ def _compact_nav_state(nav_state_data: Any) -> dict[str, Any] | None:
     }
 
 
+def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None:
+    """Compact latest navigation pointer discovery evidence."""
+
+    if not isinstance(discovery_data, dict):
+        return None
+    candidates = safe_mapping(discovery_data.get("candidates"))
+    promoted = safe_mapping(candidates.get("promotedCoordinate"))
+    facing = safe_mapping(candidates.get("candidateFacingTarget"))
+    turn_rate = safe_mapping(candidates.get("candidateTurnRate"))
+    coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
+    return {
+        "status": discovery_data.get("status"),
+        "verdict": discovery_data.get("verdict"),
+        "promotedCoordinateStatus": promoted.get("status"),
+        "promotedCoordinateChain": promoted.get("chain"),
+        "facingTargetStatus": facing.get("status"),
+        "facingTargetOffset": facing.get("offset"),
+        "facingTargetMaxAbsYawDeltaDegrees": facing.get("comparisonMaxAbsYawDeltaDegrees"),
+        "turnRateStatus": turn_rate.get("status"),
+        "turnRateOffset": turn_rate.get("offset"),
+        "coordinateDeltaStatus": coordinate_delta.get("status"),
+        "coordinateDeltaTrackingErrorMaxAbs": coordinate_delta.get("trackingErrorMaxAbs"),
+        "nextRecommendedAction": safe_mapping(discovery_data.get("next")).get("recommendedAction"),
+    }
+
+
 def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
     return {
         "schemaVersion": packet.get("schemaVersion"),
@@ -1414,6 +1457,7 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "noProgressStepCount": safe_mapping(packet.get("navigationTerrain")).get("noProgressStepCount"),
         },
         "navigationPointerChains": _compact_nav_state(packet.get("navigationPointerChains")),
+        "navigationPointerDiscovery": _compact_nav_pointer_discovery(packet.get("navigationPointerDiscovery")),
         "llmReminder": packet.get("llmReminder"),
         "milestoneStatus": packet.get("milestoneStatus"),
         "commitPlan": packet.get("commitPlan"),
@@ -1583,6 +1627,26 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Status: `unavailable` — missing target fields: `{nav_chain.get('missingFields')}`",
             ]
         )
+    nav_discovery = safe_mapping(packet.get("navigationPointerDiscovery"))
+    if nav_discovery:
+        discovery_candidates = safe_mapping(nav_discovery.get("candidates"))
+        promoted = safe_mapping(discovery_candidates.get("promotedCoordinate"))
+        facing = safe_mapping(discovery_candidates.get("candidateFacingTarget"))
+        turn_rate = safe_mapping(discovery_candidates.get("candidateTurnRate"))
+        coordinate_delta = safe_mapping(discovery_candidates.get("coordinateDeltaCandidate"))
+        lines.extend(
+            [
+                "",
+                "## Navigation pointer discovery dashboard (artifact index)",
+                "",
+                f"- Status: `{nav_discovery.get('status')}` | Verdict: `{nav_discovery.get('verdict')}`",
+                f"- Coordinate resolver: `{promoted.get('status')}` — `{promoted.get('chain')}`",
+                f"- Facing target: `{facing.get('status')}` at `{facing.get('offset')}`; max yaw delta `{facing.get('comparisonMaxAbsYawDeltaDegrees')}`",
+                f"- Turn rate: `{turn_rate.get('status')}` at `{turn_rate.get('offset')}`",
+                f"- Coordinate delta: `{coordinate_delta.get('status')}`; tracking max abs `{coordinate_delta.get('trackingErrorMaxAbs')}`",
+                f"- Next: {safe_mapping(nav_discovery.get('next')).get('recommendedAction')}",
+            ]
+        )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
@@ -1681,6 +1745,7 @@ def build_schema_contract() -> dict[str, Any]:
             "toolCatalog",
             "navigationTerrain",
             "navigationPointerChains",
+            "navigationPointerDiscovery",
             "allowedActions",
             "forbiddenActions",
             "safeNextAction",
@@ -1723,6 +1788,19 @@ def build_schema_contract() -> dict[str, Any]:
             "navStateError",
             "navStateCandidateOnly",
             "actionableForNavigation",
+        ],
+        "navigationPointerDiscoveryFields": [
+            "status",
+            "verdict",
+            "target",
+            "sources",
+            "candidates",
+            "promotionReadiness",
+            "next",
+            "blockers",
+            "warnings",
+            "errors",
+            "safety",
         ],
         "retiredSurfaceFields": ["paths", "policy", "blocker", "requiresExplicitReauthorization", "recommendedAction"],
         "commitPlanFields": [
