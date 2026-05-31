@@ -40,6 +40,25 @@ The same dashboard is embedded in compact workflow status after it exists:
 cmd /c scripts\riftreader-workflow-status.cmd --compact-json --write
 ```
 
+When the dashboard shows only `currentTruth` as stale, build an ignored dry-run
+tracked-truth proposal before editing truth docs:
+
+```powershell
+cmd /c scripts\riftreader-current-truth-refresh-plan.cmd --json --write
+```
+
+Outputs:
+
+```text
+.riftreader-local\current-truth-refresh-plan\latest\summary.json
+.riftreader-local\current-truth-refresh-plan\latest\proposed-current-truth.json
+.riftreader-local\current-truth-refresh-plan\latest\proposed-current-truth.diff
+```
+
+The refresh-plan helper is **dry-run only**. It does not edit
+`docs\recovery\current-truth.json`; applying a tracked truth refresh remains a
+separate explicit gate.
+
 This helper is read-only: it indexes existing artifacts only and performs no
 live input, movement, target memory read, debugger/CE attach, provider write,
 Git mutation, or proof promotion.
