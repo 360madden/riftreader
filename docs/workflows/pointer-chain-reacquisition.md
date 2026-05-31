@@ -34,6 +34,12 @@ Outputs:
 .riftreader-local\navigation-pointer-discovery\latest\summary.md
 ```
 
+The same dashboard is embedded in compact workflow status after it exists:
+
+```powershell
+cmd /c scripts\riftreader-workflow-status.cmd --compact-json --write
+```
+
 This helper is read-only: it indexes existing artifacts only and performs no
 live input, movement, target memory read, debugger/CE attach, provider write,
 Git mutation, or proof promotion.
@@ -81,20 +87,16 @@ Resolver broken?
 
 If RIFT just restarted but no game update occurred:
 
-```bash
-# Find the new PID
+```powershell
 tasklist /fi "imagename eq rift_x64.exe" /fo csv
-
-# Read back with auto-detection
-python scripts/static_owner_coordinate_chain_readback.py \
-  --process-name rift_x64 --pid <newpid> \
-  --module-base 0x<newbase> --json
-
-# Update current-truth.json with new PID and module base
+python scripts\static_owner_coordinate_chain_readback.py --process-name rift_x64 --pid <PID> --hwnd <HWND> --module-base 0x<MODULE_BASE> --samples 3 --interval-seconds 0.20 --expect-stationary --json
 ```
 
 The root RVA `0x32EBC80` and all owner offsets are unchanged — they're struct
 positions in the game binary, not runtime addresses.
+
+Only update `current-truth.json` after exact PID/HWND/process-start/module-base
+identity has been rechecked and the readback passes.
 
 ---
 
@@ -103,12 +105,8 @@ positions in the game binary, not runtime addresses.
 If the game binary changed, the root RVA might have shifted. Use the captured
 AOB signature to find it:
 
-```bash
-# Scan the module for the known root pattern
-dotnet run --project reader/RiftReader.Reader/RiftReader.Reader.csproj -- \
-  --process-name rift_x64 \
-  --scan-module-pattern "<AOB from signatures/rift_x64/root_0x32EBC80.json>" \
-  --json
+```powershell
+dotnet run --project reader\RiftReader.Reader\RiftReader.Reader.csproj -- --process-name rift_x64 --scan-module-pattern "<AOB from signatures\rift_x64\root_0x32EBC80.json>" --json
 ```
 
 If the signature matches once in the module, the new RVA is reported.
@@ -116,20 +114,25 @@ Update `current-truth.json` `rootRva` field and re-verify.
 
 If the signature matches **zero times**: the pattern changed. Re-capture:
 
-```bash
-# Option A: Known-value scan in Cheat Engine
+```text
+Option A: Known-value scan in Cheat Engine
 #  1. In CE, scan for current player X coordinate (float)
 #  2. Find the coordinate address
 #  3. Read backwards to find the owner pointer
 #  4. Trace the pointer back to its module-RVA root
+```
 
-# Option B: Pointer family scan
-python scripts/pointer_family_scan.py --pid <pid> --owner <owner_addr> --json
+Cheat Engine/debugger use is a gated boundary. Prefer read-only repo helpers
+first when enough exact-target data exists:
 
-# Once the new RVA is found, capture a fresh signature:
-python scripts/capture_root_signature.py \
-  --rva 0x<newRva> --label root-player-owner \
-  --pid <pid> --json
+```powershell
+python scripts\pointer_family_scan.py --target-pid <PID> --target-hwnd <HWND> --expected-module-base 0x<MODULE_BASE> --target-address 0x<COORDINATE_ADDRESS> --depth 3 --json
+```
+
+Once the new RVA is found, capture a fresh signature:
+
+```powershell
+python scripts\capture_root_signature.py --rva 0x<NEW_RVA> --label root-player-owner --pid <PID> --json
 ```
 
 ---
@@ -138,15 +141,9 @@ python scripts/capture_root_signature.py \
 
 After updating the root RVA, verify the chain still produces valid coordinates:
 
-```bash
-# Full nav-state readback
-python scripts/static_owner_coordinate_chain_readback.py \
-  --use-current-truth --nav-state --json
-
-# Compare against API ground truth
-pwsh -NoProfile -ExecutionPolicy Bypass \
-  -File scripts/capture-rift-api-reference-coordinate.ps1 \
-  -ProcessId <pid> -Json
+```powershell
+python scripts\static_owner_coordinate_chain_readback.py --use-current-truth --nav-state --samples 3 --interval-seconds 0.20 --expect-stationary --json
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\capture-rift-api-reference-coordinate.ps1 -ProcessId <PID> -Json
 ```
 
 Expected: API coordinate matches chain coordinate within 0.25 tolerance.
@@ -157,15 +154,12 @@ Expected: API coordinate matches chain coordinate within 0.25 tolerance.
 
 If the owner layout might have changed:
 
-```bash
-# Scan ±64KB around the root for owner pointers
-python scripts/pointer_owner_neighborhood_inspector.py \
-  --pid <pid> --module-base 0x<base> --root-rva 0x<rva> \
-  --scan-window 65536 --json
-
-# Check: is the owner pointer still at the same RVA?
-# Check: are there new/different owner pointers?
+```powershell
+python scripts\pointer_owner_neighborhood_inspector.py --pid <PID> --hwnd <HWND> --owner-address 0x<OWNER_ADDRESS> --target-address 0x<TARGET_ADDRESS> --target-window-size 65536 --module-base 0x<MODULE_BASE> --module-name rift_x64.exe --include-module-pointers --json
 ```
+
+Check whether the owner pointer is still rooted at the same RVA and whether
+new/different owner pointers appear in the surrounding window.
 
 ---
 
@@ -173,19 +167,18 @@ python scripts/pointer_owner_neighborhood_inspector.py \
 
 Dump the owner window and verify known offsets:
 
-```bash
-# Read 0x2C0-0x380 from owner object
-python scripts/static_owner_coordinate_chain_readback.py \
-  --use-current-truth --nav-state --json
-
-# Verify:
-# - 0x300: accumulated heading (plausible float, not zero)
-# - 0x304: turn rate (near zero when stationary)
-# - 0x30C-0x314: facing target (non-zero vec3)
-# - 0x320-0x328: player coordinates (match /rap API)
+```powershell
+python scripts\static_owner_coordinate_chain_readback.py --use-current-truth --nav-state --samples 3 --interval-seconds 0.20 --expect-stationary --json
 ```
 
 If offsets shifted, treat as a full re-discovery.
+
+Verify:
+
+- `0x300`: accumulated heading (plausible float, not zero)
+- `0x304`: turn rate (near zero when stationary)
+- `0x30C-0x314`: facing target (non-zero vec3)
+- `0x320-0x328`: player coordinates (match `/rap` API)
 
 ---
 
