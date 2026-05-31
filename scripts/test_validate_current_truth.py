@@ -86,6 +86,15 @@ class CurrentTruthValidatorTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["errors"], [])
 
+    def test_current_blockers_may_be_empty_when_truth_is_unblocked(self) -> None:
+        truth = minimal_truth()
+        truth["currentBlockers"] = []
+
+        result = validate_truth(truth, repo_root=Path.cwd(), check_artifacts=False)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["errors"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

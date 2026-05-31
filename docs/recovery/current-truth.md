@@ -1,14 +1,14 @@
 # Current RIFT live truth — static player-coordinate resolver PROMOTED
 
-Updated UTC: `2026-05-30T13:41:00Z`
+Updated UTC: `2026-05-31T12:44:00Z`
 
 # **✅ RESULT**
 
-The static chain below is now **promoted** as the current static **player-coordinate resolver**:
+The static chain below remains **promoted** as the current static **player-coordinate resolver**:
 
 `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
 
-This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer.
+This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `25668` / HWND `0x320CB0`; PID `34176` appears below only as historical promotion-validation evidence.
 
 ## Current target
 
@@ -17,15 +17,20 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Process | `rift_x64.exe` |
 | PID | `25668` |
 | HWND | `0x320CB0` |
-| Process start UTC | `2026-05-30T13:41:00Z` (session-reacquired) |
+| Process start UTC | `2026-05-30T02:46:41.581536+00:00` |
 | Module base | `0x7FF6EE5D0000` |
 | Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
-| Owner in validated epoch | `0x1B53D7806A0` |
-| Coordinate address in validated epoch | `0x1B53D7809C0` (owner+0x320) |
-| Latest static-chain coordinate | `7262.019042969, 821.520996094, 3000.512451172` |
-| Latest RRAPICOORD API coordinate | `(pending Tier 2 verified capture)` |
-| Latest API timestamp | `(pending)` |
+| Owner in current readback | `0x1B53D7806A0` |
+| Coordinate address in current readback | `0x1B53D7809C0` (owner+0x320) |
+| Latest recorded coordinate snapshot | `7262.338378906, 821.693603516, 3002.999023438` at `2026-05-31T12:42:43.251181+00:00` — current static-chain readback; do not present this value as current-now/API-confirmed without a fresh API-now vs memory-now comparison. |
+| Latest current nav yaw | `85.060059137°` at `2026-05-31T12:42:44.004951+00:00` |
+| Latest RRAPICOORD API coordinate for PID 25668 | `(pending current API-now vs chain-now capture)` |
+| Latest API timestamp for PID 25668 | `(pending)` |
+| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-124243-250543\summary.json` |
+| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-124244-004288\summary.json` |
 | Promotion report | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promoted-2026-05-27.md` |
+
+PID/HWND identity is a targeting preflight only; currentness still requires a fresh API-now vs memory-now readback with timestamped API and memory coordinates, per-axis deltas, tolerance, and verdict.
 
 ## Promotion gate summary
 
@@ -42,7 +47,7 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Cheat Engine / x64dbg | **Not used** | No CE, no x64dbg attach, no breakpoints/watchpoints |
 | Target memory writes | **None** | Memory reads only |
 
-## Live validation samples
+## Historical promotion validation samples (PID 34176)
 
 | Sample | Movement state | RRAPICOORD API-now | Static chain-now | Max abs delta |
 |---|---|---:|---:|---:|
@@ -50,7 +55,7 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | `after-forward-w-1200ms` | `w:1200ms` | `7261.149900000, 821.450000000, 2998.369900000` | `7261.151855469, 821.450012207, 2998.371582031` | `0.001955469` |
 | `after-reverse-s-900ms` | `s:900ms then delayed api retry` | `7260.720000000, 821.430000000, 2995.660000000` | `7260.723144531, 821.425231934, 2995.659667969` | `0.004768066` |
 
-Movement displacement agreed between the API surface and chain readback:
+These samples validate the promoted resolver historically. They must not be presented as current PID `25668` API-now proof. Movement displacement agreed between the API surface and chain readback:
 
 | Segment | API planar X/Z delta | Static-chain planar X/Z delta |
 |---|---:|---:|
@@ -81,7 +86,7 @@ Movement displacement agreed between the API surface and chain readback:
 
 | Boundary | Status |
 |---|---|
-| Movement/input during final validation | Approved and sent: `w:1200ms`, `s:900ms` |
+| Movement/input during historical promotion validation | Approved and sent in PID `34176` epoch: `w:1200ms`, `s:900ms` |
 | `/reloadui` | Approved and sent via actionbar slot `11` / key `-` |
 | Cheat Engine | Not used |
 | x64dbg attach | Not used |
@@ -120,4 +125,4 @@ See **[Coordinate Recovery & Reacquisition Workflow](coordinate-recovery-workflo
 
 ## Next recommended action
 
-Continue from this promoted coordinate resolver into the next lane: wire/readback consumers against `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, keep exact-target/freshness preflights, and pursue separate actor/stat field discovery without conflating it with this coordinate promotion.
+Continue from this promoted coordinate resolver with exact-target/freshness preflights. Before presenting current coordinates as API-confirmed truth, capture PID `25668` API-now vs chain-now evidence. Keep actor/stat field discovery separate from this coordinate promotion.

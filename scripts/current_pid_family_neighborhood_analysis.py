@@ -16,7 +16,10 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-from .workflow_common import utc_iso, utc_stamp, write_json
+try:
+    from .workflow_common import utc_iso, utc_stamp, write_json
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import utc_iso, utc_stamp, write_json  # type: ignore
 
 SCHEMA_VERSION = 1
 DEFAULT_CANDIDATE_GLOB = "scripts/captures/family-scan-currentpid-{pid}-*/api-family-vec3-candidates.jsonl"

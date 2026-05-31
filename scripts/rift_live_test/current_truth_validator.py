@@ -66,9 +66,9 @@ def require_mapping(document: dict[str, Any], key: str, errors: list[str]) -> di
     return value
 
 
-def require_list(document: dict[str, Any], key: str, errors: list[str]) -> list[Any]:
+def require_list(document: dict[str, Any], key: str, errors: list[str], *, allow_empty: bool = False) -> list[Any]:
     value = document.get(key)
-    if not isinstance(value, list) or not value:
+    if not isinstance(value, list) or (not value and not allow_empty):
         errors.append(f"missing-list:{key}")
         return []
     return value
@@ -146,7 +146,7 @@ def validate_truth(document: dict[str, Any], *, repo_root: Path, check_artifacts
         warnings.append("movement-blocked-but-candidate-status-does-not-say-candidate")
 
     require_list(document, "staleOrInvalid", errors)
-    require_list(document, "currentBlockers", errors)
+    require_list(document, "currentBlockers", errors, allow_empty=True)
 
     if check_artifacts:
         for artifact in iter_artifact_paths(document):

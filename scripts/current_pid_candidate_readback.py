@@ -38,7 +38,10 @@ from scan_current_pid_coordinate_family import (  # noqa: E402
     verify_hwnd_owner,
 )
 
-from .workflow_common import utc_iso, utc_stamp, write_json
+try:
+    from .workflow_common import utc_iso, utc_stamp, write_json
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import utc_iso, utc_stamp, write_json  # type: ignore
 
 
 SCHEMA_VERSION = 1

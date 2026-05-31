@@ -14,16 +14,16 @@ from scripts.static_owner_turn_forward_experiment import (
 )
 
 
-def testdata_path(name: str) -> Path:
+def _testdata_path(name: str) -> Path:
     return Path(__file__).resolve().parent / "navigation" / "testdata" / name
 
 
 def route_step_fixture() -> dict:
-    return json.loads(testdata_path("static-owner-nav-route-step-summary-progress.json").read_text(encoding="utf-8"))
+    return json.loads(_testdata_path("static-owner-nav-route-step-summary-progress.json").read_text(encoding="utf-8"))
 
 
 def plan_fixture(name: str = "static-owner-turn-aware-route-plan-summary-turn-needed.json") -> dict:
-    return json.loads(testdata_path(name).read_text(encoding="utf-8"))
+    return json.loads(_testdata_path(name).read_text(encoding="utf-8"))
 
 
 class StaticOwnerTurnForwardExperimentTests(unittest.TestCase):
@@ -198,7 +198,7 @@ class StaticOwnerTurnForwardExperimentTests(unittest.TestCase):
         self.assertEqual("passed", summary["contract"]["status"])
 
     def test_checked_in_live_progress_fixture_passes_contract(self):
-        summary = json.loads(testdata_path("static-owner-turn-forward-experiment-summary-progress.json").read_text(encoding="utf-8"))
+        summary = json.loads(_testdata_path("static-owner-turn-forward-experiment-summary-progress.json").read_text(encoding="utf-8"))
 
         contract = validate_turn_forward_experiment_contract(summary)
 

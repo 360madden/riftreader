@@ -18,7 +18,10 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any
 
-from .workflow_common import utc_iso, utc_stamp, write_json
+try:
+    from .workflow_common import utc_iso, utc_stamp, write_json
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import utc_iso, utc_stamp, write_json  # type: ignore
 
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000

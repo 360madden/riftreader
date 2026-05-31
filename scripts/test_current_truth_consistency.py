@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import json
+import re
+import unittest
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TRUTH_JSON = REPO_ROOT / "docs" / "recovery" / "current-truth.json"
+TRUTH_MD = REPO_ROOT / "docs" / "recovery" / "current-truth.md"
+
+
+class CurrentTruthConsistencyTests(unittest.TestCase):
+    def load_truth(self) -> dict:
+        with TRUTH_JSON.open(encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+        self.assertIsInstance(payload, dict)
+        return payload
+
+    def load_markdown(self) -> str:
+        return TRUTH_MD.read_text(encoding="utf-8")
+
+    def test_json_current_target_identity_is_not_historical_pid(self) -> None:
+        truth = self.load_truth()
+        target = truth["target"]
+        live = truth["liveReferenceSurface"]
+        candidate = truth["bestCurrentCandidate"]
+        static_primary = truth["staticChainStatus"]["primaryCandidate"]
+        latest_readback = truth["staticChainStatus"]["latestCurrentStaticReadback"]
+
+        current_pid = int(target["processId"])
+        current_hwnd = str(target["targetWindowHandle"]).upper()
+        current_start = str(target["processStartUtc"])
+
+        self.assertEqual(current_pid, 25668)
+        self.assertEqual(current_hwnd, "0X320CB0")
+        self.assertEqual(current_start, "2026-05-30T02:46:41.581536+00:00")
+        self.assertNotIn("current_pid_34176", str(truth.get("status", "")))
+        self.assertNotIn("PID 34176 / HWND 0x3D1544", str(live.get("view", "")))
+
+        current_scoped_payload = {
+            "target": {
+                "processId": target.get("processId"),
+                "targetWindowHandle": target.get("targetWindowHandle"),
+                "processStartUtc": target.get("processStartUtc"),
+                "moduleBase": target.get("moduleBase"),
+                "status": target.get("status"),
+            },
+            "liveReferenceSurface": {
+                "status": live.get("status"),
+                "view": live.get("view"),
+                "apiNowStatus": live.get("apiNowStatus"),
+                "currentCoordinateFromStaticChainCandidate": live.get(
+                    "currentCoordinateFromStaticChainCandidate"
+                ),
+                "latestCurrentStaticReadback": live.get("latestCurrentStaticReadback"),
+                "latestCurrentNavStateReadback": live.get("latestCurrentNavStateReadback"),
+            },
+            "bestCurrentCandidate": {
+                "rootAddress": candidate.get("rootAddress"),
+                "currentOwnerAddress": candidate.get("currentOwnerAddress"),
+                "currentCoordinateAddress": candidate.get("currentCoordinateAddress"),
+                "coordinate": candidate.get("coordinate"),
+                "status": candidate.get("status"),
+            },
+            "staticChainPrimaryCandidate": {
+                "rootAddress": static_primary.get("rootAddress"),
+                "ownerAddress": static_primary.get("ownerAddress"),
+                "coordinateAddress": static_primary.get("coordinateAddress"),
+                "coordinate": static_primary.get("coordinate"),
+            },
+            "latestCurrentStaticReadback": latest_readback,
+        }
+        current_scoped_text = json.dumps(current_scoped_payload, sort_keys=True)
+        self.assertNotIn("34176", current_scoped_text)
+        self.assertNotIn("0x3D1544", current_scoped_text)
+
+    def test_current_api_now_is_explicitly_pending_for_current_pid(self) -> None:
+        truth = self.load_truth()
+        current_pid = int(truth["target"]["processId"])
+        live = truth["liveReferenceSurface"]
+
+        self.assertEqual(live["apiNowStatus"], f"pending-current-pid-{current_pid}-api-now-vs-chain-now")
+        self.assertIn(f"current-pid-{current_pid}-api-now-capture-pending", live["apiNowBlockers"])
+        latest_api = live["latestApiCoordinate"]
+        self.assertEqual(
+            latest_api["status"],
+            f"pending-current-pid-{current_pid}-api-now-vs-chain-now",
+        )
+        self.assertIsNone(latest_api["coordinate"])
+        self.assertIsNone(latest_api["capturedAtUtc"])
+
+    def test_markdown_current_target_matches_json_target(self) -> None:
+        truth = self.load_truth()
+        markdown = self.load_markdown()
+        target = truth["target"]
+        pid = str(target["processId"])
+        hwnd = str(target["targetWindowHandle"])
+        process_start = str(target["processStartUtc"])
+        module_base = str(target["moduleBase"])
+
+        self.assertIn(f"| PID | `{pid}` |", markdown)
+        self.assertIn(f"| HWND | `{hwnd}` |", markdown)
+        self.assertIn(f"| Process start UTC | `{process_start}` |", markdown)
+        self.assertIn(f"| Module base | `{module_base}` |", markdown)
+        self.assertIn(f"Latest RRAPICOORD API coordinate for PID {pid}", markdown)
+        self.assertIn("(pending current API-now vs chain-now capture)", markdown)
+
+        current_target_section = re.search(
+            r"## Current target\n(?P<section>.*?)(?:\n## Promotion gate summary)",
+            markdown,
+            flags=re.S,
+        )
+        self.assertIsNotNone(current_target_section)
+        section_text = current_target_section.group("section") if current_target_section else ""
+        self.assertNotIn("34176", section_text)
+        self.assertNotIn("0x3D1544", section_text)
+
+    def test_historical_pid_is_labeled_historical_when_present(self) -> None:
+        markdown = self.load_markdown()
+        for line in markdown.splitlines():
+            if "34176" not in line:
+                continue
+            if "scripts\\captures\\" in line or "rift-api-reference-currentpid-34176" in line:
+                continue
+            self.assertRegex(line.lower(), r"historical|promotion-validation|pid `34176` epoch")
+
+
+if __name__ == "__main__":
+    unittest.main()

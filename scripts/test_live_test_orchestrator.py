@@ -74,7 +74,7 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def testdata_path(name: str) -> Path:
+def _testdata_path(name: str) -> Path:
     return Path(__file__).resolve().parent / "rift_live_test" / "testdata" / name
 
 
@@ -670,7 +670,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         )
 
     def test_format_inspect_summary_is_human_readable(self) -> None:
-        result = inspect_progress_file(testdata_path("progress-blocked-reference.json"))
+        result = inspect_progress_file(_testdata_path("progress-blocked-reference.json"))
 
         text = format_inspect_summary(result)
 
@@ -686,7 +686,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--inspect-progress",
                     "--progress-file",
-                    str(testdata_path("progress-blocked-reference.json")),
+                    str(_testdata_path("progress-blocked-reference.json")),
                     "--summary",
                 ]
             )
@@ -767,7 +767,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--latest",
                     "--latest-pointer",
-                    str(testdata_path("latest-pointer.json")),
+                    str(_testdata_path("latest-pointer.json")),
                     "--inspect-progress",
                     "--require-ok-run",
                     "--compact-json",
@@ -786,7 +786,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--inspect-progress",
                     "--progress-file",
-                    str(testdata_path("progress-passed.json")),
+                    str(_testdata_path("progress-passed.json")),
                     "--fail-on-warning",
                 ]
             )
@@ -806,7 +806,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--inspect-progress",
                     "--progress-file",
-                    str(testdata_path("progress-running.json")),
+                    str(_testdata_path("progress-running.json")),
                     "--stale-after-seconds",
                     "1",
                     "--fail-on-warning",
@@ -819,12 +819,12 @@ class LiveTestOrchestratorTests(unittest.TestCase):
 
     def test_checked_in_progress_fixtures_validate(self) -> None:
         running = inspect_progress_file(
-            testdata_path("progress-running.json"),
+            _testdata_path("progress-running.json"),
             now=datetime_from_text("2026-05-07T17:06:00Z"),
             stale_after_seconds=30,
         )
-        passed = inspect_progress_file(testdata_path("progress-passed.json"))
-        blocked = inspect_progress_file(testdata_path("progress-blocked-reference.json"))
+        passed = inspect_progress_file(_testdata_path("progress-passed.json"))
+        blocked = inspect_progress_file(_testdata_path("progress-blocked-reference.json"))
 
         self.assertTrue(running["ok"])
         self.assertEqual(running["runHealth"]["state"], "stale")
@@ -844,7 +844,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
     def test_checked_in_latest_pointer_fixture_resolves(self) -> None:
         latest = resolve_latest_run(
             repo_root=repo_root(),
-            pointer_file=testdata_path("latest-pointer.json"),
+            pointer_file=_testdata_path("latest-pointer.json"),
         )
 
         self.assertEqual(latest["profileName"], "FixturePassed")
@@ -853,12 +853,12 @@ class LiveTestOrchestratorTests(unittest.TestCase):
         self.assertEqual(latest["status"], "passed")
         self.assertEqual(latest["runHealth"]["state"], "ok")
         self.assertTrue(latest["finalSummaryWritten"])
-        self.assertEqual(latest["progressFile"], testdata_path("progress-passed.json"))
+        self.assertEqual(latest["progressFile"], _testdata_path("progress-passed.json"))
 
     def test_checked_in_latest_pointer_drift_fixture_reports_warning(self) -> None:
         latest = resolve_latest_run(
             repo_root=repo_root(),
-            pointer_file=testdata_path("latest-pointer-drift.json"),
+            pointer_file=_testdata_path("latest-pointer-drift.json"),
         )
         result = inspect_latest_progress(
             latest,
@@ -925,7 +925,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--latest",
                     "--latest-pointer",
-                    str(testdata_path("latest-pointer.json")),
+                    str(_testdata_path("latest-pointer.json")),
                     "--inspect-progress",
                 ]
             )
@@ -949,7 +949,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--latest",
                     "--latest-pointer",
-                    str(testdata_path("latest-pointer-drift.json")),
+                    str(_testdata_path("latest-pointer-drift.json")),
                     "--inspect-progress",
                     "--fail-on-warning",
                     "--compact-json",
@@ -973,7 +973,7 @@ class LiveTestOrchestratorTests(unittest.TestCase):
                 [
                     "--latest",
                     "--latest-pointer",
-                    str(testdata_path("latest-pointer-drift.json")),
+                    str(_testdata_path("latest-pointer-drift.json")),
                     "--inspect-progress",
                     "--fail-on-warning",
                     "--summary",

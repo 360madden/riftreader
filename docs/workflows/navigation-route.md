@@ -26,26 +26,52 @@ _chain_readback.py          aware_route_plan.py          (ScanCode keys)
 ## Quick commands
 
 ### Read player position + orientation
-```bash
+```powershell
 python scripts/static_owner_coordinate_chain_readback.py --use-current-truth --nav-state --json
 ```
 
 ### Dry-run route plan (no movement)
-```bash
-python scripts/static_owner_turn_aware_route_plan.py \
-  --use-current-truth --waypoint-file <route.json> --json
+```powershell
+python scripts/static_owner_turn_aware_route_plan.py `
+  --use-current-truth `
+  --destination-waypoint-json <waypoint.json> `
+  --json
 ```
 
 ### Execute single route step
-```bash
-python scripts/static_owner_nav_route_step.py \
-  --use-current-truth --route-file <route.json> --json
+```powershell
+python scripts/static_owner_nav_route_step.py `
+  --use-current-truth `
+  --destination-waypoint-json <waypoint.json> `
+  --movement-approved `
+  --json
 ```
 
 ### Execute continuous multi-step route
-```bash
-python scripts/static_owner_continuous_route_runner.py \
-  --use-current-truth --route-file <route.json> --movement-approved --json
+```powershell
+python scripts/static_owner_continuous_route_runner.py `
+  --use-current-truth `
+  --waypoint-sequence-json <waypoints.json> `
+  --turn-backend mouse-look `
+  --mouse-pixels-per-pulse 40 `
+  --turn-approved `
+  --movement-approved `
+  --allow-candidate-turn-control `
+  --json
+```
+
+### Execute a direct coordinate route
+```powershell
+python scripts/static_owner_continuous_route_runner.py `
+  --use-current-truth `
+  --destination-x 7295 `
+  --destination-z 2945 `
+  --turn-backend mouse-look `
+  --mouse-pixels-per-pulse 40 `
+  --turn-approved `
+  --movement-approved `
+  --allow-candidate-turn-control `
+  --json
 ```
 
 ---
@@ -85,8 +111,8 @@ Each step:
 
 | Limitation | Status | Mitigation |
 |---|---|---|
-| Turn completion verification | ✅ #3 done | `turn_completion_detector.py` verifies pulse-loop convergence before route-forward continuation |
-| Strafe/drift detection | ✅ #4 offline done | Route summaries classify stationary blocks and drift-back; strafe recovery remains advisory/gated |
+| Turn completion verification | ✅ #3 done | `turn_completion_detector.py` exact-targets PID/HWND and supports `--turn-backend key` or live-valid `--turn-backend mouse-look` |
+| Strafe/drift detection | ✅ #4 offline done | Route summaries classify stationary blocks and drift-back; chat/UI focus must be ruled out before terrain conclusions |
 | Facing target zero-vector after zone-in | ✅ Guard #2 | `navStateError: facing-target-zero-vector` |
 | Stale module base after restart | ✅ Guard #1 | `moduleBaseCheck` freshness gate |
 
@@ -109,7 +135,10 @@ All live movement requires:
 2. Module base freshness gate passes (live module base matches `current-truth.json`)
 3. Facing target non-zero (zone-in state blocked)
 4. Exact PID/HWND/process-start match to `current-truth.json`
-5. No Cheat Engine, no x64dbg, no SavedVariables-as-live-truth
+5. Turn input approval via `--turn-approved` when route execution may turn
+6. Candidate-yaw control approval via `--allow-candidate-turn-control`
+7. Optional `--clear-ui-focus-before-input` only after visual confirmation of chat/menu focus
+8. No Cheat Engine, no x64dbg, no SavedVariables-as-live-truth
 
 ## Anti-patterns
 
@@ -117,7 +146,7 @@ All live movement requires:
 |---|---|
 | Move without fresh chain readback | Always `--nav-state` before any W/S key |
 | Trust old PID proof anchors | Module-RVA resolver (`0x32EBC80`) survives restarts |
-| Send turn keys without convergence check | `turn_completion_detector.py` pulse-loop convergence |
+| Send title-only turn keys without convergence check | `turn_completion_detector.py` with exact PID/HWND target resolution |
 | Treat a strafe recommendation as permission | Execute only after explicit movement approval and fresh exact-target readback |
 | Treat `ReaderBridgeExport.lua` as live IPC | SavedVariables update only on `/reloadui`/logout |
 

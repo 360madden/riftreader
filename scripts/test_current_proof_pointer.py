@@ -27,6 +27,33 @@ class CurrentProofPointerTests(unittest.TestCase):
             self.assertIn("do-not-use-as-current-proof", stale.get("reusePolicy", ""))
             return
 
+        if pointer.get("status") == "historical-stale-superseded-by-promoted-static-resolver":
+            classification = pointer.get("currentTruthClassification")
+            self.assertIsInstance(classification, dict)
+            self.assertEqual(
+                classification.get("classification"),
+                "historical-stale-proof-anchor-superseded-by-promoted-static-resolver",
+            )
+            self.assertIn("Do not use", classification.get("staleProtection", ""))
+            source = pointer.get("riftscanCandidateSource")
+            self.assertIsInstance(source, dict)
+            self.assertFalse(source.get("currentUseAllowed"))
+            self.assertEqual(
+                source.get("currentUseBlocker"),
+                "historical-stale-superseded-by-promoted-static-resolver",
+            )
+            self.assertEqual(pointer.get("latestValidation", {}).get("status"), "historical-stale-target-epoch")
+            self.assertFalse(pointer.get("latestValidation", {}).get("movementAllowed"))
+            latest_proof = pointer.get("latestProofOnly")
+            self.assertIsInstance(latest_proof, dict)
+            self.assertEqual(latest_proof.get("status"), "historical-stale-target-epoch")
+            self.assertFalse(latest_proof.get("movementSent"))
+            superseded = pointer.get("supersededByPromotedStaticResolver")
+            self.assertIsInstance(superseded, dict)
+            self.assertEqual(superseded.get("status"), "superseded")
+            self.assertIn("never current movement/API proof", superseded.get("reusePolicy", ""))
+            return
+
         source = pointer.get("riftscanCandidateSource")
         self.assertIsInstance(source, dict)
         self.assertTrue(source.get("matchFile"))

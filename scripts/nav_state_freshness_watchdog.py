@@ -53,7 +53,10 @@ def _read_one_nav_state(
     Delegates to the shared nav_state_readback helper, then adapts the
     return shape to the watchdog's internal format (navState, reads keys).
     """
-    from scripts.nav_state_readback import read_nav_state
+    try:
+        from .nav_state_readback import read_nav_state
+    except ImportError:  # pragma: no cover - direct script execution path
+        from nav_state_readback import read_nav_state  # type: ignore
     result = read_nav_state(
         root=root,
         pid=pid,

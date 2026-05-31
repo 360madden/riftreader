@@ -25,7 +25,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .workflow_common import utc_iso, utc_stamp, write_json
+try:
+    from .workflow_common import utc_iso, utc_stamp, write_json
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import utc_iso, utc_stamp, write_json  # type: ignore
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:

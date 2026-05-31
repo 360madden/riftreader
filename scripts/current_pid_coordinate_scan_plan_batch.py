@@ -18,7 +18,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .workflow_common import utc_iso, utc_stamp, write_json
+try:
+    from .workflow_common import utc_iso, utc_stamp, write_json
+except ImportError:  # pragma: no cover - direct script execution path
+    from workflow_common import utc_iso, utc_stamp, write_json  # type: ignore
 
 
 def find_repo_root(start: Path) -> Path:

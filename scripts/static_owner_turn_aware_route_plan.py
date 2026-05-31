@@ -216,7 +216,10 @@ def _read_nav_state(
 
     Delegates to the shared nav_state_readback helper.
     """
-    from scripts.nav_state_readback import read_nav_state
+    try:
+        from .nav_state_readback import read_nav_state
+    except ImportError:  # pragma: no cover - direct script execution path
+        from nav_state_readback import read_nav_state  # type: ignore
     result = read_nav_state(
         root=root,
         use_current_truth=True,
@@ -625,7 +628,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if not target_request:
             raise ValueError("navigation-target-required")
         summary["navigationTargetRequest"] = target_request
-        
+
         # Optional pointer-chain nav-state cross-check
         nav_state_readback: dict[str, Any] | None = None
         if args.nav_state:
@@ -634,7 +637,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 current_truth_json=str(args.current_truth_json),
                 timeout_seconds=float(args.command_timeout_seconds),
             )
-        
+
         summary["plan"] = build_turn_aware_plan(
             latest_state,
             target_request,

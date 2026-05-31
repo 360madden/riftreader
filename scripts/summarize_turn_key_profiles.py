@@ -27,7 +27,10 @@ def _read_nav_state(*, root: Path, current_truth_json: str, timeout_seconds: flo
 
     Delegates to the shared nav_state_readback helper.
     """
-    from scripts.nav_state_readback import read_nav_state
+    try:
+        from .nav_state_readback import read_nav_state
+    except ImportError:  # pragma: no cover - direct script execution path
+        from nav_state_readback import read_nav_state  # type: ignore
     return read_nav_state(
         root=root,
         use_current_truth=True,
