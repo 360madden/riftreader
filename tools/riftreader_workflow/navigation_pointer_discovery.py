@@ -447,6 +447,30 @@ def coordinate_delta_summary(
     }
 
 
+def build_next_action(freshness: dict[str, Any], facing_target: dict[str, Any] | None) -> dict[str, Any]:
+    stale_sources = set(str(item) for item in safe_list(freshness.get("staleSources")))
+    recommended_actions: list[str] = []
+    if {"coordinateReadback", "navState"} & stale_sources:
+        recommended_actions.append(
+            "Refresh no-input static coordinate/nav-state readbacks before navigation decisions."
+        )
+    if "currentTruth" in stale_sources and not ({"coordinateReadback", "navState"} & stale_sources):
+        recommended_actions.append(
+            "If tracked truth must be current, run a deliberate current-truth refresh slice from the fresh readback/API evidence; do not treat the dashboard as proof promotion."
+        )
+    if facing_target:
+        recommended_actions.append(
+            "Run restart/relog survival plus static-root proof for owner+0x30C/+0x310/+0x314 before any facing promotion."
+        )
+    else:
+        recommended_actions.append("Run static-owner facing snapshot/compare to reacquire candidate-facing target evidence.")
+
+    return {
+        "recommendedAction": recommended_actions[0],
+        "recommendedActions": recommended_actions,
+    }
+
+
 def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None = None) -> dict[str, Any]:
     now_utc = normalize_now(now)
     warnings: list[str] = []
@@ -596,13 +620,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
             "proofPromotionPerformed": False,
         },
-        "next": {
-            "recommendedAction": (
-                "Run restart/relog survival plus static-root proof for owner+0x30C/+0x310/+0x314 before any facing promotion."
-                if facing_target
-                else "Run static-owner facing snapshot/compare to reacquire candidate-facing target evidence."
-            )
-        },
+        "next": build_next_action(freshness, facing_target),
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "errors": errors,
@@ -687,6 +705,14 @@ def build_markdown(summary: dict[str, Any]) -> str:
             "## Next action",
             "",
             str(safe_mapping(summary.get("next")).get("recommendedAction") or ""),
+        ]
+    )
+    recommended_actions = safe_list(safe_mapping(summary.get("next")).get("recommendedActions"))
+    if recommended_actions:
+        lines.extend(["", "### Recommended action list", ""])
+        lines.extend(f"- {item}" for item in recommended_actions)
+    lines.extend(
+        [
             "",
             "## Artifacts",
             "",

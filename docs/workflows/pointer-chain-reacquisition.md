@@ -38,6 +38,22 @@ This helper is read-only: it indexes existing artifacts only and performs no
 live input, movement, target memory read, debugger/CE attach, provider write,
 Git mutation, or proof promotion.
 
+Freshness interpretation:
+
+| Dashboard field | Budget | Meaning |
+|---|---:|---|
+| `coordinateReadback` | 1800 seconds | Current no-input coordinate readback should be refreshed before navigation decisions when stale. |
+| `navState` | 1800 seconds | Current no-input facing/turn-rate readback should be refreshed before route or turn planning when stale. |
+| `currentTruth` | 1800 seconds | Tracked truth docs may lag newer ignored readback artifacts; refresh only in a deliberate truth-update slice. |
+| `facingComparison` | 86400 seconds | Historical discovery evidence remains useful for candidate scoring, but never authorizes promotion by itself. |
+| `pointerNeighborhood` | 86400 seconds | Historical pointer-neighborhood evidence remains candidate context only. |
+| `familySnapshot` | 86400 seconds | Historical movement-delta evidence confirms prior tracking but does not promote new navigation chains. |
+
+If only `currentTruth` is stale while fresh readback artifacts exist, use the
+dashboard for operator orientation and run a deliberate current-truth refresh
+slice only when tracked docs must be updated. Do not treat dashboard freshness
+as proof promotion or live-input approval.
+
 ---
 
 ## Decision tree

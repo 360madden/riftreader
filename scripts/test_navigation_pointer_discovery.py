@@ -206,6 +206,25 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertIn("navState", summary["freshness"]["staleSources"])
         self.assertNotIn("facingComparison", summary["freshness"]["staleSources"])
 
+    def test_next_action_prioritizes_truth_refresh_when_only_current_truth_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            truth_path = root / "docs" / "recovery" / "current-truth.json"
+            truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            truth["updatedAtUtc"] = "2026-05-31T13:00:00Z"
+            truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["freshness"]["staleSources"], ["currentTruth"])
+        self.assertIn("current-truth refresh slice", summary["next"]["recommendedAction"])
+        self.assertIn("static-root proof", summary["next"]["recommendedActions"][1])
+
     def test_missing_artifacts_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
@@ -248,6 +267,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertIn("Navigation Pointer Discovery Status", markdown)
         self.assertIn("Candidate summary", markdown)
         self.assertIn("Freshness", markdown)
+        self.assertIn("Recommended action list", markdown)
         self.assertIn("Next action", markdown)
 
     def test_main_self_test_json_passes(self) -> None:
