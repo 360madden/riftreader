@@ -11,6 +11,7 @@ from scripts.static_owner_nav_route_step import (
     classify_initial_step,
     classify_route_result,
     compact,
+    clear_ui_focus_command,
     destination_args,
     repo_root,
     route_command,
@@ -528,6 +529,54 @@ class StaticOwnerNavRouteStepTests(unittest.TestCase):
         cmd = send_key_command(args, repo_root(), {})
         self.assertIn("rift_x64", " ".join(cmd))
         self.assertIn("VirtualKey", cmd)
+
+    def test_clear_ui_focus_command_uses_exact_target_escape(self):
+        args = argparse.Namespace(
+            clear_ui_focus_key="escape",
+            clear_ui_focus_hold_milliseconds=50,
+            title_contains="RIFT",
+            input_mode="ScanCode",
+            focus_delay_milliseconds=250,
+        )
+        pre_state = {
+            "target": {
+                "processName": "rift_x64",
+                "processId": 1234,
+                "targetWindowHandle": "0xABC",
+            }
+        }
+
+        cmd = clear_ui_focus_command(args, repo_root(), pre_state)
+
+        self.assertIn("send-rift-key-csharp.ps1", " ".join(cmd))
+        self.assertEqual("escape", cmd[cmd.index("--key") + 1])
+        self.assertEqual("50", cmd[cmd.index("--hold-ms") + 1])
+        self.assertEqual("1234", cmd[cmd.index("--pid") + 1])
+        self.assertEqual("0xABC", cmd[cmd.index("--hwnd") + 1])
+
+    def test_validate_args_rejects_bad_clear_ui_focus_options(self):
+        args = argparse.Namespace(
+            destination_x=1.0,
+            destination_y=None,
+            destination_z=2.0,
+            destination_waypoint_json=None,
+            destination_waypoint_id=None,
+            arrival_radius=2.0,
+            alignment_threshold_degrees=7.5,
+            samples=3,
+            interval_seconds=0.1,
+            hold_milliseconds=250,
+            settle_seconds=0.75,
+            command_timeout_seconds=120.0,
+            clear_ui_focus_before_input=True,
+            clear_ui_focus_key="",
+            clear_ui_focus_hold_milliseconds=0,
+        )
+
+        errors = validate_args(args)
+
+        self.assertIn("clear-ui-focus-key-required", errors)
+        self.assertIn("clear-ui-focus-hold-milliseconds-must-be-positive", errors)
 
     # ------------------------------------------------------------------ #
     # build_markdown tests

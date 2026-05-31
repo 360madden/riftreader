@@ -33,6 +33,7 @@ from typing import Any, Mapping, Sequence
 try:
     from .nav_state_readback import read_nav_state
     from .static_owner_facing_discovery import normalize_degrees
+    from .static_owner_mouse_turn_probe import perform_mouse_turn
     from .static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json
     from .workflow_common import (
         repo_root,
@@ -43,6 +44,7 @@ try:
 except ImportError:  # pragma: no cover — direct script execution path
     from nav_state_readback import read_nav_state  # type: ignore
     from static_owner_facing_discovery import normalize_degrees  # type: ignore
+    from static_owner_mouse_turn_probe import perform_mouse_turn  # type: ignore
     from static_owner_nav_route_step import base_safety, load_json_object, preview, safe_mapping, write_json  # type: ignore
     from workflow_common import (  # type: ignore
         repo_root,
@@ -59,6 +61,9 @@ DEFAULT_MAX_PULSES = 25             # 25×50ms = 1250ms = ~221° max turn budget
 DEFAULT_ALIGNMENT_THRESHOLD_DEGREES = 7.5
 DEFAULT_SETTLE_MS = 150             # wait for engine to update yaw after pulse
 DEFAULT_PULSE_INTERVAL_MS = 100     # extra gap between settle end and next read
+DEFAULT_MOUSE_PIXELS_PER_PULSE = 40
+DEFAULT_MOUSE_STEPS = 8
+DEFAULT_MOUSE_HOLD_MS = 250
 
 # Direction-to-sign mapping for yaw-delta validation
 EXPECTED_SIGN: dict[str, float] = {
@@ -77,6 +82,9 @@ def send_pulse_command(
     root: Path,
     key: str,
     hold_ms: int,
+    process_name: str,
+    pid: int,
+    hwnd: str,
     title_contains: str,
     input_mode: str,
     focus_delay_ms: int = 250,
@@ -92,11 +100,136 @@ def send_pulse_command(
         str(root / "scripts" / "send-rift-key-csharp.ps1"),
         "--key", str(key),
         "--hold-ms", str(hold_ms),
+        "--process-name", str(process_name),
+        "--pid", str(pid),
+        "--hwnd", str(hwnd),
         "--title-contains", str(title_contains),
         "--input-mode", str(input_mode),
         "--focus-delay-ms", str(focus_delay_ms),
         "--json",
     ]
+
+
+def send_turn_pulse(
+    *,
+    args: argparse.Namespace,
+    root: Path,
+    child_dir: Path,
+    label: str,
+    key: str,
+    exact_target: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Send one turn pulse through the selected backend and return an envelope."""
+    backend = str(getattr(args, "turn_backend", "key"))
+    if backend == "key":
+        return run_child(
+            label=label,
+            command=send_pulse_command(
+                root=root,
+                key=key,
+                hold_ms=int(args.pulse_hold_ms),
+                process_name=str(exact_target["processName"]),
+                pid=int(exact_target["processId"]),
+                hwnd=str(exact_target["targetWindowHandle"]),
+                title_contains=str(args.title_contains),
+                input_mode=str(args.input_mode),
+            ),
+            cwd=root,
+            child_dir=child_dir,
+            timeout_seconds=float(args.command_timeout_seconds),
+        )
+    if backend == "mouse-look":
+        return perform_mouse_turn(
+            label=label,
+            child_dir=child_dir,
+            target=exact_target,
+            direction=str(args.direction),
+            pixels=int(args.mouse_pixels_per_pulse),
+            steps=int(args.mouse_steps),
+            hold_milliseconds=int(args.mouse_hold_ms),
+            focus_delay_milliseconds=int(getattr(args, "focus_delay_milliseconds", 250)),
+            require_foreground=bool(args.mouse_require_foreground),
+        )
+    raise ValueError(f"unsupported-turn-backend:{backend}")
+
+
+def pulse_hold_ms_for_backend(args: argparse.Namespace) -> int:
+    """Return the actual per-pulse hold duration for the selected turn backend."""
+    if str(getattr(args, "turn_backend", "key")) == "mouse-look":
+        return int(getattr(args, "mouse_hold_ms", DEFAULT_MOUSE_HOLD_MS))
+    return int(args.pulse_hold_ms)
+
+
+def _path_from_root(root: Path, path: str | Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else root / candidate
+
+
+def _resolve_exact_target(
+    *,
+    args: argparse.Namespace,
+    root: Path,
+    readback: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    """Resolve exact SendInput target metadata, preferring fresh readback evidence.
+
+    The detector reads yaw through ``static_owner_coordinate_chain_readback.py``.
+    Its compact JSON points at a full summary JSON containing the verified
+    target block (PID/HWND/process-start/module checks).  Use that block for
+    SendInput so turns fail closed on target drift instead of falling back to a
+    title-only window match.
+    """
+    warnings: list[str] = []
+    errors: list[str] = []
+    resolved: dict[str, Any] = {}
+
+    if getattr(args, "process_name", None):
+        resolved["processName"] = str(args.process_name)
+    if getattr(args, "pid", None) is not None:
+        resolved["processId"] = int(args.pid)
+    if getattr(args, "hwnd", None):
+        resolved["targetWindowHandle"] = str(args.hwnd)
+    if resolved.get("processId") and resolved.get("targetWindowHandle"):
+        resolved.setdefault("processName", "rift_x64")
+        resolved["source"] = "cli-arguments"
+        return resolved, warnings, errors
+
+    raw = safe_mapping(readback.get("rawJson"))
+    summary_json = raw.get("summaryJson")
+    if summary_json:
+        try:
+            summary = load_json_object(str(summary_json))
+            target = safe_mapping(summary.get("target"))
+            if target:
+                resolved.setdefault("processName", target.get("processName"))
+                resolved.setdefault("processId", target.get("processId"))
+                resolved.setdefault("targetWindowHandle", target.get("targetWindowHandle"))
+                resolved["source"] = "fresh-nav-readback-summary"
+        except Exception as exc:  # noqa: BLE001 - record and try current truth fallback
+            warnings.append(f"fresh-readback-target-load-failed:{type(exc).__name__}:{exc}")
+
+    if not (resolved.get("processId") and resolved.get("targetWindowHandle")):
+        try:
+            current_truth = load_json_object(
+                _path_from_root(root, str(args.current_truth_json)),
+            )
+            target = safe_mapping(current_truth.get("target"))
+            if target:
+                resolved.setdefault("processName", target.get("processName"))
+                resolved.setdefault("processId", target.get("processId"))
+                resolved.setdefault("targetWindowHandle", target.get("targetWindowHandle"))
+                resolved["source"] = "current-truth-json"
+        except Exception as exc:  # noqa: BLE001 - caller reports fail-closed errors
+            warnings.append(f"current-truth-target-load-failed:{type(exc).__name__}:{exc}")
+
+    if not resolved.get("processName"):
+        resolved["processName"] = "rift_x64"
+    if not resolved.get("processId"):
+        errors.append("exact-target-pid-unavailable")
+    if not resolved.get("targetWindowHandle"):
+        errors.append("exact-target-hwnd-unavailable")
+
+    return resolved, warnings, errors
 
 
 def validate_args(args: argparse.Namespace) -> list[str]:
@@ -119,6 +252,14 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         errors.append("settle-ms-must-be-nonnegative")
     if args.command_timeout_seconds <= 0:
         errors.append("command-timeout-seconds-must-be-positive")
+    if getattr(args, "turn_backend", "key") not in {"key", "mouse-look"}:
+        errors.append("turn-backend-must-be-key-or-mouse-look")
+    if int(getattr(args, "mouse_pixels_per_pulse", DEFAULT_MOUSE_PIXELS_PER_PULSE)) <= 0:
+        errors.append("mouse-pixels-per-pulse-must-be-positive")
+    if int(getattr(args, "mouse_steps", DEFAULT_MOUSE_STEPS)) < 1:
+        errors.append("mouse-steps-must-be-positive")
+    if int(getattr(args, "mouse_hold_ms", DEFAULT_MOUSE_HOLD_MS)) <= 0:
+        errors.append("mouse-hold-ms-must-be-positive")
     return sorted(set(errors))
 
 
@@ -193,11 +334,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "operator": {
             "turnApproved": bool(args.turn_approved),
             "direction": str(args.direction),
+            "turnBackend": str(getattr(args, "turn_backend", "key")),
             "targetBearingDegrees": target_bearing_explicit,
             "signedBearingDeltaDegrees": signed_delta,
             "alignmentThresholdDegrees": alignment_threshold,
             "maxPulses": int(args.max_pulses),
             "pulseHoldMs": int(args.pulse_hold_ms),
+            "mousePixelsPerPulse": int(getattr(args, "mouse_pixels_per_pulse", DEFAULT_MOUSE_PIXELS_PER_PULSE)),
+            "mouseSteps": int(getattr(args, "mouse_steps", DEFAULT_MOUSE_STEPS)),
+            "mouseHoldMs": int(getattr(args, "mouse_hold_ms", DEFAULT_MOUSE_HOLD_MS)),
+            "exactTarget": None,
         },
         "preYawDegrees": None,
         "postYawDegrees": None,
@@ -245,6 +391,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["errors"].append(pre_error or "pre-turn-yaw-unavailable")
             return summary
         summary["preYawDegrees"] = pre_yaw
+        last_readback = pre_readback
+        exact_target: dict[str, Any] | None = None
 
         # Resolve target bearing from signed delta if not explicitly provided
         if target_bearing_explicit is not None:
@@ -294,6 +442,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 summary["turnRate0x304CrossCheck"]["agreements"].extend(agreements)
                 summary["turnRate0x304CrossCheck"]["warnings"].extend(warn)
+                last_readback = readback
 
             bearing_error = normalize_degrees(target_bearing - current_yaw)
             absolute_error = abs(bearing_error)
@@ -330,25 +479,33 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     break
 
             # Haven't converged yet — send a pulse
-            cmd = send_pulse_command(
+            if exact_target is None:
+                exact_target, target_warnings, target_errors = _resolve_exact_target(
+                    args=args,
+                    root=root,
+                    readback=last_readback,
+                )
+                summary["warnings"].extend(target_warnings)
+                summary["operator"]["exactTarget"] = exact_target or None
+                if target_errors:
+                    summary["status"] = "blocked"
+                    summary["verdict"] = "exact-target-resolution-required"
+                    summary["blockers"].extend(target_errors)
+                    return summary
+
+            pulse_child = send_turn_pulse(
+                args=args,
                 root=root,
-                key=key,
-                hold_ms=int(args.pulse_hold_ms),
-                title_contains=str(args.title_contains),
-                input_mode=str(args.input_mode),
-            )
-            pulse_child = run_child(
-                label=f"pulse-{pulse_idx:03d}",
-                command=cmd,
-                cwd=root,
                 child_dir=child_dir,
-                timeout_seconds=float(args.command_timeout_seconds),
+                label=f"pulse-{pulse_idx:03d}",
+                key=key,
+                exact_target=exact_target,
             )
             summary["childCommands"].append(pulse_child)
             safety["inputSent"] = True
             safety["movementSent"] = True
             summary["totalPulses"] += 1
-            summary["totalHoldMs"] += int(args.pulse_hold_ms)
+            summary["totalHoldMs"] += pulse_hold_ms_for_backend(args)
 
             pulse_record["pulseSent"] = True
             pulse_record["pulseOk"] = pulse_child["ok"]
@@ -396,6 +553,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
         "direction": summary.get("operator", {}).get("direction") if isinstance(summary.get("operator"), Mapping) else None,
+        "turnBackend": summary.get("operator", {}).get("turnBackend") if isinstance(summary.get("operator"), Mapping) else None,
         "targetBearingDegrees": summary.get("targetBearingDegrees"),
         "preYawDegrees": summary.get("preYawDegrees"),
         "postYawDegrees": summary.get("postYawDegrees"),
@@ -433,6 +591,7 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         "## Parameters",
         "",
         f"- Direction: `{operator.get('direction')}`",
+        f"- Turn backend: `{operator.get('turnBackend')}`",
         f"- Target bearing: `{operator.get('targetBearingDegrees')}`",
         f"- Alignment threshold: `{operator.get('alignmentThresholdDegrees')}°`",
         f"- Max pulses: `{operator.get('maxPulses')}` × `{operator.get('pulseHoldMs')}ms`",
@@ -505,7 +664,25 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Extra delay between settle and next read in ms (default: {DEFAULT_PULSE_INTERVAL_MS})")
     parser.add_argument("--settle-ms", type=int, default=DEFAULT_SETTLE_MS,
         help=f"Post-pulse settle time in ms before reading yaw (default: {DEFAULT_SETTLE_MS})")
+    parser.add_argument("--turn-backend", choices=("key", "mouse-look"), default="key",
+        help="Turn input backend: keyboard key pulse or right-mouse-look drag pulse")
     parser.add_argument("--input-mode", choices=("ScanCode", "VirtualKey"), default="ScanCode")
+    parser.add_argument("--mouse-pixels-per-pulse", type=int, default=DEFAULT_MOUSE_PIXELS_PER_PULSE,
+        help=f"Relative mouse pixels per pulse for --turn-backend mouse-look (default: {DEFAULT_MOUSE_PIXELS_PER_PULSE})")
+    parser.add_argument("--mouse-steps", type=int, default=DEFAULT_MOUSE_STEPS,
+        help=f"Number of relative mouse move chunks per mouse pulse (default: {DEFAULT_MOUSE_STEPS})")
+    parser.add_argument("--mouse-hold-ms", type=int, default=DEFAULT_MOUSE_HOLD_MS,
+        help=f"Mouse drag duration per pulse for --turn-backend mouse-look (default: {DEFAULT_MOUSE_HOLD_MS})")
+    parser.add_argument("--allow-mouse-nonforeground", dest="mouse_require_foreground", action="store_false",
+        help="Diagnostic escape hatch: do not require exact target foreground HWND for mouse-look pulses")
+    parser.set_defaults(mouse_require_foreground=True)
+    parser.add_argument("--focus-delay-milliseconds", type=int, default=250)
+    parser.add_argument("--process-name",
+        help="Exact target process name for SendInput; defaults to fresh readback/current-truth target")
+    parser.add_argument("--pid", type=int,
+        help="Exact target process id for SendInput; defaults to fresh readback/current-truth target")
+    parser.add_argument("--hwnd",
+        help="Exact target window handle for SendInput; defaults to fresh readback/current-truth target")
     parser.add_argument("--title-contains", default="RIFT")
     parser.add_argument("--command-timeout-seconds", type=float, default=60.0)
     parser.add_argument("--turn-approved", action="store_true",

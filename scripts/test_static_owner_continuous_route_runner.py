@@ -22,6 +22,7 @@ from scripts.static_owner_continuous_route_runner import (
     compact_sequence_summary,
     compute_forward_hold_ms,
     compute_turn_hold_ms,
+    clear_ui_focus_command,
     load_waypoint_sequence,
     make_waypoint_args,
     run,
@@ -58,8 +59,16 @@ def _make_args(**overrides: Any) -> Any:
         "minimum_progress_distance": 0.35,
         "wrong_way_tolerance": 1.0,
         "forward_key": "w",
+        "turn_backend": "key",
         "input_mode": "ScanCode",
+        "mouse_pixels_per_pulse": 40,
+        "mouse_steps": 8,
+        "mouse_hold_ms": 250,
+        "clear_ui_focus_before_input": False,
+        "clear_ui_focus_key": "escape",
+        "clear_ui_focus_hold_milliseconds": 50,
         "title_contains": "RIFT",
+        "focus_delay_milliseconds": 250,
         "turn_settle_seconds": 1.0,
         "forward_settle_seconds": 0.75,
         "max_iterations": 20,
@@ -296,6 +305,37 @@ class ValidateArgsTests(unittest.TestCase):
         args = _make_args(command_timeout_seconds=0.0)
         errors = validate_args(args)
         self.assertIn("command-timeout-seconds-must-be-positive", errors)
+
+    def test_blocks_bad_clear_ui_focus_options(self) -> None:
+        args = _make_args(
+            clear_ui_focus_before_input=True,
+            clear_ui_focus_key="",
+            clear_ui_focus_hold_milliseconds=0,
+        )
+
+        errors = validate_args(args)
+
+        self.assertIn("clear-ui-focus-key-required", errors)
+        self.assertIn("clear-ui-focus-hold-milliseconds-must-be-positive", errors)
+
+    def test_clear_ui_focus_command_uses_exact_target_escape(self) -> None:
+        args = _make_args(clear_ui_focus_before_input=True)
+        cmd = clear_ui_focus_command(
+            args,
+            Path("C:/RIFT MODDING/RiftReader"),
+            {
+                "target": {
+                    "processName": "rift_x64",
+                    "processId": 25668,
+                    "targetWindowHandle": "0x320CB0",
+                }
+            },
+        )
+
+        self.assertEqual("escape", cmd[cmd.index("--key") + 1])
+        self.assertEqual("50", cmd[cmd.index("--hold-ms") + 1])
+        self.assertEqual("25668", cmd[cmd.index("--pid") + 1])
+        self.assertEqual("0x320CB0", cmd[cmd.index("--hwnd") + 1])
 
     def test_waypoint_requires_json_and_id(self) -> None:
         args = _make_args(

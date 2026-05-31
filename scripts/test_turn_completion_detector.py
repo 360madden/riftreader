@@ -18,13 +18,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.turn_completion_detector import (
     DEFAULT_ALIGNMENT_THRESHOLD_DEGREES,
     DEFAULT_MAX_PULSES,
+    DEFAULT_MOUSE_HOLD_MS,
+    DEFAULT_MOUSE_PIXELS_PER_PULSE,
+    DEFAULT_MOUSE_STEPS,
     DEFAULT_PULSE_HOLD_MS,
     DEFAULT_PULSE_INTERVAL_MS,
     DEFAULT_SETTLE_MS,
     _cross_check_turn_rate,
+    _resolve_exact_target,
     build_markdown,
     build_parser,
     compact,
+    send_pulse_command,
+    send_turn_pulse,
+    pulse_hold_ms_for_backend,
     validate_args,
 )
 
@@ -252,6 +259,72 @@ class TestCrossCheckTurnRate(unittest.TestCase):
         assert "pulse-7" in warnings[0]
 
 
+# ── SendInput command construction ──
+
+
+class TestSendPulseCommand(unittest.TestCase):
+    def test_send_pulse_command_includes_exact_target_identity(self):
+        cmd = send_pulse_command(
+            root=Path("C:/RIFT MODDING/RiftReader"),
+            key="left",
+            hold_ms=50,
+            process_name="rift_x64",
+            pid=25668,
+            hwnd="0x320CB0",
+            title_contains="RIFT",
+            input_mode="ScanCode",
+        )
+
+        assert "--process-name" in cmd
+        assert cmd[cmd.index("--process-name") + 1] == "rift_x64"
+        assert "--pid" in cmd
+        assert cmd[cmd.index("--pid") + 1] == "25668"
+        assert "--hwnd" in cmd
+        assert cmd[cmd.index("--hwnd") + 1] == "0x320CB0"
+
+    @patch("scripts.turn_completion_detector.perform_mouse_turn")
+    def test_send_turn_pulse_mouse_backend_uses_exact_target(self, mock_mouse):
+        mock_mouse.return_value = {"ok": True, "exitCode": 0}
+        ns = _make_namespace(turn_backend="mouse-look", direction="left")
+
+        result = send_turn_pulse(
+            args=ns,
+            root=Path("C:/RIFT MODDING/RiftReader"),
+            child_dir=Path("C:/tmp/child"),
+            label="pulse-000",
+            key="left",
+            exact_target={
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+            },
+        )
+
+        assert result["ok"] is True
+        kwargs = mock_mouse.call_args.kwargs
+        assert kwargs["target"]["processId"] == 25668
+        assert kwargs["target"]["targetWindowHandle"] == "0x320CB0"
+        assert kwargs["direction"] == "left"
+        assert kwargs["pixels"] == DEFAULT_MOUSE_PIXELS_PER_PULSE
+
+    def test_pulse_hold_ms_for_backend_uses_mouse_hold_for_mouse_backend(self):
+        assert pulse_hold_ms_for_backend(_make_namespace(turn_backend="key", pulse_hold_ms=50)) == 50
+        assert pulse_hold_ms_for_backend(_make_namespace(turn_backend="mouse-look", mouse_hold_ms=250)) == 250
+
+    def test_resolve_exact_target_defaults_process_name_for_pid_hwnd_cli(self):
+        target, warnings, errors = _resolve_exact_target(
+            args=_make_namespace(process_name=None, pid=25668, hwnd="0x320CB0"),
+            root=Path("C:/RIFT MODDING/RiftReader"),
+            readback={},
+        )
+
+        assert warnings == []
+        assert errors == []
+        assert target["processName"] == "rift_x64"
+        assert target["processId"] == 25668
+        assert target["targetWindowHandle"] == "0x320CB0"
+
+
 # ── Pulse loop logic (unit tests with mocked dependencies) ──
 
 
@@ -341,6 +414,86 @@ class TestPulseLoopConvergence(unittest.TestCase):
         assert result["preYawDegrees"] == 0.0
         assert result["postYawDegrees"] == 42.0
         assert abs(result["bearingErrorDegrees"]) <= 5.0
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.run_child")
+    def test_run_passes_exact_target_to_pulse_command(self, mock_run_child, mock_sleep, mock_read_nav):
+        """Pulse subprocess should be exact-targeted, not title-only."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 45.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {
+                "ok": True,
+                "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)],
+                "turnRateClassification": "right",
+            }
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_run_child.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=45.0,
+            alignment_threshold_degrees=5.0,
+            max_pulses=2,
+            pid=25668,
+            hwnd="0x320CB0",
+            process_name="rift_x64",
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        command = mock_run_child.call_args.kwargs["command"]
+        assert command[command.index("--process-name") + 1] == "rift_x64"
+        assert command[command.index("--pid") + 1] == "25668"
+        assert command[command.index("--hwnd") + 1] == "0x320CB0"
+
+    @patch("scripts.turn_completion_detector.read_nav_state")
+    @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
+    @patch("scripts.turn_completion_detector.perform_mouse_turn")
+    def test_run_mouse_backend_converges_after_mouse_pulse(self, mock_mouse, mock_sleep, mock_read_nav):
+        """Mouse-look backend should use in-process exact-target mouse pulse envelopes."""
+        from scripts.turn_completion_detector import run
+
+        yaw_values = [0.0, 42.0]
+        call_count = [0]
+
+        def read_nav_state_side_effect(**kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return {
+                "ok": True,
+                "yawDegrees": yaw_values[min(idx, len(yaw_values) - 1)],
+                "turnRateClassification": "right",
+            }
+
+        mock_read_nav.side_effect = read_nav_state_side_effect
+        mock_mouse.return_value = {"ok": True, "exitCode": 0}
+
+        ns = _make_namespace(
+            direction="right",
+            target_bearing_degrees=45.0,
+            alignment_threshold_degrees=5.0,
+            max_pulses=2,
+            turn_backend="mouse-look",
+            pid=25668,
+            hwnd="0x320CB0",
+            process_name="rift_x64",
+        )
+        result = run(ns)
+
+        assert result["status"] == "passed"
+        assert result["verdict"] == "turn-converged"
+        assert result["operator"]["turnBackend"] == "mouse-look"
+        assert result["totalHoldMs"] == DEFAULT_MOUSE_HOLD_MS
+        mock_mouse.assert_called_once()
+        assert mock_mouse.call_args.kwargs["target"]["processId"] == 25668
 
     @patch("scripts.turn_completion_detector.read_nav_state")
     @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
@@ -712,6 +865,19 @@ class TestBuildParser(unittest.TestCase):
         args = parser.parse_args(["--direction", "right", "--signed-bearing-delta-degrees", "-45"])
         assert args.direction == "right"
         assert args.signed_bearing_delta_degrees == -45.0
+
+    def test_exact_target_args(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--direction", "left",
+            "--target-bearing-degrees", "90",
+            "--process-name", "rift_x64",
+            "--pid", "25668",
+            "--hwnd", "0x320CB0",
+        ])
+        assert args.process_name == "rift_x64"
+        assert args.pid == 25668
+        assert args.hwnd == "0x320CB0"
 
     def test_mutually_exclusive_group_rejects_both(self):
         parser = build_parser()
@@ -1502,7 +1668,16 @@ def _make_namespace(**overrides) -> argparse.Namespace:
         "pulse_hold_ms": DEFAULT_PULSE_HOLD_MS,
         "pulse_interval_ms": DEFAULT_PULSE_INTERVAL_MS,
         "settle_ms": DEFAULT_SETTLE_MS,
+        "turn_backend": "key",
         "input_mode": "ScanCode",
+        "mouse_pixels_per_pulse": DEFAULT_MOUSE_PIXELS_PER_PULSE,
+        "mouse_steps": DEFAULT_MOUSE_STEPS,
+        "mouse_hold_ms": DEFAULT_MOUSE_HOLD_MS,
+        "mouse_require_foreground": True,
+        "focus_delay_milliseconds": 250,
+        "process_name": "rift_x64",
+        "pid": 1234,
+        "hwnd": "0xABC",
         "title_contains": "RIFT",
         "command_timeout_seconds": 60.0,
         "turn_approved": True,

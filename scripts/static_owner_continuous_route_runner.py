@@ -28,7 +28,17 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 try:
-    from .static_owner_nav_route_step import base_safety, destination_args, load_json_object, preview, safe_mapping, write_json
+    from .static_owner_nav_route_step import (
+        DEFAULT_CLEAR_UI_FOCUS_HOLD_MS,
+        DEFAULT_CLEAR_UI_FOCUS_KEY,
+        base_safety,
+        clear_ui_focus_command,
+        destination_args,
+        load_json_object,
+        preview,
+        safe_mapping,
+        write_json,
+    )
     from .workflow_common import (
         full_summary_from_compact,
         repo_root,
@@ -37,7 +47,17 @@ try:
         utc_stamp,
     )
 except ImportError:  # pragma: no cover - direct script execution path
-    from static_owner_nav_route_step import base_safety, destination_args, load_json_object, preview, safe_mapping, write_json  # type: ignore
+    from static_owner_nav_route_step import (  # type: ignore
+        DEFAULT_CLEAR_UI_FOCUS_HOLD_MS,
+        DEFAULT_CLEAR_UI_FOCUS_KEY,
+        base_safety,
+        clear_ui_focus_command,
+        destination_args,
+        load_json_object,
+        preview,
+        safe_mapping,
+        write_json,
+    )
     from workflow_common import (  # type: ignore
         full_summary_from_compact,
         repo_root,
@@ -79,7 +99,7 @@ NO_PROGRESS_RECOVERY_PRIORITY = [
 NO_PROGRESS_RECOVERY_ACTIONS = {
     "blocked-stationary-no-movement": {
         "recommendedAction": "plan-lateral-strafe-recovery-before-forward-rerun",
-        "why": "The forward pulse produced no positional change, which usually means terrain or an obstacle blocked movement.",
+        "why": "The forward pulse produced no positional change; rule out chat/UI focus before treating it as terrain or obstacle blockage.",
     },
     "drifted-back-after-initial-progress": {
         "recommendedAction": "plan-opposite-strafe-recovery-before-forward-rerun",
@@ -174,10 +194,31 @@ def build_recovery_plan(terrain: Mapping[str, Any]) -> dict[str, Any]:
         "inputSent": False,
         "recommendedAction": action["recommendedAction"],
         "why": action["why"],
+        "recoveryHelper": {
+            "status": "candidate-only-advisory",
+            "script": "scripts/static_owner_mouse_arc_recovery_probe.py",
+            "commandTemplate": [
+                "python",
+                "scripts/static_owner_mouse_arc_recovery_probe.py",
+                "--destination-x",
+                "<destination-x>",
+                "--destination-z",
+                "<destination-z>",
+                "--arc-approved",
+                "--movement-approved",
+                "--json",
+            ],
+            "notes": [
+                "Use only after visual chat/UI focus is ruled out.",
+                "Add --clear-ui-focus-before-input only when chat/menu focus is visually confirmed.",
+                "Candidate-only recovery; it does not promote pointer truth.",
+            ],
+        },
         "requiredGatesBeforeExecution": [
             "explicit-current-session-movement-approval",
             "fresh-exact-target-static-readback",
             "same-pid-hwnd-process-start-module-base",
+            "visual-chat-ui-focus-ruled-out",
             "no-debugger-or-cheat-engine",
         ],
         "candidateSequence": [
@@ -274,7 +315,11 @@ def turn_completion_command(
         "--signed-bearing-delta-degrees", str(signed_bearing_delta_degrees),
         "--alignment-threshold-degrees", str(args.alignment_threshold_degrees),
         "--settle-ms", str(int(float(args.turn_settle_seconds) * 1000)),
+        "--turn-backend", str(args.turn_backend),
         "--input-mode", str(args.input_mode),
+        "--mouse-pixels-per-pulse", str(args.mouse_pixels_per_pulse),
+        "--mouse-steps", str(args.mouse_steps),
+        "--mouse-hold-ms", str(args.mouse_hold_ms),
         "--title-contains", str(args.title_contains),
         "--command-timeout-seconds", "60",
         "--turn-approved",
@@ -351,6 +396,17 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         errors.append("settle-seconds-must-be-nonnegative")
     if args.command_timeout_seconds <= 0:
         errors.append("command-timeout-seconds-must-be-positive")
+    if args.mouse_pixels_per_pulse <= 0:
+        errors.append("mouse-pixels-per-pulse-must-be-positive")
+    if args.mouse_steps < 1:
+        errors.append("mouse-steps-must-be-positive")
+    if args.mouse_hold_ms <= 0:
+        errors.append("mouse-hold-ms-must-be-positive")
+    if bool(getattr(args, "clear_ui_focus_before_input", False)):
+        if int(getattr(args, "clear_ui_focus_hold_milliseconds", DEFAULT_CLEAR_UI_FOCUS_HOLD_MS)) <= 0:
+            errors.append("clear-ui-focus-hold-milliseconds-must-be-positive")
+        if not str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY) or "").strip():
+            errors.append("clear-ui-focus-key-required")
     return sorted(set(errors))
 
 
@@ -370,8 +426,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--minimum-progress-distance", type=float, default=DEFAULT_MIN_PROGRESS_DISTANCE)
     parser.add_argument("--wrong-way-tolerance", type=float, default=DEFAULT_WRONG_WAY_TOLERANCE)
     parser.add_argument("--forward-key", default="w")
+    parser.add_argument("--turn-backend", choices=("key", "mouse-look"), default="key")
     parser.add_argument("--input-mode", choices=("ScanCode", "VirtualKey"), default="ScanCode")
+    parser.add_argument("--mouse-pixels-per-pulse", type=int, default=40)
+    parser.add_argument("--mouse-steps", type=int, default=8)
+    parser.add_argument("--mouse-hold-ms", type=int, default=250)
     parser.add_argument("--title-contains", default="RIFT")
+    parser.add_argument("--focus-delay-milliseconds", type=int, default=250)
+    parser.add_argument(
+        "--clear-ui-focus-before-input",
+        action="store_true",
+        help=(
+            "Opt-in exact-target Escape once before the route loop to clear confirmed chat/menu focus. "
+            "Not idempotent; do not enable unless UI focus is visually confirmed."
+        ),
+    )
+    parser.add_argument("--clear-ui-focus-key", default=DEFAULT_CLEAR_UI_FOCUS_KEY)
+    parser.add_argument("--clear-ui-focus-hold-milliseconds", type=int, default=DEFAULT_CLEAR_UI_FOCUS_HOLD_MS)
     parser.add_argument("--turn-settle-seconds", type=float, default=DEFAULT_TURN_SETTLE_SECONDS)
     parser.add_argument("--forward-settle-seconds", type=float, default=DEFAULT_FORWARD_SETTLE_SECONDS)
     parser.add_argument("--max-iterations", type=int, default=DEFAULT_MAX_ITERATIONS)
@@ -567,6 +638,12 @@ def run_sequence(args: argparse.Namespace) -> dict[str, Any]:
         "movementApproved": bool(args.movement_approved),
         "turnApproved": bool(args.turn_approved),
         "allowCandidateTurnControl": bool(args.allow_candidate_turn_control),
+        "turnBackend": str(args.turn_backend),
+        "mousePixelsPerPulse": int(args.mouse_pixels_per_pulse),
+        "mouseSteps": int(args.mouse_steps),
+        "mouseHoldMs": int(args.mouse_hold_ms),
+        "clearUiFocusBeforeInput": bool(getattr(args, "clear_ui_focus_before_input", False)),
+        "clearUiFocusKey": str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY)),
         "maxIterations": int(args.max_iterations),
         "maxTotalSeconds": float(args.max_total_seconds),
     }
@@ -758,6 +835,19 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         if recovery.get("candidateSequence"):
             lines.append("- Candidate sequence:")
             lines.extend(f"  - `{item}`" for item in recovery.get("candidateSequence", []))
+        helper = safe_mapping(recovery.get("recoveryHelper"))
+        if helper:
+            lines.append("- Recovery helper:")
+            lines.append(f"  - Status: `{helper.get('status')}`")
+            if helper.get("script"):
+                lines.append(f"  - Script: `{helper.get('script')}`")
+            command_template = helper.get("commandTemplate")
+            if isinstance(command_template, list) and command_template:
+                lines.append(f"  - Command template: `{' '.join(str(item) for item in command_template)}`")
+            notes = helper.get("notes")
+            if isinstance(notes, list) and notes:
+                lines.append("  - Notes:")
+                lines.extend(f"    - {item}" for item in notes)
         lines.append("")
 
     if summary.get("blockers"):
@@ -814,6 +904,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "movementApproved": bool(args.movement_approved),
         "turnApproved": bool(args.turn_approved),
         "allowCandidateTurnControl": bool(args.allow_candidate_turn_control),
+        "turnBackend": str(args.turn_backend),
+        "mousePixelsPerPulse": int(args.mouse_pixels_per_pulse),
+        "mouseSteps": int(args.mouse_steps),
+        "mouseHoldMs": int(args.mouse_hold_ms),
+        "clearUiFocusBeforeInput": bool(getattr(args, "clear_ui_focus_before_input", False)),
+        "clearUiFocusKey": str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY)),
         "maxIterations": int(args.max_iterations),
         "maxTotalSeconds": float(args.max_total_seconds),
     }
@@ -944,6 +1040,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["errors"].append("initial-state-missing-coordinate")
             return summary
 
+        if bool(getattr(args, "clear_ui_focus_before_input", False)) and not args.dry_run:
+            clear_child = run_child(
+                label="00-clear-ui-focus",
+                command=clear_ui_focus_command(args, root, initial_full),
+                cwd=root,
+                child_dir=child_dir,
+                timeout_seconds=float(args.command_timeout_seconds),
+            )
+            summary["childCommands"].append(clear_child)
+            safety["inputSent"] = True
+            summary["warnings"].append(
+                "clear-ui-focus-before-input-sent-once; use only after visual chat/menu focus confirmation because Escape is not idempotent"
+            )
+            clear_json = safe_mapping(clear_child.get("json"))
+            summary["artifacts"]["clearUiFocusStdout"] = clear_child.get("stdoutPath")
+            if not clear_child["ok"] or clear_json.get("ok") is not True:
+                summary["status"] = "failed"
+                summary["verdict"] = "clear-ui-focus-before-input-failed"
+                summary["errors"].append("clear-ui-focus-before-input-failed")
+                return summary
+
         # --- Initial plan ---
         plan_child = run_child(
             label="00-initial-plan",
@@ -1050,7 +1167,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if suggested_turn in {"left", "right"}:
                 signed_delta = float(plan_detail.get("signedBearingDeltaDegrees") or 0)
                 iteration_record["turnDirection"] = suggested_turn
-                iteration_record["turnMethod"] = "turn-completion-detector-pulse-loop"
+                iteration_record["turnMethod"] = f"turn-completion-detector-{args.turn_backend}-pulse-loop"
 
                 turn_child = run_child(
                     label=f"turn-{iteration:03d}-{suggested_turn}",
@@ -1168,6 +1285,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                         # Forward no-progress — track consecutive failures
                         # Terrain sub-classification differentiates stuck from slight movement
                         consecutive_no_progress += 1
+                        if not bool(getattr(args, "clear_ui_focus_before_input", False)):
+                            summary["warnings"].append(
+                                f"forward-no-progress-input-focus-not-ruled-out-at-iteration-{iteration}"
+                            )
                         if consecutive_no_progress >= 3:
                             if no_progress_sub == "blocked-stationary-no-movement":
                                 summary["blockers"].append("forward-no-progress-3-consecutive-blocked-stationary-terrain")

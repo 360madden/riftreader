@@ -54,10 +54,12 @@ except ImportError:  # pragma: no cover - direct script execution path
 SCHEMA_VERSION = 1
 DEFAULT_KEY = "w"
 DEFAULT_HOLD_MS = 250
+DEFAULT_CLEAR_UI_FOCUS_KEY = "escape"
+DEFAULT_CLEAR_UI_FOCUS_HOLD_MS = 50
 PASS_ROUTE_STATUSES = {"progress", "arrived"}
 BLOCK_ROUTE_STATUSES = {"no-progress", "wrong-way", "overshot"}
 NO_PROGRESS_SUB_CLASSIFICATIONS = {
-    "blocked-stationary-no-movement": "Player position did not change — likely blocked by terrain or obstacle",
+    "blocked-stationary-no-movement": "Player position did not change — terrain/obstacle or chat/UI focus may have swallowed input",
     "drifted-back-after-initial-progress": "Player initially moved forward then drifted back — terrain may have redirected",
     "insufficient-progress-below-threshold": "Player moved slightly but did not meet the minimum progress threshold",
     "minimum-progress-not-met": "Progress below minimum threshold (no sub-classification available)",
@@ -71,7 +73,10 @@ def _read_nav_state(*, root: Path, current_truth_json: str, command_timeout_seco
     keys: ok, json, stdoutPreview, stderrPreview, error — compatible with
     the existing enrich_decision_with_nav_state() consumer.
     """
-    from scripts.nav_state_readback import read_nav_state
+    try:
+        from .nav_state_readback import read_nav_state
+    except ImportError:  # pragma: no cover - direct script execution path
+        from nav_state_readback import read_nav_state  # type: ignore
     repo = Path(repo_root_path).resolve() if repo_root_path else root
     result = read_nav_state(
         root=repo,
@@ -135,6 +140,11 @@ def validate_args(args: argparse.Namespace) -> list[str]:
         errors.append("settle-seconds-must-be-nonnegative")
     if args.command_timeout_seconds <= 0:
         errors.append("command-timeout-seconds-must-be-positive")
+    if bool(getattr(args, "clear_ui_focus_before_input", False)):
+        if int(getattr(args, "clear_ui_focus_hold_milliseconds", DEFAULT_CLEAR_UI_FOCUS_HOLD_MS)) <= 0:
+            errors.append("clear-ui-focus-hold-milliseconds-must-be-positive")
+        if not str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY) or "").strip():
+            errors.append("clear-ui-focus-key-required")
     return errors
 
 
@@ -422,6 +432,42 @@ def send_key_command(args: argparse.Namespace, root: Path, pre_state: Mapping[st
     ]
 
 
+def clear_ui_focus_command(args: argparse.Namespace, root: Path, pre_state: Mapping[str, Any]) -> list[str]:
+    """Build a one-shot exact-target key command to clear chat/UI focus before movement.
+
+    This is intentionally opt-in because Escape is not guaranteed to be
+    idempotent in-game: it can close chat/menu focus when present, but may open
+    a menu if no UI focus is active. The caller records a warning when used.
+    """
+    target = safe_mapping(pre_state.get("target"))
+    return [
+        "pwsh",
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(root / "scripts" / "send-rift-key-csharp.ps1"),
+        "--key",
+        str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY)),
+        "--hold-ms",
+        str(getattr(args, "clear_ui_focus_hold_milliseconds", DEFAULT_CLEAR_UI_FOCUS_HOLD_MS)),
+        "--process-name",
+        str(target.get("processName") or "rift_x64"),
+        "--pid",
+        str(target.get("processId")),
+        "--hwnd",
+        str(target.get("targetWindowHandle")),
+        "--title-contains",
+        str(args.title_contains),
+        "--input-mode",
+        str(args.input_mode),
+        "--focus-delay-ms",
+        str(args.focus_delay_milliseconds),
+        "--json",
+    ]
+
+
 def build_markdown(summary: Mapping[str, Any]) -> str:
     decision = safe_mapping(summary.get("initialDecision"))
     route_result = safe_mapping(summary.get("routeResult"))
@@ -515,6 +561,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "operator": {
             "dryRun": bool(args.dry_run),
             "movementApproved": bool(args.movement_approved),
+            "clearUiFocusBeforeInput": bool(getattr(args, "clear_ui_focus_before_input", False)),
+            "clearUiFocusKey": str(getattr(args, "clear_ui_focus_key", DEFAULT_CLEAR_UI_FOCUS_KEY)),
         },
         "input": {
             "key": args.key,
@@ -592,6 +640,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["verdict"] = "route-step-movement-approval-required"
             summary["blockers"].append("movement-approved-flag-required")
             return summary
+
+        if bool(getattr(args, "clear_ui_focus_before_input", False)):
+            clear = run_child(
+                label="01b-clear-ui-focus",
+                command=clear_ui_focus_command(args, root, pre_full),
+                cwd=root,
+                child_dir=child_dir,
+                timeout_seconds=args.command_timeout_seconds,
+            )
+            summary["childCommands"].append(clear)
+            summary["safety"]["inputSent"] = True
+            summary["warnings"].append(
+                "clear-ui-focus-before-input-sent; use only after visual chat/menu focus confirmation because Escape is not idempotent"
+            )
+            clear_json = safe_mapping(clear.get("json"))
+            summary["artifacts"]["clearUiFocusStdout"] = clear.get("stdoutPath")
+            if not clear["ok"] or clear_json.get("ok") is not True:
+                summary["status"] = "failed"
+                summary["verdict"] = "clear-ui-focus-before-input-failed"
+                summary["errors"].append("clear-ui-focus-before-input-failed")
+                return summary
 
         send = run_child(
             label="02-sendinput-step",
@@ -679,6 +748,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["status"] = "blocked"
             summary["verdict"] = "route-step-post-movement-analysis-blocked"
             summary["blockers"].extend(route_result["blockers"])
+            if (
+                route_result.get("routeStatus") == "no-progress"
+                and not bool(getattr(args, "clear_ui_focus_before_input", False))
+            ):
+                summary["warnings"].append(
+                    "route-step-no-progress-input-focus-not-ruled-out; inspect screenshot/chat focus before classifying as terrain"
+                )
     except subprocess.TimeoutExpired as exc:
         summary["status"] = "failed"
         summary["verdict"] = "child-command-timeout"
@@ -746,6 +822,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-mode", choices=("ScanCode", "VirtualKey"), default="ScanCode")
     parser.add_argument("--title-contains", default="RIFT")
     parser.add_argument("--focus-delay-milliseconds", type=int, default=250)
+    parser.add_argument(
+        "--clear-ui-focus-before-input",
+        action="store_true",
+        help=(
+            "Opt-in exact-target Escape before movement to clear confirmed chat/menu focus. "
+            "Not idempotent; do not enable unless UI focus is visually confirmed."
+        ),
+    )
+    parser.add_argument("--clear-ui-focus-key", default=DEFAULT_CLEAR_UI_FOCUS_KEY)
+    parser.add_argument("--clear-ui-focus-hold-milliseconds", type=int, default=DEFAULT_CLEAR_UI_FOCUS_HOLD_MS)
     parser.add_argument("--settle-seconds", type=float, default=0.75)
     parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--dry-run", action="store_true")
