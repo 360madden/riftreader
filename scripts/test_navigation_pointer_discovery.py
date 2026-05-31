@@ -159,6 +159,42 @@ def seed_navigation_artifacts(root: Path) -> None:
         },
     )
     write_json(candidate_path, {"candidateCount": 1, "candidates": []})
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-camera-yaw-classification-20260531-174422-894291"
+        / "summary.json",
+        {
+            "kind": "static-owner-camera-yaw-classification",
+            "status": "passed",
+            "verdict": "visual-changed-static-yaw-unchanged",
+            "generatedAtUtc": "2026-05-31T14:22:30Z",
+            "stimulus": {"type": "mouse-look", "direction": "right", "pixels": 120, "approved": True},
+            "visualEvidence": {
+                "baseline": {"output": "baseline.png"},
+                "post": {"output": "post.png"},
+                "rawDiff": {"status": "changed", "changedPercent": 74.0},
+            },
+            "snapshotEvidence": {
+                "comparisonJson": "comparison.json",
+                "pointerNeighborhoodJson": "pointer.json",
+            },
+            "analysis": {
+                "classification": "visual-changed-static-yaw-unchanged",
+                "visualChanged": True,
+                "staticYawChanged": False,
+                "actionableForRouteControl": False,
+                "signedYawDeltaDegrees": 0.0,
+                "absoluteYawDeltaDegrees": 0.0,
+                "changedFocusOffsets": [
+                    {"offset": "0x300", "delta": 58.1875, "absDelta": 58.1875},
+                    {"offset": "0x304", "delta": -0.605, "absDelta": 0.605},
+                ],
+            },
+            "safety": {"movementSent": True, "inputSent": True, "targetMemoryBytesRead": True},
+        },
+    )
 
 
 class NavigationPointerDiscoveryTests(unittest.TestCase):
@@ -184,10 +220,14 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertTrue(candidates["candidateTurnRate"]["candidateOnly"])
         self.assertEqual(candidates["coordinateDeltaCandidate"]["status"], "confirms-promoted-coordinate-offset")
         self.assertEqual(candidates["coordinateDeltaCandidate"]["trackingErrorMaxAbs"], 0.006)
+        self.assertEqual(candidates["cameraYawClassification"]["classification"], "visual-changed-static-yaw-unchanged")
+        self.assertFalse(candidates["cameraYawClassification"]["actionableForRouteControl"])
+        self.assertEqual(candidates["cameraYawClassification"]["changedFocusOffsetCount"], 2)
         self.assertFalse(summary["safety"]["inputSent"])
         self.assertFalse(summary["safety"]["gitMutation"])
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertTrue(summary["sourceSafety"]["familySnapshotMovementSent"])
+        self.assertTrue(summary["sourceSafety"]["cameraYawClassificationInputSent"])
         self.assertEqual(summary["freshness"]["status"], "fresh")
         self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
 
@@ -244,7 +284,8 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(summary["status"], "passed")
         self.assertEqual(summary["freshness"]["staleSources"], ["currentTruth"])
         self.assertIn("current-truth refresh slice", summary["next"]["recommendedAction"])
-        self.assertIn("static-root proof", summary["next"]["recommendedActions"][1])
+        self.assertTrue(any("static-root proof" in item for item in summary["next"]["recommendedActions"]))
+        self.assertTrue(any("camera-yaw classification" in item for item in summary["next"]["recommendedActions"]))
 
     def test_missing_artifacts_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -287,6 +328,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(loaded["status"], "passed")
         self.assertIn("Navigation Pointer Discovery Status", markdown)
         self.assertIn("Candidate summary", markdown)
+        self.assertIn("Camera/yaw classification", markdown)
         self.assertIn("Freshness", markdown)
         self.assertIn("Recommended action list", markdown)
         self.assertIn("Next action", markdown)

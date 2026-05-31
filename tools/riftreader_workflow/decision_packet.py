@@ -1423,6 +1423,7 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     facing = safe_mapping(candidates.get("candidateFacingTarget"))
     turn_rate = safe_mapping(candidates.get("candidateTurnRate"))
     coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
+    camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
     freshness = safe_mapping(discovery_data.get("freshness"))
     return {
         "status": discovery_data.get("status"),
@@ -1438,6 +1439,9 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
         "turnRateOffset": turn_rate.get("offset"),
         "coordinateDeltaStatus": coordinate_delta.get("status"),
         "coordinateDeltaTrackingErrorMaxAbs": coordinate_delta.get("trackingErrorMaxAbs"),
+        "cameraYawStatus": camera_yaw.get("status"),
+        "cameraYawClassification": camera_yaw.get("classification"),
+        "cameraYawActionableForRouteControl": camera_yaw.get("actionableForRouteControl"),
         "nextRecommendedAction": safe_mapping(discovery_data.get("next")).get("recommendedAction"),
     }
 
@@ -1637,6 +1641,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
         facing = safe_mapping(discovery_candidates.get("candidateFacingTarget"))
         turn_rate = safe_mapping(discovery_candidates.get("candidateTurnRate"))
         coordinate_delta = safe_mapping(discovery_candidates.get("coordinateDeltaCandidate"))
+        camera_yaw = safe_mapping(discovery_candidates.get("cameraYawClassification"))
         lines.extend(
             [
                 "",
@@ -1648,6 +1653,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Facing target: `{facing.get('status')}` at `{facing.get('offset')}`; max yaw delta `{facing.get('comparisonMaxAbsYawDeltaDegrees')}`",
                 f"- Turn rate: `{turn_rate.get('status')}` at `{turn_rate.get('offset')}`",
                 f"- Coordinate delta: `{coordinate_delta.get('status')}`; tracking max abs `{coordinate_delta.get('trackingErrorMaxAbs')}`",
+                f"- Camera/yaw classification: `{camera_yaw.get('classification')}`; route-actionable `{camera_yaw.get('actionableForRouteControl')}`",
                 f"- Next: {safe_mapping(nav_discovery.get('next')).get('recommendedAction')}",
             ]
         )

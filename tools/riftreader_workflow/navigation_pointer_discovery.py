@@ -40,6 +40,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "facingComparison": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "pointerNeighborhood": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "cameraYawClassification": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
 }
 
 
@@ -458,7 +459,64 @@ def coordinate_delta_summary(
     }
 
 
-def build_next_action(freshness: dict[str, Any], facing_target: dict[str, Any] | None) -> dict[str, Any]:
+def camera_yaw_classification_summary(
+    repo_root: Path,
+    camera_yaw: dict[str, Any] | None,
+    camera_yaw_path: Path | None,
+) -> dict[str, Any] | None:
+    if not camera_yaw:
+        return None
+    analysis = safe_mapping(camera_yaw.get("analysis"))
+    stimulus = safe_mapping(camera_yaw.get("stimulus"))
+    visual = safe_mapping(camera_yaw.get("visualEvidence"))
+    snapshot = safe_mapping(camera_yaw.get("snapshotEvidence"))
+    raw_diff = safe_mapping(safe_mapping(visual.get("rawDiff")))
+    changed_offsets = safe_list(analysis.get("changedFocusOffsets"))
+    return {
+        "status": "candidate-only",
+        "candidateOnly": True,
+        "promotionAllowed": False,
+        "verdict": camera_yaw.get("verdict"),
+        "classification": analysis.get("classification") or camera_yaw.get("verdict"),
+        "generatedAtUtc": camera_yaw.get("generatedAtUtc"),
+        "stimulus": {
+            "type": stimulus.get("type"),
+            "direction": stimulus.get("direction"),
+            "pixels": stimulus.get("pixels"),
+            "approved": bool(stimulus.get("approved")),
+        },
+        "visualChanged": analysis.get("visualChanged"),
+        "staticYawChanged": analysis.get("staticYawChanged"),
+        "actionableForRouteControl": analysis.get("actionableForRouteControl"),
+        "signedYawDeltaDegrees": analysis.get("signedYawDeltaDegrees"),
+        "absoluteYawDeltaDegrees": analysis.get("absoluteYawDeltaDegrees"),
+        "changedFocusOffsetCount": len(changed_offsets),
+        "changedFocusOffsets": changed_offsets[:10],
+        "visualRawDiff": {
+            "status": raw_diff.get("status"),
+            "changedPercent": raw_diff.get("changedPercent"),
+        },
+        "evidence": {
+            "summaryJson": artifact_path(repo_root, camera_yaw_path),
+            "baselinePng": safe_mapping(visual.get("baseline")).get("output"),
+            "postPng": safe_mapping(visual.get("post")).get("output"),
+            "comparisonJson": snapshot.get("comparisonJson"),
+            "pointerNeighborhoodJson": snapshot.get("pointerNeighborhoodJson"),
+        },
+        "promotionBlockers": [
+            "candidate-only-camera-yaw-classification",
+            "requires-paired-left-right-return-proof",
+            "requires-route-actionable-yaw-control-proof",
+            "requires-separate-promotion-approval",
+        ],
+    }
+
+
+def build_next_action(
+    freshness: dict[str, Any],
+    facing_target: dict[str, Any] | None,
+    camera_yaw: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     stale_sources = set(str(item) for item in safe_list(freshness.get("staleSources")))
     recommended_actions: list[str] = []
     if {"coordinateReadback", "navState"} & stale_sources:
@@ -469,6 +527,16 @@ def build_next_action(freshness: dict[str, Any], facing_target: dict[str, Any] |
         recommended_actions.append(
             "If tracked truth must be current, run a deliberate current-truth refresh slice from the fresh readback/API evidence; do not treat the dashboard as proof promotion."
         )
+    camera_yaw_map = safe_mapping(camera_yaw)
+    if camera_yaw_map:
+        if camera_yaw_map.get("actionableForRouteControl") is True:
+            recommended_actions.append(
+                "Rerun a small camera/yaw proof pack before any turn-dependent route movement."
+            )
+        else:
+            recommended_actions.append(
+                "Run a paired left/right/return camera-yaw classification set under explicit stimulus approval; compare owner+0x300/+0x304 before any turn-dependent route."
+            )
     if facing_target:
         recommended_actions.append(
             "Run restart/relog survival plus static-root proof for owner+0x30C/+0x310/+0x314 before any facing promotion."
@@ -520,13 +588,26 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         repo_root,
         directory_prefix="family-snapshot-sequence-currentpid-",
     )
-    warnings.extend(coord_warnings + nav_warnings + facing_warnings + pointer_warnings + family_warnings)
+    camera_yaw_path, camera_yaw_data, camera_yaw_warnings = newest_summary(
+        repo_root,
+        directory_prefix="static-owner-camera-yaw-classification-",
+        expected_kind="static-owner-camera-yaw-classification",
+    )
+    warnings.extend(
+        coord_warnings
+        + nav_warnings
+        + facing_warnings
+        + pointer_warnings
+        + family_warnings
+        + camera_yaw_warnings
+    )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
     promoted_coordinate = promoted_coordinate_summary(repo_root, current_truth, coord_data, coord_path)
     facing_target = facing_target_summary(repo_root, nav_data, nav_path, facing_data, facing_path, pointer_data, pointer_path)
     turn_rate = turn_rate_summary(nav_data, facing_data)
     coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
+    camera_yaw = camera_yaw_classification_summary(repo_root, camera_yaw_data, camera_yaw_path)
 
     if not coord_data and not nav_data and not facing_data and not family_data:
         blockers.append("navigation-pointer-evidence-missing")
@@ -542,11 +623,14 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     current_api = safe_mapping(static_status.get("latestApiNowValidation"))
     current_pid_validation = safe_mapping(current_api.get("currentPidValidation"))
     family_safety = safe_mapping(safe_mapping(family_data).get("safety"))
+    camera_yaw_safety = safe_mapping(safe_mapping(camera_yaw_data).get("safety"))
     coord_safety = safe_mapping(safe_mapping(coord_data).get("safety"))
     nav_safety = safe_mapping(safe_mapping(nav_data).get("safety"))
     source_safety = {
         "familySnapshotMovementSent": bool(family_safety.get("movementSent")),
         "familySnapshotInputSent": bool(family_safety.get("inputSent")),
+        "cameraYawClassificationMovementSent": bool(camera_yaw_safety.get("movementSent")),
+        "cameraYawClassificationInputSent": bool(camera_yaw_safety.get("inputSent")),
         "latestReadbackTargetMemoryBytesRead": bool(coord_safety.get("targetMemoryBytesRead"))
         or bool(nav_safety.get("targetMemoryBytesRead")),
     }
@@ -596,6 +680,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["familySnapshot"],
         ),
+        "cameraYawClassification": summarize_source(
+            repo_root,
+            camera_yaw_path,
+            camera_yaw_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["cameraYawClassification"],
+        ),
     }
     freshness = aggregate_source_freshness(sources)
 
@@ -623,6 +714,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "candidateFacingTarget": facing_target,
             "candidateTurnRate": turn_rate,
             "coordinateDeltaCandidate": coordinate_delta,
+            "cameraYawClassification": camera_yaw,
         },
         "promotionReadiness": {
             "coordinateResolver": static_status.get("status"),
@@ -631,7 +723,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
             "proofPromotionPerformed": False,
         },
-        "next": build_next_action(freshness, facing_target),
+        "next": build_next_action(freshness, facing_target, camera_yaw),
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "errors": errors,
@@ -664,6 +756,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
     facing = safe_mapping(candidates.get("candidateFacingTarget"))
     turn = safe_mapping(candidates.get("candidateTurnRate"))
     delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
+    camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
     artifacts = safe_mapping(summary.get("artifacts"))
     freshness = safe_mapping(summary.get("freshness"))
     lines = [
@@ -688,6 +781,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Facing target `+0x30C/+0x310/+0x314` | `{facing.get('status')}` | `max yaw delta={facing.get('comparisonMaxAbsYawDeltaDegrees')}` | `candidate-only` |",
         f"| Turn rate `+0x304` | `{turn.get('status')}` | `latest={turn.get('latestValue')}` | `candidate-only` |",
         f"| Coordinate delta evidence | `{delta.get('status')}` | `tracking max abs={delta.get('trackingErrorMaxAbs')}` | `matches promoted={delta.get('matchesPromotedCoordinateAddress')}` |",
+        f"| Camera/yaw classification | `{camera_yaw.get('status')}` | `{camera_yaw.get('classification')}` | `route-actionable={camera_yaw.get('actionableForRouteControl')}` |",
         "",
         "## Source artifacts",
         "",
