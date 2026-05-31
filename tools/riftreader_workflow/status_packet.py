@@ -57,6 +57,9 @@ DEFAULT_CHARACTER_LOGIN_SUPERVISOR_DIR = Path(".riftreader-local") / "character-
 DEFAULT_NAVIGATION_POINTER_DISCOVERY_SUMMARY = (
     Path(".riftreader-local") / "navigation-pointer-discovery" / "latest" / "summary.json"
 )
+DEFAULT_CURRENT_TRUTH_REFRESH_PLAN_SUMMARY = (
+    Path(".riftreader-local") / "current-truth-refresh-plan" / "latest" / "summary.json"
+)
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
@@ -882,6 +885,90 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def latest_current_truth_refresh_plan(repo_root: Path) -> dict[str, Any]:
+    """Return the latest ignored current-truth refresh dry-run plan."""
+
+    summary_path = repo_root / DEFAULT_CURRENT_TRUTH_REFRESH_PLAN_SUMMARY
+    base = {
+        "status": "missing",
+        "verdict": None,
+        "observedAtUtc": None,
+        "summaryJson": as_repo_path(repo_root, summary_path),
+        "summaryMarkdown": as_repo_path(repo_root, summary_path.with_suffix(".md")),
+        "proposedCurrentTruthJson": as_repo_path(repo_root, summary_path.parent / "proposed-current-truth.json"),
+        "proposedCurrentTruthDiff": as_repo_path(repo_root, summary_path.parent / "proposed-current-truth.diff"),
+        "updateCount": 0,
+        "requiresExplicitApprovalForApply": True,
+        "nextRecommendedAction": None,
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": {
+            "dryRunOnly": True,
+            "trackedTruthWritten": False,
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+            "gitMutation": False,
+        },
+    }
+    if not summary_path.is_file():
+        return base
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001 - malformed ignored artifacts must not fail status.
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = [
+            f"current-truth-refresh-plan-summary-parse-error:{type(exc).__name__}:{preview_text(str(exc))}"
+        ]
+        blocked["blockers"] = ["current-truth-refresh-plan-summary-unusable"]
+        return blocked
+    if not isinstance(payload, dict):
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = ["current-truth-refresh-plan-summary-not-json-object"]
+        blocked["blockers"] = ["current-truth-refresh-plan-summary-unusable"]
+        return blocked
+
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    return {
+        **base,
+        "status": payload.get("status") or "unknown",
+        "verdict": payload.get("verdict"),
+        "observedAtUtc": payload.get("generatedAtUtc"),
+        "summaryJson": artifacts.get("summaryJson") or base["summaryJson"],
+        "summaryMarkdown": artifacts.get("summaryMarkdown") or base["summaryMarkdown"],
+        "proposedCurrentTruthJson": artifacts.get("proposedCurrentTruthJson") or base["proposedCurrentTruthJson"],
+        "proposedCurrentTruthDiff": artifacts.get("proposedCurrentTruthDiff") or base["proposedCurrentTruthDiff"],
+        "updateCount": payload.get("updateCount") if isinstance(payload.get("updateCount"), int) else 0,
+        "requiresExplicitApprovalForApply": bool(next_section.get("requiresExplicitApprovalForApply", True)),
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "blockers": _list_or_empty(payload.get("blockers")),
+        "warnings": _list_or_empty(payload.get("warnings")),
+        "errors": _list_or_empty(payload.get("errors")),
+        "safety": {
+            **base["safety"],
+            "dryRunOnly": bool(safety.get("dryRunOnly", True)),
+            "trackedTruthWritten": bool(safety.get("trackedTruthWritten")),
+            "movementSent": bool(safety.get("movementSent")),
+            "inputSent": bool(safety.get("inputSent")),
+            "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
+            "targetMemoryBytesWritten": bool(safety.get("targetMemoryBytesWritten")),
+            "proofPromotion": bool(safety.get("proofPromotion")),
+            "actorChainPromotion": bool(safety.get("actorChainPromotion")),
+            "facingPromotion": bool(safety.get("facingPromotion")),
+            "gitMutation": bool(safety.get("gitMutation")),
+        },
+    }
+
+
 def find_latest_handoff(repo_root: Path, handoff_dir: Path | None = None) -> Path | None:
     directory = handoff_dir if handoff_dir is not None else repo_root / DEFAULT_HANDOFF_DIR
     if not directory.is_dir():
@@ -1303,6 +1390,7 @@ def build_status_packet(
     supervisor_summary = latest_character_login_supervisor(repo_root, errors, warnings)
     static_owner_readback = latest_static_owner_readback(repo_root, errors, warnings, now=now)
     navigation_pointer_discovery = latest_navigation_pointer_discovery(repo_root)
+    current_truth_refresh_plan = latest_current_truth_refresh_plan(repo_root)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -1463,6 +1551,7 @@ def build_status_packet(
         "characterLoginSupervisor": supervisor_summary,
         "staticOwnerReadback": static_owner_readback,
         "navigationPointerDiscovery": navigation_pointer_discovery,
+        "currentTruthRefreshPlan": current_truth_refresh_plan,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -1484,6 +1573,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     launcher = packet.get("launcher") or {}
     supervisor = packet.get("characterLoginSupervisor") or {}
     navigation = packet.get("navigationPointerDiscovery") or {}
+    truth_plan = packet.get("currentTruthRefreshPlan") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     proof_freshness = proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {}
     handoff = packet.get("latestHandoff") or {}
@@ -1507,6 +1597,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Launcher: `{launcher.get('state')}`; Glyph PIDs `{launcher.get('launcherPids')}`; RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Character login supervisor: `{supervisor.get('status')}`; approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Navigation pointer discovery: `{navigation.get('status')}`; freshness `{navigation.get('freshnessStatus')}`",
+        f"- Current truth refresh plan: `{truth_plan.get('status')}`; updates `{truth_plan.get('updateCount')}`; apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -1539,6 +1630,20 @@ def render_markdown(packet: dict[str, Any]) -> str:
                 f"- Candidate turn rate: `{turn.get('status')}` offset `{turn.get('offset')}`",
                 f"- Next: {navigation.get('nextRecommendedAction')}",
                 f"- Summary JSON: `{navigation.get('summaryJson')}`",
+            ]
+        )
+    if truth_plan:
+        lines.extend(
+            [
+                "",
+                "## Current truth refresh plan",
+                "",
+                f"- Status: `{truth_plan.get('status')}` / `{truth_plan.get('verdict')}`",
+                f"- Update count: `{truth_plan.get('updateCount')}`",
+                f"- Apply approval required: `{truth_plan.get('requiresExplicitApprovalForApply')}`",
+                f"- Summary JSON: `{truth_plan.get('summaryJson')}`",
+                f"- Proposed diff: `{truth_plan.get('proposedCurrentTruthDiff')}`",
+                f"- Next: {truth_plan.get('nextRecommendedAction')}",
             ]
         )
     lines.extend(["", "## Errors", ""])
@@ -1590,6 +1695,9 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     static_owner_readback = packet.get("staticOwnerReadback") if isinstance(packet.get("staticOwnerReadback"), dict) else {}
     navigation_pointer = (
         packet.get("navigationPointerDiscovery") if isinstance(packet.get("navigationPointerDiscovery"), dict) else {}
+    )
+    current_truth_refresh_plan = (
+        packet.get("currentTruthRefreshPlan") if isinstance(packet.get("currentTruthRefreshPlan"), dict) else {}
     )
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
@@ -1703,6 +1811,22 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "errors": navigation_pointer.get("errors") or [],
             "safety": navigation_pointer.get("safety") or {},
         },
+        "currentTruthRefreshPlan": {
+            "status": current_truth_refresh_plan.get("status") or "not-collected",
+            "verdict": current_truth_refresh_plan.get("verdict"),
+            "observedAtUtc": current_truth_refresh_plan.get("observedAtUtc"),
+            "summaryJson": current_truth_refresh_plan.get("summaryJson"),
+            "summaryMarkdown": current_truth_refresh_plan.get("summaryMarkdown"),
+            "proposedCurrentTruthJson": current_truth_refresh_plan.get("proposedCurrentTruthJson"),
+            "proposedCurrentTruthDiff": current_truth_refresh_plan.get("proposedCurrentTruthDiff"),
+            "updateCount": current_truth_refresh_plan.get("updateCount"),
+            "requiresExplicitApprovalForApply": current_truth_refresh_plan.get("requiresExplicitApprovalForApply"),
+            "nextRecommendedAction": current_truth_refresh_plan.get("nextRecommendedAction"),
+            "blockers": current_truth_refresh_plan.get("blockers") or [],
+            "warnings": current_truth_refresh_plan.get("warnings") or [],
+            "errors": current_truth_refresh_plan.get("errors") or [],
+            "safety": current_truth_refresh_plan.get("safety") or {},
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -1724,6 +1848,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     launcher = summary.get("launcher") or {}
     supervisor = summary.get("characterLoginSupervisor") or {}
     navigation = summary.get("navigationPointerDiscovery") or {}
+    truth_plan = summary.get("currentTruthRefreshPlan") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -1739,6 +1864,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Launcher: `{launcher.get('state')}` Glyph PIDs `{launcher.get('launcherPids')}` RIFT PIDs `{launcher.get('riftPids')}`",
         f"- Character login supervisor: `{supervisor.get('status')}` target `{supervisor.get('targetCharacter')}` approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Navigation pointer discovery: `{navigation.get('status')}` freshness `{navigation.get('freshnessStatus')}` stale `{navigation.get('staleSources')}`",
+        f"- Current truth refresh plan: `{truth_plan.get('status')}` updates `{truth_plan.get('updateCount')}` apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
@@ -1755,6 +1881,14 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Candidate facing target: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
         f"- Candidate turn rate: `{(navigation.get('candidateTurnRate') or {}).get('status')}` offset `{(navigation.get('candidateTurnRate') or {}).get('offset')}`",
         f"- Next: {navigation.get('nextRecommendedAction')}",
+        "",
+        "## Current truth refresh plan",
+        "",
+        f"- Summary JSON: `{truth_plan.get('summaryJson')}`",
+        f"- Proposed diff: `{truth_plan.get('proposedCurrentTruthDiff')}`",
+        f"- Update count: `{truth_plan.get('updateCount')}`",
+        f"- Apply approval required: `{truth_plan.get('requiresExplicitApprovalForApply')}`",
+        f"- Next: {truth_plan.get('nextRecommendedAction')}",
         "",
         "## Bridge commands",
         "",

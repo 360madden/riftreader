@@ -29,6 +29,79 @@ def write_text(path: Path, value: str) -> None:
 
 
 class StatusPacketProofFreshnessTests(unittest.TestCase):
+    def test_latest_current_truth_refresh_plan_reads_dry_run_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_json(
+                root / ".riftreader-local" / "current-truth-refresh-plan" / "latest" / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "riftreader-current-truth-refresh-plan",
+                    "generatedAtUtc": "2026-05-31T15:38:15Z",
+                    "status": "passed",
+                    "verdict": "dry-run-current-truth-refresh-plan-ready",
+                    "updateCount": 9,
+                    "blockers": [],
+                    "warnings": ["current-truth-staticOwnerFacing-already-promoted-dashboard-candidate-only-plan-does-not-change-it"],
+                    "errors": [],
+                    "artifacts": {
+                        "summaryJson": ".riftreader-local/current-truth-refresh-plan/latest/summary.json",
+                        "summaryMarkdown": ".riftreader-local/current-truth-refresh-plan/latest/summary.md",
+                        "proposedCurrentTruthJson": ".riftreader-local/current-truth-refresh-plan/latest/proposed-current-truth.json",
+                        "proposedCurrentTruthDiff": ".riftreader-local/current-truth-refresh-plan/latest/proposed-current-truth.diff",
+                    },
+                    "next": {
+                        "recommendedAction": "Review ignored artifacts.",
+                        "requiresExplicitApprovalForApply": True,
+                    },
+                    "safety": {
+                        "dryRunOnly": True,
+                        "trackedTruthWritten": False,
+                        "movementSent": False,
+                        "inputSent": False,
+                        "targetMemoryBytesRead": False,
+                        "targetMemoryBytesWritten": False,
+                        "proofPromotion": False,
+                        "actorChainPromotion": False,
+                        "facingPromotion": False,
+                        "gitMutation": False,
+                    },
+                },
+            )
+
+            summary = status_packet.latest_current_truth_refresh_plan(root)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual(9, summary["updateCount"])
+        self.assertTrue(summary["requiresExplicitApprovalForApply"])
+        self.assertIn("proposed-current-truth.diff", summary["proposedCurrentTruthDiff"])
+        self.assertFalse(summary["safety"]["trackedTruthWritten"])
+        self.assertFalse(summary["safety"]["movementSent"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+
+    def test_current_truth_refresh_plan_parse_error_stays_inside_compact_field(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(
+                root / ".riftreader-local" / "current-truth-refresh-plan" / "latest" / "summary.json",
+                "{bad",
+            )
+
+            packet = status_packet.build_status_packet(
+                root,
+                run_coordinate_status=False,
+                check_opencode=False,
+                collect_git_state=False,
+            )
+            compact = status_packet.compact_summary(packet)
+
+        plan = compact["currentTruthRefreshPlan"]
+        self.assertEqual("passed", packet["status"])
+        self.assertEqual("parse-error", plan["status"])
+        self.assertIn("current-truth-refresh-plan-summary-unusable", plan["blockers"])
+        self.assertFalse(plan["safety"]["trackedTruthWritten"])
+        self.assertFalse(plan["safety"]["proofPromotion"])
+
     def test_latest_navigation_pointer_discovery_reads_dashboard_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -194,6 +267,14 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                 "candidateTurnRate": {"status": "candidate-only", "offset": "0x304"},
                 "nextRecommendedAction": "Run facing proof.",
             },
+            "currentTruthRefreshPlan": {
+                "status": "passed",
+                "summaryJson": ".riftreader-local/current-truth-refresh-plan/latest/summary.json",
+                "proposedCurrentTruthDiff": ".riftreader-local/current-truth-refresh-plan/latest/proposed-current-truth.diff",
+                "updateCount": 9,
+                "requiresExplicitApprovalForApply": True,
+                "nextRecommendedAction": "Review ignored artifacts.",
+            },
             "safety": {"movementSent": False, "gitMutation": False},
             "nextRecommendedAction": "none",
             "artifacts": {},
@@ -202,8 +283,10 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         markdown = status_packet.render_compact_markdown(packet)
 
         self.assertIn("## Navigation pointer discovery", markdown)
+        self.assertIn("## Current truth refresh plan", markdown)
         self.assertIn("0x30C", markdown)
         self.assertIn("Run facing proof.", markdown)
+        self.assertIn("proposed-current-truth.diff", markdown)
 
     def test_latest_static_owner_readback_reports_capture_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
