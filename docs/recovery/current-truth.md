@@ -22,7 +22,7 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
 | Owner in current readback | `0x1B53D7806A0` |
 | Coordinate address in current readback | `0x1B53D7809C0` (owner+0x320) |
-| Latest recorded coordinate snapshot | `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T14:23:12.926638+00:00` — current exact-target static-chain readback after bounded displacement. |
+| Latest recorded coordinate snapshot | `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T14:23:12.926638+00:00` — current exact-target static-chain readback after bounded displacement; do not present this value as current-now in a later session without a fresh API-now vs memory-now check. |
 | Latest current nav yaw | `22.940853610°` at `2026-05-31T14:23:12.943809+00:00` |
 | Latest RRAPICOORD API coordinate for PID 25668 | `7264.4297, 821.7000, 3003.8799` |
 | Latest API timestamp for PID 25668 | `2026-05-31T14:22:56.4433446Z` |
@@ -146,4 +146,4 @@ See **[Coordinate Recovery & Reacquisition Workflow](coordinate-recovery-workflo
 
 ## Next recommended action
 
-Continue from this promoted coordinate resolver with exact-target/freshness preflights. Before presenting current coordinates as API-confirmed truth, capture PID `25668` API-now vs chain-now evidence. Keep actor/stat field discovery separate from this coordinate promotion.
+Continue from this promoted coordinate resolver with exact-target/freshness preflights. Current PID `25668` API-now vs chain-now passed at `2026-05-31T14:22:57Z`; before presenting coordinates as API-confirmed truth in a later session, refresh API-now vs memory-now evidence. Keep actor/stat field discovery separate from this coordinate promotion.
