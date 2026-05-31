@@ -48,20 +48,20 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 **AOB signature** for game-update resilience: `B5 01 00 00 ?? ?? ?? ??` (stored in `signatures/rift_x64/root_root-player-owner.json`)
 
-## Recent commits (this session)
+## Recent commits (newest 10 before this slice)
 
 | Commit | What |
 |---|---|
+| `a19e1a6` | Refresh current truth from no-input readback |
+| `caeca92` | Refresh handoff with truth plan status |
 | `059832a` | Surface truth refresh plan in workflow status |
+| `b5fb8f5` | Refresh handoff with truth refresh plan |
 | `f5f8bc2` | Document current truth refresh plan |
 | `a539850` | Add current truth refresh plan helper |
 | `16f9323` | Document navigation pointer status workflow |
 | `c6fad32` | Refresh handoff with navigation discovery status |
-| `6f9dcc7` | Surface navigation discovery dashboard in compact workflow status |
+| `6f9dcc7` | Surface navigation discovery in workflow status |
 | `7cc2587` | Refine navigation discovery freshness guidance |
-| `a9b062c` | Add navigation discovery freshness classification |
-| `32367d7` | Document navigation pointer discovery dashboard |
-| `0100434` | Add navigation pointer discovery dashboard |
 
 ## Latest live finding — 2026-05-31
 
@@ -152,6 +152,22 @@ truth-refresh gate; the dry-run plan is not proof promotion.
 | Boundary | API-now remains the prior 2026-05-31 bounded family validation ending `2026-05-31T14:22:57Z`; no movement/input, proof promotion, actor-chain promotion, or facing/turn-rate promotion was performed by this refresh. |
 
 Current safe next action: run targeted/full validation for this tracked-truth slice, then push only after the explicit repo-publish gate is satisfied. Live route reruns still require explicit `--turn-approved`, `--movement-approved`, and `--allow-candidate-turn-control` approval with a destination.
+
+
+## Approved bounded route-loop validation and truth refresh — 2026-05-31 16:37 UTC
+
+| Check | Evidence |
+|---|---|
+| Live route loop passed | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-continuous-route-20260531-163708-174984\summary.json`: one approved ahead-3m destination, `route-loop-arrived`, initial distance `2.999636m`, progress `2.642985m`, final distance `0.356651m`, one forward step. |
+| Gates used | User approved `--turn-approved --movement-approved --allow-candidate-turn-control`; route used mouse-look backend but `turnsExecuted=0` because bearing was already aligned. |
+| Visual verification | Baseline `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-123659-264.png`, frame-change `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-123721-931.png`, final `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-123728-957.png`. |
+| Post-route readback | Static `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-163749-157934\summary.json` and nav-state `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-163749-964534\summary.json` passed for PID `25668` / HWND `0x320CB0`. |
+| Post-route API-now | `C:\RIFT MODDING\RiftReader\scripts\captures\rift-api-reference-currentpid-25668-20260531-163751.json` matched static readback within max abs delta `0.003437500`. |
+| Dashboard/planner fix | `tools/riftreader_workflow/navigation_pointer_discovery.py` now prefers latest readback coordinates over tracked stale truth; `current_truth_refresh_plan.py` carries stale best-candidate, movement-gate, latest-static-readback, and facing current-reacquisition fields. |
+| Tracked truth/docs | `docs/recovery/current-truth.json` and `.md` updated from reviewed dry-run evidence plus post-route API-now; `docs/HANDOFF.md` records this resume point. |
+| Boundary | Movement/input were sent only by the approved route loop. No Cheat Engine, x64dbg attach, provider writes, target memory writes, proof promotion, actor-chain promotion, or facing/turn-rate promotion. |
+
+Current safe next action: use this as a bounded route-loop success baseline. For a larger route, refresh exact-target static/API-now evidence first, keep one destination/recovery mode at a time, and do not promote facing/turn-rate chains without their proof gates.
 
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 

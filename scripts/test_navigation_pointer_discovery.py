@@ -177,6 +177,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         candidates = summary["candidates"]
         self.assertFalse(candidates["promotedCoordinate"]["candidateOnly"])
         self.assertEqual(candidates["promotedCoordinate"]["coordinateOffset"], "0x320")
+        self.assertEqual(candidates["promotedCoordinate"]["coordinate"], {"x": 1.0, "y": 2.0, "z": 3.0})
         self.assertTrue(candidates["candidateFacingTarget"]["candidateOnly"])
         self.assertEqual(candidates["candidateFacingTarget"]["offset"], "0x30C")
         self.assertEqual(candidates["candidateFacingTarget"]["comparisonMaxAbsYawDeltaDegrees"], 62.1)
@@ -189,6 +190,26 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertTrue(summary["sourceSafety"]["familySnapshotMovementSent"])
         self.assertEqual(summary["freshness"]["status"], "fresh")
         self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
+
+    def test_promoted_coordinate_uses_latest_readback_coordinate_over_tracked_truth_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            truth_path = root / "docs" / "recovery" / "current-truth.json"
+            truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            truth["staticChainStatus"]["primaryCandidate"]["coordinate"] = {"x": -1.0, "y": -2.0, "z": -3.0}
+            truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(summary["status"], "passed")
+        promoted = summary["candidates"]["promotedCoordinate"]
+        self.assertEqual(promoted["ownerAddress"], "0x1000")
+        self.assertEqual(promoted["coordinateAddress"], "0x1320")
+        self.assertEqual(promoted["coordinate"], {"x": 1.0, "y": 2.0, "z": 3.0})
 
     def test_freshness_classifies_stale_current_readbacks_without_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

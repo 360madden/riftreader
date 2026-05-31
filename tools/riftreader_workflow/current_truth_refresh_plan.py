@@ -113,6 +113,13 @@ def truth_artifact_path(repo_root: Path, value: Any) -> str | None:
     return str(path)
 
 
+def sibling_markdown_artifact(value: Any) -> str | None:
+    if not value:
+        return None
+    text = str(value)
+    return text[:-5] + ".md" if text.lower().endswith(".json") else None
+
+
 def add_update(
     *,
     current_truth: dict[str, Any],
@@ -202,7 +209,11 @@ def build_proposed_current_truth(
         repo_root,
         promoted.get("latestReadbackJson") or coordinate_source.get("path"),
     )
+    latest_readback_markdown = sibling_markdown_artifact(latest_readback_json)
     latest_nav_state_json = truth_artifact_path(repo_root, nav_state_source.get("path"))
+    latest_nav_state_at = nav_state_source.get("generatedAtUtc")
+    facing = as_mapping(candidates.get("candidateFacingTarget"))
+    latest_facing_evidence = as_mapping(facing.get("evidence"))
     process_id = target.get("processId")
     hwnd = target.get("targetWindowHandle")
     verification_source = (
@@ -225,6 +236,26 @@ def build_proposed_current_truth(
     coordinate_with_time["recordedAtUtc"] = latest_readback_at
     note = (
         f"Dry-run current-truth refresh plan generated {generated_at_utc}; applying tracked truth remains a separate gate."
+    )
+    latest_static_readback = {
+        "status": promoted.get("latestReadbackStatus") or coordinate_source.get("status"),
+        "processId": process_id,
+        "targetWindowHandle": hwnd,
+        "processStartUtc": target.get("processStartUtc"),
+        "moduleBase": target.get("moduleBase"),
+        "rootAddress": promoted.get("rootAddress"),
+        "ownerAddress": promoted.get("ownerAddress"),
+        "coordinateAddress": promoted.get("coordinateAddress"),
+        "coordinate": coordinate,
+        "recordedAtUtc": latest_readback_at,
+        "summaryJson": latest_readback_json,
+        "summaryMarkdown": latest_readback_markdown,
+    }
+    movement_gate_reason = (
+        f"The static coordinate resolver is promoted, current PID {process_id} exact-target readback passed at "
+        f"{latest_readback_at}, and current PID RRAPICOORD/API-now validation is recorded in tracked truth. "
+        "Live consumers must still verify PID/HWND/process-start/module-base and perform a fresh static-chain "
+        "readback before input."
     )
 
     add_update(
@@ -311,6 +342,14 @@ def build_proposed_current_truth(
         current_truth=current_truth,
         proposed=proposed,
         updates=updates,
+        path=("staticChainStatus", "primaryCandidate", "rootAddress"),
+        value=promoted.get("rootAddress"),
+        reason="latest root address for current target epoch",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
         path=("staticChainStatus", "primaryCandidate", "coordinateAddress"),
         value=promoted.get("coordinateAddress"),
         reason="latest coordinate address for current target epoch",
@@ -347,6 +386,159 @@ def build_proposed_current_truth(
         value=latest_readback_at,
         reason="latest exact-target static-chain coordinate readback time",
     )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("staticChainStatus", "latestCurrentStaticReadback"),
+        value=latest_static_readback,
+        reason="mirror latest exact-target static readback payload",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "rootAddress"),
+        value=promoted.get("rootAddress"),
+        reason="latest root address for current target epoch",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "currentOwnerAddress"),
+        value=promoted.get("ownerAddress"),
+        reason="latest owner address for current target epoch",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "currentCoordinateAddress"),
+        value=promoted.get("coordinateAddress"),
+        reason="latest coordinate address for current target epoch",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "addressHex"),
+        value=promoted.get("coordinateAddress"),
+        reason="latest coordinate address for current target epoch",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "coordinate"),
+        value=coordinate,
+        reason="latest promoted coordinate resolver readback",
+    )
+    for best_path in (
+        ("bestCurrentCandidate", "artifact"),
+        ("bestCurrentCandidate", "candidateFile"),
+        ("bestCurrentCandidate", "readbackSummary"),
+        ("bestCurrentCandidate", "latestCurrentReadbackArtifact"),
+    ):
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=best_path,
+            value=latest_readback_json,
+            reason="latest exact-target static-chain coordinate readback artifact",
+        )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "status"),
+        value=readback_status,
+        reason="align best current candidate status with latest static readback",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("bestCurrentCandidate", "latestCurrentReadbackAtUtc"),
+        value=latest_readback_at,
+        reason="latest exact-target static-chain coordinate readback time",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("movementGate", "reason"),
+        value=movement_gate_reason,
+        reason="align movement gate explanation with latest static readback",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("movementGate", "latestCurrentReadbackArtifact"),
+        value=latest_readback_json,
+        reason="latest exact-target static-chain coordinate readback artifact",
+    )
+    if facing:
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "primaryCandidate", "ownerAddress"),
+            value=facing.get("ownerAddress"),
+            reason="latest current-pid facing candidate owner address",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "primaryCandidate", "facingTargetAddress"),
+            value=facing.get("address"),
+            reason="latest current-pid facing candidate address",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "primaryCandidate", "latestYawDegrees"),
+            value=facing.get("latestYawDegrees"),
+            reason="latest current-pid nav-state yaw readback",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "primaryCandidate", "latestYawSourcePose"),
+            value=f"current-pid-{process_id}-static-nav-state-readback-{latest_nav_state_at}",
+            reason="latest current-pid nav-state yaw source",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "primaryCandidate", "latestCurrentNavStateReadbackArtifact"),
+            value=truth_artifact_path(repo_root, latest_facing_evidence.get("navStateJson") or latest_nav_state_json),
+            reason="latest exact-target nav-state readback artifact",
+        )
+        current_reacquisition = {
+            "status": "passed-candidate-only-refresh",
+            "navStateJson": truth_artifact_path(repo_root, latest_facing_evidence.get("navStateJson") or latest_nav_state_json),
+            "facingComparisonJson": truth_artifact_path(repo_root, latest_facing_evidence.get("facingComparisonJson")),
+            "topRelativeTargetOffset": facing.get("offset"),
+            "maxAbsYawDeltaDegrees": facing.get("comparisonMaxAbsYawDeltaDegrees"),
+            "coordinateDriftAllPoses": facing.get("comparisonMaxCoordinatePlanarDrift"),
+            "promotionPerformed": False,
+            "recordedAtUtc": latest_nav_state_at,
+        }
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticOwnerFacing", "latestCurrentReacquisition"),
+            value=current_reacquisition,
+            reason="record current-pid facing readback as candidate-only reacquisition evidence",
+        )
     add_update(
         current_truth=current_truth,
         proposed=proposed,
@@ -443,7 +635,8 @@ def build_current_truth_refresh_plan(
         if current_facing.get("promotionAllowed") is True and as_mapping(candidates.get("candidateFacingTarget")).get(
             "candidateOnly"
         ):
-            warnings.append("current-truth-staticOwnerFacing-already-promoted-dashboard-candidate-only-plan-does-not-change-it")
+            if not current_facing.get("promotionArtifact"):
+                warnings.append("current-truth-staticOwnerFacing-promoted-without-promotion-artifact")
 
         if blockers:
             proposed = None

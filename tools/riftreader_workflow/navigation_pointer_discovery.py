@@ -262,6 +262,13 @@ def offset_hex(base_hex: Any, address_hex: Any) -> str | None:
     return f"{sign}0x{abs(delta):X}"
 
 
+def address_plus_offset(address_hex: Any, offset: int) -> str | None:
+    address = int_from_hex(address_hex)
+    if address is None:
+        return None
+    return f"0x{address + offset:X}"
+
+
 def top_relative_target_candidate(facing_comparison: dict[str, Any] | None) -> dict[str, Any] | None:
     comparison = safe_mapping(safe_mapping(facing_comparison).get("comparison"))
     candidates = safe_list(comparison.get("relativeTargetCandidates"))
@@ -302,17 +309,21 @@ def promoted_coordinate_summary(
     readback_candidate = safe_mapping(safe_mapping(coordinate_readback).get("candidate"))
     reads = safe_mapping(safe_mapping(coordinate_readback).get("reads"))
     analysis = safe_mapping(safe_mapping(coordinate_readback).get("analysis"))
+    owner_address = reads.get("ownerAddress") or primary.get("ownerAddress")
+    coordinate_address = address_plus_offset(owner_address, 0x320) or primary.get("coordinateAddress")
+    coordinate = reads.get("coordinate") or primary.get("coordinate")
     return {
         "status": static_status.get("status") or safe_mapping(coordinate_readback).get("status"),
         "promotionAllowed": bool(static_status.get("promotionAllowed")),
         "candidateOnly": False,
         "chain": primary.get("chain") or readback_candidate.get("chain"),
-        "rootModule": primary.get("rootModule"),
-        "rootRva": primary.get("rootRva"),
-        "ownerAddress": primary.get("ownerAddress") or reads.get("ownerAddress"),
-        "coordinateAddress": primary.get("coordinateAddress"),
+        "rootModule": primary.get("rootModule") or readback_candidate.get("rootModule"),
+        "rootRva": primary.get("rootRva") or readback_candidate.get("rootRva"),
+        "rootAddress": readback_candidate.get("rootAddress") or primary.get("rootAddress"),
+        "ownerAddress": owner_address,
+        "coordinateAddress": coordinate_address,
         "coordinateOffset": "0x320",
-        "coordinate": primary.get("coordinate") or reads.get("coordinate"),
+        "coordinate": coordinate,
         "latestReadbackStatus": safe_mapping(coordinate_readback).get("status"),
         "latestReadbackAtUtc": safe_mapping(coordinate_readback).get("generatedAtUtc") or primary.get("latestCurrentReadbackAtUtc"),
         "latestReadbackJson": artifact_path(repo_root, readback_path),
