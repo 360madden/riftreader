@@ -16,6 +16,7 @@ import copy
 import difflib
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -783,12 +784,221 @@ def write_outputs(repo_root: Path, summary: dict[str, Any], output_dir: Path | N
     return artifacts
 
 
+def write_self_test_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json_text(value), encoding="utf-8")
+
+
+def seed_self_test_repo(repo_root: Path) -> tuple[Path, Path]:
+    truth_path = repo_root / DEFAULT_CURRENT_TRUTH_JSON
+    dashboard_path = repo_root / DEFAULT_DASHBOARD_JSON
+    target = {
+        "processName": "rift_x64",
+        "processId": 25668,
+        "targetWindowHandle": "0x320CB0",
+        "processStartUtc": "2026-05-30T02:46:41Z",
+        "moduleBase": "0x7FF6EE5D0000",
+    }
+    current_truth = {
+        "schemaVersion": 1,
+        "kind": "riftreader-current-truth",
+        "updatedAtUtc": "2026-05-31T14:23:13Z",
+        "status": "old-current-truth",
+        "target": {
+            **target,
+            "lastVerifiedUtc": "2026-05-31T14:23:12Z",
+            "verificationSource": "old readback",
+        },
+        "liveReferenceSurface": {
+            "status": "old-status",
+            "source": "old source",
+            "view": "old view",
+            "currentCoordinateFromStaticChainCandidate": {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "recordedAtUtc": "2026-05-31T14:23:12Z",
+            },
+            "apiNowStatus": "passed-current-pid-25668-api-now-vs-chain-now",
+            "notes": ["existing note"],
+        },
+        "staticChainStatus": {
+            "status": "old-static-status",
+            "promotionAllowed": True,
+            "primaryCandidate": {
+                "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                "rootModule": "rift_x64.exe",
+                "rootRva": "0x32EBC80",
+                "ownerAddress": "0xOLD",
+                "coordinateAddress": "0xOLD320",
+                "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                "latestPromotedReadbackArtifact": "C:\\old\\coordinate-summary.json",
+                "latestCurrentReadbackArtifact": "C:\\old\\coordinate-summary.json",
+                "latestCurrentReadbackAtUtc": "2026-05-31T14:23:12Z",
+            },
+        },
+        "staticOwnerFacing": {
+            "promotionAllowed": False,
+            "primaryCandidate": {},
+        },
+        "canonicalArtifacts": {
+            "latestCurrentPidStaticOwnerReadback": "C:\\old\\coordinate-summary.json",
+            "latestCurrentPidNavStateReadback": "C:\\old\\nav-state-summary.json",
+        },
+    }
+    dashboard = {
+        "schemaVersion": 1,
+        "kind": "riftreader-navigation-pointer-discovery-status",
+        "generatedAtUtc": "2026-05-31T15:19:44Z",
+        "status": "passed",
+        "target": target,
+        "sources": {
+            "currentTruth": {"freshness": {"status": "stale"}, "status": "loaded"},
+            "coordinateReadback": {
+                "status": "passed",
+                "generatedAtUtc": "2026-05-31T15:19:42Z",
+                "path": "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json",
+                "freshness": {"status": "fresh"},
+            },
+            "navState": {
+                "status": "passed",
+                "generatedAtUtc": "2026-05-31T15:19:43Z",
+                "path": "scripts\\captures\\static-owner-nav-state-20260531-151943\\summary.json",
+                "freshness": {"status": "fresh"},
+            },
+        },
+        "freshness": {"status": "stale", "staleSources": ["currentTruth"]},
+        "candidates": {
+            "promotedCoordinate": {
+                "status": "promoted-static-player-coordinate-resolver-current-pid-readback-and-api-now-passed",
+                "promotionAllowed": True,
+                "candidateOnly": False,
+                "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                "rootAddress": "0x7FF6F18BBC80",
+                "ownerAddress": "0x1B53D7806A0",
+                "coordinateAddress": "0x1B53D7809C0",
+                "coordinate": {"x": 7264.431640625, "y": 821.6972045898438, "z": 3003.875732421875},
+                "latestReadbackStatus": "passed",
+                "latestReadbackAtUtc": "2026-05-31T15:19:42Z",
+                "latestReadbackJson": "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json",
+            },
+            "candidateFacingTarget": {
+                "status": "candidate-only",
+                "candidateOnly": True,
+                "promotionAllowed": False,
+                "ownerAddress": "0x1B53D7806A0",
+                "address": "0x1B53D7809D0",
+                "latestYawDegrees": 22.962550463694146,
+                "evidence": {
+                    "navStateJson": "scripts\\captures\\static-owner-nav-state-20260531-151943\\summary.json",
+                },
+            },
+            "candidateTurnRate": {
+                "status": "candidate-only",
+                "candidateOnly": True,
+                "promotionAllowed": False,
+            },
+        },
+        "sourceSafety": {"familySnapshotMovementSent": True, "familySnapshotInputSent": True},
+        "safety": {
+            "readOnlyArtifactIndex": True,
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+            "gitMutation": False,
+            "providerWrites": False,
+            "x64dbgAttach": False,
+        },
+    }
+    write_self_test_json(truth_path, current_truth)
+    write_self_test_json(dashboard_path, dashboard)
+    return truth_path, dashboard_path
+
+
+def build_self_test_summary() -> dict[str, Any]:
+    generated_at_utc = utc_iso()
+    checks: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    def record(name: str, passed: bool, detail: str = "") -> None:
+        checks.append({"name": name, "passed": passed, "detail": detail})
+        if not passed:
+            errors.append(f"{name}:{detail or 'failed'}")
+
+    with tempfile.TemporaryDirectory(prefix="riftreader-current-truth-refresh-plan-self-test-") as temp_dir:
+        repo_root = Path(temp_dir)
+        truth_path, _dashboard_path = seed_self_test_repo(repo_root)
+        original_truth = truth_path.read_text(encoding="utf-8")
+        summary = build_current_truth_refresh_plan(
+            repo_root,
+            generated_at_utc="2026-05-31T15:20:00Z",
+        )
+        after_truth = truth_path.read_text(encoding="utf-8")
+
+    proposed = as_mapping(summary.get("proposedCurrentTruth"))
+    safety = as_mapping(summary.get("safety"))
+    facing = as_mapping(proposed.get("staticOwnerFacing"))
+    facing_reacquisition = as_mapping(facing.get("latestCurrentReacquisition"))
+
+    record("planner-status-passed", summary.get("status") == "passed", str(summary.get("status")))
+    record("proposed-truth-built", bool(proposed), "present" if proposed else "proposedCurrentTruth missing")
+    record(
+        "tracked-truth-unchanged",
+        original_truth == after_truth,
+        "unchanged" if original_truth == after_truth else "tracked truth changed during dry run",
+    )
+    record("tracked-truth-written-false", safety.get("trackedTruthWritten") is False, str(safety.get("trackedTruthWritten")))
+    record("movement-sent-false", safety.get("movementSent") is False, str(safety.get("movementSent")))
+    record("input-sent-false", safety.get("inputSent") is False, str(safety.get("inputSent")))
+    record("proof-promotion-false", safety.get("proofPromotion") is False, str(safety.get("proofPromotion")))
+    record("facing-promotion-false", safety.get("facingPromotion") is False, str(safety.get("facingPromotion")))
+    record(
+        "facing-remains-candidate-only",
+        facing_reacquisition.get("promotionPerformed") is False
+        and "candidate-only" in str(facing_reacquisition.get("status")),
+        json.dumps(facing_reacquisition, sort_keys=True),
+    )
+
+    status = "passed" if not errors else "failed"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-current-truth-refresh-plan-self-test",
+        "toolVersion": TOOL_VERSION,
+        "generatedAtUtc": generated_at_utc,
+        "status": status,
+        "verdict": "self-test-passed" if status == "passed" else "self-test-failed",
+        "checks": checks,
+        "blockers": [],
+        "warnings": [],
+        "errors": errors,
+        "safety": {
+            **safety_flags(),
+            "dryRunOnly": True,
+            "trackedTruthWritten": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+        },
+        "artifacts": {},
+        "next": {
+            "recommendedAction": "If this self-test passes, run unit tests before changing tracked truth workflow.",
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a dry-run current-truth refresh plan.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root; defaults to auto-detect.")
     parser.add_argument("--current-truth-json", default=str(DEFAULT_CURRENT_TRUTH_JSON))
     parser.add_argument("--dashboard-json", default=str(DEFAULT_DASHBOARD_JSON))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--self-test", action="store_true", help="Run a built-in dry-run self-test and exit.")
     parser.add_argument("--write", action="store_true", help="Write ignored plan artifacts.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
     return parser
@@ -796,6 +1006,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.self_test:
+        summary = build_self_test_summary()
+        if args.json:
+            print(json_text(summary), end="")
+        else:
+            print(build_markdown(summary))
+        return 0 if summary["status"] == "passed" else 1
+
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     summary = build_current_truth_refresh_plan(
         repo_root,

@@ -273,6 +273,25 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
         self.assertEqual("passed", payload["status"])
         self.assertIn("summaryJson", payload["artifacts"])
 
+    def test_cli_self_test_json_passes_without_repo_writes(self) -> None:
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = planner.main(["--self-test", "--json"])
+
+        payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("passed", payload["status"])
+        self.assertEqual("riftreader-current-truth-refresh-plan-self-test", payload["kind"])
+        check_names = {item["name"] for item in payload["checks"]}
+        self.assertIn("tracked-truth-unchanged", check_names)
+        self.assertIn("facing-remains-candidate-only", check_names)
+        self.assertFalse(payload["safety"]["trackedTruthWritten"])
+        self.assertFalse(payload["safety"]["movementSent"])
+        self.assertFalse(payload["safety"]["inputSent"])
+        self.assertFalse(payload["safety"]["proofPromotion"])
+
 
 if __name__ == "__main__":
     unittest.main()

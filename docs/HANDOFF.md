@@ -12,10 +12,10 @@ and any strafe recovery execution remain explicitly gated.
 |---|---|---|
 | #1 | Static resolver freshness gate | ✅ Done — pre-movement readback gate in runner |
 | #2 | Turn-aware route planning (atan2 + 0x304 cross-check) | ✅ Done — `turn_aware_route_plan.py` |
-| #3 | Verified turn convergence (pulse-loop detector) | ✅ Done via `mouse-look` backend; keyboard input also works after chat focus is cleared |
+| #3 | Verified turn convergence (pulse-loop detector) | ⚠️ Historical coverage exists, but the latest 17:21 UTC same-target recheck did **not** produce static-owner yaw delta after chat focus was cleared; reacquire turn/yaw evidence before using turn control. |
 | #4 | Strafe/drift detection | ✅ Done offline — route summaries classify stationary block/drift-back and emit advisory recovery plan |
 
-**Pipeline architecture:**
+**Pipeline architecture (only after fresh turn/yaw reacquisition passes):**
 ```
 state readback → plan (bearing + 0x304) → turn (mouse-look pulse-loop verified) → forward (route step) → repeat
 ```
@@ -52,6 +52,7 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
+| `142deab` | Record approved bounded route validation |
 | `a19e1a6` | Refresh current truth from no-input readback |
 | `caeca92` | Refresh handoff with truth plan status |
 | `059832a` | Surface truth refresh plan in workflow status |
@@ -61,7 +62,6 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 | `16f9323` | Document navigation pointer status workflow |
 | `c6fad32` | Refresh handoff with navigation discovery status |
 | `6f9dcc7` | Surface navigation discovery in workflow status |
-| `7cc2587` | Refine navigation discovery freshness guidance |
 
 ## Latest live finding — 2026-05-31
 
@@ -169,6 +169,32 @@ Current safe next action: run targeted/full validation for this tracked-truth sl
 
 Current safe next action: use this as a bounded route-loop success baseline. For a larger route, refresh exact-target static/API-now evidence first, keep one destination/recovery mode at a time, and do not promote facing/turn-rate chains without their proof gates.
 
+## Approved facing/turn-rate recheck — 2026-05-31 17:11–17:22 UTC
+
+This slice used the user's explicit approval for bounded live input to advance
+facing/turn-rate discovery. It is **candidate-only** and intentionally does not
+promote facing, turn-rate, actor chains, or proof artifacts.
+
+| Check | Evidence |
+|---|---|
+| Exact target rebound and captured | PID `25668`, HWND `0x320CB0`; visual preflight `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-132147-219.png`. |
+| Fresh no-input coordinate readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-171111-287296\summary.json`: coordinate `7267.5234375, 821.6994018554688, 3005.181640625`, stationary. |
+| Fresh no-input nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-171111-334276\summary.json`: yaw `22.962550464°`, pitch `-7.446817291°`; candidate-only. |
+| Mouse-look proof pack blocked | `C:\RIFT MODDING\RiftReader\scripts\captures\facing-turnrate-proof-pack-20260531-171311-130557\summary.json`; `static-owner-mouse-turn-probe-20260531-171311-633040\summary.json` sent approved mouse input and frame changed, but static-owner yaw delta stayed `0.0°`. |
+| Keyboard proof initially contaminated by chat focus | `C:\RIFT MODDING\RiftReader\scripts\captures\turn-input-discovery-proof-20260531\static-owner-turn-input-probe-20260531-171640-888917\summary.json`; screenshot `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-131832-868.png` showed typed probe keys in chat input. |
+| Chat focus cleared | Exact-target `escape` produced `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-131930-205.png`; chat input was visually closed. |
+| Keyboard proof rerun still blocked after focus clear | `C:\RIFT MODDING\RiftReader\scripts\captures\facing-turnrate-key-proof-pack-20260531-172158-665488\summary.json`; `d` ScanCode input was delivered to the exact foreground target, but pre/post static yaw stayed `22.962550464°` and coordinate drift stayed `0.0m`. |
+| Post-input visual state changed | `C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\.runtime\screenshots\capture-20260531-132212-776.png`; visual camera/scene changed, but the current static-owner yaw candidate did not change in memory readback. |
+| Boundary | Mouse/keyboard/Escape input was sent under approval. No route movement was run after the turn-yaw blocker; no Cheat Engine, x64dbg attach, provider writes, target memory writes, proof promotion, actor-chain promotion, or facing/turn-rate promotion. |
+
+Current safe next action: treat turn/yaw as **not currently reacquired** despite
+historical success. Do not run a turn-dependent route until a fresh proof pack
+shows same-target yaw delta. Next practical discovery is a no-promotion
+camera-vs-avatar-yaw classification run: collect simultaneous visual captures,
+static nav-state reads, and a small set of read-only owner-neighborhood fields
+around `0x304/0x30C/0x310/0x314` after one approved turn/camera stimulus, then
+compare for the field that actually changes in this client state.
+
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
 Future repair/testing lanes should use the timestamped validation ledger so long
@@ -234,9 +260,9 @@ python tools\riftreader_workflow\validation_ledger.py --tier full-local
 
 ## Next steps (priority order)
 
-1. **Route-loop rerun with chat-focus ruled out** — use visual preflight or the opt-in `--clear-ui-focus-before-input` flag only when focus is confirmed.
-2. **Implement bounded lateral/strafe recovery** — if true terrain blockage remains after focus is ruled out, use exact-target short `A/D` or mouse+strafe probes.
-3. **Calibrate mouse-look turn pulse sizing** — 40px is safe for 5–7° pulses; record a small calibration table in route docs/tests.
-4. **Refresh route fixtures with the new live artifacts** — preserve mouse-turn success, chat-focus hazard, post-Escape movement success, and route-loop pass.
-5. **Clean/commit remaining local slices** — keep explicit paths only; review mixed pre-existing changes separately.
-6. **Phase 1: Combat bot** — target selection, combat state detection, ability rotation (see `docs/workflows/combat-bot-roadmap.md`).
+1. **Reacquire turn/yaw proof before turn-dependent routing** — latest same-target proof attempts show visual scene change but no static-owner yaw delta.
+2. **Classify camera-vs-avatar yaw fields** — collect visual captures plus read-only owner-neighborhood deltas around `0x304/0x30C/0x310/0x314`; keep candidate-only.
+3. **Route-loop rerun only after turn proof passes** — use visual preflight or the opt-in `--clear-ui-focus-before-input` flag only when focus is confirmed.
+4. **Implement bounded lateral/strafe recovery** — if true terrain blockage remains after focus and turn proof are ruled out, use exact-target short `A/D` or mouse+strafe probes.
+5. **Refresh route fixtures with the new blocked-turn artifacts** — preserve historical success, chat-focus hazard, post-Escape blocked proof, and route-loop pass separately.
+6. **Phase 1: Combat bot** — target selection, combat state detection, ability rotation (see `docs/workflows/combat-bot-roadmap.md`) after movement/facing control is stable.
