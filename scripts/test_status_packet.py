@@ -351,6 +351,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             write_text(root / "scripts" / "static-owner-turn-aware-route-plan.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-nav-report-route-run.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-navigation-pointer-discovery.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-current-truth-refresh-plan.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -388,6 +389,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("saved route-run report only", commands["static-owner-route-run-report"]["safety"])
         self.assertTrue(commands["navigation-pointer-discovery"]["exists"])
         self.assertIn("read-only artifact index", commands["navigation-pointer-discovery"]["safety"])
+        self.assertTrue(commands["current-truth-refresh-plan"]["exists"])
+        self.assertIn("ignored dry-run plan only", commands["current-truth-refresh-plan"]["safety"])
 
 
 if __name__ == "__main__":

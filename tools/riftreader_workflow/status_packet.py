@@ -125,6 +125,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "read-only artifact index; no live process reads/input/movement/debugger/provider writes or promotion",
     ),
     (
+        "current-truth-refresh-plan",
+        "Current truth refresh dry-run plan",
+        "scripts\\riftreader-current-truth-refresh-plan.cmd --json --write",
+        "ignored dry-run plan only; no tracked truth write/input/movement/debugger/provider writes or promotion",
+    ),
+    (
         "actor-chain-no-debug-status",
         "Actor-chain no-debug status",
         "scripts\\riftreader-actor-chain-no-debug-status.cmd --json",
