@@ -52,16 +52,15 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
+| `f5f8bc2` | Document current truth refresh plan |
+| `a539850` | Add current truth refresh plan helper |
+| `16f9323` | Document navigation pointer status workflow |
+| `c6fad32` | Refresh handoff with navigation discovery status |
 | `6f9dcc7` | Surface navigation discovery dashboard in compact workflow status |
 | `7cc2587` | Refine navigation discovery freshness guidance |
 | `a9b062c` | Add navigation discovery freshness classification |
 | `32367d7` | Document navigation pointer discovery dashboard |
 | `0100434` | Add navigation pointer discovery dashboard |
-| `52e7bb1` | Timestamped validation ledger for durable command timing |
-| `b3a3922` | Remove pytest dependency from turn detector tests |
-| `b7e01ad` | Refresh handoff with live route evidence |
-| `480a7f9` | Exact-target turn and recovery probes |
-| `4ce6800` | Current truth and helper import hygiene |
 
 ## Latest live finding — 2026-05-31
 
@@ -122,6 +121,21 @@ Outcome: current coordinate/facing pointer-chain evidence is reacquired for PID 
 | Validation ledger recorded reacquisition timing | `.riftreader-local\validation-runs\20260531-151941-457745\summary.md`: coordinate readback `0.777s`, nav readback `0.779s`, dashboard regen `0.773s`, overall passed. |
 
 Current safe next action: keep using the dashboard/status packet for resume context. Do **not** promote facing/turn-rate chains or rewrite current truth unless a deliberate proof/truth-refresh gate is opened.
+
+## Current-truth refresh dry-run plan — 2026-05-31 15:38 UTC
+
+| Check | Evidence |
+|---|---|
+| Dry-run planner added | `scripts\riftreader-current-truth-refresh-plan.cmd --json --write` calls Python helper `tools\riftreader_workflow\current_truth_refresh_plan.py`. |
+| Ignored proposal generated | `.riftreader-local\current-truth-refresh-plan\latest\summary.json`, `proposed-current-truth.json`, and `proposed-current-truth.diff`. |
+| Planner result | Status `passed`, `updateCount=9`; it proposes refreshing static-chain readback timestamps/coordinate fields only and keeps API-now/proof/promotion boundaries explicit. |
+| Safety boundary | `trackedTruthWritten=false`, `movementSent=false`, `inputSent=false`, `targetMemoryBytesRead=false`, `proofPromotion=false`, `facingPromotion=false`, `gitMutation=false`. |
+| Notable warning | Current tracked truth already contains historical `staticOwnerFacing` promotion metadata while the latest dashboard keeps facing as candidate-only context; the plan does not change that field. |
+| Validation ledger | `.riftreader-local\validation-runs\20260531-153915-784379\summary.md` and `.riftreader-local\validation-runs\20260531-153917-915814\summary.md` passed. |
+
+Current safe next action: review the ignored proposal artifacts. Applying any
+tracked `docs\recovery\current-truth.json` update remains a separate explicit
+truth-refresh gate; the dry-run plan is not proof promotion.
 
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
