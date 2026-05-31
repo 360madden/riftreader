@@ -1,6 +1,6 @@
 # Current RIFT live truth — static player-coordinate resolver PROMOTED
 
-Updated UTC: `2026-05-31T14:23:13Z`
+Updated UTC: `2026-05-31T16:08:47Z`
 
 # **✅ RESULT**
 
@@ -8,7 +8,7 @@ The static chain below remains **promoted** as the current static **player-coord
 
 `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
 
-This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `25668` / HWND `0x320CB0`; current PID `25668` now has fresh RRAPICOORD API-now vs static-chain validation from the 2026-05-31 bounded family snapshot. PID `34176` appears below only as historical promotion-validation evidence.
+This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `25668` / HWND `0x320CB0`; current PID `25668` has RRAPICOORD API-now vs static-chain validation from the 2026-05-31 bounded family snapshot, and a later no-input static readback refresh at `2026-05-31T16:06:14.677913+00:00`. PID `34176` appears below only as historical promotion-validation evidence.
 
 ## Current target
 
@@ -22,16 +22,16 @@ This is a precise promotion. It proves and promotes current player **coordinates
 | Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
 | Owner in current readback | `0x1B53D7806A0` |
 | Coordinate address in current readback | `0x1B53D7809C0` (owner+0x320) |
-| Latest recorded coordinate snapshot | `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T14:23:12.926638+00:00` — current exact-target static-chain readback after bounded displacement; do not present this value as current-now in a later session without a fresh API-now vs memory-now check. |
-| Latest current nav yaw | `22.940853610°` at `2026-05-31T14:23:12.943809+00:00` |
+| Latest recorded coordinate snapshot | `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T16:06:14.677913+00:00` — current exact-target no-input static-chain readback; API-now was not refreshed by this readback-only update, so do not present this value as current-now/API-confirmed later without a fresh API-now vs memory-now check. |
+| Latest current nav yaw | `22.940853610°` at `2026-05-31T16:06:15.485682+00:00` |
 | Latest RRAPICOORD API coordinate for PID 25668 | `7264.4297, 821.7000, 3003.8799` |
 | Latest API timestamp for PID 25668 | `2026-05-31T14:22:56.4433446Z` |
-| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-142312-924000\summary.json` |
-| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-142312-943158\summary.json` |
+| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-160614-677227\summary.json` |
+| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-160615-484864\summary.json` |
 | Current PID API-now vs chain-now validation | `C:\RIFT MODDING\RiftReader\scripts\captures\family-snapshot-sequence-currentpid-25668-20260531-142159-332736\delta-analysis\delta-summary.json` |
 | Promotion report | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promoted-2026-05-27.md` |
 
-PID/HWND identity is a targeting preflight only. The current PID `25668` API-now validation below passed at `2026-05-31T14:22:57Z`; refresh it before later live movement or proof promotion because coordinates and target epochs drift over time.
+PID/HWND identity is a targeting preflight only. The current PID `25668` API-now validation below passed at `2026-05-31T14:22:57Z`; the `2026-05-31T16:06:14.677913+00:00` tracked-truth refresh was no-input static readback only and did not refresh API-now. Refresh API-now before later live movement or proof promotion because coordinates and target epochs drift over time.
 
 ## Promotion gate summary
 
@@ -48,6 +48,18 @@ PID/HWND identity is a targeting preflight only. The current PID `25668` API-now
 | Cheat Engine / x64dbg | **Not used** | No CE, no x64dbg attach, no breakpoints/watchpoints |
 | Target memory writes | **None** | Memory reads only |
 
+
+
+## Current PID 25668 no-input static readback refresh — 2026-05-31 16:06 UTC
+
+This refresh updated tracked truth from exact-target no-input static-chain/nav-state readbacks only. It did **not** send movement/input, refresh RRAPICOORD API-now, promote facing/turn-rate, or promote actor/stat proof.
+
+| Check | Evidence |
+|---|---|
+| Static coordinate readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-160614-677227\summary.json` — coordinate `7264.431640625, 821.697204590, 3003.875732422` at `2026-05-31T16:06:14.677913+00:00`. |
+| Nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-160615-484864\summary.json` — yaw `22.940853610°`, turn-rate sample `1.171185732`; turn control remains separately gated by live-route approvals. |
+| Dashboard / apply source | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` generated `2026-05-31T16:06:16Z`; `.riftreader-local\current-truth-refresh-plan\latest\summary.json` applied at `2026-05-31T16:08:47Z` with `updateCount=13`. |
+| Boundary | API-now evidence remains the 2026-05-31 bounded family snapshot ending `2026-05-31T14:22:57Z`; this refresh is not proof promotion. |
 
 ## Current PID 25668 API-now validation — 2026-05-31
 
@@ -146,4 +158,4 @@ See **[Coordinate Recovery & Reacquisition Workflow](coordinate-recovery-workflo
 
 ## Next recommended action
 
-Continue from this promoted coordinate resolver with exact-target/freshness preflights. Current PID `25668` API-now vs chain-now passed at `2026-05-31T14:22:57Z`; before presenting coordinates as API-confirmed truth in a later session, refresh API-now vs memory-now evidence. Keep actor/stat field discovery separate from this coordinate promotion.
+Continue from this promoted coordinate resolver with exact-target/freshness preflights. Current PID `25668` no-input static readback refreshed at `2026-05-31T16:06:14.677913+00:00`, while API-now vs chain-now remains the bounded validation that passed at `2026-05-31T14:22:57Z`; before presenting coordinates as API-confirmed truth in a later session, refresh API-now vs memory-now evidence. Keep actor/stat field discovery separate from this coordinate promotion.

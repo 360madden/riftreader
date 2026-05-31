@@ -139,6 +139,20 @@ Current safe next action: review the ignored proposal artifacts. Applying any
 tracked `docs\recovery\current-truth.json` update remains a separate explicit
 truth-refresh gate; the dry-run plan is not proof promotion.
 
+
+## Current-truth refresh apply — 2026-05-31 16:08 UTC
+
+| Check | Evidence |
+|---|---|
+| No-input coordinate readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260531-160614-677227\summary.json` passed for PID `25668` / HWND `0x320CB0` at `2026-05-31T16:06:14.677913+00:00`. |
+| No-input nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260531-160615-484864\summary.json` passed; yaw `22.940854°`, turn-rate sample `1.171186`. |
+| Dashboard regenerated | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` generated `2026-05-31T16:06:16Z`; current truth was the only stale dashboard source afterward. |
+| Planner hardened | `tools\riftreader_workflow\current_truth_refresh_plan.py` now carries latest coordinate/nav-state artifact paths into the proposed tracked truth, not just timestamps. |
+| Tracked truth applied | `docs\recovery\current-truth.json` and `docs\recovery\current-truth.md` updated from the reviewed dry-run proposal (`updateCount=13`). |
+| Boundary | API-now remains the prior 2026-05-31 bounded family validation ending `2026-05-31T14:22:57Z`; no movement/input, proof promotion, actor-chain promotion, or facing/turn-rate promotion was performed by this refresh. |
+
+Current safe next action: run targeted/full validation for this tracked-truth slice, then push only after the explicit repo-publish gate is satisfied. Live route reruns still require explicit `--turn-approved`, `--movement-approved`, and `--allow-candidate-turn-control` approval with a destination.
+
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
 Future repair/testing lanes should use the timestamped validation ledger so long

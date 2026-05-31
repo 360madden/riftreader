@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-05-31T14:23:13.328627+00:00",
+  "updatedAtUtc": "2026-05-31T16:08:47Z",
   "status": "current_pid_25668_static_player_coordinate_resolver_fresh_readback_api_now_passed",
   "target": {
     "processName": "rift_x64",
@@ -14,20 +14,20 @@
     "live": true,
     "inWorld": true,
     "status": "current-pid-25668-static-chain-readback-and-api-now-passed",
-    "lastVerifiedUtc": "2026-05-31T14:23:12.926638+00:00",
-    "verificationSource": "Exact-target current PID 25668 / HWND 0x320CB0 static-chain readback passed at 2026-05-31T14:23:12Z; RRAPICOORD/API-now vs chain-now validation passed in the bounded family snapshot sequence ending 2026-05-31T14:22:57Z. Historical promotion evidence remains validation history only."
+    "lastVerifiedUtc": "2026-05-31T16:06:14.677913+00:00",
+    "verificationSource": "Tracked current-truth refresh applied at 2026-05-31T16:08:47Z from navigation pointer discovery dashboard generated 2026-05-31T16:06:16Z. Latest no-input static-chain readback for exact PID 25668 / HWND 0x320CB0 passed at 2026-05-31T16:06:14.677913+00:00. API-now status is not refreshed by this apply; no proof/facing/actor promotion was performed."
   },
   "liveReferenceSurface": {
     "authoritative": true,
-    "status": "current-pid-25668-static-readback-and-api-now-passed",
-    "source": "Promoted static owner coordinate resolver current readback plus current PID RRAPICOORD API-now validation.",
-    "view": "Current target PID 25668 / HWND 0x320CB0 has exact-target static-chain readback and current API-now validation within tolerance.",
+    "status": "current-pid-25668-static-readback-refreshed-api-now-not-refreshed-by-plan",
+    "source": "Promoted static owner coordinate resolver latest no-input readback. RRAPICOORD/API-now evidence remains the previous recorded validation unless separately refreshed.",
+    "view": "Current target PID 25668 / HWND 0x320CB0 has a tracked-truth refresh from static-chain readback at 2026-05-31T16:06:14.677913+00:00; no proof promotion or live input was performed by this refresh.",
     "savedVariablesUse": "none",
     "currentCoordinateFromStaticChainCandidate": {
       "x": 7264.431640625,
       "y": 821.6972045898438,
       "z": 3003.875732421875,
-      "recordedAtUtc": "2026-05-31T14:23:12.926638+00:00"
+      "recordedAtUtc": "2026-05-31T16:06:14.677913+00:00"
     },
     "apiNowStatus": "passed-current-pid-25668-api-now-vs-chain-now",
     "apiNowBlockers": [],
@@ -39,7 +39,8 @@
       "Current PID static-chain readback and RRAPICOORD API-now validation are fresh as of 2026-05-31T14:23Z.",
       "Historical RRAPICOORD API-now displacement validation remains promotion evidence, not current PID API-now proof.",
       "Promotion remains limited to player coordinates at owner+0x320/+0x324/+0x328; full actor/stat fields are not promoted.",
-      "SavedVariables are not used as live truth; use RRAPICOORD/API-now or a validated live surface for current API comparisons."
+      "SavedVariables are not used as live truth; use RRAPICOORD/API-now or a validated live surface for current API comparisons.",
+      "Tracked current-truth refresh applied 2026-05-31T16:08:47Z from dry-run plan; no proof/facing/actor promotion was performed."
     ],
     "latestApiNowVsChainNow": {
       "status": "passed-current-pid-25668-api-now-vs-chain-now",
@@ -387,9 +388,9 @@
       "historicalShapeMatch": "owner+0x320/+0x324/+0x328",
       "restartRelogSurvived": true,
       "postRebootArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-180907-440028\\summary.json",
-      "latestPromotedReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-142312-924000\\summary.json",
-      "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-142312-924000\\summary.json",
-      "latestCurrentReadbackAtUtc": "2026-05-31T14:23:12.926638+00:00"
+      "latestPromotedReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-160614-677227\\summary.json",
+      "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-160614-677227\\summary.json",
+      "latestCurrentReadbackAtUtc": "2026-05-31T16:06:14.677913+00:00"
     },
     "blockers": [],
     "reusePolicy": "Promoted coordinate resolver only. Use module RVA rift_x64+0x32EBC80 plus owner coordinate offsets; revalidate after patch/module drift or before live movement loops.",
@@ -814,8 +815,8 @@
     "latestForwardPromotedStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-221136-189619\\summary.json",
     "latestReverseRrapicoordApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-34176-20260527-221337.json",
     "latestReversePromotedStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-221323-713371\\summary.json",
-    "latestCurrentPidStaticOwnerReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-124243-250543\\summary.json",
-    "latestCurrentPidNavStateReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260531-124244-004288\\summary.json",
+    "latestCurrentPidStaticOwnerReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260531-160614-677227\\summary.json",
+    "latestCurrentPidNavStateReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260531-160615-484864\\summary.json",
     "latestCurrentPidRouteLoopSuccess": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-continuous-route-20260531-121254-529672\\summary.json",
     "latestTurnInputProbe": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-input-probe-20260531-124139-909597\\summary.json",
     "latestMouseTurnProbe": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-mouse-turn-probe-20260531-124158-803473\\summary.json",

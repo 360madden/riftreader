@@ -64,8 +64,14 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
                 "ownerAddress": "0xOLD",
                 "coordinateAddress": "0xOLD320",
                 "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                "latestPromotedReadbackArtifact": "C:\\old\\coordinate-summary.json",
+                "latestCurrentReadbackArtifact": "C:\\old\\coordinate-summary.json",
                 "latestCurrentReadbackAtUtc": "2026-05-31T14:23:12Z",
             },
+        },
+        "canonicalArtifacts": {
+            "latestCurrentPidStaticOwnerReadback": "C:\\old\\coordinate-summary.json",
+            "latestCurrentPidNavStateReadback": "C:\\old\\nav-state-summary.json",
         },
     }
     dashboard = {
@@ -85,11 +91,13 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
             "coordinateReadback": {
                 "status": "passed",
                 "generatedAtUtc": "2026-05-31T15:19:42Z",
+                "path": "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json",
                 "freshness": {"status": "fresh"},
             },
             "navState": {
                 "status": "passed",
                 "generatedAtUtc": "2026-05-31T15:19:43Z",
+                "path": "scripts\\captures\\static-owner-nav-state-20260531-151943\\summary.json",
                 "freshness": {"status": "fresh"},
             },
         },
@@ -105,6 +113,7 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
                 "coordinate": {"x": 7264.431640625, "y": 821.6972045898438, "z": 3003.875732421875},
                 "latestReadbackStatus": "passed",
                 "latestReadbackAtUtc": "2026-05-31T15:19:42Z",
+                "latestReadbackJson": "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json",
             },
             "candidateFacingTarget": {
                 "status": "candidate-only",
@@ -157,6 +166,16 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
         self.assertEqual("2026-05-31T15:20:00Z", proposed["updatedAtUtc"])
         self.assertEqual("2026-05-31T15:19:42Z", proposed["target"]["lastVerifiedUtc"])
         self.assertEqual("0x1B53D7806A0", proposed["staticChainStatus"]["primaryCandidate"]["ownerAddress"])
+        self.assertTrue(
+            proposed["staticChainStatus"]["primaryCandidate"]["latestCurrentReadbackArtifact"].endswith(
+                "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json"
+            )
+        )
+        self.assertTrue(
+            proposed["canonicalArtifacts"]["latestCurrentPidNavStateReadback"].endswith(
+                "scripts\\captures\\static-owner-nav-state-20260531-151943\\summary.json"
+            )
+        )
         self.assertEqual(
             "2026-05-31T15:19:42Z",
             proposed["liveReferenceSurface"]["currentCoordinateFromStaticChainCandidate"]["recordedAtUtc"],

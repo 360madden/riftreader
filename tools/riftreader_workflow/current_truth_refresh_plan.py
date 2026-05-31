@@ -104,6 +104,15 @@ def append_unique_note(notes: Any, note: str) -> list[str]:
     return result
 
 
+def truth_artifact_path(repo_root: Path, value: Any) -> str | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = repo_root / path
+    return str(path)
+
+
 def add_update(
     *,
     current_truth: dict[str, Any],
@@ -174,6 +183,7 @@ def validate_dashboard_safety(dashboard: dict[str, Any]) -> list[str]:
 
 def build_proposed_current_truth(
     *,
+    repo_root: Path,
     current_truth: dict[str, Any],
     dashboard: dict[str, Any],
     generated_at_utc: str,
@@ -181,10 +191,18 @@ def build_proposed_current_truth(
     proposed = copy.deepcopy(current_truth)
     updates: list[dict[str, Any]] = []
     target = as_mapping(dashboard.get("target"))
+    sources = as_mapping(dashboard.get("sources"))
+    coordinate_source = as_mapping(sources.get("coordinateReadback"))
+    nav_state_source = as_mapping(sources.get("navState"))
     candidates = as_mapping(dashboard.get("candidates"))
     promoted = as_mapping(candidates.get("promotedCoordinate"))
     coordinate = as_mapping(promoted.get("coordinate"))
     latest_readback_at = promoted.get("latestReadbackAtUtc")
+    latest_readback_json = truth_artifact_path(
+        repo_root,
+        promoted.get("latestReadbackJson") or coordinate_source.get("path"),
+    )
+    latest_nav_state_json = truth_artifact_path(repo_root, nav_state_source.get("path"))
     process_id = target.get("processId")
     hwnd = target.get("targetWindowHandle")
     verification_source = (
@@ -309,9 +327,41 @@ def build_proposed_current_truth(
         current_truth=current_truth,
         proposed=proposed,
         updates=updates,
+        path=("staticChainStatus", "primaryCandidate", "latestPromotedReadbackArtifact"),
+        value=latest_readback_json,
+        reason="latest artifact for promoted static resolver readback",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("staticChainStatus", "primaryCandidate", "latestCurrentReadbackArtifact"),
+        value=latest_readback_json,
+        reason="latest exact-target static-chain coordinate readback artifact",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
         path=("staticChainStatus", "primaryCandidate", "latestCurrentReadbackAtUtc"),
         value=latest_readback_at,
         reason="latest exact-target static-chain coordinate readback time",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("canonicalArtifacts", "latestCurrentPidStaticOwnerReadback"),
+        value=latest_readback_json,
+        reason="latest exact-target static-owner readback artifact",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("canonicalArtifacts", "latestCurrentPidNavStateReadback"),
+        value=latest_nav_state_json,
+        reason="latest exact-target nav-state readback artifact",
     )
     return proposed, updates
 
@@ -402,6 +452,7 @@ def build_current_truth_refresh_plan(
             status = "blocked"
         else:
             proposed, updates = build_proposed_current_truth(
+                repo_root=repo_root,
                 current_truth=current_truth,
                 dashboard=dashboard,
                 generated_at_utc=generated,
