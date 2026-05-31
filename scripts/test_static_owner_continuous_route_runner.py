@@ -1747,6 +1747,59 @@ class TerrainNoProgressSubClassificationTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertIn("forward-no-progress-3-consecutive-blocked-stationary-terrain", result["blockers"])
         self.assertNotIn("forward-no-progress-3-consecutive-stuck", result["blockers"])
+        self.assertEqual(result["terrain"]["primarySubClassification"], "blocked-stationary-no-movement")
+        self.assertEqual(result["terrain"]["terrainSubClassifications"], {"blocked-stationary-no-movement": 3})
+        self.assertEqual(result["recoveryPlan"]["status"], "recommended")
+        self.assertTrue(result["recoveryPlan"]["advisoryOnly"])
+        self.assertFalse(result["recoveryPlan"]["movementPermission"])
+        self.assertEqual(
+            result["recoveryPlan"]["recommendedAction"],
+            "plan-lateral-strafe-recovery-before-forward-rerun",
+        )
+
+    def test_drifted_back_triggers_recovery_plan(self) -> None:
+        """3 consecutive drift-back no-progress steps → drift-specific blocker and recovery plan."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, add_turn, add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_plan("plan-001", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-001", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="drifted-back-after-initial-progress")
+        add_plan("plan-002", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-002", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="drifted-back-after-initial-progress")
+        add_plan("plan-003", "forward", "aligned", "aligned",
+                 1.77, 1.77, 4.5, False, True, False, "stationary")
+        add_forward("forward-003", "no-progress", 0.0, 4.5, 4.5,
+                    no_progress_sub="drifted-back-after-initial-progress")
+
+        args = _make_args(
+            max_iterations=5,
+            skip_readback_freshness_gate=True,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as _mock:
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("forward-no-progress-3-consecutive-drifted-back-terrain", result["blockers"])
+        self.assertEqual(result["terrain"]["primarySubClassification"], "drifted-back-after-initial-progress")
+        self.assertEqual(result["terrain"]["terrainSubClassifications"], {"drifted-back-after-initial-progress": 3})
+        self.assertEqual(
+            result["recoveryPlan"]["recommendedAction"],
+            "plan-opposite-strafe-recovery-before-forward-rerun",
+        )
+        self.assertIn("try-opposite-lateral-strafe-if-still-stationary", result["recoveryPlan"]["candidateSequence"])
 
     def test_markdown_shows_no_progress_sub_classification(self) -> None:
         """Markdown output includes sub-classification when present in forward result."""
@@ -1785,6 +1838,20 @@ class TerrainNoProgressSubClassificationTests(unittest.TestCase):
                     },
                 },
             ],
+            "terrain": {
+                "noProgressStepCount": 1,
+                "terrainSubClassifications": {"blocked-stationary-no-movement": 1},
+                "primarySubClassification": "blocked-stationary-no-movement",
+                "terrainBlockerPresent": True,
+            },
+            "recoveryPlan": {
+                "status": "recommended",
+                "advisoryOnly": True,
+                "movementPermission": False,
+                "recommendedAction": "plan-lateral-strafe-recovery-before-forward-rerun",
+                "why": "Terrain collision",
+                "candidateSequence": ["fresh-static-owner-nav-state-readback"],
+            },
             "blockers": ["forward-no-progress-3-consecutive-blocked-stationary-terrain"],
             "warnings": [],
             "errors": [],
@@ -1797,6 +1864,8 @@ class TerrainNoProgressSubClassificationTests(unittest.TestCase):
         }
         md = build_markdown(summary)
         self.assertIn("No-progress reason: `blocked-stationary-no-movement`", md)
+        self.assertIn("## Terrain / drift classification", md)
+        self.assertIn("Recommended action: `plan-lateral-strafe-recovery-before-forward-rerun`", md)
 
 
 class WaypointSequenceIntegrationTests(unittest.TestCase):
@@ -1959,4 +2028,3 @@ class WaypointSequenceIntegrationTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["verdict"], "sequence-error")
         self.assertTrue(any("FileNotFoundError" in (e or "") for e in result.get("errors", [])))
-

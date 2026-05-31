@@ -3,8 +3,9 @@
 ## Purpose
 
 This document defines the bounded turn/yaw stimulus lane for the static-owner
-candidate facing fields. It is evidence collection only: `+0x30C/+0x310/+0x314`
-remains candidate-only and is not promoted to navigation truth.
+facing-target/yaw readback fields. The `+0x30C/+0x310/+0x314` readback source is
+promoted separately for yaw readback, but turn stimulus captures remain evidence
+collection only and do not grant route-control permission.
 
 ## Helper chain
 
@@ -64,10 +65,10 @@ python -m unittest scripts.test_static_owner_turn_stimulus_capture
 
 ## Boundary
 
-Turn stimulus captures prove that the candidate yaw lane responds to bounded
+Turn stimulus captures prove that the promoted yaw readback responds to bounded
 turn input. They do **not** prove route turn control, full actor/stat-chain
 truth, or ProofOnly/proof freshness. Any route controller that consumes turn
-evidence must still exact-target the current process and keep proof/facing
+evidence must still exact-target the current process and keep proof/current-truth
 promotion as separate explicit gates. The next-stage turn-aware planner and
 single turn-forward experiment are documented separately in
 `docs\workflow\static-owner-turn-aware-route-contract.md`.

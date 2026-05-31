@@ -4,14 +4,16 @@
 
 ## Current state
 
-RIFT automated navigation is in **Phase 0 (correctness)**. Three of four blockers are resolved:
+RIFT automated navigation is in **Phase 0 (correctness)**. Four of four
+correctness blockers now have offline/code-level coverage; live route validation
+and any strafe recovery execution remain explicitly gated.
 
 | # | Blocker | Status |
 |---|---|---|
 | #1 | Static resolver freshness gate | ✅ Done — pre-movement readback gate in runner |
 | #2 | Turn-aware route planning (atan2 + 0x304 cross-check) | ✅ Done — `turn_aware_route_plan.py` |
 | #3 | Verified turn convergence (pulse-loop detector) | ✅ Done — `turn_completion_detector.py` |
-| #4 | Strafe/drift detection | ❌ Remaining |
+| #4 | Strafe/drift detection | ✅ Done offline — route summaries classify stationary block/drift-back and emit advisory recovery plan |
 
 **Pipeline architecture:**
 ```
@@ -88,7 +90,7 @@ python -m pytest scripts/ -v
 
 ## Next steps (priority order)
 
-1. **Phase 0 #4: Strafe/drift detection** — detect `blocked-stationary-no-movement` and `drifted-back-after-initial-progress` sub-classifications, try opposite strafe key before re-attempting forward
-2. **Live test turn completion detector** against running RIFT — `@rift-readback` then small signed-delta turn
-3. **Move calibration constants** from runner module to test file where they're actually used
+1. **Validate Phase 0 #4 live only after approval** — exact-target readback, then one bounded route/terrain smoke with `--turn-approved` and `--movement-approved`
+2. **Clean/commit remaining local slices** — agent routing, x64dbg MCP doc rename, policy/knowledge docs, and the reserved-name `nul` artifact
+3. **Refresh route fixtures if live terrain evidence is collected** — preserve stationary/drift-back summaries for replay
 4. **Phase 1: Combat bot** — target selection, combat state detection, ability rotation (see `docs/workflows/combat-bot-roadmap.md`)

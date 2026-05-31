@@ -4,7 +4,9 @@
 
 This document defines the offline contract for the static-owner navigation
 route helpers. It is for saved route summaries only; it is not live movement
-permission and does not promote facing, actor, or proof truth.
+permission. The facing-target/yaw readback source is promoted separately, but
+route-control recommendations remain gated and do not promote actor/stat or
+proof truth.
 
 ## Current helper chain
 
@@ -45,7 +47,7 @@ Consumers must reject a route summary unless all of these are true:
 | `safety.x64dbgAttach` | `false` | Debugger attach is not part of this lane. |
 | `safety.providerWrites` | `false` | RiftScan/ChromaLink stay read-only. |
 | `safety.dryRunOnly` | `true` | The artifact remains offline-only. |
-| `safety.facingPromotion` | `false` | Facing/yaw remains candidate-only. |
+| `safety.facingPromotion` | `false` | This artifact did not perform a facing/yaw promotion; route control remains separately gated. |
 
 The repository fixture
 `scripts/navigation/testdata/static-owner-nav-route-summary-safe.json` is the
@@ -80,7 +82,7 @@ contract. It is intentionally one-step only:
 | Input backend | Uses `scripts\send-rift-key-csharp.ps1` with C# SendInput `ScanCode` by default. |
 | Post-state readback | Captures another exact-target static-owner state after the single pulse. |
 | Progress gate | Builds and validates a saved route summary from pre/post states. `progress` or `arrived` passes; `no-progress`, `wrong-way`, and `overshot` block. |
-| Promotions | Does not promote facing, actor chain, proof, or current truth. |
+| Promotions | Does not promote actor chain, proof, current truth, or route-control authority. |
 
 The repository fixture
 `scripts/navigation/testdata/static-owner-nav-route-step-summary-progress.json`
@@ -105,7 +107,7 @@ the one-step helper. It does not implement independent movement logic.
 | Fail-closed rule | Blocks/fails immediately on step failure, contract failure, candidate turn block, wrong-way, no-progress, overshot, target drift, or JSON/summary load failure. |
 | Max steps | Reaching `--max-steps` with progress but without arrival returns blocked (`route-run-max-steps-reached-before-arrival`) rather than silently continuing. |
 | Arrival-radius guardrail | `--arrival-radius` must not exceed `--max-arrival-radius` (default `10.0`) unless the operator explicitly raises that ceiling. |
-| Promotions | Does not promote facing, actor chain, proof, or current truth. |
+| Promotions | Does not promote actor chain, proof, current truth, or route-control authority. |
 
 The runner's `safety.navigationControl` is set only when a live run sends input
 across more than one step. The one-step summaries remain the source of truth for

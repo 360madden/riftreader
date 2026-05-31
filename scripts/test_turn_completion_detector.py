@@ -7,6 +7,7 @@ import json
 import math
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,7 +32,7 @@ from scripts.turn_completion_detector import (
 # ── validate_args ──
 
 
-class TestValidateArgs:
+class TestValidateArgs(unittest.TestCase):
     def test_valid_minimal_args(self):
         ns = argparse.Namespace(
             direction="left",
@@ -214,7 +215,7 @@ class TestValidateArgs:
 # ── _cross_check_turn_rate ──
 
 
-class TestCrossCheckTurnRate:
+class TestCrossCheckTurnRate(unittest.TestCase):
     def test_agreement_left(self):
         agreements, warnings = _cross_check_turn_rate("left", "left", 3)
         assert len(agreements) == 1
@@ -254,7 +255,7 @@ class TestCrossCheckTurnRate:
 # ── Pulse loop logic (unit tests with mocked dependencies) ──
 
 
-class TestPulseLoopConvergence:
+class TestPulseLoopConvergence(unittest.TestCase):
     """Test the run() function's pulse loop behavior using mocked read_nav_state."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -486,7 +487,7 @@ class TestPulseLoopConvergence:
 # ── Signed-bearing-delta resolution ──
 
 
-class TestSignedBearingDeltaResolution:
+class TestSignedBearingDeltaResolution(unittest.TestCase):
     """Test that --signed-bearing-delta-degrees correctly resolves to target bearing."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -535,7 +536,7 @@ class TestSignedBearingDeltaResolution:
 # ── compact output ──
 
 
-class TestCompact:
+class TestCompact(unittest.TestCase):
     def test_compact_converged(self):
         summary = {
             "status": "passed",
@@ -614,7 +615,7 @@ class TestCompact:
 # ── build_markdown ──
 
 
-class TestBuildMarkdown:
+class TestBuildMarkdown(unittest.TestCase):
     def test_markdown_converged(self):
         summary = {
             "generatedAtUtc": "2026-01-01T00:00:00Z",
@@ -694,7 +695,7 @@ class TestBuildMarkdown:
 # ── build_parser ──
 
 
-class TestBuildParser:
+class TestBuildParser(unittest.TestCase):
     def test_required_args(self):
         parser = build_parser()
         with pytest.raises(SystemExit):
@@ -744,7 +745,7 @@ class TestBuildParser:
 # ── Angle math edge cases ──
 
 
-class TestAngleEdgeCases:
+class TestAngleEdgeCases(unittest.TestCase):
     @patch("scripts.turn_completion_detector.read_nav_state")
     @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
     def test_wrap_around_180_boundary(self, mock_sleep, mock_read_nav):
@@ -846,7 +847,7 @@ class TestAngleEdgeCases:
 # ── Edge-case: zero-degree crossing wrap-around ──
 
 
-class TestZeroDegreeCrossing:
+class TestZeroDegreeCrossing(unittest.TestCase):
     """Test turn convergence when yaw crosses the 0°/360° boundary."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -933,7 +934,7 @@ class TestZeroDegreeCrossing:
 # ── Edge-case: boundary convergence ──
 
 
-class TestBoundaryConvergence:
+class TestBoundaryConvergence(unittest.TestCase):
     """Test that convergence at the exact threshold boundary works correctly."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1021,7 +1022,7 @@ class TestBoundaryConvergence:
 # ── Edge-case: signed delta edge cases ──
 
 
-class TestSignedDeltaEdgeCases:
+class TestSignedDeltaEdgeCases(unittest.TestCase):
     """Edge-case behavior of signed bearing delta resolution."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1118,7 +1119,7 @@ class TestSignedDeltaEdgeCases:
 # ── Edge-case: yaw readback edge cases ──
 
 
-class TestYawReadbackEdgeCases:
+class TestYawReadbackEdgeCases(unittest.TestCase):
     """Edge cases around yaw readback failures."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1167,7 +1168,7 @@ class TestYawReadbackEdgeCases:
 # ── Edge-case: pulse history tracking ──
 
 
-class TestPulseHistoryTracking:
+class TestPulseHistoryTracking(unittest.TestCase):
     """Verify pulseHistory is correctly populated during pulse loop."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1206,7 +1207,7 @@ class TestPulseHistoryTracking:
         # (pulse 3 converged before sending another pulse)
         # Actually wait: pulse 3 sends a pulse before reading the convergence result
         # Let's think about this differently
-        assert result["totalPulses"] == 3  # 3 pulses sent
+        assert result["totalPulses"] == 3  # pulses sent at idx 0,1,2; idx 3 converged
 
     @patch("scripts.turn_completion_detector.read_nav_state")
     @patch("scripts.turn_completion_detector.time.sleep", return_value=None)
@@ -1238,7 +1239,7 @@ class TestPulseHistoryTracking:
 # ── Edge-case: cross-check warnings ──
 
 
-class TestCrossCheckWarningsNonFatal:
+class TestCrossCheckWarningsNonFatal(unittest.TestCase):
     """Cross-check warnings should never block or fail a turn."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1295,7 +1296,7 @@ class TestCrossCheckWarningsNonFatal:
 # ── Edge-case: subprocess timeout ──
 
 
-class TestSubprocessTimeout:
+class TestSubprocessTimeout(unittest.TestCase):
     """Test behavior when run_child or read_nav_state raises TimeoutExpired."""
 
     @patch("scripts.turn_completion_detector.read_nav_state", side_effect=subprocess.TimeoutExpired(cmd=["test"], timeout=5.0))
@@ -1327,7 +1328,7 @@ class TestSubprocessTimeout:
 # ── Edge-case: main function ──
 
 
-class TestMainFunction:
+class TestMainFunction(unittest.TestCase):
     """Test exit codes and basic main() behavior."""
 
     @patch("scripts.turn_completion_detector.run")
@@ -1370,7 +1371,7 @@ class TestMainFunction:
 # ── Edge-case: maximum pulses at boundary ──
 
 
-class TestMaxPulsesBoundary:
+class TestMaxPulsesBoundary(unittest.TestCase):
     """Test behavior at max_pulses boundary values."""
 
     @patch("scripts.turn_completion_detector.read_nav_state")
@@ -1455,7 +1456,7 @@ class TestMaxPulsesBoundary:
 # ── edge-case: compact with missing keys ──
 
 
-class TestCompactEdgeCases:
+class TestCompactEdgeCases(unittest.TestCase):
     """Compact function edge cases with missing or malformed data."""
 
     def test_compact_empty_summary(self):

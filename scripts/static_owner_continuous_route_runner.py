@@ -68,6 +68,37 @@ DEFAULT_SAMPLES = 3
 DEFAULT_INTERVAL_SECONDS = 0.1
 DEFAULT_WAYPOINT_SEQUENCE_TIMEOUT = 3600
 
+NO_PROGRESS_RECOVERY_PRIORITY = [
+    "blocked-stationary-no-movement",
+    "drifted-back-after-initial-progress",
+    "insufficient-progress-below-threshold",
+    "minimum-progress-not-met",
+    "unspecified",
+]
+
+NO_PROGRESS_RECOVERY_ACTIONS = {
+    "blocked-stationary-no-movement": {
+        "recommendedAction": "plan-lateral-strafe-recovery-before-forward-rerun",
+        "why": "The forward pulse produced no positional change, which usually means terrain or an obstacle blocked movement.",
+    },
+    "drifted-back-after-initial-progress": {
+        "recommendedAction": "plan-opposite-strafe-recovery-before-forward-rerun",
+        "why": "The character initially made progress and then lost it, which suggests terrain redirected or slid the character back.",
+    },
+    "insufficient-progress-below-threshold": {
+        "recommendedAction": "replan-and-use-short-lateral-recovery-if-repeated",
+        "why": "The character moved, but not enough to satisfy the route progress threshold.",
+    },
+    "minimum-progress-not-met": {
+        "recommendedAction": "refresh-readback-and-replan-before-forward-rerun",
+        "why": "The route step did not meet the minimum progress threshold without a more specific terrain classification.",
+    },
+    "unspecified": {
+        "recommendedAction": "inspect-route-step-summary-before-forward-rerun",
+        "why": "A no-progress route step lacked a sub-classification.",
+    },
+}
+
 
 
 def compact_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
@@ -91,6 +122,71 @@ def compact_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
         "executionBlockers": plan.get("executionBlockers", []),
         "engineTurnRateClassification": plan.get("engineTurnRateClassification"),
         "currentYawDegrees": current_yaw,
+    }
+
+
+def build_terrain_summary(iterations: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    step_count = 0
+    for item in iterations:
+        forward = safe_mapping(item.get("forwardResult"))
+        if forward.get("routeStatus") != "no-progress":
+            continue
+        step_count += 1
+        sub_classification = str(forward.get("noProgressSubClassification") or "unspecified")
+        counts[sub_classification] = counts.get(sub_classification, 0) + 1
+
+    primary = None
+    for candidate in NO_PROGRESS_RECOVERY_PRIORITY:
+        if counts.get(candidate):
+            primary = candidate
+            break
+    if primary is None and counts:
+        primary = sorted(counts)[0]
+
+    return {
+        "noProgressStepCount": step_count,
+        "terrainSubClassifications": counts,
+        "primarySubClassification": primary,
+        "terrainBlockerPresent": step_count > 0,
+    }
+
+
+def build_recovery_plan(terrain: Mapping[str, Any]) -> dict[str, Any]:
+    primary = terrain.get("primarySubClassification")
+    if not primary:
+        return {
+            "status": "not-needed",
+            "advisoryOnly": True,
+            "movementPermission": False,
+            "inputSent": False,
+            "recommendedAction": "none",
+            "requiredGatesBeforeExecution": [],
+            "candidateSequence": [],
+        }
+
+    action = NO_PROGRESS_RECOVERY_ACTIONS.get(str(primary), NO_PROGRESS_RECOVERY_ACTIONS["unspecified"])
+    return {
+        "status": "recommended",
+        "reason": primary,
+        "advisoryOnly": True,
+        "movementPermission": False,
+        "inputSent": False,
+        "recommendedAction": action["recommendedAction"],
+        "why": action["why"],
+        "requiredGatesBeforeExecution": [
+            "explicit-current-session-movement-approval",
+            "fresh-exact-target-static-readback",
+            "same-pid-hwnd-process-start-module-base",
+            "no-debugger-or-cheat-engine",
+        ],
+        "candidateSequence": [
+            "fresh-static-owner-nav-state-readback",
+            "bounded-operator-approved-lateral-strafe-probe",
+            "fresh-readback-and-turn-aware-replan",
+            "try-opposite-lateral-strafe-if-still-stationary",
+            "forward-rerun-only-after-replan-passes",
+        ],
     }
 
 
@@ -600,6 +696,8 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     iterations_list = summary.get("iterations", [])
     artifacts = safe_mapping(summary.get("artifacts"))
     safety = safe_mapping(summary.get("safety"))
+    terrain = safe_mapping(summary.get("terrain"))
+    recovery = safe_mapping(summary.get("recoveryPlan"))
     lines = [
         "# Static owner continuous route run",
         "",
@@ -643,6 +741,25 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             lines.append(f"- No-progress reason: `{sub_class}`")
         lines.append("")
 
+    if terrain.get("noProgressStepCount"):
+        lines.extend(["## Terrain / drift classification", ""])
+        lines.append(f"- No-progress steps: `{terrain.get('noProgressStepCount')}`")
+        lines.append(f"- Primary classification: `{terrain.get('primarySubClassification')}`")
+        sub_counts = safe_mapping(terrain.get("terrainSubClassifications"))
+        for name, count in sorted(sub_counts.items()):
+            lines.append(f"- `{name}`: `{count}`")
+        lines.extend(["", "## Recovery plan", ""])
+        lines.append(f"- Status: `{recovery.get('status')}`")
+        lines.append(f"- Advisory only: `{recovery.get('advisoryOnly')}`")
+        lines.append(f"- Movement permission from plan: `{recovery.get('movementPermission')}`")
+        lines.append(f"- Recommended action: `{recovery.get('recommendedAction')}`")
+        if recovery.get("why"):
+            lines.append(f"- Why: {recovery.get('why')}")
+        if recovery.get("candidateSequence"):
+            lines.append("- Candidate sequence:")
+            lines.extend(f"  - `{item}`" for item in recovery.get("candidateSequence", []))
+        lines.append("")
+
     if summary.get("blockers"):
         lines.extend(["## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
@@ -659,6 +776,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     total = safe_mapping(summary.get("total"))
     artifacts = safe_mapping(summary.get("artifacts"))
     safety = safe_mapping(summary.get("safety"))
+    terrain = safe_mapping(summary.get("terrain"))
     return {
         "status": summary.get("status"),
         "verdict": summary.get("verdict"),
@@ -672,6 +790,8 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "movementSent": safety.get("movementSent"),
         "inputSent": safety.get("inputSent"),
         "navigationControl": safety.get("navigationControl"),
+        "terrain": terrain,
+        "recoveryPlan": summary.get("recoveryPlan"),
         "summaryJson": artifacts.get("summaryJson"),
         "summaryMarkdown": artifacts.get("summaryMarkdown"),
         "blockers": summary.get("blockers", []),
@@ -727,6 +847,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "forwardSteps": 0,
         },
         "iterations": [],
+        "terrain": {
+            "noProgressStepCount": 0,
+            "terrainSubClassifications": {},
+            "primarySubClassification": None,
+            "terrainBlockerPresent": False,
+        },
+        "recoveryPlan": build_recovery_plan({}),
         "blockers": [],
         "warnings": [],
         "errors": errors,
@@ -1006,13 +1133,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     route_result = safe_mapping(forward_full.get("routeResult"))
                     route_status = route_result.get("routeStatus")
                     forward_ok = forward_full.get("status") == "passed" and route_status in {"progress", "arrived"}
+                    no_progress_sub = route_result.get("noProgressSubClassification")
                     iteration_record["forwardResult"] = {
                         "status": "passed" if forward_ok else "blocked",
                         "routeStatus": route_status,
                         "totalProgressDistance": route_result.get("totalProgressDistance"),
                         "initialPlanarDistance": route_result.get("initialPlanarDistance"),
                         "finalPlanarDistance": route_result.get("finalPlanarDistance"),
-                        "noProgressSubClassification": route_result.get("noProgressSubClassification"),
+                        "noProgressSubClassification": no_progress_sub,
                     }
                     if forward_ok:
                         safety["movementSent"] = True
@@ -1039,11 +1167,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     else:
                         # Forward no-progress — track consecutive failures
                         # Terrain sub-classification differentiates stuck from slight movement
-                        no_progress_sub = route_result.get("noProgressSubClassification")
                         consecutive_no_progress += 1
                         if consecutive_no_progress >= 3:
                             if no_progress_sub == "blocked-stationary-no-movement":
                                 summary["blockers"].append("forward-no-progress-3-consecutive-blocked-stationary-terrain")
+                            elif no_progress_sub == "drifted-back-after-initial-progress":
+                                summary["blockers"].append("forward-no-progress-3-consecutive-drifted-back-terrain")
+                            elif no_progress_sub == "insufficient-progress-below-threshold":
+                                summary["blockers"].append("forward-no-progress-3-consecutive-insufficient-progress")
                             else:
                                 summary["blockers"].append("forward-no-progress-3-consecutive-stuck")
                             summary["iterations"].append(iteration_record)
@@ -1059,6 +1190,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         summary["total"]["totalDurationSeconds"] = time.perf_counter() - started
         summary["total"]["totalProgressDistance"] = total_progress
         summary["total"]["finalPlanarDistance"] = current_distance if not arrived else None
+        summary["terrain"] = build_terrain_summary(
+            [safe_mapping(item) for item in summary.get("iterations", []) if isinstance(item, Mapping)]
+        )
+        summary["recoveryPlan"] = build_recovery_plan(safe_mapping(summary.get("terrain")))
         if arrived:
             summary["status"] = "passed"
             summary["verdict"] = "route-loop-arrived"

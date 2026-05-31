@@ -85,8 +85,8 @@ Each step:
 
 | Limitation | Status | Mitigation |
 |---|---|---|
-| Turn completion not verified | 🔴 #3 pending | Pulse-loop convergence check needed |
-| No stuck-state recovery | 🟡 Planned | Back up + strafe on terrain block |
+| Turn completion verification | ✅ #3 done | `turn_completion_detector.py` verifies pulse-loop convergence before route-forward continuation |
+| Strafe/drift detection | ✅ #4 offline done | Route summaries classify stationary blocks and drift-back; strafe recovery remains advisory/gated |
 | Facing target zero-vector after zone-in | ✅ Guard #2 | `navStateError: facing-target-zero-vector` |
 | Stale module base after restart | ✅ Guard #1 | `moduleBaseCheck` freshness gate |
 
@@ -117,7 +117,8 @@ All live movement requires:
 |---|---|
 | Move without fresh chain readback | Always `--nav-state` before any W/S key |
 | Trust old PID proof anchors | Module-RVA resolver (`0x32EBC80`) survives restarts |
-| Send turn keys without convergence check | #3 turn completion detector (pending) |
+| Send turn keys without convergence check | `turn_completion_detector.py` pulse-loop convergence |
+| Treat a strafe recommendation as permission | Execute only after explicit movement approval and fresh exact-target readback |
 | Treat `ReaderBridgeExport.lua` as live IPC | SavedVariables update only on `/reloadui`/logout |
 
 ## Related docs

@@ -3,9 +3,9 @@
 ## Purpose
 
 This contract covers the first turn-aware navigation layer above the promoted
-static owner coordinate resolver. It keeps candidate yaw/facing evidence useful
-for planning while preventing it from silently becoming promoted route-control
-truth.
+static owner coordinate and facing-target/yaw readback resolvers. It keeps
+turn-control recommendations gated so promoted yaw readback does not silently
+become route-control authority.
 
 ## Helpers
 
@@ -26,11 +26,11 @@ these values remain true:
 | `kind` | `static-owner-turn-aware-route-plan` | Confirms the artifact source. |
 | `status` | `passed` | Failed plans are not consumable. |
 | `verdict` | `turn-aware-route-plan-built` | Confirms planner completion. |
-| `plan.candidateOnly` | `true` | Facing/yaw is still candidate evidence. |
+| `plan.candidateOnly` | `true` | The route-control recommendation remains candidate/advisory evidence. |
 | `plan.dryRunOnly` | `true` | Plan artifact did not send input. |
 | `plan.movementPermission` | `false` | Plan alone cannot authorize movement. |
 | `plan.navigationControl` | `false` | Plan alone cannot control route execution. |
-| `plan.facingPromotion` | `false` | Yaw/facing remains unpromoted. |
+| `plan.facingPromotion` | `false` | This plan did not perform facing/yaw promotion. |
 | `safety.movementSent` | `false` | Planner must not move. |
 | `safety.inputSent` | `false` | Planner must not send keys. |
 | `safety.noCheatEngine` | `true` | CE is not part of this lane. |
