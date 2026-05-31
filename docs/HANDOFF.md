@@ -52,6 +52,11 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
+| `6f9dcc7` | Surface navigation discovery dashboard in compact workflow status |
+| `7cc2587` | Refine navigation discovery freshness guidance |
+| `a9b062c` | Add navigation discovery freshness classification |
+| `32367d7` | Document navigation pointer discovery dashboard |
+| `0100434` | Add navigation pointer discovery dashboard |
 | `52e7bb1` | Timestamped validation ledger for durable command timing |
 | `b3a3922` | Remove pytest dependency from turn detector tests |
 | `b7e01ad` | Refresh handoff with live route evidence |
@@ -105,6 +110,18 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 | Post-run nav-state readback | `scripts\captures\static-owner-nav-state-20260531-142312-943158\summary.json`: yaw `22.940854°`, pitch `-4.941195°`, turn rate `1.171186`, no blockers. |
 
 Outcome: current coordinate/facing pointer-chain evidence is reacquired for PID `25668`; `docs\recovery\current-truth.*` now records the fresh current API-now validation. No new actor/stat chain or proof promotion was performed.
+
+## Safe-local dashboard/status refresh — 2026-05-31 15:19 UTC
+
+| Check | Evidence |
+|---|---|
+| Compact workflow status now embeds navigation pointer discovery | Commit `6f9dcc7`; `cmd /c scripts\riftreader-workflow-status.cmd --compact-json` includes `navigationPointerDiscovery` with promoted coordinate, candidate facing target, candidate turn rate, coordinate-delta evidence, freshness, next action, and safety flags. |
+| Exact target no-input coordinate readback refreshed | `scripts\captures\static-owner-coordinate-chain-readback-20260531-151942-201598\summary.json`: PID `25668`, HWND `0x320CB0`, owner `0x1B53D7806A0`, coordinate readback fresh. |
+| Exact target no-input nav-state readback refreshed | `scripts\captures\static-owner-nav-state-20260531-151943-009442\summary.json`: yaw `22.940854°`, pitch `-4.941195°`, turn rate `1.171186`, no input/movement/debugger/provider writes. |
+| Dashboard regenerated | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` generated `2026-05-31T15:19:44Z`; status `passed`, freshness `stale` only because tracked `currentTruth` is older than the local readbacks. |
+| Validation ledger recorded reacquisition timing | `.riftreader-local\validation-runs\20260531-151941-457745\summary.md`: coordinate readback `0.777s`, nav readback `0.779s`, dashboard regen `0.773s`, overall passed. |
+
+Current safe next action: keep using the dashboard/status packet for resume context. Do **not** promote facing/turn-rate chains or rewrite current truth unless a deliberate proof/truth-refresh gate is opened.
 
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
