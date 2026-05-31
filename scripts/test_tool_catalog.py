@@ -41,6 +41,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/static-owner-coordinate-chain-readback.cmd",
         "scripts/static-owner-nav-now.cmd",
         "scripts/static-owner-turn-aware-route-plan.cmd",
+        "scripts/static-owner-camera-yaw-classification.cmd",
         "scripts/static-owner-turn-forward-experiment.cmd",
         "scripts/static-owner-nav-route-step.cmd",
         "scripts/static-owner-nav-route-run.cmd",
@@ -93,12 +94,16 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "navigation-pointer-discovery" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "current-truth-refresh-plan" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(
+            any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
+        )
         self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
         self.assertIn("actor-chain-no-debug-status", compact["canonicalToolKeys"])
         self.assertIn("validation-ledger", compact["canonicalToolKeys"])
         self.assertIn("navigation-pointer-discovery", compact["canonicalToolKeys"])
         self.assertIn("current-truth-refresh-plan", compact["canonicalToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
+        self.assertIn("static-owner-camera-yaw-classification", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
 
     def test_missing_external_tools_warns_without_authorizing_debugger(self) -> None:

@@ -158,6 +158,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "dry-run route/turn planning only; no input/movement/debugger/provider writes",
     ),
     (
+        "static-owner-camera-yaw-classification",
+        "Static-owner camera/yaw classification",
+        "scripts\\static-owner-camera-yaw-classification.cmd --stimulus-approved --json",
+        "guarded candidate-only visual/static-yaw classification; requires explicit live stimulus approval",
+    ),
+    (
         "static-owner-route-run-report",
         "Static-owner route-run report",
         "scripts\\static-owner-nav-report-route-run.cmd <summary.json> --json",

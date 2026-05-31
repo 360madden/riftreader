@@ -336,6 +336,23 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="static-owner-camera-yaw-classification",
+            label="Static-owner camera/yaw classification",
+            kind="navigation-live-gated",
+            rel_path="scripts/static-owner-camera-yaw-classification.cmd",
+            risk="guarded-live-input",
+            default_use="candidate-only visual-vs-static-yaw classification before any turn-dependent route",
+            allowed=False,
+            approval=True,
+            command=["scripts\\static-owner-camera-yaw-classification.cmd", "--stimulus-approved", "--json"],
+            notes=[
+                "sends one approved exact-target mouse-look stimulus",
+                "records visual screenshot/raw-diff, nav-state, and owner-window deltas",
+                "never promotes facing, turn-rate, actor chains, or proof",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="static-owner-turn-forward-experiment",
             label="Static-owner turn-forward experiment",
             kind="navigation-live-gated",
@@ -642,7 +659,12 @@ def build_input_surface_policy() -> dict[str, Any]:
             },
             {
                 "class": "guarded-live-input",
-                "examples": ["static-owner route step", "turn-forward experiment", "C# SendInput primitive"],
+                "examples": [
+                    "static-owner route step",
+                    "turn-forward experiment",
+                    "camera/yaw classification",
+                    "C# SendInput primitive",
+                ],
                 "policy": "requires exact target, fresh readback, and explicit movement/turn approval",
             },
             {
@@ -676,6 +698,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
         },
         {"step": "live-input-audit-before-live", "command": "scripts\\riftreader-live-input-surface-audit.cmd --json"},
         {"step": "turn-plan-before-input", "command": "scripts\\static-owner-turn-aware-route-plan.cmd --json"},
+        {
+            "step": "camera-yaw-classification-before-turn-route",
+            "command": "scripts\\static-owner-camera-yaw-classification.cmd --stimulus-approved --json",
+        },
         {"step": "single-gated-turn-forward", "command": "scripts\\static-owner-turn-forward-experiment.cmd --json"},
         {
             "step": "route-run-report-before-rerun",
@@ -740,6 +766,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
             "static-owner-turn-aware-plan",
+            "static-owner-camera-yaw-classification",
             "static-owner-route-run-report",
             "static-owner-turn-forward-experiment",
         ],
@@ -905,6 +932,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/static-owner-coordinate-chain-readback.cmd",
             "scripts/static-owner-nav-now.cmd",
             "scripts/static-owner-turn-aware-route-plan.cmd",
+            "scripts/static-owner-camera-yaw-classification.cmd",
             "scripts/static-owner-turn-forward-experiment.cmd",
             "scripts/static-owner-nav-route-step.cmd",
             "scripts/static-owner-nav-route-run.cmd",

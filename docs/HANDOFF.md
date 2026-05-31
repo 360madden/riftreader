@@ -28,6 +28,7 @@ state readback → plan (bearing + 0x304) → turn (mouse-look pulse-loop verifi
 | `scripts/turn_completion_detector.py` | Pulse-loop turn convergence (Phase 0 #3) |
 | `scripts/static_owner_mouse_turn_probe.py` | Exact-target right-mouse-look yaw probe/calibration |
 | `scripts/static_owner_turn_input_probe.py` | Keyboard/backend input probe; use to rule out chat/UI focus swallowing keys |
+| `scripts/static_owner_camera_yaw_classification.py` | Candidate-only visual camera vs static-owner yaw classifier with screenshots/raw diff and owner-window deltas |
 | `scripts/static_owner_turn_aware_route_plan.py` | Bearing + 0x304 cross-check plan (Phase 0 #2) |
 | `scripts/static_owner_nav_route_step.py` | Single forward step with pre/post state analysis |
 | `scripts/nav_state_readback.py` | Read yaw, turn rate, facing from promoted static chain |
@@ -52,6 +53,7 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 
 | Commit | What |
 |---|---|
+| `dfc7a65` | Document blocked turn-yaw recheck |
 | `142deab` | Record approved bounded route validation |
 | `a19e1a6` | Refresh current truth from no-input readback |
 | `caeca92` | Refresh handoff with truth plan status |
@@ -61,7 +63,6 @@ All reads use the promoted static pointer chain at `rift_x64.exe+0x32EBC80`:
 | `a539850` | Add current truth refresh plan helper |
 | `16f9323` | Document navigation pointer status workflow |
 | `c6fad32` | Refresh handoff with navigation discovery status |
-| `6f9dcc7` | Surface navigation discovery in workflow status |
 
 ## Latest live finding — 2026-05-31
 
@@ -195,6 +196,30 @@ static nav-state reads, and a small set of read-only owner-neighborhood fields
 around `0x304/0x30C/0x310/0x314` after one approved turn/camera stimulus, then
 compare for the field that actually changes in this client state.
 
+## Approved camera/yaw classification — 2026-05-31 17:44 UTC
+
+This slice used the user's explicit approval for one bounded exact-target
+mouse-look stimulus. It adds `scripts\static_owner_camera_yaw_classification.py`
+and a thin `scripts\static-owner-camera-yaw-classification.cmd` launcher so the
+visual-vs-memory classification can be rerun without ad hoc orchestration. It is
+candidate-only and performs no promotion.
+
+| Check | Evidence |
+|---|---|
+| Helper added | `scripts\static_owner_camera_yaw_classification.py --self-test --json` passes offline; tool catalog/status surfaces list the guarded live helper. |
+| Live classification | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-classification-20260531-174422-894291\summary.json`: verdict `visual-changed-static-yaw-unchanged`. |
+| Visual evidence | Baseline `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-classification-20260531-174422-894291\visual-baseline\images\full-window.png`; post `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-classification-20260531-174422-894291\visual-post\images\full-window.png`; raw diff changed `74.077341%` of pixels. |
+| Static nav-state | Baseline and post static-owner yaw both `22.962550464°`; signed yaw delta `0.0°`; coordinate stayed `7267.5234375, 821.6994018554688, 3005.181640625`. |
+| Owner-window deltas | Focus deltas changed at `owner+0x300` (`+58.1875`), `owner+0x304` (`-0.605028749`), and `owner+0x408` (`+0.003416061`); `owner+0x30C/+0x310/+0x314` and coordinates stayed unchanged in this run. |
+| Pointer neighborhood | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-classification-20260531-174422-894291\pointer-owner-neighborhood-post\summary.json` captured the post-stimulus owner-neighborhood read-only context. |
+| Boundary | Input/mouse-look stimulus was sent under approval. No route movement, Cheat Engine, x64dbg attach, provider writes, target memory writes, proof promotion, actor-chain promotion, or facing/turn-rate promotion. |
+
+Current safe next action: treat `owner+0x30C/+0x310/+0x314` as stale for the
+current camera-turn state. Next discovery should investigate `owner+0x300` and
+`owner+0x304` across a left/right/return stimulus set with visual captures
+before any turn-dependent route work. `owner+0x304` changed with the visual
+stimulus but is still candidate-only and not route-actionable.
+
 ## Validation timing ledger — 2026-05-31 13:49 UTC
 
 Future repair/testing lanes should use the timestamped validation ledger so long
@@ -248,6 +273,10 @@ python scripts/turn_completion_detector.py `
   --direction left --target-bearing-degrees 90 `
   --turn-backend mouse-look --mouse-pixels-per-pulse 40 --turn-approved --json
 
+# Classify visual camera change vs static-owner yaw/facing fields (candidate-only; sends one approved mouse-look stimulus)
+python scripts/static_owner_camera_yaw_classification.py `
+  --direction right --pixels 120 --stimulus-approved --json
+
 # Run all tests
 python -m unittest discover -s scripts -p "test_*.py"
 
@@ -260,9 +289,9 @@ python tools\riftreader_workflow\validation_ledger.py --tier full-local
 
 ## Next steps (priority order)
 
-1. **Reacquire turn/yaw proof before turn-dependent routing** — latest same-target proof attempts show visual scene change but no static-owner yaw delta.
-2. **Classify camera-vs-avatar yaw fields** — collect visual captures plus read-only owner-neighborhood deltas around `0x304/0x30C/0x310/0x314`; keep candidate-only.
-3. **Route-loop rerun only after turn proof passes** — use visual preflight or the opt-in `--clear-ui-focus-before-input` flag only when focus is confirmed.
-4. **Implement bounded lateral/strafe recovery** — if true terrain blockage remains after focus and turn proof are ruled out, use exact-target short `A/D` or mouse+strafe probes.
-5. **Refresh route fixtures with the new blocked-turn artifacts** — preserve historical success, chat-focus hazard, post-Escape blocked proof, and route-loop pass separately.
+1. **Run a left/right/return camera-yaw classification set** — latest run shows visual change plus `owner+0x300/+0x304` deltas but unchanged `owner+0x30C/+0x310/+0x314`.
+2. **Investigate `owner+0x300` and `owner+0x304` semantics** — determine whether either is camera heading, transient turn rate, or another state value; keep candidate-only.
+3. **Reacquire turn/yaw proof before turn-dependent routing** — current same-target proof attempts show visual scene change but no static-owner yaw delta.
+4. **Route-loop rerun only after turn proof passes** — use visual preflight or the opt-in `--clear-ui-focus-before-input` flag only when focus is confirmed.
+5. **Refresh route fixtures with blocked-turn and camera-yaw artifacts** — preserve historical success, chat-focus hazard, post-Escape blocked proof, camera/yaw classification, and route-loop pass separately.
 6. **Phase 1: Combat bot** — target selection, combat state detection, ability rotation (see `docs/workflows/combat-bot-roadmap.md`) after movement/facing control is stable.
