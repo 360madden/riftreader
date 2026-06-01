@@ -47,6 +47,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "facingThreePoseGate": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingRestartSurvival": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "ghidraStaticEvidence": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingPromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
 }
 
@@ -179,6 +180,7 @@ def newest_summary(
     *,
     directory_prefix: str,
     expected_kind: str | None = None,
+    warn_kind_mismatch: bool = True,
 ) -> tuple[Path | None, dict[str, Any] | None, list[str]]:
     capture_root = repo_root / CAPTURE_ROOT
     warnings: list[str] = []
@@ -194,10 +196,11 @@ def newest_summary(
             warnings.append(f"artifact-parse-error:{repo_rel(repo_root, path)}:{preview_text(error)}")
             continue
         if expected_kind and data.get("kind") != expected_kind:
-            warnings.append(
-                f"artifact-kind-mismatch:{repo_rel(repo_root, path)}:"
-                f"expected={expected_kind}:actual={data.get('kind')}"
-            )
+            if warn_kind_mismatch:
+                warnings.append(
+                    f"artifact-kind-mismatch:{repo_rel(repo_root, path)}:"
+                    f"expected={expected_kind}:actual={data.get('kind')}"
+                )
             continue
         generated = parse_iso(data.get("generatedAtUtc"))
         if generated is None:
@@ -960,6 +963,46 @@ def facing_promotion_readiness_review_summary(
     }
 
 
+def ghidra_static_evidence_summary(
+    repo_root: Path,
+    evidence: dict[str, Any] | None,
+    evidence_path: Path | None,
+) -> dict[str, Any] | None:
+    if not evidence:
+        return None
+    evidence_summary = safe_mapping(evidence.get("evidenceSummary"))
+    offsets = safe_mapping(evidence_summary.get("offsets"))
+    interesting_offsets: dict[str, Any] = {}
+    for offset in ("0x300", "0x304", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328"):
+        offset_summary = safe_mapping(offsets.get(offset))
+        if not offset_summary:
+            continue
+        interesting_offsets[offset] = {
+            "hitCount": offset_summary.get("hitCount"),
+            "writeLikeCount": offset_summary.get("writeLikeCount"),
+            "firstHits": safe_list(offset_summary.get("firstHits"))[:3],
+        }
+    return {
+        "status": evidence.get("status"),
+        "kind": evidence.get("kind"),
+        "generatedAtUtc": evidence.get("generatedAtUtc"),
+        "summaryJson": evidence.get("summaryJson") or artifact_path(repo_root, evidence_path),
+        "summaryMarkdown": evidence.get("summaryMarkdown"),
+        "evidenceJson": evidence.get("evidenceJson"),
+        "programName": evidence_summary.get("programName"),
+        "imageBase": evidence_summary.get("imageBase"),
+        "rootAddress": evidence_summary.get("rootAddress"),
+        "rootReferenceCountCaptured": evidence_summary.get("rootReferenceCountCaptured"),
+        "rootReferenceTypes": evidence_summary.get("rootReferenceTypes"),
+        "instructionsScanned": evidence_summary.get("instructionsScanned"),
+        "offsets": interesting_offsets,
+        "analysisTimedOutProjectSaved": "ghidra-analysis-timeout-project-saved" in safe_list(evidence.get("warnings")),
+        "offlineOnly": bool(safe_mapping(evidence.get("safety")).get("offlineOnly", True)),
+        "blockers": safe_list(evidence.get("blockers")),
+        "warnings": safe_list(evidence.get("warnings")),
+    }
+
+
 def build_next_action(
     freshness: dict[str, Any],
     facing_target: dict[str, Any] | None,
@@ -1120,6 +1163,12 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="facing-target-promotion-readiness-review-",
         expected_kind="facing-target-promotion-readiness-review-packet",
     )
+    ghidra_static_path, ghidra_static_data, ghidra_static_warnings = newest_summary(
+        repo_root,
+        directory_prefix="ghidra-static-analysis-",
+        expected_kind="riftreader-ghidra-static-evidence-run",
+        warn_kind_mismatch=False,
+    )
     warnings.extend(
         coord_warnings
         + nav_warnings
@@ -1132,6 +1181,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + restart_survival_warnings
         + turn_forward_warnings
         + promotion_review_warnings
+        + ghidra_static_warnings
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
@@ -1161,6 +1211,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     restart_survival = facing_restart_survival_summary(repo_root, restart_survival_data, restart_survival_path)
     turn_forward = turn_forward_experiment_summary(repo_root, turn_forward_data, turn_forward_path)
     promotion_review = facing_promotion_readiness_review_summary(repo_root, promotion_review_data, promotion_review_path)
+    ghidra_static = ghidra_static_evidence_summary(repo_root, ghidra_static_data, ghidra_static_path)
     api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
     warnings.extend(api_warnings)
 
@@ -1296,6 +1347,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["turnForwardExperiment"],
         ),
+        "ghidraStaticEvidence": summarize_source(
+            repo_root,
+            ghidra_static_path,
+            ghidra_static_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["ghidraStaticEvidence"],
+        ),
         "facingPromotionReadinessReview": summarize_source(
             repo_root,
             promotion_review_path,
@@ -1353,6 +1411,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "facingThreePoseGate": three_pose_gate,
             "facingRestartSurvival": restart_survival,
             "turnForwardExperiment": turn_forward,
+            "ghidraStaticEvidence": ghidra_static,
             "facingPromotionReadinessReview": promotion_review,
         },
         "promotionReadiness": {
@@ -1367,6 +1426,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
                 and safe_mapping(turn_forward).get("routeStatus") == "progress"
                 else "missing-or-not-passed"
             ),
+            "staticEvidence": "passed" if safe_mapping(ghidra_static).get("status") == "passed" else "missing-or-not-passed",
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
             "promotionReviewRequired": True,
             "promotionReview": "passed" if safe_mapping(promotion_review).get("reviewPassed") else "missing-or-not-passed",
@@ -1418,6 +1478,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
     three_pose = safe_mapping(proof_gates.get("facingThreePoseGate"))
     restart = safe_mapping(proof_gates.get("facingRestartSurvival"))
     turn_forward = safe_mapping(proof_gates.get("turnForwardExperiment"))
+    ghidra_static = safe_mapping(proof_gates.get("ghidraStaticEvidence"))
     promotion_review = safe_mapping(proof_gates.get("facingPromotionReadinessReview"))
     artifacts = safe_mapping(summary.get("artifacts"))
     freshness = safe_mapping(summary.get("freshness"))
@@ -1447,6 +1508,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Facing three-pose gate | `{three_pose.get('status')}` | `poses={three_pose.get('passedPoseCount')}/{three_pose.get('poseCount')}; min progress={three_pose.get('minimumProgressDistance')}` | `candidate-only` |",
         f"| Facing restart survival | `{restart.get('status')}` | `survived={restart.get('restartRelogSurvived')}; offsets stable={restart.get('offsetsStable')}` | `candidate-only` |",
         f"| Turn-forward live progress | `{turn_forward.get('status')}` | `progress={turn_forward.get('totalProgressDistance')}; route={turn_forward.get('routeStatus')}` | `support-only` |",
+        f"| Ghidra static pointer evidence | `{ghidra_static.get('status')}` | `root refs={ghidra_static.get('rootReferenceCountCaptured')}; root={ghidra_static.get('rootAddress')}` | `offline-only` |",
         f"| Facing promotion-readiness review | `{promotion_review.get('status')}` | `reviewPassed={promotion_review.get('reviewPassed')}` | `promotionAllowed={promotion_review.get('promotionAllowed')}; performed={promotion_review.get('promotionPerformed')}` |",
         "",
         "## Source artifacts",

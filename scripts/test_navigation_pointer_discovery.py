@@ -426,6 +426,63 @@ def seed_facing_promotion_readiness_review(root: Path) -> None:
     )
 
 
+def seed_ghidra_static_evidence(root: Path) -> None:
+    write_json(
+        root / "scripts" / "captures" / "ghidra-static-analysis-20260531-142900-000000" / "summary.json",
+        {
+            "kind": "riftreader-ghidra-static-evidence-run",
+            "status": "passed",
+            "generatedAtUtc": "2026-05-31T14:23:59Z",
+            "summaryJson": "scripts\\captures\\ghidra-static-analysis-20260531-142900-000000\\summary.json",
+            "summaryMarkdown": "scripts\\captures\\ghidra-static-analysis-20260531-142900-000000\\summary.md",
+            "evidenceJson": "scripts\\captures\\ghidra-static-analysis-20260531-142900-000000\\pointer-evidence.json",
+            "evidenceSummary": {
+                "programName": "rift_x64.exe",
+                "imageBase": "140000000",
+                "rootAddress": "1432ebc80",
+                "rootReferenceCountCaptured": 200,
+                "rootReferenceTypes": {"READ": 101, "WRITE": 99},
+                "instructionsScanned": 8057130,
+                "offsets": {
+                    "0x30C": {
+                        "hitCount": 80,
+                        "writeLikeCount": 26,
+                        "firstHits": [
+                            {
+                                "address": "14003fa41",
+                                "instruction": "MOV dword ptr [RDI + 0x30c],R13D",
+                                "accessGuess": "write-or-destination",
+                            }
+                        ],
+                    },
+                    "0x320": {
+                        "hitCount": 80,
+                        "writeLikeCount": 22,
+                        "firstHits": [
+                            {
+                                "address": "14003fa67",
+                                "instruction": "MOV dword ptr [RDI + 0x320],R13D",
+                                "accessGuess": "write-or-destination",
+                            }
+                        ],
+                    },
+                },
+            },
+            "warnings": ["ghidra-analysis-timeout-project-saved"],
+            "blockers": [],
+            "safety": {
+                "offlineOnly": True,
+                "movementSent": False,
+                "inputSent": False,
+                "targetMemoryBytesRead": False,
+                "targetMemoryBytesWritten": False,
+                "proofPromotion": False,
+                "providerWrites": False,
+            },
+        },
+    )
+
+
 class NavigationPointerDiscoveryTests(unittest.TestCase):
     def test_build_summary_indexes_promoted_and_candidate_navigation_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -539,6 +596,28 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertFalse(any("promotion-readiness review packet" in item for item in summary["next"]["recommendedActions"]))
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertFalse(summary["safety"]["facingPromotion"])
+
+    def test_ghidra_static_evidence_is_indexed_as_offline_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_ghidra_static_evidence(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        static_evidence = summary["proofGates"]["ghidraStaticEvidence"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["sources"]["ghidraStaticEvidence"]["status"], "passed")
+        self.assertEqual("passed", summary["promotionReadiness"]["staticEvidence"])
+        self.assertEqual("1432ebc80", static_evidence["rootAddress"])
+        self.assertEqual(200, static_evidence["rootReferenceCountCaptured"])
+        self.assertEqual(26, static_evidence["offsets"]["0x30C"]["writeLikeCount"])
+        self.assertTrue(static_evidence["offlineOnly"])
+        self.assertTrue(static_evidence["analysisTimedOutProjectSaved"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
 
     def test_promoted_coordinate_uses_latest_readback_coordinate_over_tracked_truth_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
