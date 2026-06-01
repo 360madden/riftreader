@@ -2,6 +2,21 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — facing-target promotion readiness — 2026-06-01 01:47 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-01-0147-facing-target-promotion-readiness-handoff.md`.
+
+Current state: `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` is the closest
+navigation candidate and is route-actionable in the current target epoch, but it
+is **not promotion-ready**. Formal packet:
+`C:\RIFT MODDING\RiftReader\scripts\captures\facing-target-promotion-readiness-20260601-014341-188150\summary.json`.
+
+Main blockers: restart/relog survival, independent static-root/subfield proof,
+formal three-pose gate packaging, stale tracked current truth, and separate
+promotion/current-truth-write approval. Do not promote facing/turn-rate/actor
+chains or rewrite current truth from the dashboard alone.
+
 ## Current state
 
 RIFT automated navigation is in **Phase 0 (correctness)**. Four of four
