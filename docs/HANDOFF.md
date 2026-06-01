@@ -2,40 +2,38 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
-## Latest compact handoff — current-truth + Ghidra static refresh — 2026-06-01 04:58 UTC
+## Latest compact handoff — camera/yaw proof pack refresh — 2026-06-01 05:21 UTC
 
 A new compact handoff exists at
-`docs/handoffs/2026-06-01-0458-current-truth-ghidra-static-refresh-handoff.md`.
+`docs/handoffs/2026-06-01-0521-camera-yaw-proof-pack-handoff.md`.
 
-Current target identity and tracked truth were refreshed from exact-target
-readbacks: PID `41808`, HWND `0x2B0A26`, process start
+Current target identity and tracked truth remain PID `41808`, HWND `0x2B0A26`,
+process start
 `2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
-coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, and
-current API-now vs chain-now passed with max abs delta
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, and current
+API-now vs chain-now previously passed with max abs delta
 `0.004333406249998006` <= tolerance `0.25`.
+
+The live-window visual blocker from 05:11 UTC was resolved after the operator
+moved the Amazon browser page. Exact PID/HWND binding for PID `41808` /
+HWND `0x2B0A26` reported `isForeground=true`, and
+`tools\rift-game-mcp\.runtime\screenshots\capture-20260601-011842-185.png`
+showed the Rift frame.
+
+Newest live proof pack: two bounded exact-target mouse-look camera/yaw stimuli
+passed, with right `+8.469205989610003°` and left `-8.469205989610003°`
+static yaw deltas. Aggregate report:
+`C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-multipose-report-20260601-052037-685312\summary.json`.
 
 Current state: `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` is still the closest
 facing-target candidate and remains **candidate-only**. The previous
-facing-specific handoff remains useful for promotion blockers:
-`docs/handoffs/2026-06-01-0147-facing-target-promotion-readiness-handoff.md`.
+current-truth/Ghidra handoff remains useful for target/truth/static evidence:
+`docs/handoffs/2026-06-01-0458-current-truth-ghidra-static-refresh-handoff.md`.
 
 Main blockers: restart/relog survival, independent static-root/subfield proof,
 formal three-pose gate packaging, and separate proof/promotion review. Do not
-promote facing/turn-rate/actor chains from current-session readback alone.
-
-## Latest live-window preflight blocker — 2026-06-01 05:11 UTC
-
-Before sending any live camera/turn input, exact PID/HWND binding was attempted
-through the Rift window-control MCP tools. Binding found PID `41808` /
-HWND `0x2B0A26`, but `focus_game_window` still reported `isForeground=false`,
-and the baseline capture at
-`tools\rift-game-mcp\.runtime\screenshots\capture-20260601-011115-016.png`
-showed an Amazon browser page instead of the Rift frame. **No live input was
-sent after this mismatch.**
-
-Next live step must first repair/verify the visual target-control path so the
-captured frame is actually the Rift client for the exact PID/HWND. Until then,
-continue with offline/readback/static packet work only.
+promote facing/turn-rate/actor chains from current-session readback or the
+camera/yaw proof pack alone.
 
 ## Ghidra offline-static lane reintroduced as a default discovery step — 2026-06-01
 
