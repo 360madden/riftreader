@@ -1407,6 +1407,16 @@ class DecisionPacketTests(unittest.TestCase):
                         "offlineOnly": True,
                     },
                 },
+                "candidateLedger": {
+                    "velocitySpeed": {
+                        "status": "forward-back-stop-live-correlation-passed",
+                        "liveCorrelationPassed": True,
+                        "latestPlanarSpeedPerSecond": 0.0,
+                        "forwardProgressPassed": True,
+                        "backwardContrastPassed": True,
+                        "stopStationaryReadbackPassed": True,
+                    },
+                },
                 "next": {"recommendedAction": "fixture"},
             },
             "retiredSurfaces": {
@@ -1458,10 +1468,20 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual("1432ebc80", compact_nav["ghidraStaticRootAddress"])
         self.assertEqual(200, compact_nav["ghidraStaticRootReferenceCountCaptured"])
         self.assertTrue(compact_nav["ghidraStaticOfflineOnly"])
+        self.assertEqual(
+            "forward-back-stop-live-correlation-passed",
+            compact_nav["velocitySpeedStatus"],
+        )
+        self.assertTrue(compact_nav["velocitySpeedLiveCorrelationPassed"])
+        self.assertEqual(0.0, compact_nav["velocitySpeedLatestPlanarSpeedPerSecond"])
+        self.assertTrue(compact_nav["velocitySpeedForwardProgressPassed"])
+        self.assertTrue(compact_nav["velocitySpeedBackwardContrastPassed"])
+        self.assertTrue(compact_nav["velocitySpeedStopStationaryReadbackPassed"])
 
         markdown = decision_packet.build_markdown(packet)
         self.assertIn("Ghidra static evidence", markdown)
         self.assertIn("root refs `200`", markdown)
+        self.assertIn("Velocity/speed: `forward-back-stop-live-correlation-passed`", markdown)
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
         packet = {

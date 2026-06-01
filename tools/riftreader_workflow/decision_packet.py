@@ -1444,6 +1444,7 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
     owner304_semantics = safe_mapping(candidates.get("owner304Semantics"))
+    velocity_speed = safe_mapping(safe_mapping(discovery_data.get("candidateLedger")).get("velocitySpeed"))
     proof_gates = safe_mapping(discovery_data.get("proofGates"))
     ghidra_static = safe_mapping(proof_gates.get("ghidraStaticEvidence"))
     freshness = safe_mapping(discovery_data.get("freshness"))
@@ -1464,6 +1465,12 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
         "cameraYawStatus": camera_yaw.get("status"),
         "cameraYawClassification": camera_yaw.get("classification"),
         "cameraYawActionableForRouteControl": camera_yaw.get("actionableForRouteControl"),
+        "velocitySpeedStatus": velocity_speed.get("status"),
+        "velocitySpeedLiveCorrelationPassed": velocity_speed.get("liveCorrelationPassed"),
+        "velocitySpeedLatestPlanarSpeedPerSecond": velocity_speed.get("latestPlanarSpeedPerSecond"),
+        "velocitySpeedForwardProgressPassed": velocity_speed.get("forwardProgressPassed"),
+        "velocitySpeedBackwardContrastPassed": velocity_speed.get("backwardContrastPassed"),
+        "velocitySpeedStopStationaryReadbackPassed": velocity_speed.get("stopStationaryReadbackPassed"),
         "owner304SemanticsStatus": owner304_semantics.get("status"),
         "owner304SemanticsVerdict": owner304_semantics.get("verdict"),
         "owner304Role": owner304_semantics.get("owner304Role"),
@@ -1697,6 +1704,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
         turn_rate = safe_mapping(discovery_candidates.get("candidateTurnRate"))
         coordinate_delta = safe_mapping(discovery_candidates.get("coordinateDeltaCandidate"))
         camera_yaw = safe_mapping(discovery_candidates.get("cameraYawClassification"))
+        velocity_speed = safe_mapping(safe_mapping(nav_discovery.get("candidateLedger")).get("velocitySpeed"))
         ghidra_static = safe_mapping(safe_mapping(nav_discovery.get("proofGates")).get("ghidraStaticEvidence"))
         lines.extend(
             [
@@ -1710,6 +1718,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Turn rate: `{turn_rate.get('status')}` at `{turn_rate.get('offset')}`",
                 f"- Coordinate delta: `{coordinate_delta.get('status')}`; tracking max abs `{coordinate_delta.get('trackingErrorMaxAbs')}`",
                 f"- Camera/yaw classification: `{camera_yaw.get('classification')}`; route-actionable `{camera_yaw.get('actionableForRouteControl')}`",
+                f"- Velocity/speed: `{velocity_speed.get('status')}`; live correlation `{velocity_speed.get('liveCorrelationPassed')}`; stop speed `{velocity_speed.get('latestPlanarSpeedPerSecond')}`",
                 f"- Ghidra static evidence: `{ghidra_static.get('status')}`; root refs `{ghidra_static.get('rootReferenceCountCaptured')}`; instructions scanned `{ghidra_static.get('instructionsScanned')}`; offline-only `{ghidra_static.get('offlineOnly')}`",
                 f"- Next: {safe_mapping(nav_discovery.get('next')).get('recommendedAction')}",
             ]
