@@ -835,6 +835,11 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
         if isinstance(proof_gates.get("turnForwardExperiment"), dict)
         else {}
     )
+    ghidra_static = (
+        proof_gates.get("ghidraStaticEvidence")
+        if isinstance(proof_gates.get("ghidraStaticEvidence"), dict)
+        else {}
+    )
     target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
     next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
     promotion_readiness = (
@@ -955,6 +960,23 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
                     "turnApproved",
                     "sourceMovementSent",
                     "sourceInputSent",
+                ],
+            ),
+            "ghidraStaticEvidence": _summarize_navigation_candidate(
+                ghidra_static,
+                [
+                    "status",
+                    "kind",
+                    "generatedAtUtc",
+                    "summaryJson",
+                    "summaryMarkdown",
+                    "evidenceJson",
+                    "rootAddress",
+                    "rootReferenceCountCaptured",
+                    "instructionsScanned",
+                    "analysisTimedOutProjectSaved",
+                    "offlineOnly",
+                    "warnings",
                 ],
             ),
         },

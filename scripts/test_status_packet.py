@@ -300,6 +300,20 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                             "sourceMovementSent": True,
                             "sourceInputSent": True,
                         },
+                        "ghidraStaticEvidence": {
+                            "status": "passed",
+                            "kind": "riftreader-ghidra-static-evidence-run",
+                            "generatedAtUtc": "2026-05-31T14:59:30Z",
+                            "summaryJson": "scripts\\captures\\ghidra-static-analysis-x\\summary.json",
+                            "summaryMarkdown": "scripts\\captures\\ghidra-static-analysis-x\\summary.md",
+                            "evidenceJson": "scripts\\captures\\ghidra-static-analysis-x\\pointer-evidence.json",
+                            "rootAddress": "1432ebc80",
+                            "rootReferenceCountCaptured": 200,
+                            "instructionsScanned": 8057130,
+                            "analysisTimedOutProjectSaved": True,
+                            "offlineOnly": True,
+                            "warnings": ["ghidra-analysis-timeout-project-saved"],
+                        },
                     },
                     "promotionReadiness": {
                         "coordinateResolver": "promoted",
@@ -344,6 +358,11 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertTrue(summary["proofGates"]["facingThreePoseGate"]["formalThreePoseGatePassed"])
         self.assertTrue(summary["proofGates"]["facingRestartSurvival"]["restartRelogSurvived"])
         self.assertEqual(1.5, summary["proofGates"]["turnForwardExperiment"]["totalProgressDistance"])
+        ghidra_static = summary["proofGates"]["ghidraStaticEvidence"]
+        self.assertEqual("passed", ghidra_static["status"])
+        self.assertEqual("1432ebc80", ghidra_static["rootAddress"])
+        self.assertEqual(200, ghidra_static["rootReferenceCountCaptured"])
+        self.assertTrue(ghidra_static["offlineOnly"])
         self.assertFalse(summary["safety"]["movementSent"])
         self.assertFalse(summary["safety"]["inputSent"])
         self.assertFalse(summary["safety"]["proofPromotion"])
