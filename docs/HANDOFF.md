@@ -2,6 +2,47 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — window-tool audit classification + fresh pre-promotion readbacks — 2026-06-01 08:00 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-0800-window-tool-audit-readback-refresh-handoff.md`.
+
+Safe continuation after the 07:48 handoff is pushed through HEAD `e2d8a09`
+(`Classify repo window tool in input audit`). The live-input surface audit now
+classifies `tools\RiftReader.WindowTools\Program.cs` as a repo-owned
+window/control primitive with explicit target gates instead of leaving it under
+a generic legacy-review bucket. Exact-target no-input readbacks and the
+report-only candidate-facing readiness review were also refreshed.
+
+Current target identity remains PID `41808`, HWND `0x2B0A26`, process start
+`2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`; the
+candidate-facing chain remains `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` and
+is still candidate-only.
+
+Fresh evidence now indexed:
+
+| Evidence | Status | Path |
+|---|---|---|
+| Static owner coordinate readback | `passed`; stationary; `x=7259.82568359375`, `y=821.4274291992188`, `z=2994.700439453125` | `scripts\captures\static-owner-coordinate-chain-readback-20260601-075735-998580\summary.json` |
+| Static owner nav/facing readback | `passed`; candidate yaw `75.17711284220054` degrees; pitch `4.941137747009679` degrees | `scripts\captures\static-owner-nav-state-20260601-075736-800286\summary.json` |
+| RRAPICOORD/API-now reference | `captured`; max abs chain-vs-API delta `0.004394406249957683` <= `0.25` | `scripts\captures\rift-api-reference-currentpid-41808-20260601-075737.json` |
+| Candidate-facing readiness review | `passed`; review-ready; `promotionAllowed=false`; `promotionPerformed=false`; explicit promotion gate still required | `scripts\captures\facing-target-promotion-readiness-review-20260601-075836-835459\summary.json` |
+| Navigation pointer dashboard | `passed`; freshness `fresh`; no stale sources; generated `2026-06-01T07:58:38Z` | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` |
+| Compact workflow status | `passed`; clean Git at `e2d8a09`; generated `2026-06-01T07:58:39Z` | `.riftreader-local\workflow-status\20260601-075839Z\compact-sitrep.json` |
+
+Safety: this continuation sent no live input/movement, did not attach
+x64dbg/Cheat Engine, did not write provider repos, and did not perform
+proof/facing/actor promotion. It read target memory only through approved
+read-only static owner/API capture helpers. Git push was performed for the
+coherent audit-hardening slice.
+
+Current safe next action: the next meaningful progress is an explicit
+candidate-facing promotion/proof gate. Before that gate, refresh exact-target
+static coordinate, nav/facing, and RRAPICOORD/API-now readbacks again and verify
+PID/HWND/process-start/module-base. `keep working` alone is not approval to
+cross that promotion/proof boundary.
+
 ## Latest compact handoff — Ghidra evidence surfaced + no-input truth refresh — 2026-06-01 07:48 UTC
 
 A new compact handoff exists at
