@@ -2,6 +2,40 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — fresh current-truth refresh + facing review — 2026-06-01 06:53 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-0653-current-truth-refresh-facing-review-handoff.md`.
+
+Tracked `docs\recovery\current-truth.json` has been refreshed again from the
+06:50 dry-run plan and fresh no-input current-PID evidence. The apply summary is
+`.riftreader-local\current-truth-refresh-apply\latest\summary.json`, and the
+navigation dashboard was regenerated at `2026-06-01T06:53:05Z` with all indexed
+sources fresh.
+
+Current target identity remains PID `41808`, HWND `0x2B0A26`, process start
+`2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`.
+
+Fresh evidence now indexed:
+
+| Evidence | Status | Path |
+|---|---|---|
+| Static owner coordinate readback | `passed`; stationary; `x=7259.82568359375`, `y=821.4274291992188`, `z=2994.700439453125` | `scripts\captures\static-owner-coordinate-chain-readback-20260601-064834-659174\summary.json` |
+| Static owner nav/facing readback | `passed`; candidate yaw `75.17711284220054` degrees; pitch `4.941137747009679` degrees | `scripts\captures\static-owner-nav-state-20260601-064844-619041\summary.json` |
+| RRAPICOORD/API-now reference | `passed`; max abs chain-vs-API delta `0.004416406250129512` <= `0.25` | `scripts\captures\rift-api-reference-currentpid-41808-20260601-064857.json` |
+| Candidate-facing review packet | `passed`; review-ready but promotion still blocked behind explicit gate | `scripts\captures\facing-target-promotion-readiness-review-20260601-064955-374586\summary.json` |
+| Navigation pointer dashboard | `passed`; freshness `fresh`; no stale sources | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` |
+
+Safety: this slice applied tracked current truth only. It sent no new live
+input/movement, did not attach x64dbg/Cheat Engine, did not write provider repos,
+and did not perform proof/facing/actor promotion.
+
+Current safe next action: if pursuing facing promotion, refresh exact-target
+static/nav/API readbacks again immediately before the gate, then run a separate
+explicit promotion gate. The review packet alone is still report-only and must
+not be treated as promotion.
+
 ## Latest compact handoff — candidate-facing promotion-readiness review — 2026-06-01 06:44 UTC
 
 A new compact handoff exists at
