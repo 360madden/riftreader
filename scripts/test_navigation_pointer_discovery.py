@@ -644,6 +644,49 @@ def seed_ghidra_static_evidence(root: Path) -> None:
 
 
 def seed_velocity_route_steps(root: Path) -> None:
+    pre_state_path = (
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-nav-state-20260531-142349-000000"
+        / "summary.json"
+    )
+    post_state_path = (
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-nav-state-20260531-142351-000000"
+        / "summary.json"
+    )
+    support_fields = {
+        "owner+0x438": {"float": 1.5, "rawHex": "0x3FC00000"},
+        "owner+0x43C": {"float": 2.5, "rawHex": "0x40200000"},
+        "owner+0x440": {"float": 3.5, "rawHex": "0x40600000"},
+    }
+    write_json(
+        pre_state_path,
+        {
+            "kind": "static-owner-nav-state-readback",
+            "status": "passed",
+            "generatedAtUtc": "2026-05-31T14:23:49Z",
+            "latestState": {
+                "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                "catalogSupportFields": support_fields,
+            },
+        },
+    )
+    write_json(
+        post_state_path,
+        {
+            "kind": "static-owner-nav-state-readback",
+            "status": "passed",
+            "generatedAtUtc": "2026-05-31T14:23:51Z",
+            "latestState": {
+                "coordinate": {"x": 3.25, "y": 2.0, "z": 3.0},
+                "catalogSupportFields": support_fields,
+            },
+        },
+    )
     write_json(
         root
         / "scripts"
@@ -700,6 +743,10 @@ def seed_velocity_route_steps(root: Path) -> None:
                 "totalProgressDistance": 2.25,
                 "initialPlanarDistance": 6.0,
                 "finalPlanarDistance": 3.75,
+            },
+            "artifacts": {
+                "preStateSummaryJson": str(pre_state_path),
+                "postStateSummaryJson": str(post_state_path),
             },
             "safety": {
                 "movementSent": True,
@@ -807,6 +854,17 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(velocity["latestPlanarSpeedPerSecond"], 0.0)
         self.assertEqual(velocity["evidence"]["forwardRouteStep"]["routeStatus"], "progress")
         self.assertEqual(velocity["evidence"]["backwardRouteStep"]["routeStatus"], "wrong-way")
+        support_motion = summary["candidateLedger"]["supportFieldMotion"]
+        self.assertEqual(support_motion["status"], "support-fields-unchanged-during-forward-progress")
+        self.assertAlmostEqual(support_motion["coordinatePlanarDelta"], 2.25)
+        self.assertEqual(
+            summary["candidateLedger"]["supportFields"]["owner+0x438"]["motionContrast"]["status"],
+            "unchanged-during-forward-progress",
+        )
+        self.assertEqual(
+            summary["candidateLedger"]["supportFields"]["owner+0x438"]["motionContrast"]["deltaFloat"],
+            0.0,
+        )
         self.assertTrue(summary["sourceSafety"]["routeStepForwardInputSent"])
         self.assertTrue(summary["sourceSafety"]["routeStepBackwardInputSent"])
         self.assertEqual(summary["sources"]["routeStepForward"]["freshness"]["status"], "fresh")

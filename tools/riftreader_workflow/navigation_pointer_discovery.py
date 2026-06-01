@@ -870,6 +870,98 @@ def navigation_control_chains_summary(
     }
 
 
+def planar_delta(a: Mapping[str, Any], b: Mapping[str, Any]) -> float | None:
+    try:
+        ax = float(a["x"])
+        az = float(a["z"])
+        bx = float(b["x"])
+        bz = float(b["z"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return ((bx - ax) ** 2 + (bz - az) ** 2) ** 0.5
+
+
+def support_field_motion_contrast(
+    repo_root: Path,
+    route_step: Mapping[str, Any] | None,
+    route_step_path: Path | None,
+) -> dict[str, Any]:
+    """Compare catalog support fields across the latest forward route-step."""
+
+    route_step_map = safe_mapping(route_step)
+    artifacts = safe_mapping(route_step_map.get("artifacts"))
+    pre_path = absolute_from_artifact(repo_root, artifacts.get("preStateSummaryJson"))
+    post_path = absolute_from_artifact(repo_root, artifacts.get("postStateSummaryJson"))
+    if not pre_path or not post_path:
+        return {"status": "missing-route-step-pre-post-state", "fields": {}}
+    pre_data, pre_error = try_load_json_object(pre_path)
+    post_data, post_error = try_load_json_object(post_path)
+    if pre_error or post_error or pre_data is None or post_data is None:
+        return {
+            "status": "route-step-pre-post-state-unusable",
+            "preError": pre_error,
+            "postError": post_error,
+            "fields": {},
+        }
+
+    pre_state = safe_mapping(pre_data.get("latestState"))
+    post_state = safe_mapping(post_data.get("latestState"))
+    pre_support = safe_mapping(pre_state.get("catalogSupportFields"))
+    post_support = safe_mapping(post_state.get("catalogSupportFields"))
+    coordinate_delta = planar_delta(safe_mapping(pre_state.get("coordinate")), safe_mapping(post_state.get("coordinate")))
+    route_result = safe_mapping(route_step_map.get("routeResult"))
+    route_status = route_result.get("routeStatus")
+    total_progress = route_result.get("totalProgressDistance")
+    route_step_json = artifact_path(repo_root, route_step_path)
+    fields: dict[str, Any] = {}
+    for key in ("owner+0x438", "owner+0x43C", "owner+0x440"):
+        before = safe_mapping(pre_support.get(key))
+        after = safe_mapping(post_support.get(key))
+        before_float = before.get("float")
+        after_float = after.get("float")
+        delta_float = (
+            float(after_float) - float(before_float)
+            if isinstance(before_float, (int, float)) and isinstance(after_float, (int, float))
+            else None
+        )
+        changed = delta_float is not None and abs(delta_float) > 0.0001
+        if coordinate_delta is None or coordinate_delta < 0.5 or route_status not in {"progress", "arrived"}:
+            status = "insufficient-forward-motion-contrast"
+        elif changed:
+            status = "changed-during-forward-progress"
+        else:
+            status = "unchanged-during-forward-progress"
+        fields[key] = {
+            "status": status,
+            "beforeFloat": before_float,
+            "afterFloat": after_float,
+            "deltaFloat": delta_float,
+            "beforeRawHex": before.get("rawHex"),
+            "afterRawHex": after.get("rawHex"),
+            "coordinatePlanarDelta": coordinate_delta,
+            "routeProgressDistance": total_progress,
+            "routeStatus": route_status,
+            "routeStepJson": route_step_json,
+            "preStateSummaryJson": artifact_path(repo_root, pre_path),
+            "postStateSummaryJson": artifact_path(repo_root, post_path),
+            "candidateOnly": True,
+        }
+
+    if fields and all(field.get("status") == "unchanged-during-forward-progress" for field in fields.values()):
+        status = "support-fields-unchanged-during-forward-progress"
+    elif any(field.get("status") == "changed-during-forward-progress" for field in fields.values()):
+        status = "support-fields-changed-during-forward-progress"
+    else:
+        status = "support-fields-motion-contrast-inconclusive"
+    return {
+        "status": status,
+        "routeStepJson": route_step_json,
+        "coordinatePlanarDelta": coordinate_delta,
+        "routeProgressDistance": total_progress,
+        "fields": fields,
+    }
+
+
 def candidate_ledger_summary(
     repo_root: Path,
     coordinate_readback: Mapping[str, Any] | None,
@@ -890,6 +982,8 @@ def candidate_ledger_summary(
         for key in ("owner+0x438", "owner+0x43C", "owner+0x440")
     )
     turn = safe_mapping(turn_rate)
+    support_motion = support_field_motion_contrast(repo_root, forward_route_step, forward_route_step_path)
+    support_motion_fields = safe_mapping(support_motion.get("fields"))
     velocity_speed = velocity_speed_summary(
         repo_root=repo_root,
         coordinate_readback=coordinate_readback,
@@ -948,6 +1042,7 @@ def candidate_ledger_summary(
                 "latestU32": safe_mapping(catalog_support.get("owner+0x438")).get("u32"),
                 "rawHex": safe_mapping(catalog_support.get("owner+0x438")).get("rawHex"),
                 "semanticStatus": safe_mapping(catalog_support.get("owner+0x438")).get("semanticStatus") or "unclassified",
+                "motionContrast": safe_mapping(support_motion_fields.get("owner+0x438")),
                 "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
             },
             "owner+0x43C": {
@@ -956,6 +1051,7 @@ def candidate_ledger_summary(
                 "latestU32": safe_mapping(catalog_support.get("owner+0x43C")).get("u32"),
                 "rawHex": safe_mapping(catalog_support.get("owner+0x43C")).get("rawHex"),
                 "semanticStatus": safe_mapping(catalog_support.get("owner+0x43C")).get("semanticStatus") or "unclassified",
+                "motionContrast": safe_mapping(support_motion_fields.get("owner+0x43C")),
                 "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
             },
             "owner+0x440": {
@@ -964,9 +1060,11 @@ def candidate_ledger_summary(
                 "latestU32": safe_mapping(catalog_support.get("owner+0x440")).get("u32"),
                 "rawHex": safe_mapping(catalog_support.get("owner+0x440")).get("rawHex"),
                 "semanticStatus": safe_mapping(catalog_support.get("owner+0x440")).get("semanticStatus") or "unclassified",
+                "motionContrast": safe_mapping(support_motion_fields.get("owner+0x440")),
                 "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
             },
         },
+        "supportFieldMotion": support_motion,
         "policy": {
             "candidateFieldsMustNotBeMixedIntoCurrentTruthAsPromoted": True,
             "promotionRequiresDedicatedGatePacket": True,
