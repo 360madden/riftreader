@@ -2,6 +2,50 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — stage-0 navigation pointer refresh — 2026-06-01 21:24 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-2124-stage0-navigation-pointer-refresh-handoff.md`.
+
+Stage-0 navigation pointer discovery is refreshed, indexed, and backed by
+fresh current-target truth. The dashboard is fresh with no stale sources, and
+current truth has same-target static-chain/API-now agreement with max abs delta
+`0.004418749999786087 <= 0.25`.
+
+Current target identity is PID `12664`, HWND `0x205146C`, process start
+`2026-06-01T17:19:45.159353Z`, module base `0x7FF6EE5D0000`.
+
+| Resolver / field | Result |
+|---|---|
+| Coordinate | `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`; latest readback `(7308.57421875, 823.53662109375, 3045.098388671875)`. |
+| Facing/yaw | `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314`; current yaw `44.11798623707763°`. |
+| Velocity/speed | Forward/back/stop live-correlation passed; still not a dedicated static speed pointer. |
+| `owner+0x304` | Candidate-only yaw-adjacent scalar, not active turn-rate. |
+| `owner+0x438/+0x43C/+0x440` | Candidate-only raw support fields; unchanged during forward progress. |
+| Actor/stat chain | Not promoted; no-debug status still blocks on `current-proof-anchor-not-passed`. |
+
+Fresh evidence now indexed:
+
+| Evidence | Path |
+|---|---|
+| Navigation dashboard | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` |
+| Current truth | `docs\recovery\current-truth.json` updated `2026-06-01T21:21:33Z` |
+| Static readback | `scripts\captures\static-owner-coordinate-chain-readback-20260601-211913-897755\summary.json` |
+| API marker | `scripts\captures\rift-api-reference-currentpid-12664-20260601-212046.json` |
+| Forward route refresh | `scripts\captures\static-owner-nav-route-step-20260601-211844-099888\summary.json` |
+| Backward route contrast | `scripts\captures\static-owner-nav-route-step-20260601-210105-864282\summary.json` |
+| Offline Ghidra evidence | `scripts\captures\ghidra-static-analysis-20260601-210631\summary.json` |
+| Actor no-debug status | `scripts\captures\actor-chain-no-debug-status-20260601-210455-466513\summary.json` |
+
+Safety: live movement was exact-target and bounded; no Cheat Engine/x64dbg,
+target memory writes, provider writes, proof promotion, actor promotion, or
+turn-rate promotion were performed. Git push was not performed. Current local
+branch was ahead of origin and remains awaiting explicit push approval.
+
+Current safe next action: continue actor/stat-chain provenance discovery from
+read-only/no-debug evidence where practical, or approve a push if the local
+stage-0 commits should be published.
+
 ## Latest compact handoff — static facing/yaw restart survival propagated — 2026-06-01 17:34 UTC
 
 A new compact handoff exists at
