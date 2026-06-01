@@ -151,6 +151,66 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertIn("current-truth-before-apply.json", summary["backupCurrentTruthJson"])
 
+    def test_latest_facing_promotion_readiness_review_reads_report_only_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_json(
+                root
+                / "scripts"
+                / "captures"
+                / "facing-target-promotion-readiness-review-20260601-063700-000000"
+                / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "facing-target-promotion-readiness-review-packet",
+                    "generatedAtUtc": "2026-06-01T06:37:00Z",
+                    "status": "passed",
+                    "verdict": "candidate-facing-review-ready-for-explicit-promotion-gate",
+                    "target": {"processId": 41808, "targetWindowHandle": "0x2B0A26"},
+                    "candidate": {"offset": "0x30C", "candidateOnly": True},
+                    "promotionDecision": {
+                        "reviewPassed": True,
+                        "promotionAllowed": False,
+                        "promotionPerformed": False,
+                        "explicitPromotionGateRequired": True,
+                        "freshPrePromotionReadbackRequired": True,
+                    },
+                    "reviewGates": {"restartRelogSurvival": {"passed": True}},
+                    "artifacts": {
+                        "summaryJson": "scripts/captures/facing-target-promotion-readiness-review-20260601-063700-000000/summary.json",
+                        "summaryMarkdown": "scripts/captures/facing-target-promotion-readiness-review-20260601-063700-000000/summary.md",
+                    },
+                    "blockers": [],
+                    "warnings": ["candidate-facing-target-only-no-promotion"],
+                    "errors": [],
+                    "safety": {
+                        "movementSent": False,
+                        "inputSent": False,
+                        "targetMemoryBytesRead": False,
+                        "targetMemoryBytesWritten": False,
+                        "proofPromotion": False,
+                        "actorChainPromotion": False,
+                        "facingPromotion": False,
+                        "currentTruthWrite": False,
+                        "gitMutation": False,
+                    },
+                    "sourceSafety": {"movementSent": True, "inputSent": True, "targetMemoryBytesRead": True},
+                    "next": {"recommendedAction": "Refresh exact-target readbacks."},
+                },
+            )
+
+            summary = status_packet.latest_facing_promotion_readiness_review(root)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertEqual(41808, summary["target"]["processId"])
+        self.assertTrue(summary["promotionDecision"]["reviewPassed"])
+        self.assertFalse(summary["promotionDecision"]["promotionAllowed"])
+        self.assertFalse(summary["promotionDecision"]["promotionPerformed"])
+        self.assertTrue(summary["promotionDecision"]["freshPrePromotionReadbackRequired"])
+        self.assertFalse(summary["safety"]["movementSent"])
+        self.assertTrue(summary["sourceSafety"]["movementSent"])
+        self.assertEqual("Refresh exact-target readbacks.", summary["nextRecommendedAction"])
+
     def test_latest_navigation_pointer_discovery_reads_dashboard_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -378,6 +438,18 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                 "safety": {"trackedTruthWritten": True, "proofPromotion": False},
                 "nextRecommendedAction": "Refresh status.",
             },
+            "facingPromotionReadinessReview": {
+                "status": "passed",
+                "verdict": "candidate-facing-review-ready-for-explicit-promotion-gate",
+                "summaryJson": "scripts/captures/facing-target-promotion-readiness-review-x/summary.json",
+                "promotionDecision": {
+                    "reviewPassed": True,
+                    "promotionAllowed": False,
+                    "promotionPerformed": False,
+                    "freshPrePromotionReadbackRequired": True,
+                },
+                "nextRecommendedAction": "Refresh exact-target readbacks.",
+            },
             "safety": {"movementSent": False, "gitMutation": False},
             "nextRecommendedAction": "none",
             "artifacts": {},
@@ -393,6 +465,9 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("Run facing proof.", markdown)
         self.assertIn("proposed-current-truth.diff", markdown)
         self.assertIn("current-truth-refresh-applied", markdown)
+        self.assertIn("## Facing promotion-readiness review", markdown)
+        self.assertIn("candidate-facing-review-ready-for-explicit-promotion-gate", markdown)
+        self.assertIn("Refresh exact-target readbacks.", markdown)
 
     def test_latest_static_owner_readback_reports_capture_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -544,6 +619,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             write_text(root / "scripts" / "riftreader-current-truth-refresh-apply.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-three-pose-gate.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-restart-survival-packet.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-facing-target-promotion-readiness-review.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -589,6 +665,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("report-only package", commands["facing-target-three-pose-gate"]["safety"])
         self.assertTrue(commands["facing-target-restart-survival-packet"]["exists"])
         self.assertIn("report-only pre/post", commands["facing-target-restart-survival-packet"]["safety"])
+        self.assertTrue(commands["facing-target-promotion-readiness-review"]["exists"])
+        self.assertIn("report-only review", commands["facing-target-promotion-readiness-review"]["safety"])
 
 
 if __name__ == "__main__":

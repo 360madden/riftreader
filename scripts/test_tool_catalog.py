@@ -39,6 +39,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-current-truth-refresh-apply.cmd",
         "scripts/riftreader-facing-target-three-pose-gate.cmd",
         "scripts/riftreader-facing-target-restart-survival-packet.cmd",
+        "scripts/riftreader-facing-target-promotion-readiness-review.cmd",
         "scripts/riftreader-sensitive-artifact-scan.cmd",
         "scripts/riftreader-live-input-surface-audit.cmd",
         "scripts/riftreader-actor-chain-no-debug-status.cmd",
@@ -105,6 +106,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "current-truth-refresh-apply-dry-run" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "facing-three-pose-gate-report" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "facing-restart-survival-report" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "facing-promotion-readiness-review" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
         self.assertTrue(
             any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
@@ -119,6 +121,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("current-truth-refresh-apply", compact["gatedToolKeys"])
         self.assertIn("facing-target-three-pose-gate", compact["canonicalToolKeys"])
         self.assertIn("facing-target-restart-survival-packet", compact["canonicalToolKeys"])
+        self.assertIn("facing-target-promotion-readiness-review", compact["canonicalToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
         self.assertIn("static-owner-camera-yaw-classification", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])

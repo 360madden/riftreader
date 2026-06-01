@@ -2,6 +2,30 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — candidate-facing promotion-readiness review — 2026-06-01 06:44 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-01-0644-facing-promotion-readiness-review-handoff.md`.
+
+The report-only review packet now exists at
+`scripts\captures\facing-target-promotion-readiness-review-20260601-063743-001453\summary.json`.
+It passed with verdict
+`candidate-facing-review-ready-for-explicit-promotion-gate`, but still records
+`promotionAllowed=false`, `promotionPerformed=false`,
+`explicitPromotionGateRequired=true`, and
+`freshPrePromotionReadbackRequired=true`.
+
+New workflow surfaces:
+
+| Surface | Status |
+|---|---|
+| `scripts\riftreader-facing-target-promotion-readiness-review.cmd` | report-only review of existing gate/static evidence; no promotion |
+| Compact workflow status | now surfaces `facingPromotionReadinessReview` and shifts next action to fresh exact-target readbacks |
+| Tool catalog / bridge commands | now lists the review helper as safe-read-only |
+
+Current safe next action: refresh exact-target static/nav/API readbacks before
+any promotion gate. Do **not** promote facing/turn-rate/actor truth from the
+review packet alone.
 ## Latest compact handoff — current-truth apply and gate-aware status wiring — 2026-06-01 06:17 UTC
 
 A new compact handoff exists at

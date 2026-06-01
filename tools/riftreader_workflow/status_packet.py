@@ -63,6 +63,7 @@ DEFAULT_CURRENT_TRUTH_REFRESH_PLAN_SUMMARY = (
 DEFAULT_CURRENT_TRUTH_REFRESH_APPLY_SUMMARY = (
     Path(".riftreader-local") / "current-truth-refresh-apply" / "latest" / "summary.json"
 )
+DEFAULT_FACING_PROMOTION_READINESS_REVIEW_PREFIX = "facing-target-promotion-readiness-review"
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
@@ -153,6 +154,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "Facing-target restart survival packet",
         "scripts\\riftreader-facing-target-restart-survival-packet.cmd --json",
         "report-only pre/post nav-state comparison; no restart, input/movement/debugger/provider writes, or promotion",
+    ),
+    (
+        "facing-target-promotion-readiness-review",
+        "Facing-target promotion-readiness review",
+        "scripts\\riftreader-facing-target-promotion-readiness-review.cmd --json",
+        "report-only review of existing gate/static evidence; no input/movement/current-truth write or promotion",
     ),
     (
         "actor-chain-no-debug-status",
@@ -1144,6 +1151,137 @@ def latest_current_truth_refresh_apply(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def latest_facing_promotion_readiness_review(repo_root: Path) -> dict[str, Any]:
+    """Return the latest report-only candidate-facing promotion-readiness review."""
+
+    base = {
+        "status": "missing",
+        "verdict": None,
+        "observedAtUtc": None,
+        "summaryJson": None,
+        "summaryMarkdown": None,
+        "target": {},
+        "candidate": {},
+        "reviewGates": {},
+        "promotionDecision": {
+            "reviewPassed": False,
+            "promotionAllowed": False,
+            "promotionPerformed": False,
+            "explicitPromotionGateRequired": True,
+            "freshPrePromotionReadbackRequired": True,
+        },
+        "nextRecommendedAction": None,
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": {
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+            "currentTruthWrite": False,
+            "gitMutation": False,
+        },
+        "sourceSafety": {},
+    }
+    capture_root = repo_root / DEFAULT_STATIC_OWNER_CAPTURE_DIR
+    if not capture_root.is_dir():
+        return base
+    try:
+        summaries = [
+            path
+            for path in capture_root.glob(f"{DEFAULT_FACING_PROMOTION_READINESS_REVIEW_PREFIX}-*/summary.json")
+            if path.is_file()
+        ]
+    except Exception as exc:  # noqa: BLE001 - malformed ignored artifacts must not fail status.
+        blocked = dict(base)
+        blocked["status"] = "search-error"
+        blocked["warnings"] = [
+            f"facing-promotion-readiness-review-search-error:{type(exc).__name__}:{preview_text(str(exc))}"
+        ]
+        return blocked
+    if not summaries:
+        return base
+    latest = max(summaries, key=lambda path: path.stat().st_mtime_ns)
+    markdown = latest.with_suffix(".md")
+    try:
+        payload = json.loads(latest.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001 - malformed ignored artifacts must not fail status.
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["summaryJson"] = as_repo_path(repo_root, latest)
+        blocked["summaryMarkdown"] = as_repo_path(repo_root, markdown)
+        blocked["warnings"] = [
+            f"facing-promotion-readiness-review-parse-error:{type(exc).__name__}:{preview_text(str(exc))}"
+        ]
+        blocked["blockers"] = ["facing-promotion-readiness-review-summary-unusable"]
+        return blocked
+    if not isinstance(payload, dict):
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["summaryJson"] = as_repo_path(repo_root, latest)
+        blocked["summaryMarkdown"] = as_repo_path(repo_root, markdown)
+        blocked["warnings"] = ["facing-promotion-readiness-review-summary-not-json-object"]
+        blocked["blockers"] = ["facing-promotion-readiness-review-summary-unusable"]
+        return blocked
+
+    if payload.get("kind") != "facing-target-promotion-readiness-review-packet":
+        blocked = dict(base)
+        blocked["status"] = "kind-mismatch"
+        blocked["summaryJson"] = as_repo_path(repo_root, latest)
+        blocked["summaryMarkdown"] = as_repo_path(repo_root, markdown)
+        blocked["warnings"] = [
+            f"facing-promotion-readiness-review-kind-mismatch:{payload.get('kind')}"
+        ]
+        return blocked
+
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    decision = payload.get("promotionDecision") if isinstance(payload.get("promotionDecision"), dict) else {}
+    next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    source_safety = payload.get("sourceSafety") if isinstance(payload.get("sourceSafety"), dict) else {}
+    return {
+        **base,
+        "status": payload.get("status") or "unknown",
+        "verdict": payload.get("verdict"),
+        "observedAtUtc": payload.get("generatedAtUtc"),
+        "summaryJson": artifacts.get("summaryJson") or as_repo_path(repo_root, latest),
+        "summaryMarkdown": artifacts.get("summaryMarkdown") or as_repo_path(repo_root, markdown),
+        "target": payload.get("target") if isinstance(payload.get("target"), dict) else {},
+        "candidate": payload.get("candidate") if isinstance(payload.get("candidate"), dict) else {},
+        "reviewGates": payload.get("reviewGates") if isinstance(payload.get("reviewGates"), dict) else {},
+        "promotionDecision": {
+            **base["promotionDecision"],
+            "reviewPassed": bool(decision.get("reviewPassed")),
+            "promotionAllowed": bool(decision.get("promotionAllowed")),
+            "promotionPerformed": bool(decision.get("promotionPerformed")),
+            "explicitPromotionGateRequired": bool(decision.get("explicitPromotionGateRequired", True)),
+            "freshPrePromotionReadbackRequired": bool(decision.get("freshPrePromotionReadbackRequired", True)),
+            "recommendedPromotionState": decision.get("recommendedPromotionState"),
+        },
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "blockers": _list_or_empty(payload.get("blockers")),
+        "warnings": _list_or_empty(payload.get("warnings")),
+        "errors": _list_or_empty(payload.get("errors")),
+        "safety": {
+            **base["safety"],
+            "movementSent": bool(safety.get("movementSent")),
+            "inputSent": bool(safety.get("inputSent")),
+            "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
+            "targetMemoryBytesWritten": bool(safety.get("targetMemoryBytesWritten")),
+            "proofPromotion": bool(safety.get("proofPromotion")),
+            "actorChainPromotion": bool(safety.get("actorChainPromotion")),
+            "facingPromotion": bool(safety.get("facingPromotion")),
+            "currentTruthWrite": bool(safety.get("currentTruthWrite")),
+            "gitMutation": bool(safety.get("gitMutation")),
+        },
+        "sourceSafety": source_safety,
+    }
+
+
 def find_latest_handoff(repo_root: Path, handoff_dir: Path | None = None) -> Path | None:
     directory = handoff_dir if handoff_dir is not None else repo_root / DEFAULT_HANDOFF_DIR
     if not directory.is_dir():
@@ -1567,6 +1705,7 @@ def build_status_packet(
     navigation_pointer_discovery = latest_navigation_pointer_discovery(repo_root)
     current_truth_refresh_plan = latest_current_truth_refresh_plan(repo_root)
     current_truth_refresh_apply = latest_current_truth_refresh_apply(repo_root)
+    facing_promotion_readiness_review = latest_facing_promotion_readiness_review(repo_root)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -1707,6 +1846,9 @@ def build_status_packet(
             and navigation_readiness.get("facingTarget") == "candidate-only-gates-packaged-requires-review"
         ):
             next_action = navigation_next
+        review_next = facing_promotion_readiness_review.get("nextRecommendedAction")
+        if review_next and facing_promotion_readiness_review.get("status") == "passed":
+            next_action = review_next
     if not next_action and blockers:
         next_action = "Resolve the listed blocker(s) before attempting live movement or proof promotion."
     if not next_action:
@@ -1741,6 +1883,7 @@ def build_status_packet(
         "navigationPointerDiscovery": navigation_pointer_discovery,
         "currentTruthRefreshPlan": current_truth_refresh_plan,
         "currentTruthRefreshApply": current_truth_refresh_apply,
+        "facingPromotionReadinessReview": facing_promotion_readiness_review,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -1764,6 +1907,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     navigation = packet.get("navigationPointerDiscovery") or {}
     truth_plan = packet.get("currentTruthRefreshPlan") or {}
     truth_apply = packet.get("currentTruthRefreshApply") or {}
+    facing_review = packet.get("facingPromotionReadinessReview") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     proof_freshness = proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {}
     handoff = packet.get("latestHandoff") or {}
@@ -1789,6 +1933,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Navigation pointer discovery: `{navigation.get('status')}`; freshness `{navigation.get('freshnessStatus')}`",
         f"- Current truth refresh plan: `{truth_plan.get('status')}`; updates `{truth_plan.get('updateCount')}`; apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
         f"- Current truth refresh apply: `{truth_apply.get('status')}`; tracked write `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
+        f"- Facing promotion-readiness review: `{facing_review.get('status')}`; promotion allowed `{(facing_review.get('promotionDecision') or {}).get('promotionAllowed')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -1906,6 +2051,11 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     )
     current_truth_refresh_apply = (
         packet.get("currentTruthRefreshApply") if isinstance(packet.get("currentTruthRefreshApply"), dict) else {}
+    )
+    facing_promotion_readiness_review = (
+        packet.get("facingPromotionReadinessReview")
+        if isinstance(packet.get("facingPromotionReadinessReview"), dict)
+        else {}
     )
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
@@ -2053,6 +2203,22 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "errors": current_truth_refresh_apply.get("errors") or [],
             "safety": current_truth_refresh_apply.get("safety") or {},
         },
+        "facingPromotionReadinessReview": {
+            "status": facing_promotion_readiness_review.get("status") or "not-collected",
+            "verdict": facing_promotion_readiness_review.get("verdict"),
+            "observedAtUtc": facing_promotion_readiness_review.get("observedAtUtc"),
+            "summaryJson": facing_promotion_readiness_review.get("summaryJson"),
+            "summaryMarkdown": facing_promotion_readiness_review.get("summaryMarkdown"),
+            "target": facing_promotion_readiness_review.get("target") or {},
+            "candidate": facing_promotion_readiness_review.get("candidate") or {},
+            "promotionDecision": facing_promotion_readiness_review.get("promotionDecision") or {},
+            "nextRecommendedAction": facing_promotion_readiness_review.get("nextRecommendedAction"),
+            "blockers": facing_promotion_readiness_review.get("blockers") or [],
+            "warnings": facing_promotion_readiness_review.get("warnings") or [],
+            "errors": facing_promotion_readiness_review.get("errors") or [],
+            "safety": facing_promotion_readiness_review.get("safety") or {},
+            "sourceSafety": facing_promotion_readiness_review.get("sourceSafety") or {},
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -2076,6 +2242,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     navigation = summary.get("navigationPointerDiscovery") or {}
     truth_plan = summary.get("currentTruthRefreshPlan") or {}
     truth_apply = summary.get("currentTruthRefreshApply") or {}
+    facing_review = summary.get("facingPromotionReadinessReview") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -2093,6 +2260,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Navigation pointer discovery: `{navigation.get('status')}` freshness `{navigation.get('freshnessStatus')}` stale `{navigation.get('staleSources')}`",
         f"- Current truth refresh plan: `{truth_plan.get('status')}` updates `{truth_plan.get('updateCount')}` apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
         f"- Current truth refresh apply: `{truth_apply.get('status')}` tracked write `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
+        f"- Facing promotion-readiness review: `{facing_review.get('status')}` promotion allowed `{(facing_review.get('promotionDecision') or {}).get('promotionAllowed')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
@@ -2127,6 +2295,16 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Tracked truth written: `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
         f"- Backup JSON: `{truth_apply.get('backupCurrentTruthJson')}`",
         f"- Next: {truth_apply.get('nextRecommendedAction')}",
+        "",
+        "## Facing promotion-readiness review",
+        "",
+        f"- Summary JSON: `{facing_review.get('summaryJson')}`",
+        f"- Status: `{facing_review.get('status')}` / `{facing_review.get('verdict')}`",
+        f"- Review passed: `{(facing_review.get('promotionDecision') or {}).get('reviewPassed')}`",
+        f"- Promotion allowed: `{(facing_review.get('promotionDecision') or {}).get('promotionAllowed')}`",
+        f"- Promotion performed: `{(facing_review.get('promotionDecision') or {}).get('promotionPerformed')}`",
+        f"- Fresh readback required: `{(facing_review.get('promotionDecision') or {}).get('freshPrePromotionReadbackRequired')}`",
+        f"- Next: {facing_review.get('nextRecommendedAction')}",
         "",
         "## Bridge commands",
         "",
