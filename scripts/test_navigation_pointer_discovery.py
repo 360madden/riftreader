@@ -600,6 +600,105 @@ def seed_ghidra_static_evidence(root: Path) -> None:
     )
 
 
+def seed_velocity_route_steps(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-coordinate-chain-readback-20260531-142410-000000"
+        / "summary.json",
+        {
+            "mode": "static-owner-coordinate-resolver-readback",
+            "status": "passed",
+            "verdict": "promoted-static-coordinate-resolver-readback-passed",
+            "generatedAtUtc": "2026-05-31T14:24:10Z",
+            "reads": {"ownerAddress": "0x1000", "coordinate": {"x": 4.0, "y": 2.0, "z": 6.0}},
+            "analysis": {
+                "sampleCount": 6,
+                "expectStationary": True,
+                "maxPlanarDelta": 0.0,
+                "maxSpeedPlanarPerSecond": 0.0,
+            },
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "expectedProcessStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+            },
+            "artifacts": {
+                "summaryJson": str(
+                    root
+                    / "scripts"
+                    / "captures"
+                    / "static-owner-coordinate-chain-readback-20260531-142410-000000"
+                    / "summary.json"
+                )
+            },
+            "safety": {"targetMemoryBytesRead": True, "movementSent": False, "inputSent": False},
+        },
+    )
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-nav-route-step-20260531-142350-000000"
+        / "summary.json",
+        {
+            "kind": "static-owner-nav-route-step",
+            "status": "passed",
+            "verdict": "route-step-live-movement-progress-validated",
+            "generatedAtUtc": "2026-05-31T14:23:50Z",
+            "input": {"key": "w", "holdMilliseconds": 500, "inputMode": "ScanCode"},
+            "routeResult": {
+                "status": "passed",
+                "routeStatus": "progress",
+                "stopReason": "distance-decreased",
+                "totalProgressDistance": 2.25,
+                "initialPlanarDistance": 6.0,
+                "finalPlanarDistance": 3.75,
+            },
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "noCheatEngine": True,
+                "providerWrites": False,
+                "proofPromotion": False,
+            },
+        },
+    )
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-nav-route-step-20260531-142405-000000"
+        / "summary.json",
+        {
+            "kind": "static-owner-nav-route-step",
+            "status": "blocked",
+            "verdict": "route-step-post-movement-analysis-blocked",
+            "generatedAtUtc": "2026-05-31T14:24:05Z",
+            "input": {"key": "s", "holdMilliseconds": 500, "inputMode": "ScanCode"},
+            "routeResult": {
+                "status": "blocked",
+                "routeStatus": "wrong-way",
+                "stopReason": "distance-increased-beyond-tolerance",
+                "totalProgressDistance": -1.25,
+                "initialPlanarDistance": 6.0,
+                "finalPlanarDistance": 7.25,
+            },
+            "blockers": ["route-step-wrong-way"],
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "noCheatEngine": True,
+                "providerWrites": False,
+                "proofPromotion": False,
+            },
+        },
+    )
+
+
 class NavigationPointerDiscoveryTests(unittest.TestCase):
     def test_build_summary_indexes_promoted_and_candidate_navigation_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -640,6 +739,32 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(summary["freshness"]["status"], "fresh")
         self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
         self.assertEqual(summary["target"]["identitySource"], "latest-coordinate-and-nav-state-readbacks")
+
+    def test_velocity_speed_uses_forward_back_stop_live_correlation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_velocity_route_steps(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, 30, tzinfo=timezone.utc),
+            )
+
+        velocity = summary["candidateLedger"]["velocitySpeed"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(velocity["status"], "forward-back-stop-live-correlation-passed")
+        self.assertTrue(velocity["liveCorrelationPassed"])
+        self.assertTrue(velocity["forwardProgressPassed"])
+        self.assertTrue(velocity["backwardContrastPassed"])
+        self.assertTrue(velocity["stopStationaryReadbackPassed"])
+        self.assertEqual(velocity["latestPlanarSpeedPerSecond"], 0.0)
+        self.assertEqual(velocity["evidence"]["forwardRouteStep"]["routeStatus"], "progress")
+        self.assertEqual(velocity["evidence"]["backwardRouteStep"]["routeStatus"], "wrong-way")
+        self.assertTrue(summary["sourceSafety"]["routeStepForwardInputSent"])
+        self.assertTrue(summary["sourceSafety"]["routeStepBackwardInputSent"])
+        self.assertEqual(summary["sources"]["routeStepForward"]["freshness"]["status"], "fresh")
+        self.assertIn("candidate-only-derived-speed-not-static-speed-pointer-chain", velocity["promotionBlockers"])
 
     def test_multipose_camera_yaw_report_is_preferred_for_route_next_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

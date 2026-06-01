@@ -49,6 +49,8 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "facingThreePoseGate": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingRestartSurvival": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "routeStepForward": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "routeStepBackward": CURRENT_READBACK_MAX_AGE_SECONDS,
     "ghidraStaticEvidence": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingPromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
     "turnRatePromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
@@ -207,6 +209,55 @@ def newest_summary(
                     f"artifact-kind-mismatch:{repo_rel(repo_root, path)}:"
                     f"expected={expected_kind}:actual={data.get('kind')}"
                 )
+            continue
+        generated = parse_iso(data.get("generatedAtUtc"))
+        if generated is None:
+            generated = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            warnings.append(f"artifact-generatedAtUtc-missing:{repo_rel(repo_root, path)}")
+        valid.append((generated, path, data))
+
+    if not valid:
+        return None, None, warnings
+    _generated, path, data = max(valid, key=lambda item: (item[0], item[1].stat().st_mtime_ns))
+    return path, data, warnings
+
+
+def newest_route_step_by_key(
+    repo_root: Path,
+    *,
+    key: str,
+    route_statuses: set[str] | None = None,
+) -> tuple[Path | None, dict[str, Any] | None, list[str]]:
+    """Return newest static-owner route-step artifact matching a movement key.
+
+    Route-step artifacts are written for both successful progress and expected
+    contrast blockers such as ``wrong-way``. The dashboard needs both kinds of
+    evidence, so this filter intentionally keys on the recorded route status
+    instead of only accepting top-level ``status=passed`` summaries.
+    """
+
+    capture_root = repo_root / CAPTURE_ROOT
+    warnings: list[str] = []
+    if not capture_root.is_dir():
+        return None, None, [f"capture-root-missing:{repo_rel(repo_root, capture_root)}"]
+
+    wanted_key = key.strip().lower()
+    valid: list[tuple[datetime, Path, dict[str, Any]]] = []
+    for path in capture_root.glob("static-owner-nav-route-step-*/summary.json"):
+        data, error = try_load_json_object(path)
+        if error or data is None:
+            warnings.append(f"artifact-parse-error:{repo_rel(repo_root, path)}:{preview_text(error)}")
+            continue
+        if data.get("kind") != "static-owner-nav-route-step":
+            warnings.append(
+                f"artifact-kind-mismatch:{repo_rel(repo_root, path)}:"
+                f"expected=static-owner-nav-route-step:actual={data.get('kind')}"
+            )
+            continue
+        if str(safe_mapping(data.get("input")).get("key") or "").strip().lower() != wanted_key:
+            continue
+        route_status = str(safe_mapping(data.get("routeResult")).get("routeStatus") or "")
+        if route_statuses is not None and route_status not in route_statuses:
             continue
         generated = parse_iso(data.get("generatedAtUtc"))
         if generated is None:
@@ -795,27 +846,31 @@ def navigation_control_chains_summary(
 
 
 def candidate_ledger_summary(
+    repo_root: Path,
     coordinate_readback: Mapping[str, Any] | None,
     nav_state: Mapping[str, Any] | None,
     turn_rate: Mapping[str, Any] | None,
+    forward_route_step: Mapping[str, Any] | None = None,
+    forward_route_step_path: Path | None = None,
+    backward_route_step: Mapping[str, Any] | None = None,
+    backward_route_step_path: Path | None = None,
 ) -> dict[str, Any]:
     """Return candidate-only navigation/actor ledger entries for unpromoted control fields."""
 
     coordinate_analysis = safe_mapping(safe_mapping(coordinate_readback).get("analysis"))
     latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
     turn = safe_mapping(turn_rate)
+    velocity_speed = velocity_speed_summary(
+        repo_root=repo_root,
+        coordinate_readback=coordinate_readback,
+        coordinate_analysis=coordinate_analysis,
+        forward_route_step=forward_route_step,
+        forward_route_step_path=forward_route_step_path,
+        backward_route_step=backward_route_step,
+        backward_route_step_path=backward_route_step_path,
+    )
     return {
-        "velocitySpeed": {
-            "state": "candidate",
-            "status": "needs-forward-back-stop-live-correlation",
-            "latestPlanarSpeedPerSecond": coordinate_analysis.get("maxSpeedPlanarPerSecond"),
-            "evidence": safe_mapping(coordinate_readback).get("artifacts"),
-            "promotionBlockers": [
-                "requires-forward-back-stop-snapshots",
-                "requires-wrong-way-or-blocked-contrast",
-                "requires-restart-survival",
-            ],
-        },
+        "velocitySpeed": velocity_speed,
         "turnRate": {
             "state": "promoted" if turn.get("promotionAllowed") else "candidate",
             "status": turn.get("status") or "missing",
@@ -862,6 +917,111 @@ def candidate_ledger_summary(
             "candidateFieldsMustNotBeMixedIntoCurrentTruthAsPromoted": True,
             "promotionRequiresDedicatedGatePacket": True,
         },
+    }
+
+
+def summarize_route_step_for_velocity(
+    repo_root: Path,
+    path: Path | None,
+    data: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not path or not data:
+        return None
+    route = safe_mapping(data.get("routeResult"))
+    input_summary = safe_mapping(data.get("input"))
+    safety = safe_mapping(data.get("safety"))
+    return {
+        "status": data.get("status"),
+        "verdict": data.get("verdict"),
+        "generatedAtUtc": data.get("generatedAtUtc"),
+        "summaryJson": artifact_path(repo_root, path),
+        "key": input_summary.get("key"),
+        "holdMilliseconds": input_summary.get("holdMilliseconds"),
+        "routeStatus": route.get("routeStatus"),
+        "stopReason": route.get("stopReason"),
+        "totalProgressDistance": route.get("totalProgressDistance"),
+        "initialPlanarDistance": route.get("initialPlanarDistance"),
+        "finalPlanarDistance": route.get("finalPlanarDistance"),
+        "movementSent": bool(safety.get("movementSent")),
+        "inputSent": bool(safety.get("inputSent")),
+        "noCheatEngine": bool(safety.get("noCheatEngine")),
+        "providerWrites": bool(safety.get("providerWrites")),
+        "proofPromotion": bool(safety.get("proofPromotion")),
+        "blockers": safe_list(data.get("blockers")),
+    }
+
+
+def velocity_speed_summary(
+    *,
+    repo_root: Path,
+    coordinate_readback: Mapping[str, Any] | None,
+    coordinate_analysis: Mapping[str, Any],
+    forward_route_step: Mapping[str, Any] | None,
+    forward_route_step_path: Path | None,
+    backward_route_step: Mapping[str, Any] | None,
+    backward_route_step_path: Path | None,
+) -> dict[str, Any]:
+    """Summarize derived speed/velocity correlation from existing route-step artifacts."""
+
+    forward = summarize_route_step_for_velocity(repo_root, forward_route_step_path, forward_route_step)
+    backward = summarize_route_step_for_velocity(repo_root, backward_route_step_path, backward_route_step)
+    latest_speed = coordinate_analysis.get("maxSpeedPlanarPerSecond")
+    stationary_passed = (
+        safe_mapping(coordinate_readback).get("status") == "passed"
+        and coordinate_analysis.get("expectStationary") is True
+        and isinstance(latest_speed, (int, float))
+        and float(latest_speed) <= 0.05
+    )
+    forward_passed = (
+        safe_mapping(forward).get("routeStatus") in {"progress", "arrived"}
+        and isinstance(safe_mapping(forward).get("totalProgressDistance"), (int, float))
+        and float(safe_mapping(forward).get("totalProgressDistance")) > 0
+        and safe_mapping(forward).get("movementSent") is True
+        and safe_mapping(forward).get("inputSent") is True
+    )
+    backward_contrast_passed = (
+        safe_mapping(backward).get("routeStatus") == "wrong-way"
+        and isinstance(safe_mapping(backward).get("totalProgressDistance"), (int, float))
+        and float(safe_mapping(backward).get("totalProgressDistance")) < 0
+        and safe_mapping(backward).get("movementSent") is True
+        and safe_mapping(backward).get("inputSent") is True
+    )
+    live_correlation_passed = bool(forward_passed and backward_contrast_passed and stationary_passed)
+    blockers: list[str] = []
+    if not forward_passed:
+        blockers.append("requires-forward-progress-route-step")
+    if not backward_contrast_passed:
+        blockers.append("requires-wrong-way-or-blocked-contrast")
+    if not stationary_passed:
+        blockers.append("requires-stop-stationary-readback")
+    if live_correlation_passed:
+        blockers.extend(
+            [
+                "candidate-only-derived-speed-not-static-speed-pointer-chain",
+                "requires-restart-survival-for-any-dedicated-speed-field",
+            ]
+        )
+    else:
+        blockers.append("requires-forward-back-stop-snapshots")
+
+    return {
+        "state": "candidate",
+        "status": (
+            "forward-back-stop-live-correlation-passed"
+            if live_correlation_passed
+            else "needs-forward-back-stop-live-correlation"
+        ),
+        "liveCorrelationPassed": live_correlation_passed,
+        "latestPlanarSpeedPerSecond": latest_speed,
+        "stopStationaryReadbackPassed": stationary_passed,
+        "forwardProgressPassed": forward_passed,
+        "backwardContrastPassed": backward_contrast_passed,
+        "evidence": {
+            "stopReadback": safe_mapping(coordinate_readback).get("artifacts"),
+            "forwardRouteStep": forward,
+            "backwardRouteStep": backward,
+        },
+        "promotionBlockers": blockers,
     }
 
 
@@ -1445,6 +1605,16 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="static-owner-turn-forward-experiment-20",
         expected_kind="static-owner-turn-forward-experiment",
     )
+    route_step_forward_path, route_step_forward_data, route_step_forward_warnings = newest_route_step_by_key(
+        repo_root,
+        key="w",
+        route_statuses={"progress", "arrived"},
+    )
+    route_step_backward_path, route_step_backward_data, route_step_backward_warnings = newest_route_step_by_key(
+        repo_root,
+        key="s",
+        route_statuses={"wrong-way"},
+    )
     promotion_review_path, promotion_review_data, promotion_review_warnings = newest_summary(
         repo_root,
         directory_prefix="facing-target-promotion-readiness-review-",
@@ -1473,6 +1643,8 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + three_pose_gate_warnings
         + restart_survival_warnings
         + turn_forward_warnings
+        + route_step_forward_warnings
+        + route_step_backward_warnings
         + promotion_review_warnings
         + turn_rate_promotion_review_warnings
         + ghidra_static_warnings
@@ -1571,6 +1743,10 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         "cameraYawClassificationInputSent": bool(camera_yaw_safety.get("inputSent")),
         "turnForwardExperimentMovementSent": bool(safe_mapping(safe_mapping(turn_forward_data).get("safety")).get("movementSent")),
         "turnForwardExperimentInputSent": bool(safe_mapping(safe_mapping(turn_forward_data).get("safety")).get("inputSent")),
+        "routeStepForwardMovementSent": bool(safe_mapping(safe_mapping(route_step_forward_data).get("safety")).get("movementSent")),
+        "routeStepForwardInputSent": bool(safe_mapping(safe_mapping(route_step_forward_data).get("safety")).get("inputSent")),
+        "routeStepBackwardMovementSent": bool(safe_mapping(safe_mapping(route_step_backward_data).get("safety")).get("movementSent")),
+        "routeStepBackwardInputSent": bool(safe_mapping(safe_mapping(route_step_backward_data).get("safety")).get("inputSent")),
         "latestReadbackTargetMemoryBytesRead": bool(coord_safety.get("targetMemoryBytesRead"))
         or bool(nav_safety.get("targetMemoryBytesRead")),
     }
@@ -1669,6 +1845,20 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["turnForwardExperiment"],
         ),
+        "routeStepForward": summarize_source(
+            repo_root,
+            route_step_forward_path,
+            route_step_forward_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["routeStepForward"],
+        ),
+        "routeStepBackward": summarize_source(
+            repo_root,
+            route_step_backward_path,
+            route_step_backward_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["routeStepBackward"],
+        ),
         "ghidraStaticEvidence": summarize_source(
             repo_root,
             ghidra_static_path,
@@ -1728,7 +1918,16 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             else ("candidate-only-requires-proof" if turn_rate else "missing")
         )
     )
-    candidate_ledger = candidate_ledger_summary(coord_data, nav_data, turn_rate)
+    candidate_ledger = candidate_ledger_summary(
+        repo_root,
+        coord_data,
+        nav_data,
+        turn_rate,
+        forward_route_step=route_step_forward_data,
+        forward_route_step_path=route_step_forward_path,
+        backward_route_step=route_step_backward_data,
+        backward_route_step_path=route_step_backward_path,
+    )
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
     summary: dict[str, Any] = {
