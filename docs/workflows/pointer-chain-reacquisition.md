@@ -195,7 +195,9 @@ If offsets shifted, treat as a full re-discovery.
 Verify:
 
 - `0x300`: accumulated heading (plausible float, not zero)
-- `0x304`: turn rate (near zero when stationary)
+- `0x304`: yaw-adjacent scalar candidate; keep candidate-only and do not treat
+  it as active turn-rate unless a dedicated turn-rate proof supersedes the
+  2026-06-01 semantics review.
 - `0x30C-0x314`: facing target (non-zero vec3)
 - `0x320-0x328`: player coordinates (match `/rap` API)
 

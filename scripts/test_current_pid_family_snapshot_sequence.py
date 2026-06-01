@@ -494,6 +494,50 @@ class CurrentPidFamilySnapshotSequenceTests(unittest.TestCase):
         self.assertIn("--output-root", command)
         self.assertTrue(any("emergency-key-release" in item for item in command))
 
+    def test_preflight_ignores_rift_error_handler_for_non_attach_snapshot(self) -> None:
+        captured = {}
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+
+            def fake_run_command(command, cwd, timeout_seconds):  # noqa: ANN001
+                captured["command"] = command
+                captured["timeout_seconds"] = timeout_seconds
+                return {
+                    "exitCode": 0,
+                    "timedOut": False,
+                    "stdout": json.dumps({"status": "passed", "blockers": []}),
+                    "stderr": "",
+                }
+
+            original = sequence.run_command
+            try:
+                sequence.run_command = fake_run_command
+                preflight, envelope = sequence.run_preflight(
+                    Path("C:/repo"),
+                    args(
+                        pid=1234,
+                        hwnd="0xABC",
+                        expected_start_time_utc="2026-06-01T17:19:45.159353Z",
+                        expected_module_base="0x7FF6EE5D0000",
+                        preflight_timeout_seconds=11,
+                    ),
+                    temp_path,
+                )
+            finally:
+                sequence.run_command = original
+
+            self.assertEqual(preflight["status"], "passed")
+            self.assertEqual(envelope["exitCode"], 0)
+            command = captured["command"]
+            self.assertIn("x64dbg_preflight.py", " ".join(command))
+            self.assertIn("--require-no-debugger-process", command)
+            self.assertIn("--ignore-rift-error-handler", command)
+            self.assertIn("--target-pid", command)
+            self.assertIn("1234", command)
+            self.assertIn("--target-hwnd", command)
+            self.assertIn("0xABC", command)
+            self.assertEqual(captured["timeout_seconds"], 11)
+
     def test_required_client_geometry_blocks_mismatch_before_input(self) -> None:
         original = sequence.inspect_client_geometry
         try:

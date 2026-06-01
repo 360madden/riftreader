@@ -76,7 +76,7 @@ After all gates pass, the human explicitly approves promotion:
 | Player coordinates | `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` | 2026-05-27, max delta 0.00477 |
 | Facing target | `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` | 2026-05-29, 4-pose triangulation |
 | Yaw (derived) | `atan2(Z_0x314 - playerZ, X_0x30C - playerX)` | Derived from facing target |
-| Turn rate | `[rift_x64+0x32EBC80]+0x304` | Directional discriminator |
+| Owner `+0x304` scalar | `[rift_x64+0x32EBC80]+0x304` | Candidate/support only; latest semantics review classifies it as yaw-adjacent, not promoted active turn-rate |
 
 ## Data sources for future chains
 

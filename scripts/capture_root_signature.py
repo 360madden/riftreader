@@ -275,7 +275,7 @@ def main() -> None:
         "module": module_name,
         "rva": f"0x{rva:X}",
         "chain": f"[{module_name}+0x{rva:X}]",
-        "whatThisFinds": "Player owner pointer root — dereference to reach the player object (coordinates at +0x320, facing target at +0x30C, turn rate at +0x304)",
+        "whatThisFinds": "Player owner pointer root — dereference to reach the player object (coordinates at +0x320, facing target at +0x30C, candidate/support yaw-adjacent scalar at +0x304)",
         "sessionContext": {
             "pid": args.pid,
             "moduleBase": f"0x{module_base:X}",

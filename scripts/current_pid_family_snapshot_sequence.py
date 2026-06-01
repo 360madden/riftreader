@@ -748,6 +748,7 @@ def run_preflight(repo_root: Path, args: argparse.Namespace, run_dir: Path) -> t
         str(repo_root / "scripts" / "x64dbg_preflight.py"),
         "--require-exact-target",
         "--require-no-debugger-process",
+        "--ignore-rift-error-handler",
         "--target-pid",
         str(args.pid),
         "--target-hwnd",
