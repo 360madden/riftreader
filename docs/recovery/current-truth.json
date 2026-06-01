@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-06-01T16:52:49Z",
+  "updatedAtUtc": "2026-06-01T17:07:09.168647+00:00",
   "status": "current_pid_41808_static_readback_and_api_now_current",
   "target": {
     "processName": "rift_x64",
@@ -592,7 +592,6 @@
     "promotion-is-coordinate-resolver-only-not-full-actor-stat-chain",
     "old-pid-12148-proof-anchor-is-historical-and-superseded",
     "future-live-use-still-requires-exact-target-and-fresh-chain-readback-preflight",
-    "facing-promotion-is-candidate-only-without-independent-truth-surface-reference",
     "yaw-readback-requires-reading-both-coordinate-and-facing-target-in-same-cycle",
     "Tracked current-truth refresh applied 2026-06-01T06:24:27Z from dry-run plan generated 2026-06-01T05:49:57Z; no proof/facing/actor promotion was performed by the apply helper.",
     "Tracked current-truth refresh applied 2026-06-01T06:56:04Z from dry-run plan generated 2026-06-01T06:50:13Z; no proof/facing/actor promotion was performed by the apply helper.",
@@ -600,12 +599,13 @@
     "Tracked current-truth refresh applied 2026-06-01T07:43:19Z from dry-run plan generated 2026-06-01T07:43:14Z; no proof/facing/actor promotion was performed by the apply helper.",
     "historical-pid-34176-api-validation-must-not-be-presented-as-current-pid-41808-api-now",
     "current-pid-41808-api-now-validation-refreshed-at-2026-06-01T16:49:50.374932Z",
-    "Tracked current-truth refresh applied 2026-06-01T16:52:54Z from dry-run plan generated 2026-06-01T16:52:49Z; no proof/facing/actor promotion was performed by the apply helper."
+    "Tracked current-truth refresh applied 2026-06-01T16:52:54Z from dry-run plan generated 2026-06-01T16:52:49Z; no proof/facing/actor promotion was performed by the apply helper.",
+    "static-owner-facing-yaw-promoted-at-2026-06-01T17:07:09.168647+00:00-from-current-readiness-review; turn-rate/full-actor/proof-anchor remain not promoted"
   ],
   "staticOwnerFacing": {
-    "status": "promoted-static-owner-relative-target-candidate-facing-0x30C",
+    "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
     "promotionAllowed": true,
-    "promotedAtUtc": "2026-05-29T04:55:20Z",
+    "promotedAtUtc": "2026-06-01T17:07:09.168647+00:00",
     "primaryCandidate": {
       "candidateId": "static-owner-relative-target-candidate-facing-0x30C",
       "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
@@ -621,7 +621,7 @@
         "0x314"
       ],
       "latestYawDegrees": 80.82343415281247,
-      "latestYawSourcePose": "current-pid-41808-static-nav-state-readback-2026-06-01T16:48:56.707095+00:00",
+      "latestYawSourcePose": "current-pid-41808-explicit-facing-yaw-promotion-2026-06-01T17:07:09.168647+00:00",
       "yawByPose": {
         "baseline": 76.58886930417464,
         "turn-right-2": 158.47055057802135,
@@ -633,7 +633,7 @@
       },
       "maxAbsYawDeltaDegrees": 143.99940559703944,
       "coordinateDriftAllPoses": 0.0,
-      "latestCurrentNavStateReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json"
+      "latestCurrentNavStateReadbackArtifact": "scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json"
     },
     "fourPoseTriangulation": {
       "status": "passed",
@@ -668,21 +668,33 @@
       "sameOwnerObject": true
     },
     "blockers": [],
-    "promotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-target-promoted-2026-05-29.json",
+    "promotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-yaw-promoted-2026-06-01.json",
     "doesNotPromote": [
       "Rotation state fields 0x300/0x304/0x308 \u2014 derivative signals only",
       "Animation timer 0x408 \u2014 candidate-only",
       "Full turn-control automation \u2014 facing provides yaw readback only"
     ],
     "latestCurrentReacquisition": {
-      "status": "passed-candidate-only-refresh",
+      "status": "promoted-current-pid-refresh",
       "navStateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json",
       "facingComparisonJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-camera-yaw-classification-20260601-163407-394774\\static-owner-facing-comparison-20260601-163413-934652\\summary.json",
       "topRelativeTargetOffset": "0x30C",
       "maxAbsYawDeltaDegrees": 33.88312498834827,
       "coordinateDriftAllPoses": 0.0,
-      "promotionPerformed": false,
-      "recordedAtUtc": "2026-06-01T16:48:56.707095+00:00"
+      "promotionPerformed": true,
+      "recordedAtUtc": "2026-06-01T17:07:09.168647+00:00",
+      "promotionJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-yaw-promoted-2026-06-01.json"
+    },
+    "firstPromotedAtUtc": "2026-05-29T04:55:20Z",
+    "latestPromotionAtUtc": "2026-06-01T17:07:09.168647+00:00",
+    "previousPromotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-target-promoted-2026-05-29.json",
+    "latestPromotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-yaw-promoted-2026-06-01.json",
+    "latestPromotionReview": {
+      "status": "passed",
+      "promotionPerformed": true,
+      "readinessReviewJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\facing-target-promotion-readiness-review-20260601-165301-889669\\summary.json",
+      "dashboardJson": "C:\\RIFT MODDING\\RiftReader\\.riftreader-local\\navigation-pointer-discovery\\latest\\summary.json",
+      "recordedAtUtc": "2026-06-01T17:07:09.168647+00:00"
     }
   }
 }

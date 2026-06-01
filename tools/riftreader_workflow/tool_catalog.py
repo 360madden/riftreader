@@ -361,6 +361,19 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="facing-target-promotion-apply",
+            label="Facing-target promotion apply gate",
+            kind="truth-refresh-gate",
+            rel_path="scripts/riftreader-facing-target-promotion-apply.cmd",
+            risk="truth-write-gated",
+            default_use="write the explicit static-owner facing/yaw promotion artifact after readiness review and fresh readbacks pass",
+            allowed=True,
+            approval=True,
+            command=["scripts\\riftreader-facing-target-promotion-apply.cmd", "--json"],
+            notes=["--apply writes tracked promotion/current-truth docs; sends no input and performs no proof/actor-chain promotion"],
+        ),
+        repo_tool(
+            repo_root,
             key="sensitive-artifact-scan",
             label="Sensitive artifact scan",
             kind="validation",
@@ -862,6 +875,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "command": "scripts\\riftreader-facing-target-promotion-readiness-review.cmd --json",
         },
         {
+            "step": "facing-promotion-apply-dry-run",
+            "command": "scripts\\riftreader-facing-target-promotion-apply.cmd --json",
+        },
+        {
             "step": "static-chain-readback-before-nav",
             "command": "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",
         },
@@ -934,6 +951,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "facing-target-three-pose-gate",
             "facing-target-restart-survival-packet",
             "facing-target-promotion-readiness-review",
+            "facing-target-promotion-apply",
             "live-input-surface-audit",
             "ghidra-headless",
             "ghidra-static-evidence",
@@ -1175,6 +1193,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-facing-target-three-pose-gate.cmd",
             "scripts/riftreader-facing-target-restart-survival-packet.cmd",
             "scripts/riftreader-facing-target-promotion-readiness-review.cmd",
+            "scripts/riftreader-facing-target-promotion-apply.cmd",
             "scripts/riftreader-sensitive-artifact-scan.cmd",
             "scripts/riftreader-live-input-surface-audit.cmd",
             "scripts/riftreader-actor-chain-no-debug-status.cmd",
@@ -1220,6 +1239,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "facing-promotion-review-canonical",
                     "pass": "facing-target-promotion-readiness-review" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "facing-promotion-apply-gated",
+                    "pass": "facing-target-promotion-apply" in catalog["gatedToolKeys"],
                 },
                 {"name": "x64dbg-gated", "pass": "x64dbg-gui" in catalog["gatedToolKeys"]},
                 {"name": "tool-catalog-canonical", "pass": "tool-catalog" in compact["canonicalToolKeys"]},

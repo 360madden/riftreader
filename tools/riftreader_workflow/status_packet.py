@@ -162,6 +162,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "report-only review of existing gate/static evidence; no input/movement/current-truth write or promotion",
     ),
     (
+        "facing-target-promotion-apply",
+        "Facing-target promotion apply gate",
+        "scripts\\riftreader-facing-target-promotion-apply.cmd --json",
+        "--apply writes tracked facing/yaw promotion and current-truth docs; dry-run by default; no input/movement/debugger/provider writes",
+    ),
+    (
         "actor-chain-no-debug-status",
         "Actor-chain no-debug status",
         "scripts\\riftreader-actor-chain-no-debug-status.cmd --json",
@@ -177,7 +183,7 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "static-owner-nav-now",
         "Static-owner coordinate/facing state",
         "scripts\\static-owner-nav-now.cmd",
-        "live target coordinate plus candidate-facing readback only; no input/movement/debugger/provider writes",
+        "live target coordinate plus facing/yaw readback only; no input/movement/debugger/provider writes or promotion",
     ),
     (
         "static-owner-turn-aware-plan",
@@ -892,6 +898,10 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
                 "latestYawDegrees",
                 "comparisonMaxAbsYawDeltaDegrees",
                 "planarLookaheadDistance",
+                "promotionArtifact",
+                "promotedAtUtc",
+                "latestPromotionAtUtc",
+                "latestPromotionReview",
             ],
         ),
         "candidateTurnRate": _summarize_navigation_candidate(
@@ -1865,11 +1875,20 @@ def build_status_packet(
         navigation_next = navigation_pointer_discovery.get("nextRecommendedAction")
         if (
             navigation_next
+            and navigation_readiness.get("facingTarget") == "promoted-static-owner-facing-yaw-current-pid-readback-passed"
+        ):
+            next_action = navigation_next
+        if (
+            navigation_next
             and navigation_readiness.get("facingTarget") == "candidate-only-gates-packaged-requires-review"
         ):
             next_action = navigation_next
         review_next = facing_promotion_readiness_review.get("nextRecommendedAction")
-        if review_next and facing_promotion_readiness_review.get("status") == "passed":
+        if (
+            review_next
+            and facing_promotion_readiness_review.get("status") == "passed"
+            and navigation_readiness.get("facingTarget") != "promoted-static-owner-facing-yaw-current-pid-readback-passed"
+        ):
             next_action = review_next
     if not next_action and blockers:
         next_action = "Resolve the listed blocker(s) before attempting live movement or proof promotion."
@@ -2296,7 +2315,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         "",
         f"- Summary JSON: `{navigation.get('summaryJson')}`",
         f"- Promoted coordinate: `{(navigation.get('promotedCoordinate') or {}).get('status')}` chain `{(navigation.get('promotedCoordinate') or {}).get('chain')}`",
-        f"- Candidate facing target: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
+        f"- Facing target/yaw: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
         f"- Candidate turn rate: `{(navigation.get('candidateTurnRate') or {}).get('status')}` offset `{(navigation.get('candidateTurnRate') or {}).get('offset')}`",
         f"- Proof gates: `{(navigation.get('promotionReadiness') or {}).get('facingThreePoseGate')}` three-pose, `{(navigation.get('promotionReadiness') or {}).get('restartRelogSurvival')}` restart, `{(navigation.get('promotionReadiness') or {}).get('turnForwardLiveProgress')}` turn-forward",
         f"- Next: {navigation.get('nextRecommendedAction')}",

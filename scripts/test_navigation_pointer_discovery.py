@@ -597,6 +597,52 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertFalse(summary["safety"]["facingPromotion"])
 
+    def test_promoted_facing_truth_is_projected_into_navigation_dashboard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_camera_yaw_multipose_report(root)
+            seed_facing_proof_gate_artifacts(root)
+            seed_facing_promotion_readiness_review(root)
+            promotion_path = root / "docs" / "recovery" / "static-owner-facing-yaw-promoted-2026-06-01.json"
+            write_json(promotion_path, {"kind": "static-owner-facing-yaw-promotion", "status": "promoted"})
+            truth_path = root / "docs" / "recovery" / "current-truth.json"
+            truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            truth["staticOwnerFacing"] = {
+                "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+                "promotionAllowed": True,
+                "promotedAtUtc": "2026-06-01T16:55:00Z",
+                "latestPromotionAtUtc": "2026-06-01T16:55:00Z",
+                "promotionArtifact": str(promotion_path),
+                "latestPromotionReview": {
+                    "status": "passed",
+                    "promotionPerformed": True,
+                    "readinessReviewJson": "review.json",
+                },
+                "primaryCandidate": {
+                    "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+                },
+            }
+            truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        facing = summary["candidates"]["candidateFacingTarget"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual("promoted-static-owner-facing-yaw-current-pid-readback-passed", facing["status"])
+        self.assertFalse(facing["candidateOnly"])
+        self.assertTrue(facing["promotionAllowed"])
+        self.assertEqual(str(promotion_path), facing["promotionArtifact"])
+        self.assertEqual(
+            "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+            summary["promotionReadiness"]["facingTarget"],
+        )
+        self.assertFalse(summary["promotionReadiness"]["promotionReviewRequired"])
+        self.assertTrue(summary["promotionReadiness"]["facingPromotionPerformed"])
+
     def test_ghidra_static_evidence_is_indexed_as_offline_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)

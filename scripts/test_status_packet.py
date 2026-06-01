@@ -625,6 +625,96 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("movement-not-allowed:blocked-proof-anchor-age-out-of-range", packet["blockers"])
         self.assertIn("same-target ProofOnly/proof-anchor refresh", packet["nextRecommendedAction"])
 
+    def test_build_status_packet_prefers_promoted_facing_navigation_next_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_text(root / "docs" / "recovery" / "current-truth.md", "# Truth\n")
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "status": "current-static-resolver",
+                    "updatedAtUtc": "2026-06-01T17:07:09Z",
+                    "target": {"processName": "rift_x64", "processId": 41808, "targetWindowHandle": "0x2B0A26"},
+                    "movementGate": {"allowed": True, "status": "allowed"},
+                    "currentBlockers": [],
+                    "nextRecommendedAction": "historical next action",
+                },
+            )
+            write_json(
+                root / ".riftreader-local" / "navigation-pointer-discovery" / "latest" / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "riftreader-navigation-pointer-discovery-status",
+                    "generatedAtUtc": "2026-06-01T17:07:24Z",
+                    "status": "passed",
+                    "verdict": "navigation-pointer-discovery-indexed",
+                    "freshness": {"status": "fresh", "staleSources": [], "unknownSources": []},
+                    "candidates": {
+                        "promotedCoordinate": {"status": "promoted", "promotionAllowed": True},
+                        "candidateFacingTarget": {
+                            "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+                            "candidateOnly": False,
+                            "promotionAllowed": True,
+                            "offset": "0x30C",
+                        },
+                    },
+                    "promotionReadiness": {
+                        "facingTarget": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+                        "facingPromotionPerformed": True,
+                        "promotionReviewRequired": False,
+                    },
+                    "next": {
+                        "recommendedAction": "Use promoted facing/yaw after exact-target preflight.",
+                        "recommendedActions": ["Use promoted facing/yaw after exact-target preflight."],
+                    },
+                    "blockers": [],
+                    "warnings": [],
+                    "errors": [],
+                    "safety": {
+                        "readOnlyArtifactIndex": True,
+                        "movementSent": False,
+                        "inputSent": False,
+                        "proofPromotion": False,
+                        "actorChainPromotion": False,
+                        "facingPromotion": False,
+                        "gitMutation": False,
+                    },
+                },
+            )
+            write_json(
+                root
+                / "scripts"
+                / "captures"
+                / "facing-target-promotion-readiness-review-20260601-170000-000000"
+                / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "facing-target-promotion-readiness-review-packet",
+                    "generatedAtUtc": "2026-06-01T17:00:00Z",
+                    "status": "passed",
+                    "target": {"processId": 41808, "targetWindowHandle": "0x2B0A26"},
+                    "candidate": {"offset": "0x30C", "candidateOnly": True},
+                    "promotionDecision": {"reviewPassed": True, "promotionAllowed": False, "promotionPerformed": False},
+                    "blockers": [],
+                    "warnings": [],
+                    "errors": [],
+                    "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "facingPromotion": False},
+                    "sourceSafety": {"movementSent": True, "inputSent": True},
+                    "next": {"recommendedAction": "Refresh exact-target readbacks."},
+                },
+            )
+
+            packet = status_packet.build_status_packet(
+                root,
+                run_coordinate_status=False,
+                check_opencode=False,
+                collect_git_state=False,
+                now=datetime(2026, 6, 1, 17, 8, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual("passed", packet["status"])
+        self.assertEqual("Use promoted facing/yaw after exact-target preflight.", packet["nextRecommendedAction"])
+
     def test_compact_summary_reports_static_owner_navigation_bridge_commands(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -639,6 +729,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             write_text(root / "scripts" / "riftreader-facing-target-three-pose-gate.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-restart-survival-packet.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-promotion-readiness-review.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-facing-target-promotion-apply.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -669,7 +760,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertTrue(commands["static-owner-coordinate-chain-readback"]["exists"])
         self.assertIn("live target memory readback only", commands["static-owner-coordinate-chain-readback"]["safety"])
         self.assertTrue(commands["static-owner-nav-now"]["exists"])
-        self.assertIn("candidate-facing readback only", commands["static-owner-nav-now"]["safety"])
+        self.assertIn("facing/yaw readback only", commands["static-owner-nav-now"]["safety"])
         self.assertTrue(commands["static-owner-turn-aware-plan"]["exists"])
         self.assertIn("dry-run route/turn planning only", commands["static-owner-turn-aware-plan"]["safety"])
         self.assertTrue(commands["static-owner-route-run-report"]["exists"])
@@ -686,6 +777,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("report-only pre/post", commands["facing-target-restart-survival-packet"]["safety"])
         self.assertTrue(commands["facing-target-promotion-readiness-review"]["exists"])
         self.assertIn("report-only review", commands["facing-target-promotion-readiness-review"]["safety"])
+        self.assertTrue(commands["facing-target-promotion-apply"]["exists"])
+        self.assertIn("--apply writes tracked facing/yaw promotion", commands["facing-target-promotion-apply"]["safety"])
 
 
 if __name__ == "__main__":

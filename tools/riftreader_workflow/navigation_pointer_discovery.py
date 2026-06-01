@@ -32,6 +32,7 @@ TOOL_VERSION = "riftreader-navigation-pointer-discovery-v0.1.0"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "navigation-pointer-discovery" / "latest"
 CAPTURE_ROOT = Path("scripts") / "captures"
+REQUIRED_FACING_CHAIN = "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314"
 CURRENT_READBACK_MAX_AGE_SECONDS = 1800
 DISCOVERY_EVIDENCE_MAX_AGE_SECONDS = 86400
 SOURCE_FRESHNESS_BUDGETS_SECONDS = {
@@ -590,6 +591,7 @@ def promoted_coordinate_summary(
 
 def facing_target_summary(
     repo_root: Path,
+    current_truth: dict[str, Any] | None,
     nav_state: dict[str, Any] | None,
     nav_state_path: Path | None,
     facing_comparison: dict[str, Any] | None,
@@ -606,10 +608,21 @@ def facing_target_summary(
     owner_address = latest_state.get("ownerAddress") or (owner_addresses[0] if owner_addresses else None)
     address_hex = latest_state.get("facingTargetAddress") or safe_mapping(relative).get("address")
     analysis = safe_mapping(safe_mapping(pointer_neighborhood).get("analysis"))
+    current_facing = safe_mapping(safe_mapping(current_truth).get("staticOwnerFacing"))
+    current_primary = safe_mapping(current_facing.get("primaryCandidate"))
+    promoted = (
+        current_facing.get("promotionAllowed") is True
+        and (current_primary.get("expression") or REQUIRED_FACING_CHAIN) == REQUIRED_FACING_CHAIN
+        and bool(current_facing.get("promotionArtifact"))
+    )
     return {
-        "status": "candidate-only",
-        "candidateOnly": True,
-        "promotionAllowed": False,
+        "status": (
+            "promoted-static-owner-facing-yaw-current-pid-readback-passed"
+            if promoted
+            else "candidate-only"
+        ),
+        "candidateOnly": not promoted,
+        "promotionAllowed": bool(promoted),
         "chainShape": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
         "ownerAddress": owner_address,
         "address": address_hex,
@@ -633,7 +646,13 @@ def facing_target_summary(
             "navStateJson": artifact_path(repo_root, nav_state_path),
             "facingComparisonJson": artifact_path(repo_root, facing_comparison_path),
         },
-        "promotionBlockers": [
+        "promotionArtifact": current_facing.get("promotionArtifact") if promoted else None,
+        "promotedAtUtc": current_facing.get("promotedAtUtc") if promoted else None,
+        "latestPromotionAtUtc": current_facing.get("latestPromotionAtUtc") if promoted else None,
+        "latestPromotionReview": current_facing.get("latestPromotionReview") if promoted else None,
+        "promotionBlockers": []
+        if promoted
+        else [
             "candidate-only-facing-target",
             "requires-static-root-reference-proof",
             "requires-restart-relog-survival",
@@ -1030,6 +1049,7 @@ def build_next_action(
     restart_map = safe_mapping(restart_survival)
     turn_forward_map = safe_mapping(turn_forward)
     promotion_review_map = safe_mapping(promotion_review)
+    facing_promoted = safe_mapping(facing_target).get("promotionAllowed") is True
     three_pose_passed = three_pose_map.get("formalThreePoseGatePassed") is True
     restart_survived = restart_map.get("restartRelogSurvived") is True
     turn_forward_passed = turn_forward_map.get("status") == "passed" and turn_forward_map.get("routeStatus") == "progress"
@@ -1040,7 +1060,14 @@ def build_next_action(
         and promotion_review_map.get("promotionPerformed") is False
     )
 
-    if facing_target and three_pose_passed and restart_survived and review_passed:
+    if facing_promoted:
+        recommended_actions.append(
+            "Use the promoted static-owner facing/yaw chain for yaw readback after exact PID/HWND/process-start/module-base preflight."
+        )
+        recommended_actions.append(
+            "Keep turn-rate/support fields candidate-only unless a separate promotion gate proves them."
+        )
+    elif facing_target and three_pose_passed and restart_survived and review_passed:
         recommended_actions.append(
             "Refresh exact-target static/nav/API readbacks immediately before any explicit facing-promotion gate."
         )
@@ -1205,7 +1232,16 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         blockers.append("readback-target-identity-mismatch")
 
     promoted_coordinate = promoted_coordinate_summary(repo_root, current_truth, coord_data, coord_path)
-    facing_target = facing_target_summary(repo_root, nav_data, nav_path, facing_data, facing_path, pointer_data, pointer_path)
+    facing_target = facing_target_summary(
+        repo_root,
+        current_truth,
+        nav_data,
+        nav_path,
+        facing_data,
+        facing_path,
+        pointer_data,
+        pointer_path,
+    )
     turn_rate = turn_rate_summary(nav_data, facing_data)
     coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
     selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
@@ -1372,15 +1408,20 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         and safe_mapping(promotion_review).get("promotionAllowed") is False
         and safe_mapping(promotion_review).get("promotionPerformed") is False
     )
+    facing_promoted = safe_mapping(facing_target).get("promotionAllowed") is True
     facing_readiness = (
-        "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback"
-        if promotion_review_passed
+        "promoted-static-owner-facing-yaw-current-pid-readback-passed"
+        if facing_promoted
         else (
-            "candidate-only-gates-packaged-requires-review"
-            if facing_target
-            and safe_mapping(three_pose_gate).get("formalThreePoseGatePassed")
-            and safe_mapping(restart_survival).get("restartRelogSurvived")
-            else ("candidate-only-requires-proof" if facing_target else "missing")
+            "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback"
+            if promotion_review_passed
+            else (
+                "candidate-only-gates-packaged-requires-review"
+                if facing_target
+                and safe_mapping(three_pose_gate).get("formalThreePoseGatePassed")
+                and safe_mapping(restart_survival).get("restartRelogSurvived")
+                else ("candidate-only-requires-proof" if facing_target else "missing")
+            )
         )
     )
 
@@ -1432,8 +1473,9 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             ),
             "staticEvidence": "passed" if safe_mapping(ghidra_static).get("status") == "passed" else "missing-or-not-passed",
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
-            "promotionReviewRequired": True,
+            "promotionReviewRequired": not facing_promoted,
             "promotionReview": "passed" if safe_mapping(promotion_review).get("reviewPassed") else "missing-or-not-passed",
+            "facingPromotionPerformed": facing_promoted,
             "proofPromotionPerformed": False,
         },
         "next": build_next_action(
