@@ -2,20 +2,40 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
-## Latest compact handoff — facing-target promotion readiness — 2026-06-01 01:47 UTC
+## Latest compact handoff — current-truth + Ghidra static refresh — 2026-06-01 04:58 UTC
 
 A new compact handoff exists at
+`docs/handoffs/2026-06-01-0458-current-truth-ghidra-static-refresh-handoff.md`.
+
+Current target identity and tracked truth were refreshed from exact-target
+readbacks: PID `41808`, HWND `0x2B0A26`, process start
+`2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, and
+current API-now vs chain-now passed with max abs delta
+`0.004333406249998006` <= tolerance `0.25`.
+
+Current state: `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` is still the closest
+facing-target candidate and remains **candidate-only**. The previous
+facing-specific handoff remains useful for promotion blockers:
 `docs/handoffs/2026-06-01-0147-facing-target-promotion-readiness-handoff.md`.
 
-Current state: `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` is the closest
-navigation candidate and is route-actionable in the current target epoch, but it
-is **not promotion-ready**. Formal packet:
-`C:\RIFT MODDING\RiftReader\scripts\captures\facing-target-promotion-readiness-20260601-014341-188150\summary.json`.
-
 Main blockers: restart/relog survival, independent static-root/subfield proof,
-formal three-pose gate packaging, stale tracked current truth, and separate
-promotion/current-truth-write approval. Do not promote facing/turn-rate/actor
-chains or rewrite current truth from the dashboard alone.
+formal three-pose gate packaging, and separate proof/promotion review. Do not
+promote facing/turn-rate/actor chains from current-session readback alone.
+
+## Latest live-window preflight blocker — 2026-06-01 05:11 UTC
+
+Before sending any live camera/turn input, exact PID/HWND binding was attempted
+through the Rift window-control MCP tools. Binding found PID `41808` /
+HWND `0x2B0A26`, but `focus_game_window` still reported `isForeground=false`,
+and the baseline capture at
+`tools\rift-game-mcp\.runtime\screenshots\capture-20260601-011115-016.png`
+showed an Amazon browser page instead of the Rift frame. **No live input was
+sent after this mismatch.**
+
+Next live step must first repair/verify the visual target-control path so the
+captured frame is actually the Rift client for the exact PID/HWND. Until then,
+continue with offline/readback/static packet work only.
 
 ## Ghidra offline-static lane reintroduced as a default discovery step — 2026-06-01
 
