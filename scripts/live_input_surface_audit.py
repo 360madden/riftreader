@@ -244,6 +244,18 @@ KNOWN_SURFACES: dict[str, dict[str, Any]] = {
         "controls": ["catalogs input-capable tools by name only; sends no input and runs no live tooling"],
         "allowedReusePolicy": "Safe as a read-only tool-routing reference; it does not authorize live input.",
     },
+    "tools/RiftReader.WindowTools/Program.cs": {
+        "classification": "repo-window-tool-input-capable",
+        "status": "direct-live-input-capable",
+        "risk": "high",
+        "reviewRequired": True,
+        "controls": [
+            "inspect/resize/click require an explicit HWND and support expected PID/process/title checks",
+            "click refuses non-foreground or minimized windows and supports dry-run mode",
+            "resize avoids activation; click can send SetCursorPos plus SendInput mouse events",
+        ],
+        "allowedReusePolicy": "Use inspect and dry-run modes for target verification; resize/click remain explicit window-control live-input actions only after exact target and visual gates.",
+    },
     "tools/rift-game-mcp/helpers/window-tools.ps1": {
         "classification": "external-local-mcp-input-capable",
         "status": "direct-live-input-capable",
@@ -602,6 +614,20 @@ def recommend_surface_disposition(rel_path: str, tokens: set[str], classificatio
                 "current rift-window-control bind",
                 "exact target verification",
                 "explicit live input approval",
+                "visual/readback confirmation after action",
+            ],
+        )
+
+    if classification_name == "repo-window-tool-input-capable":
+        return make_disposition(
+            "repo-window-tool-explicit-target-only",
+            label="Repo window/control primitive",
+            operator_action="Use inspect and dry-run modes for verification; resize/click still require exact-bound window-control approval.",
+            approval_boundary="window-control-live-input",
+            required_gates=[
+                "fresh exact PID/HWND/process/title target",
+                "foreground/focus and minimized-state check before click",
+                "explicit resize/click approval in the current turn",
                 "visual/readback confirmation after action",
             ],
         )

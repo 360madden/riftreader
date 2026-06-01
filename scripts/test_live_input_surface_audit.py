@@ -83,6 +83,24 @@ class LiveInputSurfaceAuditTests(unittest.TestCase):
         self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "read-only-policy-reference")
         self.assertTrue(surfaces[0]["recommendedDisposition"]["autonomousSafeUse"])
 
+    def test_repo_window_tools_has_explicit_window_control_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_text(
+                root / "tools" / "RiftReader.WindowTools" / "Program.cs",
+                '"click" => WindowOperations.Click(options);\n'
+                "SendMouseInput(MOUSEEVENTF_LEFTDOWN);\n"
+                "NativeMethods.SendInput(1, inputs, size);\n",
+            )
+
+            surfaces = audit.audit_files(root, audit.iter_source_files(root))
+
+        self.assertEqual(surfaces[0]["classification"], "repo-window-tool-input-capable")
+        self.assertTrue(surfaces[0]["reviewRequired"])
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["key"], "repo-window-tool-explicit-target-only")
+        self.assertEqual(surfaces[0]["recommendedDisposition"]["approvalBoundary"], "window-control-live-input")
+        self.assertFalse(surfaces[0]["recommendedDisposition"]["autonomousSafeUse"])
+
     def test_debugger_stimulus_surface_is_critical(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
