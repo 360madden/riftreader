@@ -45,6 +45,7 @@ DEFAULT_MIN_SCALAR_DELTA = 0.001
 DEFAULT_MIN_YAW_DELTA_DEGREES = 1.0
 COORD_OFFSETS = {0x320, 0x324, 0x328}
 NEAR_ZERO_PROGRESS = 0.001  # 1 mm — treat progress at or below this as effectively zero
+CATALOG_SUPPORT_OFFSETS = (0x438, 0x43C, 0x440)
 
 
 def utc_iso() -> str:
@@ -106,6 +107,43 @@ def unpack_float(data: bytes, offset: int) -> float | None:
     except struct.error:
         return None
     return float(value) if finite_float(float(value)) else None
+
+
+def unpack_i32(data: bytes, offset: int) -> int | None:
+    try:
+        return int(struct.unpack_from("<i", data, offset)[0])
+    except struct.error:
+        return None
+
+
+def unpack_u32(data: bytes, offset: int) -> int | None:
+    try:
+        return int(struct.unpack_from("<I", data, offset)[0])
+    except struct.error:
+        return None
+
+
+def catalog_support_field(data: bytes, *, owner_address: int, offset: int) -> dict[str, Any]:
+    raw = data[offset : offset + 4]
+    u32 = unpack_u32(data, offset)
+    return {
+        "state": "candidate",
+        "semanticStatus": "unclassified",
+        "offset": int_hex(offset),
+        "address": int_hex(owner_address + offset),
+        "float": unpack_float(data, offset),
+        "i32": unpack_i32(data, offset),
+        "u32": u32,
+        "rawHex": int_hex(u32) if u32 is not None else None,
+        "rawBytesLittleEndian": raw.hex(" ") if len(raw) == 4 else None,
+    }
+
+
+def catalog_support_fields(data: bytes, *, owner_address: int) -> dict[str, dict[str, Any]]:
+    return {
+        f"owner+{int_hex(offset)}": catalog_support_field(data, owner_address=owner_address, offset=offset)
+        for offset in CATALOG_SUPPORT_OFFSETS
+    }
 
 
 def vector_from_data(data: bytes, offset: int) -> dict[str, float] | None:
@@ -214,6 +252,7 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
     turn_rate = unpack_float(data, 0x304)
     rotation_support = unpack_float(data, 0x308)
     animation_timer = unpack_float(data, 0x408)
+    support_fields = catalog_support_fields(data, owner_address=owner_address)
     turn_discriminator = classify_turn_direction_from_rate(turn_rate)
     return {
         "ownerAddress": int_hex(owner_address),
@@ -230,6 +269,7 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
         "turnRateDiscriminator": turn_discriminator,
         "rotationSupport0x308": rotation_support,
         "animationTimer0x408": animation_timer,
+        "catalogSupportFields": support_fields,
         "positionOffset": "0x320",
         "facingTargetOffset": "0x30C",
         "headingSupportOffset": "0x300",
@@ -255,6 +295,10 @@ def navigation_control_chain_labels(root: Path, truth_path_text: str | None) -> 
         "headingSupport": {"state": "candidate", "offset": "0x300"},
         "rotationSupport": {"state": "candidate", "offset": "0x308"},
         "animationTimer": {"state": "candidate", "offset": "0x408"},
+        "catalogSupport": {
+            f"owner+{int_hex(offset)}": {"state": "candidate", "offset": int_hex(offset), "semanticStatus": "unclassified"}
+            for offset in CATALOG_SUPPORT_OFFSETS
+        },
     }
     if not truth_path_text:
         labels["warning"] = "current-truth-path-missing"

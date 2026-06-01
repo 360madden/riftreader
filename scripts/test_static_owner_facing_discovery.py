@@ -63,6 +63,9 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         data = bytearray(0x700)
         struct.pack_into("<fff", data, 0x320, 10.0, 2.0, 20.0)
         struct.pack_into("<fff", data, 0x30C, 20.0, 2.0, 20.0)
+        struct.pack_into("<f", data, 0x438, 1.5)
+        struct.pack_into("<I", data, 0x43C, 7)
+        struct.pack_into("<i", data, 0x440, -2)
 
         state = nav_state_from_owner_window(bytes(data), owner_address=0x1000)
 
@@ -74,6 +77,11 @@ class StaticOwnerFacingDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(state["facingVector"]["z"], 0.0)
         self.assertAlmostEqual(state["yawDegrees"], 0.0)
         self.assertAlmostEqual(state["planarLookaheadDistance"], 10.0)
+        self.assertAlmostEqual(state["catalogSupportFields"]["owner+0x438"]["float"], 1.5)
+        self.assertEqual(state["catalogSupportFields"]["owner+0x438"]["rawHex"], "0x3FC00000")
+        self.assertEqual(state["catalogSupportFields"]["owner+0x43C"]["u32"], 7)
+        self.assertEqual(state["catalogSupportFields"]["owner+0x440"]["i32"], -2)
+        self.assertEqual(state["catalogSupportFields"]["owner+0x440"]["semanticStatus"], "unclassified")
 
     def test_nav_state_from_owner_window_computes_z_axis_yaw(self):
         data = bytearray(0x700)

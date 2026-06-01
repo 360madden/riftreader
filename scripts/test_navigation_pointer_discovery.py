@@ -102,6 +102,38 @@ def seed_navigation_artifacts(root: Path) -> None:
                 "turnRateClassification": "left",
                 "rotationSupport0x308": 0.5,
                 "animationTimer0x408": 0.125,
+                "catalogSupportFields": {
+                    "owner+0x438": {
+                        "state": "candidate",
+                        "semanticStatus": "unclassified",
+                        "offset": "0x438",
+                        "address": "0x1438",
+                        "float": 1.5,
+                        "i32": 1069547520,
+                        "u32": 1069547520,
+                        "rawHex": "0x3FC00000",
+                    },
+                    "owner+0x43C": {
+                        "state": "candidate",
+                        "semanticStatus": "unclassified",
+                        "offset": "0x43C",
+                        "address": "0x143C",
+                        "float": None,
+                        "i32": 7,
+                        "u32": 7,
+                        "rawHex": "0x7",
+                    },
+                    "owner+0x440": {
+                        "state": "candidate",
+                        "semanticStatus": "unclassified",
+                        "offset": "0x440",
+                        "address": "0x1440",
+                        "float": None,
+                        "i32": -2,
+                        "u32": 4294967294,
+                        "rawHex": "0xFFFFFFFE",
+                    },
+                },
                 "facingTargetOffset": "0x30C",
                 "turnRateOffset": "0x304",
             },
@@ -583,6 +615,17 @@ def seed_ghidra_static_evidence(root: Path) -> None:
                             }
                         ],
                     },
+                    "0x438": {
+                        "hitCount": 80,
+                        "writeLikeCount": 24,
+                        "firstHits": [
+                            {
+                                "address": "14003f399",
+                                "instruction": "MOVSS dword ptr [RCX + 0x438],XMM2",
+                                "accessGuess": "write-or-destination",
+                            }
+                        ],
+                    },
                 },
             },
             "warnings": ["ghidra-analysis-timeout-project-saved"],
@@ -724,8 +767,11 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(candidates["candidateTurnRate"]["latestClassification"], "left")
         self.assertEqual(summary["navigationControlChains"]["turnRate"]["state"], "candidate")
         self.assertEqual(summary["navigationControlChains"]["supportFields"]["headingSupport0x300"]["latestValue"], 12.5)
+        self.assertEqual(summary["navigationControlChains"]["supportFields"]["catalogSupport0x438"]["latestFloat"], 1.5)
+        self.assertEqual(summary["candidateLedger"]["supportFields"]["owner+0x438"]["rawHex"], "0x3FC00000")
         self.assertEqual(summary["candidateLedger"]["velocitySpeed"]["state"], "candidate")
-        self.assertEqual(summary["candidateLedger"]["actorState"]["status"], "not-discovered")
+        self.assertEqual(summary["candidateLedger"]["actorState"]["status"], "raw-support-offsets-readback-unclassified")
+        self.assertEqual(summary["candidateLedger"]["controlLock"]["status"], "raw-support-offsets-readback-unclassified")
         self.assertEqual(candidates["coordinateDeltaCandidate"]["status"], "confirms-promoted-coordinate-offset")
         self.assertEqual(candidates["coordinateDeltaCandidate"]["trackingErrorMaxAbs"], 0.006)
         self.assertEqual(candidates["cameraYawClassification"]["classification"], "visual-changed-static-yaw-unchanged")
@@ -975,6 +1021,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual("1432ebc80", static_evidence["rootAddress"])
         self.assertEqual(200, static_evidence["rootReferenceCountCaptured"])
         self.assertEqual(26, static_evidence["offsets"]["0x30C"]["writeLikeCount"])
+        self.assertEqual(24, static_evidence["offsets"]["0x438"]["writeLikeCount"])
         self.assertTrue(static_evidence["offlineOnly"])
         self.assertTrue(static_evidence["analysisTimedOutProjectSaved"])
         self.assertFalse(summary["safety"]["proofPromotion"])

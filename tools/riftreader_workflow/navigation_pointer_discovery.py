@@ -797,6 +797,7 @@ def navigation_control_chains_summary(
     nav_state: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
+    catalog_support = safe_mapping(latest_state.get("catalogSupportFields"))
     facing = safe_mapping(facing_target)
     turn = safe_mapping(turn_rate)
     return {
@@ -836,6 +837,30 @@ def navigation_control_chains_summary(
                 "offset": latest_state.get("animationTimerOffset") or "0x408",
                 "latestValue": latest_state.get("animationTimer0x408"),
             },
+            "catalogSupport0x438": {
+                "state": "candidate",
+                "offset": safe_mapping(catalog_support.get("owner+0x438")).get("offset") or "0x438",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x438")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x438")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x438")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x438")).get("semanticStatus") or "unclassified",
+            },
+            "catalogSupport0x43C": {
+                "state": "candidate",
+                "offset": safe_mapping(catalog_support.get("owner+0x43C")).get("offset") or "0x43C",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x43C")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x43C")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x43C")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x43C")).get("semanticStatus") or "unclassified",
+            },
+            "catalogSupport0x440": {
+                "state": "candidate",
+                "offset": safe_mapping(catalog_support.get("owner+0x440")).get("offset") or "0x440",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x440")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x440")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x440")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x440")).get("semanticStatus") or "unclassified",
+            },
         },
         "policy": {
             "routeControlRequiresPromotedPositionAndFacingYaw": True,
@@ -859,6 +884,11 @@ def candidate_ledger_summary(
 
     coordinate_analysis = safe_mapping(safe_mapping(coordinate_readback).get("analysis"))
     latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
+    catalog_support = safe_mapping(latest_state.get("catalogSupportFields"))
+    catalog_support_present = any(
+        safe_mapping(catalog_support.get(key))
+        for key in ("owner+0x438", "owner+0x43C", "owner+0x440")
+    )
     turn = safe_mapping(turn_rate)
     velocity_speed = velocity_speed_summary(
         repo_root=repo_root,
@@ -881,7 +911,7 @@ def candidate_ledger_summary(
         },
         "controlLock": {
             "state": "candidate",
-            "status": "not-discovered",
+            "status": "raw-support-offsets-readback-unclassified" if catalog_support_present else "not-discovered",
             "promotionBlockers": [
                 "requires-live-state-transition-proof",
                 "requires-self-actor-or-static-root-identity",
@@ -889,7 +919,7 @@ def candidate_ledger_summary(
         },
         "actorState": {
             "state": "candidate",
-            "status": "not-discovered",
+            "status": "raw-support-offsets-readback-unclassified" if catalog_support_present else "not-discovered",
             "promotionBlockers": [
                 "requires-self-actor-chain-inventory",
                 "requires-restart-relog-survival",
@@ -910,6 +940,30 @@ def candidate_ledger_summary(
             "owner+0x408": {
                 "state": "candidate",
                 "latestValue": latest_state.get("animationTimer0x408"),
+                "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
+            },
+            "owner+0x438": {
+                "state": "candidate",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x438")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x438")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x438")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x438")).get("semanticStatus") or "unclassified",
+                "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
+            },
+            "owner+0x43C": {
+                "state": "candidate",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x43C")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x43C")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x43C")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x43C")).get("semanticStatus") or "unclassified",
+                "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
+            },
+            "owner+0x440": {
+                "state": "candidate",
+                "latestFloat": safe_mapping(catalog_support.get("owner+0x440")).get("float"),
+                "latestU32": safe_mapping(catalog_support.get("owner+0x440")).get("u32"),
+                "rawHex": safe_mapping(catalog_support.get("owner+0x440")).get("rawHex"),
+                "semanticStatus": safe_mapping(catalog_support.get("owner+0x440")).get("semanticStatus") or "unclassified",
                 "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
             },
         },
@@ -1405,7 +1459,7 @@ def ghidra_static_evidence_summary(
     evidence_summary = safe_mapping(evidence.get("evidenceSummary"))
     offsets = safe_mapping(evidence_summary.get("offsets"))
     interesting_offsets: dict[str, Any] = {}
-    for offset in ("0x300", "0x304", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328"):
+    for offset in ("0x300", "0x304", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328", "0x438", "0x43C", "0x440"):
         offset_summary = safe_mapping(offsets.get(offset))
         if not offset_summary:
             continue

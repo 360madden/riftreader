@@ -1,4 +1,5 @@
 import tempfile
+import struct
 import unittest
 from argparse import Namespace
 from pathlib import Path
@@ -79,6 +80,23 @@ class StaticOwnerCoordinateChainReadbackTests(unittest.TestCase):
         self.assertEqual(defaults["moduleBase"], "0x7FF77AF40000")
         self.assertEqual(defaults["rootRva"], "0x32EBC80")
         self.assertTrue(defaults["promotionAllowed"])
+
+    def test_nav_state_reads_catalog_support_offsets_when_window_covers_them(self) -> None:
+        data = bytearray(0x448)
+        struct.pack_into("<f", data, 0x304, 0.0)
+        struct.pack_into("<fff", data, 0x30C, 20.0, 2.0, 20.0)
+        struct.pack_into("<fff", data, 0x320, 10.0, 2.0, 20.0)
+        struct.pack_into("<f", data, 0x438, 1.5)
+        struct.pack_into("<I", data, 0x43C, 7)
+        struct.pack_into("<i", data, 0x440, -2)
+
+        state = readback.nav_state_from_owner_bytes(bytes(data), owner_address=0x1000)
+
+        self.assertIsNone(state.get("navStateError"))
+        self.assertAlmostEqual(state["catalogSupportFields"]["owner+0x438"]["float"], 1.5)
+        self.assertEqual(state["catalogSupportFields"]["owner+0x438"]["rawHex"], "0x3FC00000")
+        self.assertEqual(state["catalogSupportFields"]["owner+0x43C"]["u32"], 7)
+        self.assertEqual(state["catalogSupportFields"]["owner+0x440"]["i32"], -2)
 
     def test_validate_args_requires_target_when_current_truth_not_used(self) -> None:
         args = Namespace(

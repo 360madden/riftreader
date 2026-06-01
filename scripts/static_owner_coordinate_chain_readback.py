@@ -33,6 +33,7 @@ DEFAULT_MAX_SAMPLE_GAP_SECONDS = 2.0
 DEFAULT_MAX_STATIONARY_PLANAR_DRIFT = 0.5
 DEFAULT_TURN_RATE_THRESHOLD = 0.35
 DEFAULT_FACING_TARGET_ZERO_EPSILON = 0.001
+CATALOG_SUPPORT_OFFSETS = (0x438, 0x43C, 0x440)
 FILETIME_UNIX_EPOCH_100NS = 116444736000000000
 
 
@@ -63,6 +64,43 @@ def unpack_float_safe(data: bytes, offset: int) -> float | None:
     if not math.isfinite(value) or abs(value) >= 1_000_000:
         return None
     return float(value)
+
+
+def unpack_i32_safe(data: bytes, offset: int) -> int | None:
+    try:
+        return int(struct.unpack_from("<i", data, offset)[0])
+    except (struct.error, IndexError):
+        return None
+
+
+def unpack_u32_safe(data: bytes, offset: int) -> int | None:
+    try:
+        return int(struct.unpack_from("<I", data, offset)[0])
+    except (struct.error, IndexError):
+        return None
+
+
+def catalog_support_field(data: bytes, *, owner_address: int, offset: int) -> dict[str, Any]:
+    raw = data[offset : offset + 4]
+    u32 = unpack_u32_safe(data, offset)
+    return {
+        "state": "candidate",
+        "semanticStatus": "unclassified",
+        "offset": int_hex(offset),
+        "address": int_hex(owner_address + offset),
+        "float": unpack_float_safe(data, offset),
+        "i32": unpack_i32_safe(data, offset),
+        "u32": u32,
+        "rawHex": int_hex(u32) if u32 is not None else None,
+        "rawBytesLittleEndian": raw.hex(" ") if len(raw) == 4 else None,
+    }
+
+
+def catalog_support_fields(data: bytes, *, owner_address: int) -> dict[str, dict[str, Any]]:
+    return {
+        f"owner+{int_hex(offset)}": catalog_support_field(data, owner_address=owner_address, offset=offset)
+        for offset in CATALOG_SUPPORT_OFFSETS
+    }
 
 
 
@@ -108,6 +146,7 @@ def nav_state_from_owner_bytes(
     pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
 
     turn_rate = unpack_float_safe(data, turn_rate_offset)
+    support_fields = catalog_support_fields(data, owner_address=owner_address)
     turn_direction = "unknown"
     turning = False
     if turn_rate is not None:
@@ -132,6 +171,7 @@ def nav_state_from_owner_bytes(
         "turnRate0x304": turn_rate,
         "turnRateClassification": turn_direction,
         "turnRateTurning": turning,
+        "catalogSupportFields": support_fields,
         "positionOffset": int_hex(coord_offset),
         "facingTargetOffset": int_hex(facing_offset),
         "turnRateOffset": int_hex(turn_rate_offset),
@@ -404,7 +444,7 @@ def read_chain_sample(
     include_nav_state: bool = False,
 ) -> dict[str, Any]:
     owner_address = qword(read_memory(handle, root_address, 8))
-    owner_window = read_memory(handle, owner_address, max(0x380, coord_offset + 12))
+    owner_window = read_memory(handle, owner_address, max(0x448, coord_offset + 12))
     coordinate = triplet(owner_window, coord_offset)
     owner_vtable = qword(owner_window, 0)
     reads: dict[str, Any] = {
@@ -802,6 +842,7 @@ def build_compact(summary: Mapping[str, Any]) -> dict[str, Any]:
                 "planarLookaheadDistance": nav_state.get("planarLookaheadDistance"),
                 "turnRate0x304": nav_state.get("turnRate0x304"),
                 "turnRateClassification": nav_state.get("turnRateClassification"),
+                "catalogSupportFields": nav_state.get("catalogSupportFields"),
                 "navStateCandidateOnly": True,
                 "actionableForNavigation": False,
             }
