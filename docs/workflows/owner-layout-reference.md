@@ -6,8 +6,10 @@ dereferenced from `[rift_x64+0x32EBC80]`.
 **When to use:** Understanding what fields are available, discovering new fields,
 or validating after a game update.
 
-**Status:** Promoted coordinates and facing/yaw. Turn-rate and adjacent support
-fields are candidate-only until a dedicated turn-rate promotion packet passes.
+**Status:** Promoted coordinates and facing/yaw. `owner+0x304` and adjacent
+support fields are candidate-only. The latest 2026-06-01 semantics review
+classified `owner+0x304` as a yaw-adjacent scalar, not an active turn-rate
+resolver.
 
 ---
 
@@ -30,7 +32,7 @@ Classification: Player position/rotation controller object
 | `+0x094` | 12 | vec3 | Actor basis duplicate | Historical | Duplicate basis at different object |
 | `+0x2F8` | 1 | byte | Flag byte | Candidate | Set to 0x1 in some states |
 | `+0x300` | 4 | float | Accumulated heading / heading support | Candidate/support | Monotonic counter-like value; not promoted for control |
-| `+0x304` | 4 | float | Turn-rate / yaw-adjacent scalar candidate | Candidate/support | Sign has correlated with left/right in some captures, but current-PID delta proof is blocked; do not use as promoted turn rate |
+| `+0x304` | 4 | float | Yaw-adjacent scalar candidate | Candidate/support | Latest review: deltas oppose atan2 yaw deltas in radians; active turn-rate delta proof is blocked; do not use as promoted turn rate |
 | `+0x308` | 4 | float | Rotation support | Candidate/support | Adjacent to turn rate; semantics unproven |
 | `+0x30C` | 4 | float | **Facing target X** | **Promoted** | World-space look-at point |
 | `+0x310` | 4 | float | **Facing target Y** | **Promoted** | Elevation of look-at point |
@@ -54,8 +56,9 @@ owner+0x310 → facing Y    │  Same object, 20 bytes (0x14) before coordinates
 owner+0x314 → facing Z    ┘
 
 Yaw = atan2(facingZ - playerZ, facingX - playerX)
-Candidate/support turn hint = sign(owner+0x304)  →  + often left, - often right;
-requires live delta proof before use as a control discriminator
+owner+0x304 = yaw-adjacent scalar candidate. In the latest left/right
+camera-yaw review, Δ0x304 ≈ -radians(ΔpromotedYaw). Do not interpret its sign
+as active turning without a separate successful turn-rate proof.
 ```
 
 ## Behavioral notes
@@ -67,13 +70,18 @@ requires live delta proof before use as a control discriminator
 - Can be (0,0,0) on fresh zone-in — guarded by zero-vector check (#2 gate).
 - Validated through 4-pose yaw triangulation (baseline, turn-right, turn-left, symmetric-left).
 
-### 0x304 — Turn-rate / yaw-adjacent scalar candidate
+### 0x304 — Yaw-adjacent scalar candidate
 
 - Historical captures showed positive values during left turns and negative
   values during right turns.
 - Current-PID validation on 2026-06-01 found the value can persist non-zero
   while stationary and can show `turnRateDelta=0.0` during a live turn
   stimulus; therefore it is **not proven as an instantaneous turn rate**.
+- A paired 2026-06-01 camera-yaw review observed:
+  - right mouse-look: promoted yaw `+25.413°`, `Δ0x304=-0.43499`
+  - left mouse-look: promoted yaw `-25.413°`, `Δ0x304=+0.43999`
+  - max error versus `-radians(ΔpromotedYaw)` was `0.00856`, so current
+    evidence favors **yaw-adjacent scalar** semantics.
 - Cross-checked against atan2-derived turn direction in the route planner only
   as candidate/support evidence unless the turn-rate promotion artifact exists
 - Must remain candidate-only until left/right sign proof, non-zero live delta,
@@ -134,5 +142,5 @@ This needs a live discovery session with `rift-discovery` during combat.
 | P0 | Root RVA still valid | AOB signature scan or `--scan-module-pattern` |
 | P0 | Owner layout unchanged | Read owner+0x300 through +0x340, verify floats are plausible |
 | P1 | 0x30C is still 0x14 before 0x320 | Neighborhood inspector scan for vec3 pairs 20 bytes apart |
-| P2 | 0x304 turn-rate candidate still works | Send turn key, verify sign flips **and non-zero live delta**; do not mark promoted without the turn-rate promotion artifact |
+| P2 | 0x304 yaw-adjacent scalar still tracks yaw | Run paired left/right camera-yaw classification and `riftreader-owner-0x304-semantics-review.cmd --json`; do not mark as turn-rate without a separate non-zero live delta proof |
 | P3 | Full layout scan | Pointer owner neighborhood inspector, full window dump |

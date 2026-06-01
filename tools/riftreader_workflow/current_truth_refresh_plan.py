@@ -367,6 +367,21 @@ def build_proposed_current_truth(
         "summaryMarkdown": latest_readback_markdown,
     }
     turn_rate = as_mapping(candidates.get("candidateTurnRate"))
+    owner304_semantics = as_mapping(candidates.get("owner304Semantics"))
+    owner304_semantic_review = {
+        "status": owner304_semantics.get("status"),
+        "verdict": owner304_semantics.get("verdict"),
+        "classification": owner304_semantics.get("classification"),
+        "owner304Role": owner304_semantics.get("owner304Role"),
+        "activeTurnRatePromotionAllowed": owner304_semantics.get("activeTurnRatePromotionAllowed"),
+        "maxOppositeRadianError": owner304_semantics.get("maxOppositeRadianError"),
+        "summaryJson": as_mapping(owner304_semantics.get("evidence")).get("summaryJson"),
+    } if owner304_semantics else None
+    if owner304_semantics.get("semanticVerdict") == "owner-0x304-yaw-adjacent-scalar-not-active-turn-rate":
+        current_warnings = append_unique_note(
+            current_warnings,
+            "owner-0x304-semantic-review-classifies-yaw-adjacent-not-active-turn-rate",
+        )
     latest_nav_state_readback = {
         "status": nav_state_source.get("status"),
         "processId": process_id,
@@ -378,6 +393,9 @@ def build_proposed_current_truth(
         "pitchDegrees": facing.get("latestPitchDegrees"),
         "turnRate0x304": turn_rate.get("latestValue"),
         "turnRateClassification": turn_rate.get("latestClassification") or turn_rate.get("classification"),
+        "owner304SemanticVerdict": owner304_semantics.get("semanticVerdict") or owner304_semantics.get("verdict"),
+        "owner304Role": owner304_semantics.get("owner304Role"),
+        "owner304SemanticsReviewJson": as_mapping(owner304_semantics.get("evidence")).get("summaryJson"),
         "recordedAtUtc": latest_nav_state_at,
         "summaryJson": latest_nav_state_json,
         "summaryMarkdown": sibling_markdown_artifact(latest_nav_state_json),
@@ -418,9 +436,10 @@ def build_proposed_current_truth(
             "latestValue": turn_rate.get("latestValue"),
             "latestClassification": turn_rate.get("latestClassification") or turn_rate.get("classification"),
             "latestReadbackJson": latest_nav_state_json,
+            "semanticReview": owner304_semantic_review,
             "promotionAllowed": bool(turn_rate_promoted),
             "promotionArtifact": existing_turn_rate_truth.get("promotionArtifact") if turn_rate_promoted else None,
-            "blockers": [] if turn_rate_promoted else ["candidate-only-turn-rate", "requires-dedicated-turn-rate-promotion-gate"],
+            "blockers": [] if turn_rate_promoted else (turn_rate.get("promotionBlockers") or ["candidate-only-turn-rate", "requires-dedicated-turn-rate-promotion-gate"]),
         },
         "supportFields": {
             "headingSupport0x300": {

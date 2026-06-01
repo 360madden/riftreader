@@ -1443,6 +1443,7 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     turn_rate = safe_mapping(candidates.get("candidateTurnRate"))
     coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
+    owner304_semantics = safe_mapping(candidates.get("owner304Semantics"))
     proof_gates = safe_mapping(discovery_data.get("proofGates"))
     ghidra_static = safe_mapping(proof_gates.get("ghidraStaticEvidence"))
     freshness = safe_mapping(discovery_data.get("freshness"))
@@ -1463,6 +1464,10 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
         "cameraYawStatus": camera_yaw.get("status"),
         "cameraYawClassification": camera_yaw.get("classification"),
         "cameraYawActionableForRouteControl": camera_yaw.get("actionableForRouteControl"),
+        "owner304SemanticsStatus": owner304_semantics.get("status"),
+        "owner304SemanticsVerdict": owner304_semantics.get("verdict"),
+        "owner304Role": owner304_semantics.get("owner304Role"),
+        "owner304MaxOppositeRadianError": owner304_semantics.get("maxOppositeRadianError"),
         "ghidraStaticEvidenceStatus": ghidra_static.get("status"),
         "ghidraStaticEvidenceGeneratedAtUtc": ghidra_static.get("generatedAtUtc"),
         "ghidraStaticRootAddress": ghidra_static.get("rootAddress"),

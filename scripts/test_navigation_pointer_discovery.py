@@ -486,6 +486,63 @@ def seed_turn_rate_promotion_readiness_review(root: Path) -> None:
     )
 
 
+def seed_owner304_semantics_review(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "owner-0x304-semantics-review-20260531-143000-000000"
+        / "summary.json",
+        {
+            "kind": "owner-0x304-semantics-review",
+            "status": "passed",
+            "verdict": "owner-0x304-yaw-adjacent-scalar-not-active-turn-rate",
+            "generatedAtUtc": "2026-05-31T14:23:59Z",
+            "sourceArtifacts": {
+                "cameraYawMultiposeSummaryJson": "scripts\\captures\\static-owner-camera-yaw-multipose-report-20260531-174600-000000\\summary.json",
+                "turnRateReviewSummaryJson": "scripts\\captures\\turn-rate-promotion-readiness-review-20260531-142900-000000\\summary.json",
+                "navStateSummaryJson": "scripts\\captures\\static-owner-nav-state-20260531-142313-000000\\summary.json",
+            },
+            "analysis": {
+                "status": "passed",
+                "classification": "yaw-adjacent-opposes-promoted-yaw-radians",
+                "semanticVerdict": "owner-0x304-yaw-adjacent-scalar-not-active-turn-rate",
+                "candidateOnly": True,
+                "promotionAllowed": False,
+                "owner304Role": "yaw-adjacent-scalar-candidate",
+                "activeTurnRatePromotionAllowed": False,
+                "maxOppositeRadianError": 0.01,
+                "maxSameRadianError": 0.88,
+                "directions": ["left", "right"],
+                "poseCount": 2,
+                "turnRateReadinessContrast": {
+                    "status": "blocked",
+                    "deltaProofBlocked": True,
+                    "promotionAllowed": False,
+                    "promotionPerformed": False,
+                },
+                "stationaryNavStateReview": {
+                    "stationary": True,
+                    "owner304Value": 0.8,
+                    "legacyTurnClassifierReliable": False,
+                },
+                "recommendedAction": "Keep owner+0x304 candidate-only and do not promote it as turn-rate.",
+            },
+            "blockers": [],
+            "warnings": ["active-turn-rate-delta-proof-blocked-owner-0x304-not-promotable-as-turn-rate"],
+            "errors": [],
+            "safety": {
+                "movementSent": False,
+                "inputSent": False,
+                "targetMemoryBytesRead": False,
+                "targetMemoryBytesWritten": False,
+                "proofPromotion": False,
+                "turnRatePromotion": False,
+            },
+        },
+    )
+
+
 def seed_ghidra_static_evidence(root: Path) -> None:
     write_json(
         root / "scripts" / "captures" / "ghidra-static-analysis-20260531-142900-000000" / "summary.json",
@@ -655,6 +712,35 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual("passed", summary["sources"]["turnRatePromotionReadinessReview"]["status"])
         self.assertEqual("candidate", summary["navigationControlChains"]["turnRate"]["state"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+
+    def test_owner304_semantics_review_is_indexed_and_keeps_turn_rate_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_turn_rate_promotion_readiness_review(root)
+            seed_owner304_semantics_review(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        semantics = summary["candidates"]["owner304Semantics"]
+        turn = summary["candidates"]["candidateTurnRate"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual("passed", summary["sources"]["owner304SemanticsReview"]["status"])
+        self.assertEqual("owner-0x304-yaw-adjacent-scalar-not-active-turn-rate", semantics["verdict"])
+        self.assertEqual("yaw-adjacent-scalar-candidate", semantics["owner304Role"])
+        self.assertFalse(semantics["activeTurnRatePromotionAllowed"])
+        self.assertIn(
+            "owner-0x304-semantic-review-classifies-yaw-adjacent-not-active-turn-rate",
+            turn["promotionBlockers"],
+        )
+        self.assertEqual(
+            "owner-0x304-yaw-adjacent-scalar-not-active-turn-rate",
+            summary["promotionReadiness"]["owner304Semantics"],
+        )
         self.assertFalse(summary["safety"]["proofPromotion"])
 
     def test_facing_review_packet_shifts_next_action_to_explicit_gate_refresh(self) -> None:

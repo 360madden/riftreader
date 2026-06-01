@@ -815,6 +815,9 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
                 summary["classification"] = "promoted-position-facing-yaw-readback-with-candidate-control-fields"
                 if turn_rate_state != "promoted":
                     summary["warnings"].append("turn-rate-control-field-candidate-only-not-promoted")
+                    discriminator = safe_mapping(safe_mapping(summary.get("latestState")).get("turnRateDiscriminator"))
+                    if args.expect_stationary and discriminator.get("turning") is True:
+                        summary["warnings"].append("legacy-0x304-sign-classifier-reports-turning-while-stationary")
             else:
                 summary["classification"] = "candidate-facing-state-source-not-promoted"
                 summary["warnings"].append("facing-candidate-readback-only-not-promoted")

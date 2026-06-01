@@ -789,6 +789,7 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
         "promotedCoordinate": {},
         "candidateFacingTarget": {},
         "candidateTurnRate": {},
+        "owner304Semantics": {},
         "candidateLedger": {},
         "navigationControlChains": {},
         "coordinateDeltaCandidate": {},
@@ -835,6 +836,9 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
     promoted = candidates.get("promotedCoordinate") if isinstance(candidates.get("promotedCoordinate"), dict) else {}
     facing = candidates.get("candidateFacingTarget") if isinstance(candidates.get("candidateFacingTarget"), dict) else {}
     turn = candidates.get("candidateTurnRate") if isinstance(candidates.get("candidateTurnRate"), dict) else {}
+    owner304_semantics = (
+        candidates.get("owner304Semantics") if isinstance(candidates.get("owner304Semantics"), dict) else {}
+    )
     delta = (
         candidates.get("coordinateDeltaCandidate")
         if isinstance(candidates.get("coordinateDeltaCandidate"), dict)
@@ -931,6 +935,26 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
                 "promotionArtifact",
                 "promotedAtUtc",
                 "comparisonMaxAbsDelta",
+            ],
+        ),
+        "owner304Semantics": _summarize_navigation_candidate(
+            owner304_semantics,
+            [
+                "status",
+                "verdict",
+                "classification",
+                "owner304Role",
+                "semanticVerdict",
+                "candidateOnly",
+                "promotionAllowed",
+                "activeTurnRatePromotionAllowed",
+                "poseCount",
+                "directions",
+                "maxOppositeRadianError",
+                "turnRateDeltaProofBlocked",
+                "legacyTurnClassifierReliable",
+                "stationaryOwner304Value",
+                "recommendedAction",
             ],
         ),
         "candidateLedger": payload.get("candidateLedger") if isinstance(payload.get("candidateLedger"), dict) else {},
@@ -2013,6 +2037,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     if navigation:
         facing = navigation.get("candidateFacingTarget") if isinstance(navigation.get("candidateFacingTarget"), dict) else {}
         turn = navigation.get("candidateTurnRate") if isinstance(navigation.get("candidateTurnRate"), dict) else {}
+        owner304_semantics = navigation.get("owner304Semantics") if isinstance(navigation.get("owner304Semantics"), dict) else {}
         promoted = navigation.get("promotedCoordinate") if isinstance(navigation.get("promotedCoordinate"), dict) else {}
         lines.extend(
             [
@@ -2024,6 +2049,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
                 f"- Promoted coordinate: `{promoted.get('status')}` chain `{promoted.get('chain')}`",
                 f"- Candidate facing target: `{facing.get('status')}` offset `{facing.get('offset')}` max yaw delta `{facing.get('comparisonMaxAbsYawDeltaDegrees')}`",
                 f"- Candidate turn rate: `{turn.get('status')}` offset `{turn.get('offset')}`",
+                f"- Owner +0x304 semantics: `{owner304_semantics.get('status')}` role `{owner304_semantics.get('owner304Role')}`",
                 f"- Next: {navigation.get('nextRecommendedAction')}",
                 f"- Summary JSON: `{navigation.get('summaryJson')}`",
             ]
@@ -2220,6 +2246,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "promotedCoordinate": navigation_pointer.get("promotedCoordinate") or {},
             "candidateFacingTarget": navigation_pointer.get("candidateFacingTarget") or {},
             "candidateTurnRate": navigation_pointer.get("candidateTurnRate") or {},
+            "owner304Semantics": navigation_pointer.get("owner304Semantics") or {},
             "candidateLedger": navigation_pointer.get("candidateLedger") or {},
             "navigationControlChains": navigation_pointer.get("navigationControlChains") or {},
             "coordinateDeltaCandidate": navigation_pointer.get("coordinateDeltaCandidate") or {},
@@ -2338,6 +2365,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Promoted coordinate: `{(navigation.get('promotedCoordinate') or {}).get('status')}` chain `{(navigation.get('promotedCoordinate') or {}).get('chain')}`",
         f"- Facing target/yaw: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
         f"- Candidate turn rate: `{(navigation.get('candidateTurnRate') or {}).get('status')}` offset `{(navigation.get('candidateTurnRate') or {}).get('offset')}`",
+        f"- Owner +0x304 semantics: `{(navigation.get('owner304Semantics') or {}).get('status')}` role `{(navigation.get('owner304Semantics') or {}).get('owner304Role')}`",
         f"- Proof gates: `{(navigation.get('promotionReadiness') or {}).get('facingThreePoseGate')}` three-pose, `{(navigation.get('promotionReadiness') or {}).get('restartRelogSurvival')}` restart, `{(navigation.get('promotionReadiness') or {}).get('turnForwardLiveProgress')}` turn-forward",
         f"- Next: {navigation.get('nextRecommendedAction')}",
         "",

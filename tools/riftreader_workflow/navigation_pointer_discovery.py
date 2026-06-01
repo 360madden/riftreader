@@ -45,6 +45,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "cameraYawClassification": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "cameraYawMultipose": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "owner304SemanticsReview": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingThreePoseGate": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingRestartSurvival": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
@@ -673,6 +674,7 @@ def turn_rate_summary(
     current_truth: dict[str, Any] | None,
     nav_state: dict[str, Any] | None,
     facing_comparison: dict[str, Any] | None,
+    owner304_semantics: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
     scalar = scalar_candidate_by_offset(facing_comparison, "0x304")
@@ -688,6 +690,23 @@ def turn_rate_summary(
         and (truth_turn_rate.get("offset") or truth_turn_rate_primary.get("turnRateOffset") or "0x304") == "0x304"
         and bool(truth_turn_rate.get("promotionArtifact"))
     )
+    semantics = safe_mapping(owner304_semantics)
+    semantics_analysis = safe_mapping(semantics.get("analysis"))
+    promotion_blockers = (
+        []
+        if promoted
+        else [
+            "candidate-only-turn-rate",
+            "requires-dedicated-turn-stimulus-proof",
+            "requires-restart-relog-survival",
+        ]
+    )
+    if (
+        not promoted
+        and semantics.get("status") == "passed"
+        and semantics_analysis.get("semanticVerdict") == "owner-0x304-yaw-adjacent-scalar-not-active-turn-rate"
+    ):
+        promotion_blockers.insert(1, "owner-0x304-semantic-review-classifies-yaw-adjacent-not-active-turn-rate")
     return {
         "status": "promoted-static-owner-turn-rate-current-pid-readback-passed" if promoted else "candidate-only",
         "candidateOnly": not promoted,
@@ -705,13 +724,18 @@ def turn_rate_summary(
         "promotionArtifact": truth_turn_rate.get("promotionArtifact") if promoted else None,
         "promotedAtUtc": truth_turn_rate.get("promotedAtUtc") if promoted else None,
         "latestPromotionReview": truth_turn_rate.get("latestPromotionReview") if promoted else None,
-        "promotionBlockers": []
-        if promoted
-        else [
-            "candidate-only-turn-rate",
-            "requires-dedicated-turn-stimulus-proof",
-            "requires-restart-relog-survival",
-        ],
+        "semanticReview": {
+            "status": semantics.get("status"),
+            "verdict": semantics.get("verdict"),
+            "classification": semantics_analysis.get("classification"),
+            "owner304Role": semantics_analysis.get("owner304Role"),
+            "maxOppositeRadianError": semantics_analysis.get("maxOppositeRadianError"),
+            "activeTurnRatePromotionAllowed": semantics_analysis.get("activeTurnRatePromotionAllowed"),
+            "summaryJson": safe_mapping(semantics.get("artifacts")).get("summaryJson"),
+        }
+        if semantics
+        else None,
+        "promotionBlockers": promotion_blockers,
     }
 
 
@@ -991,6 +1015,44 @@ def camera_yaw_classification_summary(
             "requires-route-actionable-yaw-control-proof",
             "requires-separate-promotion-approval",
         ],
+    }
+
+
+def owner304_semantics_review_summary(
+    repo_root: Path,
+    review: dict[str, Any] | None,
+    review_path: Path | None,
+) -> dict[str, Any] | None:
+    if not review:
+        return None
+    analysis = safe_mapping(review.get("analysis"))
+    stationary = safe_mapping(analysis.get("stationaryNavStateReview"))
+    turn_contrast = safe_mapping(analysis.get("turnRateReadinessContrast"))
+    return {
+        "status": review.get("status"),
+        "verdict": review.get("verdict"),
+        "classification": analysis.get("classification"),
+        "owner304Role": analysis.get("owner304Role"),
+        "semanticVerdict": analysis.get("semanticVerdict"),
+        "candidateOnly": bool(analysis.get("candidateOnly", True)),
+        "promotionAllowed": bool(analysis.get("promotionAllowed")),
+        "activeTurnRatePromotionAllowed": bool(analysis.get("activeTurnRatePromotionAllowed")),
+        "poseCount": analysis.get("poseCount"),
+        "directions": analysis.get("directions"),
+        "maxOppositeRadianError": analysis.get("maxOppositeRadianError"),
+        "maxSameRadianError": analysis.get("maxSameRadianError"),
+        "turnRateDeltaProofBlocked": turn_contrast.get("deltaProofBlocked"),
+        "legacyTurnClassifierReliable": stationary.get("legacyTurnClassifierReliable"),
+        "stationaryOwner304Value": stationary.get("owner304Value"),
+        "recommendedAction": analysis.get("recommendedAction"),
+        "evidence": {
+            "summaryJson": artifact_path(repo_root, review_path),
+            "cameraYawMultiposeSummaryJson": safe_mapping(review.get("sourceArtifacts")).get("cameraYawMultiposeSummaryJson"),
+            "turnRateReviewSummaryJson": safe_mapping(review.get("sourceArtifacts")).get("turnRateReviewSummaryJson"),
+            "navStateSummaryJson": safe_mapping(review.get("sourceArtifacts")).get("navStateSummaryJson"),
+        },
+        "blockers": safe_list(review.get("blockers")),
+        "warnings": safe_list(review.get("warnings")),
     }
 
 
@@ -1362,6 +1424,12 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="static-owner-camera-yaw-multipose-report-",
         expected_kind="static-owner-camera-yaw-multipose-report",
     )
+    owner304_semantics_path, owner304_semantics_data, owner304_semantics_warnings = newest_summary(
+        repo_root,
+        directory_prefix="owner-0x304-semantics-review-",
+        expected_kind="owner-0x304-semantics-review",
+        warn_kind_mismatch=False,
+    )
     three_pose_gate_path, three_pose_gate_data, three_pose_gate_warnings = newest_summary(
         repo_root,
         directory_prefix="facing-target-three-pose-gate-",
@@ -1401,6 +1469,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + family_warnings
         + camera_yaw_warnings
         + camera_yaw_multipose_warnings
+        + owner304_semantics_warnings
         + three_pose_gate_warnings
         + restart_survival_warnings
         + turn_forward_warnings
@@ -1436,17 +1505,18 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         pointer_data,
         pointer_path,
     )
-    turn_rate = turn_rate_summary(current_truth, nav_data, facing_data)
+    coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
+    selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
+    selected_camera_yaw_data = camera_yaw_multipose_data or camera_yaw_data
+    camera_yaw = camera_yaw_classification_summary(repo_root, selected_camera_yaw_data, selected_camera_yaw_path)
+    owner304_semantics = owner304_semantics_review_summary(repo_root, owner304_semantics_data, owner304_semantics_path)
+    turn_rate = turn_rate_summary(current_truth, nav_data, facing_data, owner304_semantics_data)
     navigation_control_chains = navigation_control_chains_summary(
         promoted_coordinate,
         facing_target,
         turn_rate,
         nav_data,
     )
-    coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
-    selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
-    selected_camera_yaw_data = camera_yaw_multipose_data or camera_yaw_data
-    camera_yaw = camera_yaw_classification_summary(repo_root, selected_camera_yaw_data, selected_camera_yaw_path)
     three_pose_gate = facing_three_pose_gate_summary(repo_root, three_pose_gate_data, three_pose_gate_path)
     restart_survival = facing_restart_survival_summary(repo_root, restart_survival_data, restart_survival_path)
     turn_forward = turn_forward_experiment_summary(repo_root, turn_forward_data, turn_forward_path)
@@ -1571,6 +1641,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["cameraYawMultipose"],
         ),
+        "owner304SemanticsReview": summarize_source(
+            repo_root,
+            owner304_semantics_path,
+            owner304_semantics_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["owner304SemanticsReview"],
+        ),
         "facingThreePoseGate": summarize_source(
             repo_root,
             three_pose_gate_path,
@@ -1679,6 +1756,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "candidateTurnRate": turn_rate,
             "coordinateDeltaCandidate": coordinate_delta,
             "cameraYawClassification": camera_yaw,
+            "owner304Semantics": owner304_semantics,
         },
         "navigationControlChains": navigation_control_chains,
         "candidateLedger": candidate_ledger,
@@ -1705,6 +1783,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "staticEvidence": "passed" if safe_mapping(ghidra_static).get("status") == "passed" else "missing-or-not-passed",
             "turnRate": turn_rate_readiness,
             "turnRatePromotionReview": "passed" if turn_rate_review_passed else "missing-or-not-passed",
+            "owner304Semantics": safe_mapping(owner304_semantics).get("verdict") or "missing",
             "promotionReviewRequired": not facing_promoted,
             "promotionReview": "passed" if safe_mapping(promotion_review).get("reviewPassed") else "missing-or-not-passed",
             "facingPromotionPerformed": facing_promoted,
@@ -1752,6 +1831,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
     turn = safe_mapping(candidates.get("candidateTurnRate"))
     delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
+    owner304_semantics = safe_mapping(candidates.get("owner304Semantics"))
     proof_gates = safe_mapping(summary.get("proofGates"))
     three_pose = safe_mapping(proof_gates.get("facingThreePoseGate"))
     restart = safe_mapping(proof_gates.get("facingRestartSurvival"))
@@ -1785,6 +1865,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Coordinate `+0x320/+0x324/+0x328` | `{promoted.get('status')}` | `{promoted.get('chain')}` | `promoted={str(bool(promoted.get('promotionAllowed'))).lower()}` |",
         f"| Facing target `+0x30C/+0x310/+0x314` | `{facing.get('status')}` | `max yaw delta={facing.get('comparisonMaxAbsYawDeltaDegrees')}` | `{facing_state}` |",
         f"| Turn rate `+0x304` | `{turn.get('status')}` | `latest={turn.get('latestValue')}; class={turn.get('latestClassification')}` | `{turn_state}` |",
+        f"| Owner `+0x304` semantics | `{owner304_semantics.get('status')}` | `{owner304_semantics.get('classification')}` | `role={owner304_semantics.get('owner304Role')}` |",
         f"| Coordinate delta evidence | `{delta.get('status')}` | `tracking max abs={delta.get('trackingErrorMaxAbs')}` | `matches promoted={delta.get('matchesPromotedCoordinateAddress')}` |",
         f"| Camera/yaw classification | `{camera_yaw.get('status')}` | `{camera_yaw.get('classification')}` | `route-actionable={camera_yaw.get('actionableForRouteControl')}` |",
         f"| Facing three-pose gate | `{three_pose.get('status')}` | `poses={three_pose.get('passedPoseCount')}/{three_pose.get('poseCount')}; min progress={three_pose.get('minimumProgressDistance')}` | `candidate-only` |",

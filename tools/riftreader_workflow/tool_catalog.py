@@ -387,6 +387,19 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="owner-0x304-semantics-review",
+            label="Owner +0x304 semantics review",
+            kind="navigation-report",
+            rel_path="scripts/riftreader-owner-0x304-semantics-review.cmd",
+            risk="safe-read-only",
+            default_use="classify existing owner+0x304 camera-yaw and turn-rate contrast evidence without promoting",
+            allowed=True,
+            approval=False,
+            command=["scripts\\riftreader-owner-0x304-semantics-review.cmd", "--json"],
+            notes=["report-only; keeps 0x304 candidate-only when evidence shows yaw-adjacent scalar rather than active turn rate"],
+        ),
+        repo_tool(
+            repo_root,
             key="turn-rate-promotion-apply",
             label="Turn-rate promotion apply gate",
             kind="truth-refresh-gate",
@@ -909,6 +922,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "command": "scripts\\riftreader-turn-rate-promotion-readiness-review.cmd --json",
         },
         {
+            "step": "owner-0x304-semantics-review",
+            "command": "scripts\\riftreader-owner-0x304-semantics-review.cmd --json",
+        },
+        {
             "step": "turn-rate-promotion-apply-dry-run",
             "command": "scripts\\riftreader-turn-rate-promotion-apply.cmd --json",
         },
@@ -987,6 +1004,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "facing-target-promotion-readiness-review",
             "facing-target-promotion-apply",
             "turn-rate-promotion-readiness-review",
+            "owner-0x304-semantics-review",
             "turn-rate-promotion-apply",
             "live-input-surface-audit",
             "ghidra-headless",

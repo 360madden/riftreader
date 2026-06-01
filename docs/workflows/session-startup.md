@@ -81,7 +81,7 @@ This checks all 5 promotion gates offline (~1 second, no live process).
 | `navState.navStateError` | `null` |
 | `navState.yawDegrees` | Non-None, plausible (-180 to 180) |
 | `navState.facingTargetCoordinate` | Non-zero x/y/z |
-| `navState.turnRateClassification` | Candidate/support only; do not treat as active-turn truth unless 0x304 is promoted |
+| `navState.turnRateClassification` | Legacy candidate/support only. Current evidence classifies `0x304` as yaw-adjacent, not active turn-rate; do not use for control unless a future turn-rate gate promotes it |
 | `coordinate` | Non-zero, plausible for current zone |
 
 ---
