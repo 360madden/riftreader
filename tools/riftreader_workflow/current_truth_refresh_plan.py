@@ -32,6 +32,8 @@ TOOL_VERSION = "riftreader-current-truth-refresh-plan-v0.1.0"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_DASHBOARD_JSON = Path(".riftreader-local") / "navigation-pointer-discovery" / "latest" / "summary.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "current-truth-refresh-plan" / "latest"
+PROMOTED_FACING_STATUS = "promoted-static-owner-facing-yaw-current-pid-readback-passed"
+REQUIRED_FACING_CHAIN = "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314"
 
 
 class CurrentTruthRefreshPlanError(RuntimeError):
@@ -216,6 +218,29 @@ def validate_dashboard_safety(dashboard: dict[str, Any]) -> list[str]:
     return blockers
 
 
+def promoted_facing_yaw_already_recorded(
+    current_facing: dict[str, Any],
+    dashboard_facing: dict[str, Any],
+) -> bool:
+    """Return true only for the already-promoted static-owner facing/yaw lane.
+
+    The refresh planner must never be the component that promotes facing/yaw.
+    It may, however, refresh current-PID readback fields after a separate
+    promotion artifact has already been recorded in tracked truth.
+    """
+
+    primary = as_mapping(current_facing.get("primaryCandidate"))
+    chain = dashboard_facing.get("chainShape") or dashboard_facing.get("expression") or primary.get("expression")
+    return (
+        current_facing.get("promotionAllowed") is True
+        and bool(current_facing.get("promotionArtifact"))
+        and dashboard_facing.get("promotionAllowed") is True
+        and dashboard_facing.get("candidateOnly") is False
+        and dashboard_facing.get("status") == PROMOTED_FACING_STATUS
+        and chain == REQUIRED_FACING_CHAIN
+    )
+
+
 def build_proposed_current_truth(
     *,
     repo_root: Path,
@@ -241,6 +266,8 @@ def build_proposed_current_truth(
     latest_nav_state_json = truth_artifact_path(repo_root, nav_state_source.get("path"))
     latest_nav_state_at = nav_state_source.get("generatedAtUtc")
     facing = as_mapping(candidates.get("candidateFacingTarget"))
+    current_facing = as_mapping(current_truth.get("staticOwnerFacing"))
+    facing_already_promoted = promoted_facing_yaw_already_recorded(current_facing, facing)
     latest_facing_evidence = as_mapping(facing.get("evidence"))
     process_id = target.get("processId")
     hwnd = target.get("targetWindowHandle")
@@ -384,7 +411,15 @@ def build_proposed_current_truth(
             "RRAPICOORD/API-now validation is not current for this target.",
         )
     live_notes = append_unique_note(live_notes, note)
-    if api_now_current:
+    if api_now_current and facing_already_promoted:
+        next_recommended_action = (
+            f"Use the promoted static owner coordinate and facing/yaw resolvers after exact "
+            f"PID/HWND/process-start/module-base preflight. Current PID {process_id} API-now vs chain-now "
+            f"coordinate validation is current at {api_now_comparison.get('capturedAtUtc')}; facing/yaw was "
+            "already promoted by its explicit artifact and this refresh only updates current-PID readback fields. "
+            "Keep turn-rate, actor/stat chains, proof anchors, and autonomous route-control automation separate."
+        )
+    elif api_now_current:
         next_recommended_action = (
             f"Use the promoted static player-coordinate resolver with exact PID/HWND/process-start/module-base "
             f"preflights; current PID {process_id} API-now vs chain-now validation is current at "
@@ -854,12 +889,22 @@ def build_proposed_current_truth(
             reason="latest exact-target nav-state readback artifact",
         )
         current_reacquisition = {
-            "status": "passed-candidate-only-refresh",
+            "status": "promoted-current-pid-refresh" if facing_already_promoted else "passed-candidate-only-refresh",
             "navStateJson": truth_artifact_path(repo_root, latest_facing_evidence.get("navStateJson") or latest_nav_state_json),
             "facingComparisonJson": truth_artifact_path(repo_root, latest_facing_evidence.get("facingComparisonJson")),
             "topRelativeTargetOffset": facing.get("offset"),
             "maxAbsYawDeltaDegrees": facing.get("comparisonMaxAbsYawDeltaDegrees"),
             "coordinateDriftAllPoses": facing.get("comparisonMaxCoordinatePlanarDrift"),
+            "processId": process_id,
+            "targetWindowHandle": hwnd,
+            "processStartUtc": target.get("processStartUtc"),
+            "apiNowStatus": api_now_status,
+            "promotionState": "already-promoted" if facing_already_promoted else "candidate-only",
+            "promotionArtifact": (
+                truth_artifact_path(repo_root, facing.get("promotionArtifact") or current_facing.get("promotionArtifact"))
+                if facing_already_promoted
+                else None
+            ),
             "promotionPerformed": False,
             "recordedAtUtc": latest_nav_state_at,
         }
@@ -869,7 +914,11 @@ def build_proposed_current_truth(
             updates=updates,
             path=("staticOwnerFacing", "latestCurrentReacquisition"),
             value=current_reacquisition,
-            reason="record current-pid facing readback as candidate-only reacquisition evidence",
+            reason=(
+                "record current-pid readback for already-promoted facing/yaw chain"
+                if facing_already_promoted
+                else "record current-pid facing readback as candidate-only reacquisition evidence"
+            ),
         )
     add_update(
         current_truth=current_truth,
@@ -977,13 +1026,12 @@ def build_current_truth_refresh_plan(
             warnings.append("current-truth-not-marked-stale-by-dashboard")
         if any(str(item) in {"coordinateReadback", "navState"} for item in stale_sources):
             blockers.append("dashboard-has-stale-readback-source")
-        if as_mapping(candidates.get("candidateFacingTarget")).get("promotionAllowed"):
+        facing = as_mapping(candidates.get("candidateFacingTarget"))
+        if facing.get("promotionAllowed") and not promoted_facing_yaw_already_recorded(current_facing, facing):
             blockers.append("facing-target-promotion-unexpectedly-allowed")
         if as_mapping(candidates.get("candidateTurnRate")).get("promotionAllowed"):
             blockers.append("turn-rate-promotion-unexpectedly-allowed")
-        if current_facing.get("promotionAllowed") is True and as_mapping(candidates.get("candidateFacingTarget")).get(
-            "candidateOnly"
-        ):
+        if current_facing.get("promotionAllowed") is True and facing.get("candidateOnly"):
             if not current_facing.get("promotionArtifact"):
                 warnings.append("current-truth-staticOwnerFacing-promoted-without-promotion-artifact")
 

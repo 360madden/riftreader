@@ -2,6 +2,25 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — static facing/yaw restart survival propagated — 2026-06-01 17:34 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-1734-static-facing-yaw-restart-survival-propagated-handoff.md`.
+
+Static owner facing/yaw is now promoted, restart-survived, and propagated into tracked current truth. Current target identity is PID `12664`, HWND `0x205146C`, process start `2026-06-01T17:19:45.159353Z`, module base `0x7FF6EE5D0000`.
+
+| Resolver | Chain / result |
+|---|---|
+| Coordinate | `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`; current readback passed at `2026-06-01T17:23:08.352942+00:00`. |
+| Facing/yaw | `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314`; restart survival packet passed; current yaw `41.29403500816383°`. |
+| API-now | Current PID `12664` chain/API max abs delta `0.00248046875003638` <= `0.25`. |
+| Current truth | `docs\recovery\current-truth.json` updated at `2026-06-01T17:33:38Z`. |
+| Strong docs | `docs\recovery\static-owner-facing-yaw-restart-survival-2026-06-01.md`; `docs\workflow\static-owner-facing-yaw-discovery-workflow.md`. |
+
+Safety: this propagation sent no live input/movement, did not attach x64dbg/Cheat Engine, did not write provider repos, did not write target memory, and did not perform a new proof/facing/actor promotion. It applied tracked current truth only after the already-promoted facing/yaw chain survived restart.
+
+Current safe next action: use the promoted static owner coordinate and facing/yaw resolvers after exact PID/HWND/process-start/module-base preflight. Keep turn-rate/support fields, actor/stat chains, proof anchors, and autonomous route-control automation separate.
+
 ## Latest compact handoff — window-tool audit classification + fresh pre-promotion readbacks — 2026-06-01 08:00 UTC
 
 A new compact handoff exists at

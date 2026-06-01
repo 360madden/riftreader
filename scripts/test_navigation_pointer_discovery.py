@@ -606,6 +606,16 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
             seed_facing_promotion_readiness_review(root)
             promotion_path = root / "docs" / "recovery" / "static-owner-facing-yaw-promoted-2026-06-01.json"
             write_json(promotion_path, {"kind": "static-owner-facing-yaw-promotion", "status": "promoted"})
+            comparison_path = (
+                root
+                / "scripts"
+                / "captures"
+                / "static-owner-facing-comparison-20260531-141949-380215"
+                / "summary.json"
+            )
+            comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+            comparison["comparison"]["relativeTargetCandidates"][0]["address"] = "0x9999"
+            comparison_path.write_text(json.dumps(comparison), encoding="utf-8")
             truth_path = root / "docs" / "recovery" / "current-truth.json"
             truth = json.loads(truth_path.read_text(encoding="utf-8"))
             truth["staticOwnerFacing"] = {
@@ -635,6 +645,8 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual("promoted-static-owner-facing-yaw-current-pid-readback-passed", facing["status"])
         self.assertFalse(facing["candidateOnly"])
         self.assertTrue(facing["promotionAllowed"])
+        self.assertEqual("0x130C", facing["address"])
+        self.assertEqual("0x30C", facing["offsetFromOwner"])
         self.assertEqual(str(promotion_path), facing["promotionArtifact"])
         self.assertEqual(
             "promoted-static-owner-facing-yaw-current-pid-readback-passed",

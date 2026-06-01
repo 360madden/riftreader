@@ -606,7 +606,14 @@ def facing_target_summary(
     comparison = safe_mapping(safe_mapping(facing_comparison).get("comparison"))
     owner_addresses = safe_list(comparison.get("ownerAddresses"))
     owner_address = latest_state.get("ownerAddress") or (owner_addresses[0] if owner_addresses else None)
-    address_hex = latest_state.get("facingTargetAddress") or safe_mapping(relative).get("address")
+    offset_value = latest_state.get("facingTargetOffset") or safe_mapping(relative).get("offset") or "0x30C"
+    offset_int = int_from_hex(offset_value)
+    current_address_hex = (
+        address_plus_offset(owner_address, offset_int if offset_int is not None else 0x30C)
+        if owner_address
+        else None
+    )
+    address_hex = latest_state.get("facingTargetAddress") or current_address_hex or safe_mapping(relative).get("address")
     analysis = safe_mapping(safe_mapping(pointer_neighborhood).get("analysis"))
     current_facing = safe_mapping(safe_mapping(current_truth).get("staticOwnerFacing"))
     current_primary = safe_mapping(current_facing.get("primaryCandidate"))
@@ -626,7 +633,7 @@ def facing_target_summary(
         "chainShape": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
         "ownerAddress": owner_address,
         "address": address_hex,
-        "offset": latest_state.get("facingTargetOffset") or safe_mapping(relative).get("offset") or "0x30C",
+        "offset": offset_value,
         "offsetFromOwner": offset_hex(owner_address, address_hex),
         "latestYawDegrees": latest_state.get("yawDegrees"),
         "latestPitchDegrees": latest_state.get("pitchDegrees"),

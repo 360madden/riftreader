@@ -1,37 +1,58 @@
-# Current RIFT live truth — static player-coordinate resolver PROMOTED
+# Current RIFT live truth — static coordinate + facing/yaw resolvers PROMOTED
 
-Updated UTC: `2026-06-01T04:56:16Z`
+Updated UTC: `2026-06-01T17:34:24Z`
 
 # **✅ RESULT**
 
-The static chain below remains **promoted** as the current static **player-coordinate resolver**:
+The current RIFT target after manual restart is PID `12664` / HWND `0x205146C`, process start `2026-06-01T17:19:45.159353Z`, module base `0x7FF6EE5D0000`.
 
-`[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`
+Both promoted static owner resolvers are current for this target epoch:
 
-This is a precise promotion. It proves and promotes current player **coordinates** only. It does **not** promote a full actor/stat chain, a heap address, or the stale PID `12148` proof pointer. Current target metadata is PID `41808` / HWND `0x2B0A26`; current PID `41808` has exact-target static readback at `2026-06-01T04:55:07.535451+00:00` and RRAPICOORD API-now at `2026-06-01T04:55:56.620509Z` matching the static readback with max abs delta `0.004333406` <= `0.25`. PID `34176` appears below only as historical promotion-validation evidence.
+| Purpose | Chain / formula | Current evidence |
+|---|---|---|
+| Player coordinates | `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260601-172308-351318\summary.json` |
+| Facing target / yaw | `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260601-172308-370480\summary.json` |
+| Yaw formula | `atan2(facingZ - playerZ, facingX - playerX)` | Current yaw `41.29403500816383°` |
 
-## Current target
+This is a precise promotion boundary. It promotes player coordinates and static owner facing/yaw readback only. It does **not** promote a full actor/stat chain, route-control automation, turn-rate/support fields, proof anchors, or any absolute heap address. Reacquire the owner from `rift_x64+0x32EBC80` each target epoch.
+
+## Current post-restart target — 2026-06-01 17:34 UTC
 
 | Field | Value |
 |---|---|
 | Process | `rift_x64.exe` |
-| PID | `41808` |
-| HWND | `0x2B0A26` |
-| Process start UTC | `2026-06-01T01:50:50.903773Z` |
+| PID | `12664` |
+| HWND | `0x205146C` |
+| Process start UTC | `2026-06-01T17:19:45.159353Z` |
 | Module base | `0x7FF6EE5D0000` |
 | Static root | `rift_x64+0x32EBC80` = `0x7FF6F18BBC80` |
-| Owner in current readback | `0x1E16E8706A0` |
-| Coordinate address in current readback | `0x1E16E8709C0` (owner+0x320) |
-| Latest recorded coordinate snapshot | `7259.416503906250, 821.424316406250, 2993.230712890625` at `2026-06-01T04:55:07.535451+00:00` — current exact-target no-input static-chain readback. RRAPICOORD API-now matched at `2026-06-01T04:55:56.620509Z` with max abs delta `0.004333406`; refresh again before later current-now/API-confirmed claims. |
-| Latest current nav yaw | `75.177112842°` at `2026-06-01T04:55:19.287577+00:00` |
-| Latest RRAPICOORD API coordinate for PID 41808 | `7259.419922, 821.419983, 2993.229980` |
-| Latest API timestamp for PID 41808 | `2026-06-01T04:55:56.620509Z` |
-| Current static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260601-045507-534569\summary.json` |
-| Current nav-state readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260601-045519-286724\summary.json` |
-| Current PID API-now vs chain-now validation | `C:\RIFT MODDING\RiftReader\scripts\captures\rift-api-reference-currentpid-41808-20260601-045534.json` |
-| Promotion report | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-coordinate-chain-promoted-2026-05-27.md` |
+| Owner in current readback | `0x1E067A80010` |
+| Coordinate address in current readback | `0x1E067A80330` (`owner+0x320`) |
+| Facing target address in current readback | `0x1E067A8031C` (`owner+0x30C`) |
+| Latest coordinate snapshot | `7251.95751953125, 821.4475708007812, 2988.9814453125` at `2026-06-01T17:23:08.352942+00:00` |
+| Latest current yaw / pitch | yaw `41.29403500816383°`; pitch `-3.5293889576850765°` at `2026-06-01T17:23:08.371806+00:00` |
+| RRAPICOORD API coordinate | `7251.96, 821.45, 2988.98` at `2026-06-01T17:22:58.151422Z` |
+| API-vs-chain agreement | Max abs delta `0.00248046875003638` <= tolerance `0.25` |
+| Static readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-coordinate-chain-readback-20260601-172308-351318\summary.json` |
+| Nav/facing readback | `C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-nav-state-20260601-172308-370480\summary.json` |
+| API-now validation | `C:\RIFT MODDING\RiftReader\scripts\captures\rift-api-reference-currentpid-12664-20260601-172204.json` |
+| Facing/yaw restart survival | `C:\RIFT MODDING\RiftReader\scripts\captures\facing-target-restart-survival-packet-20260601-172408-160107\summary.json` |
+| Facing/yaw promotion artifact | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-facing-yaw-promoted-2026-06-01.json` |
+| Strong restart-survival doc | `C:\RIFT MODDING\RiftReader\docs\recovery\static-owner-facing-yaw-restart-survival-2026-06-01.md` |
 
-PID/HWND identity is a targeting preflight only. The current PID `41808` API-now refresh below passed at `2026-06-01T04:55:56.620509Z` after exact-target no-input static readback; refresh API-now again before later live movement or proof promotion because coordinates and target epochs drift over time.
+## Current PID 12664 restart-survival propagation — 2026-06-01 17:34 UTC
+
+The user manually restarted RIFT. The process epoch changed from PID `41808` / HWND `0x2B0A26` / process start `2026-06-01T01:50:50.903773Z` to PID `12664` / HWND `0x205146C` / process start `2026-06-01T17:19:45.159353Z`.
+
+| Check | Result |
+|---|---|
+| Static root reacquired | Passed; module base stayed `0x7FF6EE5D0000`, root resolved to `0x7FF6F18BBC80`. |
+| Owner address changed | Passed; old owner `0x1E16E8706A0`, new owner `0x1E067A80010`. This proves no heap address was treated as static. |
+| Coordinate offsets stable | Passed; position still at `owner+0x320/+0x324/+0x328`. |
+| Facing offsets stable | Passed; facing target still at `owner+0x30C/+0x310/+0x314`. |
+| API-now validation | Passed; max abs chain/API delta `0.00248046875003638` <= `0.25`. |
+| Current-truth propagation | Passed; `.riftreader-local\current-truth-refresh-apply\latest\summary.json` wrote tracked truth with `promotionPerformed=false` and `facingPromotion=false`. |
+| Safety | No live input/movement, no debugger/CE, no target memory writes, no provider writes, no new proof/facing/actor promotion. |
 
 ## Promotion gate summary
 

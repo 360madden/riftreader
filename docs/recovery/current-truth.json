@@ -1,35 +1,35 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-06-01T17:07:09.168647+00:00",
-  "status": "current_pid_41808_static_readback_and_api_now_current",
+  "updatedAtUtc": "2026-06-01T17:33:38Z",
+  "status": "current_pid_12664_static_readback_and_api_now_current",
   "target": {
     "processName": "rift_x64",
-    "processId": 41808,
-    "targetWindowHandle": "0x2B0A26",
+    "processId": 12664,
+    "targetWindowHandle": "0x205146C",
     "windowTitle": "RIFT",
-    "processStartUtc": "2026-06-01T01:50:50.903773Z",
+    "processStartUtc": "2026-06-01T17:19:45.159353Z",
     "moduleBase": "0x7FF6EE5D0000",
     "moduleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
     "live": true,
     "inWorld": true,
-    "status": "current-pid-41808-static-chain-readback-passed",
-    "lastVerifiedUtc": "2026-06-01T16:48:56.693557+00:00",
-    "verificationSource": "Dry-run refresh plan from navigation pointer discovery dashboard generated 2026-06-01T16:50:53Z. Latest no-input static-chain readback for exact PID 41808 / HWND 0x2B0A26 passed at 2026-06-01T16:48:56.693557+00:00. API-now status is current for this target; this planner performs no proof/facing/actor promotion."
+    "status": "current-pid-12664-static-chain-readback-passed",
+    "lastVerifiedUtc": "2026-06-01T17:23:08.352942+00:00",
+    "verificationSource": "Dry-run refresh plan from navigation pointer discovery dashboard generated 2026-06-01T17:33:33Z. Latest no-input static-chain readback for exact PID 12664 / HWND 0x205146C passed at 2026-06-01T17:23:08.352942+00:00. API-now status is current for this target; this planner performs no proof/facing/actor promotion."
   },
   "liveReferenceSurface": {
     "authoritative": true,
-    "status": "current-pid-41808-static-readback-and-api-now-current",
+    "status": "current-pid-12664-static-readback-and-api-now-current",
     "source": "Promoted static owner coordinate resolver latest no-input readback. RRAPICOORD/API-now evidence is current for this target.",
-    "view": "Current target PID 41808 / HWND 0x2B0A26 has an applied tracked-truth refresh from static-chain readback at 2026-06-01T16:48:56.693557+00:00; API-now status is passed-current-pid-41808-api-now-vs-chain-now; no proof promotion or live input is performed.",
+    "view": "Current target PID 12664 / HWND 0x205146C has an applied tracked-truth refresh from static-chain readback at 2026-06-01T17:23:08.352942+00:00; API-now status is passed-current-pid-12664-api-now-vs-chain-now; no proof promotion or live input is performed.",
     "savedVariablesUse": "none",
     "currentCoordinateFromStaticChainCandidate": {
-      "x": 7259.82568359375,
-      "y": 821.4274291992188,
-      "z": 2994.700439453125,
-      "recordedAtUtc": "2026-06-01T16:48:56.693557+00:00"
+      "x": 7251.95751953125,
+      "y": 821.4475708007812,
+      "z": 2988.9814453125,
+      "recordedAtUtc": "2026-06-01T17:23:08.352942+00:00"
     },
-    "apiNowStatus": "passed-current-pid-41808-api-now-vs-chain-now",
+    "apiNowStatus": "passed-current-pid-12664-api-now-vs-chain-now",
     "apiNowBlockers": [],
     "chromalinkWorldStateReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\chromalink-world-state-reference-20260527-180955-988757\\summary.json",
     "noCheatEngine": true,
@@ -43,47 +43,48 @@
       "Tracked current-truth refresh applied 2026-06-01T06:56:04Z from dry-run plan generated 2026-06-01T06:50:13Z; no proof/facing/actor promotion was performed by the apply helper.",
       "Tracked current-truth refresh applied 2026-06-01T07:29:00Z from dry-run plan generated 2026-06-01T07:28:32Z; no proof/facing/actor promotion was performed by the apply helper.",
       "Tracked current-truth refresh applied 2026-06-01T07:43:19Z from dry-run plan generated 2026-06-01T07:43:14Z; no proof/facing/actor promotion was performed by the apply helper.",
-      "Current target is PID 41808 / HWND 0x2B0A26 with process start 2026-06-01T01:50:50.903773Z.",
-      "Current PID static-chain readback and RRAPICOORD API-now validation are fresh as of 2026-06-01T16:48:56.693557+00:00 / 2026-06-01T16:49:50.374932Z for this tracked refresh.",
-      "Tracked current-truth refresh applied 2026-06-01T16:52:54Z from dry-run plan generated 2026-06-01T16:52:49Z; no proof/facing/actor promotion was performed by the apply helper."
+      "Tracked current-truth refresh applied 2026-06-01T16:52:54Z from dry-run plan generated 2026-06-01T16:52:49Z; no proof/facing/actor promotion was performed by the apply helper.",
+      "Current target is PID 12664 / HWND 0x205146C with process start 2026-06-01T17:19:45.159353Z.",
+      "Current PID static-chain readback and RRAPICOORD API-now validation are fresh as of 2026-06-01T17:23:08.352942+00:00 / 2026-06-01T17:22:58.151422Z for this tracked refresh.",
+      "Tracked current-truth refresh applied 2026-06-01T17:33:48Z from dry-run plan generated 2026-06-01T17:33:38Z; no proof/facing/actor promotion was performed by the apply helper."
     ],
     "latestApiNowVsChainNow": {
-      "status": "passed-current-pid-41808-api-now-vs-chain-now",
+      "status": "passed-current-pid-12664-api-now-vs-chain-now",
       "currentPidValidation": {
-        "status": "passed-current-pid-41808-api-now-vs-chain-now",
-        "processId": 41808,
-        "targetWindowHandle": "0x2B0A26",
-        "capturedAtUtc": "2026-06-01T16:49:50.374932Z",
-        "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json",
-        "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
+        "status": "passed-current-pid-12664-api-now-vs-chain-now",
+        "processId": 12664,
+        "targetWindowHandle": "0x205146C",
+        "capturedAtUtc": "2026-06-01T17:22:58.151422Z",
+        "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json",
+        "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
         "apiCoordinate": {
-          "x": 7259.830078,
-          "y": 821.429993,
-          "z": 2994.699951
+          "x": 7251.96,
+          "y": 821.45,
+          "z": 2988.98
         },
         "chainCoordinate": {
-          "x": 7259.82568359375,
-          "y": 821.4274291992188,
-          "z": 2994.700439453125
+          "x": 7251.95751953125,
+          "y": 821.4475708007812,
+          "z": 2988.9814453125
         },
         "deltasChainMinusApi": {
-          "x": -0.004394406249957683,
-          "y": -0.002563800781217651,
-          "z": 0.000488453124944499
+          "x": -0.00248046875003638,
+          "y": -0.0024291992187954747,
+          "z": 0.00144531249998181
         },
         "absDeltas": {
-          "x": 0.004394406249957683,
-          "y": 0.002563800781217651,
-          "z": 0.000488453124944499
+          "x": 0.00248046875003638,
+          "y": 0.0024291992187954747,
+          "z": 0.00144531249998181
         },
-        "maxAbsDelta": 0.004394406249957683,
+        "maxAbsDelta": 0.00248046875003638,
         "tolerance": 0.25,
         "withinTolerance": true
       },
-      "currentApiNowStatus": "passed-current-pid-41808-api-now-vs-chain-now",
-      "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json",
-      "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "maxAbsDelta": 0.004394406249957683,
+      "currentApiNowStatus": "passed-current-pid-12664-api-now-vs-chain-now",
+      "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json",
+      "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "maxAbsDelta": 0.00248046875003638,
       "tolerance": 0.25
     },
     "currentCoordinateFromPromotedStaticResolver": {
@@ -93,78 +94,78 @@
       "recordedAtUtc": "2026-05-31T14:23:12.926638+00:00"
     },
     "latestApiCoordinate": {
-      "status": "passed-current-pid-41808-api-now-vs-chain-now",
+      "status": "passed-current-pid-12664-api-now-vs-chain-now",
       "coordinate": {
-        "x": 7259.830078,
-        "y": 821.429993,
-        "z": 2994.699951
+        "x": 7251.96,
+        "y": 821.45,
+        "z": 2988.98
       },
-      "capturedAtUtc": "2026-06-01T16:49:50.374932Z",
-      "referenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json",
+      "capturedAtUtc": "2026-06-01T17:22:58.151422Z",
+      "referenceFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json",
       "deltasChainMinusApi": {
-        "x": -0.004394406249957683,
-        "y": -0.002563800781217651,
-        "z": 0.000488453124944499
+        "x": -0.00248046875003638,
+        "y": -0.0024291992187954747,
+        "z": 0.00144531249998181
       },
       "absDeltas": {
-        "x": 0.004394406249957683,
-        "y": 0.002563800781217651,
-        "z": 0.000488453124944499
+        "x": 0.00248046875003638,
+        "y": 0.0024291992187954747,
+        "z": 0.00144531249998181
       },
-      "maxAbsDelta": 0.004394406249957683,
+      "maxAbsDelta": 0.00248046875003638,
       "tolerance": 0.25,
-      "staticReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
+      "staticReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
       "note": "Current-target RRAPICOORD coordinate matched the latest static-chain readback within tolerance; refresh again before later current-now claims."
     },
     "latestCurrentStaticReadback": {
       "status": "passed",
-      "processId": 41808,
-      "targetWindowHandle": "0x2B0A26",
-      "processStartUtc": "2026-06-01T01:50:50.903773Z",
+      "processId": 12664,
+      "targetWindowHandle": "0x205146C",
+      "processStartUtc": "2026-06-01T17:19:45.159353Z",
       "moduleBase": "0x7FF6EE5D0000",
       "rootAddress": "0x7FF6F18BBC80",
-      "ownerAddress": "0x1E16E8706A0",
-      "coordinateAddress": "0x1E16E8709C0",
+      "ownerAddress": "0x1E067A80010",
+      "coordinateAddress": "0x1E067A80330",
       "coordinate": {
-        "x": 7259.82568359375,
-        "y": 821.4274291992188,
-        "z": 2994.700439453125
+        "x": 7251.95751953125,
+        "y": 821.4475708007812,
+        "z": 2988.9814453125
       },
-      "recordedAtUtc": "2026-06-01T16:48:56.693557+00:00",
-      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.md"
+      "recordedAtUtc": "2026-06-01T17:23:08.352942+00:00",
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.md"
     },
     "latestCurrentNavStateReadback": {
       "status": "passed",
-      "processId": 41808,
-      "targetWindowHandle": "0x2B0A26",
-      "processStartUtc": "2026-06-01T01:50:50.903773Z",
+      "processId": 12664,
+      "targetWindowHandle": "0x205146C",
+      "processStartUtc": "2026-06-01T17:19:45.159353Z",
       "coordinate": {
-        "x": 7259.82568359375,
-        "y": 821.4274291992188,
-        "z": 2994.700439453125
+        "x": 7251.95751953125,
+        "y": 821.4475708007812,
+        "z": 2988.9814453125
       },
       "facingTargetCoordinate": {
-        "x": 7261.41455078125,
-        "y": 822.2887573242188,
-        "z": 3004.535888671875
+        "x": 7259.45654296875,
+        "y": 820.8319702148438,
+        "z": 2995.568115234375
       },
-      "yawDegrees": 80.82343415281247,
-      "pitchDegrees": 4.9411085772286,
-      "turnRate0x304": 0.18213433027267456,
+      "yawDegrees": 41.29403500816383,
+      "pitchDegrees": -3.5293889576850765,
+      "turnRate0x304": 0.8692701458930969,
       "turnRateClassification": null,
-      "recordedAtUtc": "2026-06-01T16:48:56.707095+00:00",
-      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json",
-      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.md"
+      "recordedAtUtc": "2026-06-01T17:23:08.371806+00:00",
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.json",
+      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.md"
     }
   },
   "movementGate": {
     "allowed": true,
     "status": "allowed-with-current-pid-exact-target-fresh-static-readback-and-api-now-validation",
-    "reason": "The static coordinate resolver is promoted and current PID 41808 exact-target readback passed at 2026-06-01T16:48:56.693557+00:00. Current PID RRAPICOORD/API-now validation is current in tracked truth. Live consumers must still verify PID/HWND/process-start/module-base and perform a fresh static-chain readback before input.",
+    "reason": "The static coordinate resolver is promoted and current PID 12664 exact-target readback passed at 2026-06-01T17:23:08.352942+00:00. Current PID RRAPICOORD/API-now validation is current in tracked truth. Live consumers must still verify PID/HWND/process-start/module-base and perform a fresh static-chain readback before input.",
     "proofArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json",
-    "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-    "latestCurrentApiNowValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json"
+    "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+    "latestCurrentApiNowValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json"
   },
   "bestCurrentCandidate": {
     "candidateId": "static-owner-chain-rift_x64+0x32EBC80-owner+0x320",
@@ -173,29 +174,29 @@
     "rootModule": "rift_x64.exe",
     "rootRva": "0x32EBC80",
     "rootAddress": "0x7FF6F18BBC80",
-    "currentOwnerAddress": "0x1E16E8706A0",
-    "currentCoordinateAddress": "0x1E16E8709C0",
+    "currentOwnerAddress": "0x1E067A80010",
+    "currentCoordinateAddress": "0x1E067A80330",
     "coordinate": {
-      "x": 7259.82568359375,
-      "y": 821.4274291992188,
-      "z": 2994.700439453125
+      "x": 7251.95751953125,
+      "y": 821.4475708007812,
+      "z": 2988.9814453125
     },
     "reacquiredAfterReboot": true,
     "promotionEligible": true,
     "promotionBlockers": [],
-    "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-    "reusePolicy": "Promoted as the static player-coordinate resolver. Reacquire the owner from rift_x64+0x32EBC80 each session; do not use a heap owner address as static; do not treat historical API-now evidence as current PID 41808 API proof.",
+    "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+    "reusePolicy": "Promoted as the static player-coordinate resolver. Reacquire the owner from rift_x64+0x32EBC80 each session; do not use a heap owner address as static; do not treat historical API-now evidence as current PID 12664 API proof.",
     "dynamicValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-chain-live-displacement-validation-20260527-221626\\summary.json",
     "apiNowValidationArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-chain-live-displacement-validation-20260527-221626\\summary.json",
     "promotionReviewArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promotion-review-2026-05-27.json",
     "promotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json",
-    "addressHex": "0x1E16E8709C0",
-    "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-    "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
+    "addressHex": "0x1E067A80330",
+    "candidateFile": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+    "readbackSummary": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+    "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
     "status": "promoted-static-player-coordinate-resolver-current-pid-readback-and-api-now-passed",
-    "latestCurrentReadbackAtUtc": "2026-06-01T16:48:56.693557+00:00",
-    "latestCurrentApiNowVsChainNowArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json"
+    "latestCurrentReadbackAtUtc": "2026-06-01T17:23:08.352942+00:00",
+    "latestCurrentApiNowVsChainNowArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json"
   },
   "staticChainStatus": {
     "status": "promoted-static-player-coordinate-resolver-current-pid-readback-and-api-now-passed",
@@ -205,19 +206,19 @@
       "rootModule": "rift_x64.exe",
       "rootRva": "0x32EBC80",
       "rootAddress": "0x7FF6F18BBC80",
-      "ownerAddress": "0x1E16E8706A0",
-      "coordinateAddress": "0x1E16E8709C0",
+      "ownerAddress": "0x1E067A80010",
+      "coordinateAddress": "0x1E067A80330",
       "coordinate": {
-        "x": 7259.82568359375,
-        "y": 821.4274291992188,
-        "z": 2994.700439453125
+        "x": 7251.95751953125,
+        "y": 821.4475708007812,
+        "z": 2988.9814453125
       },
       "historicalShapeMatch": "owner+0x320/+0x324/+0x328",
       "restartRelogSurvived": true,
       "postRebootArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-180907-440028\\summary.json",
-      "latestPromotedReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "latestCurrentReadbackAtUtc": "2026-06-01T16:48:56.693557+00:00"
+      "latestPromotedReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "latestCurrentReadbackAtUtc": "2026-06-01T17:23:08.352942+00:00"
     },
     "blockers": [],
     "reusePolicy": "Promoted coordinate resolver only. Use module RVA rift_x64+0x32EBC80 plus owner coordinate offsets; revalidate after patch/module drift or before live movement loops.",
@@ -232,42 +233,42 @@
       "forwardToReversePlanarXz": 2.745591184119985
     },
     "latestApiNowValidation": {
-      "status": "passed-current-pid-41808-api-now-vs-chain-now",
+      "status": "passed-current-pid-12664-api-now-vs-chain-now",
       "currentPidValidation": {
-        "status": "passed-current-pid-41808-api-now-vs-chain-now",
-        "processId": 41808,
-        "targetWindowHandle": "0x2B0A26",
-        "capturedAtUtc": "2026-06-01T16:49:50.374932Z",
-        "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json",
-        "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
+        "status": "passed-current-pid-12664-api-now-vs-chain-now",
+        "processId": 12664,
+        "targetWindowHandle": "0x205146C",
+        "capturedAtUtc": "2026-06-01T17:22:58.151422Z",
+        "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json",
+        "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
         "apiCoordinate": {
-          "x": 7259.830078,
-          "y": 821.429993,
-          "z": 2994.699951
+          "x": 7251.96,
+          "y": 821.45,
+          "z": 2988.98
         },
         "chainCoordinate": {
-          "x": 7259.82568359375,
-          "y": 821.4274291992188,
-          "z": 2994.700439453125
+          "x": 7251.95751953125,
+          "y": 821.4475708007812,
+          "z": 2988.9814453125
         },
         "deltasChainMinusApi": {
-          "x": -0.004394406249957683,
-          "y": -0.002563800781217651,
-          "z": 0.000488453124944499
+          "x": -0.00248046875003638,
+          "y": -0.0024291992187954747,
+          "z": 0.00144531249998181
         },
         "absDeltas": {
-          "x": 0.004394406249957683,
-          "y": 0.002563800781217651,
-          "z": 0.000488453124944499
+          "x": 0.00248046875003638,
+          "y": 0.0024291992187954747,
+          "z": 0.00144531249998181
         },
-        "maxAbsDelta": 0.004394406249957683,
+        "maxAbsDelta": 0.00248046875003638,
         "tolerance": 0.25,
         "withinTolerance": true
       },
-      "currentApiNowStatus": "passed-current-pid-41808-api-now-vs-chain-now",
-      "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json",
-      "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "maxAbsDelta": 0.004394406249957683,
+      "currentApiNowStatus": "passed-current-pid-12664-api-now-vs-chain-now",
+      "apiReferenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json",
+      "chainReadbackJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "maxAbsDelta": 0.00248046875003638,
       "tolerance": 0.25
     },
     "promotionReview": {
@@ -369,21 +370,21 @@
     },
     "latestCurrentStaticReadback": {
       "status": "passed",
-      "processId": 41808,
-      "targetWindowHandle": "0x2B0A26",
-      "processStartUtc": "2026-06-01T01:50:50.903773Z",
+      "processId": 12664,
+      "targetWindowHandle": "0x205146C",
+      "processStartUtc": "2026-06-01T17:19:45.159353Z",
       "moduleBase": "0x7FF6EE5D0000",
       "rootAddress": "0x7FF6F18BBC80",
-      "ownerAddress": "0x1E16E8706A0",
-      "coordinateAddress": "0x1E16E8709C0",
+      "ownerAddress": "0x1E067A80010",
+      "coordinateAddress": "0x1E067A80330",
       "coordinate": {
-        "x": 7259.82568359375,
-        "y": 821.4274291992188,
-        "z": 2994.700439453125
+        "x": 7251.95751953125,
+        "y": 821.4475708007812,
+        "z": 2988.9814453125
       },
-      "recordedAtUtc": "2026-06-01T16:48:56.693557+00:00",
-      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.md"
+      "recordedAtUtc": "2026-06-01T17:23:08.352942+00:00",
+      "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+      "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.md"
     }
   },
   "latestPointerEvidence": {
@@ -424,8 +425,8 @@
     {
       "item": "PID 12148 / HWND 0x640C0C proof pointer and route-smoke epoch",
       "status": "historical-stale-superseded-by-promoted-static-player-coordinate-resolver",
-      "reason": "The promoted static resolver passed historical PID 34176 RRAPICOORD API-now vs chain-now displacement validation, but the current live target is PID 41808 / HWND 0x2B0A26. Old absolute proof-anchor addresses remain stale.",
-      "reusePolicy": "historical audit/discovery context only; never current movement/API proof for PID 41808",
+      "reason": "The promoted static resolver passed historical PID 34176 RRAPICOORD API-now vs chain-now displacement validation, but the current live target is PID 12664 / HWND 0x205146C. Old absolute proof-anchor addresses remain stale.",
+      "reusePolicy": "historical audit/discovery context only; never current movement/API proof for PID 12664",
       "supersededBy": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-coordinate-chain-promoted-2026-05-27.json"
     }
   ],
@@ -493,16 +494,16 @@
     "latestForwardPromotedStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-221136-189619\\summary.json",
     "latestReverseRrapicoordApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-34176-20260527-221337.json",
     "latestReversePromotedStaticChainReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260527-221323-713371\\summary.json",
-    "latestCurrentPidStaticOwnerReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-164856-692002\\summary.json",
-    "latestCurrentPidNavStateReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json",
+    "latestCurrentPidStaticOwnerReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-coordinate-chain-readback-20260601-172308-351318\\summary.json",
+    "latestCurrentPidNavStateReadback": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.json",
     "latestCurrentPidRouteLoopSuccess": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-continuous-route-20260531-163708-174984\\summary.json",
     "latestTurnInputProbe": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-input-probe-20260531-124139-909597\\summary.json",
     "latestMouseTurnProbe": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-mouse-turn-probe-20260531-124158-803473\\summary.json",
     "latestMouseLookTurnDetector": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\turn-completion-detector-20260531-124210-709153\\summary.json",
     "latestMouseArcRecoveryProbe": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-mouse-arc-recovery-20260531-124230-635784\\summary.json",
-    "latestCurrentPidRrapicoordApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-41808-20260601-164918.json"
+    "latestCurrentPidRrapicoordApiReference": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\rift-api-reference-currentpid-12664-20260601-172204.json"
   },
-  "nextRecommendedAction": "Use the promoted static player-coordinate resolver with exact PID/HWND/process-start/module-base preflights; current PID 41808 API-now vs chain-now validation is current at 2026-06-01T16:49:50.374932Z. Keep facing/turn-rate chains candidate-only until restart/relog survival, static-root proof, and formal three-pose displacement gates pass.",
+  "nextRecommendedAction": "Use the promoted static owner coordinate and facing/yaw resolvers after exact PID/HWND/process-start/module-base preflight. Current PID 12664 API-now vs chain-now coordinate validation is current at 2026-06-01T17:22:58.151422Z; facing/yaw was already promoted by its explicit artifact and this refresh only updates current-PID readback fields. Keep turn-rate, actor/stat chains, proof anchors, and autonomous route-control automation separate.",
   "navigationSmoke": {
     "status": "passed",
     "kind": "observed-forward-no-turn-waypoint-smoke",
@@ -597,10 +598,11 @@
     "Tracked current-truth refresh applied 2026-06-01T06:56:04Z from dry-run plan generated 2026-06-01T06:50:13Z; no proof/facing/actor promotion was performed by the apply helper.",
     "Tracked current-truth refresh applied 2026-06-01T07:29:00Z from dry-run plan generated 2026-06-01T07:28:32Z; no proof/facing/actor promotion was performed by the apply helper.",
     "Tracked current-truth refresh applied 2026-06-01T07:43:19Z from dry-run plan generated 2026-06-01T07:43:14Z; no proof/facing/actor promotion was performed by the apply helper.",
-    "historical-pid-34176-api-validation-must-not-be-presented-as-current-pid-41808-api-now",
-    "current-pid-41808-api-now-validation-refreshed-at-2026-06-01T16:49:50.374932Z",
     "Tracked current-truth refresh applied 2026-06-01T16:52:54Z from dry-run plan generated 2026-06-01T16:52:49Z; no proof/facing/actor promotion was performed by the apply helper.",
-    "static-owner-facing-yaw-promoted-at-2026-06-01T17:07:09.168647+00:00-from-current-readiness-review; turn-rate/full-actor/proof-anchor remain not promoted"
+    "static-owner-facing-yaw-promoted-at-2026-06-01T17:07:09.168647+00:00-from-current-readiness-review; turn-rate/full-actor/proof-anchor remain not promoted",
+    "historical-pid-34176-api-validation-must-not-be-presented-as-current-pid-12664-api-now",
+    "current-pid-12664-api-now-validation-refreshed-at-2026-06-01T17:22:58.151422Z",
+    "Tracked current-truth refresh applied 2026-06-01T17:33:48Z from dry-run plan generated 2026-06-01T17:33:38Z; no proof/facing/actor promotion was performed by the apply helper."
   ],
   "staticOwnerFacing": {
     "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
@@ -613,15 +615,15 @@
       "rootModule": "rift_x64.exe",
       "rootRva": "0x32EBC80",
       "rootAddress": "0x7FF6F18BBC80",
-      "ownerAddress": "0x1E16E8706A0",
-      "facingTargetAddress": "0x1E16E8709AC",
+      "ownerAddress": "0x1E067A80010",
+      "facingTargetAddress": "0x1E067A8031C",
       "facingOffsets": [
         "0x30C",
         "0x310",
         "0x314"
       ],
-      "latestYawDegrees": 80.82343415281247,
-      "latestYawSourcePose": "current-pid-41808-explicit-facing-yaw-promotion-2026-06-01T17:07:09.168647+00:00",
+      "latestYawDegrees": 41.29403500816383,
+      "latestYawSourcePose": "current-pid-12664-static-nav-state-readback-2026-06-01T17:23:08.371806+00:00",
       "yawByPose": {
         "baseline": 76.58886930417464,
         "turn-right-2": 158.47055057802135,
@@ -633,7 +635,7 @@
       },
       "maxAbsYawDeltaDegrees": 143.99940559703944,
       "coordinateDriftAllPoses": 0.0,
-      "latestCurrentNavStateReadbackArtifact": "scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json"
+      "latestCurrentNavStateReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.json"
     },
     "fourPoseTriangulation": {
       "status": "passed",
@@ -676,14 +678,19 @@
     ],
     "latestCurrentReacquisition": {
       "status": "promoted-current-pid-refresh",
-      "navStateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-164856-705835\\summary.json",
+      "navStateJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.json",
       "facingComparisonJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-camera-yaw-classification-20260601-163407-394774\\static-owner-facing-comparison-20260601-163413-934652\\summary.json",
       "topRelativeTargetOffset": "0x30C",
       "maxAbsYawDeltaDegrees": 33.88312498834827,
       "coordinateDriftAllPoses": 0.0,
-      "promotionPerformed": true,
-      "recordedAtUtc": "2026-06-01T17:07:09.168647+00:00",
-      "promotionJson": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-yaw-promoted-2026-06-01.json"
+      "processId": 12664,
+      "targetWindowHandle": "0x205146C",
+      "processStartUtc": "2026-06-01T17:19:45.159353Z",
+      "apiNowStatus": "passed-current-pid-12664-api-now-vs-chain-now",
+      "promotionState": "already-promoted",
+      "promotionArtifact": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\static-owner-facing-yaw-promoted-2026-06-01.json",
+      "promotionPerformed": false,
+      "recordedAtUtc": "2026-06-01T17:23:08.371806+00:00"
     },
     "firstPromotedAtUtc": "2026-05-29T04:55:20Z",
     "latestPromotionAtUtc": "2026-06-01T17:07:09.168647+00:00",

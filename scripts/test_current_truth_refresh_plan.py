@@ -309,6 +309,64 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
         self.assertIn("capture current PID 41808 API-now", proposed["nextRecommendedAction"])
         self.assertNotIn("current PID 25668 API-now", proposed["nextRecommendedAction"])
 
+    def test_already_promoted_facing_yaw_can_refresh_current_pid_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            truth_path, dashboard_path = seed_current_truth_and_dashboard(root)
+            promotion_path = root / "docs" / "recovery" / "static-owner-facing-yaw-promoted-2026-06-01.json"
+            write_json(promotion_path, {"kind": "static-owner-facing-yaw-promotion", "status": "promoted"})
+            current_truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            current_truth["staticOwnerFacing"] = {
+                "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+                "promotionAllowed": True,
+                "promotionArtifact": str(promotion_path),
+                "promotedAtUtc": "2026-06-01T17:07:09Z",
+                "primaryCandidate": {
+                    "expression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+                    "ownerAddress": "0xOLDOWNER",
+                    "facingTargetAddress": "0xOLD30C",
+                },
+            }
+            write_json(truth_path, current_truth)
+            dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+            dashboard["candidates"]["candidateFacingTarget"] = {
+                "status": "promoted-static-owner-facing-yaw-current-pid-readback-passed",
+                "candidateOnly": False,
+                "promotionAllowed": True,
+                "chainShape": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+                "ownerAddress": "0x1B53D7806A0",
+                "address": "0x1B53D7809AC",
+                "offset": "0x30C",
+                "latestYawDegrees": 41.29403500816383,
+                "latestPitchDegrees": -3.5293889576850765,
+                "latestFacingTargetCoordinate": {"x": 7259.45654296875, "y": 820.8319702148438, "z": 2995.568115234375},
+                "promotionArtifact": str(promotion_path),
+                "evidence": {
+                    "navStateJson": "scripts\\captures\\static-owner-nav-state-20260601-172308-370480\\summary.json",
+                    "facingComparisonJson": "scripts\\captures\\static-owner-facing-comparison-20260601-163413\\summary.json",
+                },
+            }
+            write_json(dashboard_path, dashboard)
+
+            summary = planner.build_current_truth_refresh_plan(
+                root,
+                generated_at_utc="2026-06-01T17:30:00Z",
+            )
+
+        self.assertEqual("passed", summary["status"])
+        self.assertNotIn("facing-target-promotion-unexpectedly-allowed", summary["blockers"])
+        proposed = summary["proposedCurrentTruth"]
+        reacquisition = proposed["staticOwnerFacing"]["latestCurrentReacquisition"]
+        self.assertEqual("promoted-current-pid-refresh", reacquisition["status"])
+        self.assertEqual("already-promoted", reacquisition["promotionState"])
+        self.assertFalse(reacquisition["promotionPerformed"])
+        self.assertEqual(str(promotion_path), reacquisition["promotionArtifact"])
+        self.assertEqual(25668, reacquisition["processId"])
+        self.assertEqual("passed-current-pid-25668-api-now-vs-chain-now", reacquisition["apiNowStatus"])
+        self.assertEqual("0x1B53D7809AC", proposed["staticOwnerFacing"]["primaryCandidate"]["facingTargetAddress"])
+        self.assertIn("promoted static owner coordinate and facing/yaw", proposed["nextRecommendedAction"])
+        self.assertFalse(summary["safety"]["facingPromotion"])
+
     def test_stale_readback_source_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
