@@ -2,6 +2,45 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — current-truth apply and gate-aware status wiring — 2026-06-01 06:17 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-01-0617-current-truth-apply-status-wiring-handoff.md`.
+
+Tracked `docs/recovery/current-truth.json` has now been applied from the
+validated dry-run proposal under
+`.riftreader-local\current-truth-refresh-plan\latest\`. The apply summary is
+`.riftreader-local\current-truth-refresh-apply\latest\summary.json`, with a
+backup at
+`.riftreader-local\current-truth-refresh-apply\latest\current-truth-before-apply.json`.
+
+Current target identity remains PID `41808`, HWND `0x2B0A26`, process start
+`2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, and the
+latest applied API-now vs chain-now max abs delta is
+`0.004416406250129512` <= tolerance `0.25`.
+
+New workflow surfaces:
+
+| Surface | Status |
+|---|---|
+| `scripts\riftreader-current-truth-refresh-apply.cmd` | explicit dry-run/apply gate; no proof/facing/actor promotion |
+| Navigation pointer discovery | now indexes three-pose gate, restart survival, and turn-forward proof |
+| Compact workflow status | now surfaces `currentTruthRefreshApply` and gate-aware next action |
+| Tool catalog / bridge commands | now lists apply and report-only facing gate helpers |
+
+Gate readiness is packaged but still candidate-only:
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Three-pose route-progress gate | `passed` | `scripts\captures\facing-target-three-pose-gate-20260601-054258-066521\summary.json` |
+| Restart/relog survival packet | `passed` | `scripts\captures\facing-target-restart-survival-packet-20260601-054826-920485\summary.json` |
+| Turn-forward progress proof | `passed` | `scripts\captures\static-owner-turn-forward-experiment-20260601-054700-011212\summary.json` |
+
+Current safe next action: build a separate candidate-facing promotion-readiness
+review packet from these gates and static-root/source-site evidence; do not
+promote facing/turn-rate chains automatically.
+
 ## Latest compact handoff — facing-target gates and live proof refresh — 2026-06-01 05:51 UTC
 
 A new compact handoff exists at
@@ -32,10 +71,9 @@ facing-target candidate and remains **candidate-only** for truth/promotion. The
 new Ghidra review note is
 `docs/recovery/ghidra-facing-coordinate-source-site-review-2026-06-01.md`.
 
-Main blocker: a separate proof/promotion review artifact still has to consume
+Main blocker at the 05:51 handoff was a separate proof/promotion review artifact to consume
 the three-pose gate, live turn-forward proof, restart/relog packet, and Ghidra
-source-site review. Tracked current truth was not updated; a dry-run proposal is
-available under `.riftreader-local\current-truth-refresh-plan\latest\`.
+source-site review. Tracked current truth was not updated in that 05:51 slice; this is superseded by the 06:17 apply section above.
 
 ## Ghidra offline-static lane reintroduced as a default discovery step — 2026-06-01
 

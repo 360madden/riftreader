@@ -44,6 +44,9 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "cameraYawClassification": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "cameraYawMultipose": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "facingThreePoseGate": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "facingRestartSurvival": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
 }
 
 
@@ -807,10 +810,132 @@ def camera_yaw_classification_summary(
     }
 
 
+def facing_three_pose_gate_summary(
+    repo_root: Path,
+    gate: dict[str, Any] | None,
+    gate_path: Path | None,
+) -> dict[str, Any] | None:
+    if not gate:
+        return None
+    analysis = safe_mapping(gate.get("analysis"))
+    source_safety = safe_mapping(gate.get("sourceSafety"))
+    return {
+        "status": gate.get("status"),
+        "verdict": gate.get("verdict"),
+        "candidateOnly": bool(analysis.get("candidateOnly", True)),
+        "promotionAllowed": bool(analysis.get("promotionAllowed")),
+        "generatedAtUtc": gate.get("generatedAtUtc"),
+        "formalThreePoseGatePassed": bool(analysis.get("formalThreePoseGatePassed")),
+        "poseCount": gate.get("poseCount"),
+        "passedPoseCount": gate.get("passedPoseCount"),
+        "aggregateProgressDistance": analysis.get("aggregateProgressDistance"),
+        "minimumProgressDistance": analysis.get("minimumProgressDistance"),
+        "maximumProgressDistance": analysis.get("maximumProgressDistance"),
+        "candidateFacingTargetOffset": analysis.get("candidateFacingTargetOffset"),
+        "supportOnlyTurnRateOffset": analysis.get("supportOnlyTurnRateOffset"),
+        "evidence": {"summaryJson": artifact_path(repo_root, gate_path)},
+        "sourceMovementSent": bool(source_safety.get("movementSent")),
+        "sourceInputSent": bool(source_safety.get("inputSent")),
+        "blockers": safe_list(gate.get("blockers")),
+        "warnings": safe_list(gate.get("warnings")),
+        "promotionBlockers": [
+            "candidate-only-three-pose-gate",
+            "requires-restart-relog-survival",
+            "requires-static-root-source-site-review",
+            "requires-separate-promotion-review",
+        ],
+    }
+
+
+def facing_restart_survival_summary(
+    repo_root: Path,
+    packet: dict[str, Any] | None,
+    packet_path: Path | None,
+) -> dict[str, Any] | None:
+    if not packet:
+        return None
+    analysis = safe_mapping(packet.get("analysis"))
+    source_safety = safe_mapping(packet.get("sourceSafety"))
+    pre_restart = safe_mapping(packet.get("preRestart"))
+    post_restart = safe_mapping(packet.get("postRestart"))
+    return {
+        "status": packet.get("status"),
+        "verdict": packet.get("verdict"),
+        "candidateOnly": bool(analysis.get("candidateOnly", True)),
+        "promotionAllowed": bool(analysis.get("promotionAllowed")),
+        "generatedAtUtc": packet.get("generatedAtUtc"),
+        "restartRelogSurvived": bool(analysis.get("restartRelogSurvived")),
+        "offsetsStable": bool(analysis.get("offsetsStable")),
+        "processStartChanged": bool(analysis.get("processStartChanged")),
+        "processIdChanged": bool(analysis.get("processIdChanged")),
+        "windowHandleChanged": bool(analysis.get("windowHandleChanged")),
+        "ownerAddressChanged": bool(analysis.get("ownerAddressChanged")),
+        "facingTargetOffset": analysis.get("facingTargetOffset"),
+        "positionOffset": analysis.get("positionOffset"),
+        "supportOnlyTurnRateOffset": analysis.get("supportOnlyTurnRateOffset"),
+        "preRestartSummaryJson": pre_restart.get("summaryJson"),
+        "postRestartSummaryJson": post_restart.get("summaryJson"),
+        "evidence": {"summaryJson": artifact_path(repo_root, packet_path)},
+        "sourceMovementSent": bool(source_safety.get("movementSent")),
+        "sourceInputSent": bool(source_safety.get("inputSent")),
+        "sourceTargetMemoryBytesRead": bool(source_safety.get("targetMemoryBytesRead")),
+        "blockers": safe_list(packet.get("blockers")),
+        "warnings": safe_list(packet.get("warnings")),
+        "promotionBlockers": [
+            "candidate-only-restart-survival-packet",
+            "requires-three-pose-route-progress-gate",
+            "requires-static-root-source-site-review",
+            "requires-separate-promotion-review",
+        ],
+    }
+
+
+def turn_forward_experiment_summary(
+    repo_root: Path,
+    experiment: dict[str, Any] | None,
+    experiment_path: Path | None,
+) -> dict[str, Any] | None:
+    if not experiment:
+        return None
+    operator = safe_mapping(experiment.get("operator"))
+    forward = safe_mapping(experiment.get("forwardResult"))
+    contract = safe_mapping(experiment.get("contract"))
+    safety = safe_mapping(experiment.get("safety"))
+    artifacts = safe_mapping(experiment.get("artifacts"))
+    return {
+        "status": experiment.get("status"),
+        "verdict": experiment.get("verdict"),
+        "generatedAtUtc": experiment.get("generatedAtUtc"),
+        "candidateOnly": True,
+        "promotionAllowed": False,
+        "movementApproved": bool(operator.get("movementApproved")),
+        "turnApproved": bool(operator.get("turnApproved")),
+        "allowCandidateTurnControl": bool(operator.get("allowCandidateTurnControl")),
+        "routeStatus": forward.get("routeStatus"),
+        "totalProgressDistance": forward.get("totalProgressDistance"),
+        "initialPlanarDistance": forward.get("initialPlanarDistance"),
+        "finalPlanarDistance": forward.get("finalPlanarDistance"),
+        "contractStatus": contract.get("status"),
+        "evidence": {
+            "summaryJson": artifact_path(repo_root, experiment_path),
+            "forwardStepSummaryJson": artifacts.get("forwardStepSummaryJson"),
+            "turnAwarePlanSummaryJson": artifacts.get("turnAwarePlanSummaryJson"),
+        },
+        "sourceMovementSent": bool(safety.get("movementSent")),
+        "sourceInputSent": bool(safety.get("inputSent")),
+        "sourceNavigationControl": bool(safety.get("navigationControl")),
+        "blockers": safe_list(experiment.get("blockers")),
+        "warnings": safe_list(experiment.get("warnings")),
+    }
+
+
 def build_next_action(
     freshness: dict[str, Any],
     facing_target: dict[str, Any] | None,
     camera_yaw: dict[str, Any] | None = None,
+    three_pose_gate: dict[str, Any] | None = None,
+    restart_survival: dict[str, Any] | None = None,
+    turn_forward: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     stale_sources = set(str(item) for item in safe_list(freshness.get("staleSources")))
     recommended_actions: list[str] = []
@@ -823,7 +948,29 @@ def build_next_action(
             "If tracked truth must be current, run a deliberate current-truth refresh slice from the fresh readback/API evidence; do not treat the dashboard as proof promotion."
         )
     camera_yaw_map = safe_mapping(camera_yaw)
-    if camera_yaw_map:
+    three_pose_map = safe_mapping(three_pose_gate)
+    restart_map = safe_mapping(restart_survival)
+    turn_forward_map = safe_mapping(turn_forward)
+    three_pose_passed = three_pose_map.get("formalThreePoseGatePassed") is True
+    restart_survived = restart_map.get("restartRelogSurvived") is True
+    turn_forward_passed = turn_forward_map.get("status") == "passed" and turn_forward_map.get("routeStatus") == "progress"
+
+    if facing_target and three_pose_passed and restart_survived:
+        recommended_actions.append(
+            "Build a separate candidate-facing promotion-readiness review packet from the three-pose gate, restart-survival packet, latest turn-forward progress proof, and static-root/source-site evidence; do not promote automatically."
+        )
+        recommended_actions.append(
+            "Refresh exact-target static/nav/API readbacks immediately before any additional live movement or review."
+        )
+        if turn_forward_passed:
+            recommended_actions.append(
+                "Keep the latest turn-forward progress proof as supporting evidence only; it does not grant movement or promotion permission."
+            )
+    elif facing_target and three_pose_passed:
+        recommended_actions.append(
+            "Build or refresh the report-only restart/relog survival packet for owner+0x30C/+0x310/+0x314 before any promotion review."
+        )
+    elif camera_yaw_map:
         if (
             camera_yaw_map.get("proofPackKind") == "multipose-camera-yaw-report"
             and int(camera_yaw_map.get("routeActionablePoseCount") or 0) >= 2
@@ -842,11 +989,11 @@ def build_next_action(
             recommended_actions.append(
                 "Run a paired left/right/return camera-yaw classification set under explicit stimulus approval; compare owner+0x300/+0x304 before any turn-dependent route."
             )
-    if facing_target:
+    if facing_target and not (three_pose_passed and restart_survived):
         recommended_actions.append(
             "Run restart/relog survival plus static-root proof for owner+0x30C/+0x310/+0x314 before any facing promotion."
         )
-    else:
+    elif not facing_target:
         recommended_actions.append("Run static-owner facing snapshot/compare to reacquire candidate-facing target evidence.")
 
     return {
@@ -903,6 +1050,21 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="static-owner-camera-yaw-multipose-report-",
         expected_kind="static-owner-camera-yaw-multipose-report",
     )
+    three_pose_gate_path, three_pose_gate_data, three_pose_gate_warnings = newest_summary(
+        repo_root,
+        directory_prefix="facing-target-three-pose-gate-",
+        expected_kind="facing-target-three-pose-gate",
+    )
+    restart_survival_path, restart_survival_data, restart_survival_warnings = newest_summary(
+        repo_root,
+        directory_prefix="facing-target-restart-survival-packet-",
+        expected_kind="facing-target-restart-survival-packet",
+    )
+    turn_forward_path, turn_forward_data, turn_forward_warnings = newest_summary(
+        repo_root,
+        directory_prefix="static-owner-turn-forward-experiment-20",
+        expected_kind="static-owner-turn-forward-experiment",
+    )
     warnings.extend(
         coord_warnings
         + nav_warnings
@@ -911,6 +1073,9 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + family_warnings
         + camera_yaw_warnings
         + camera_yaw_multipose_warnings
+        + three_pose_gate_warnings
+        + restart_survival_warnings
+        + turn_forward_warnings
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
@@ -936,6 +1101,9 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
     selected_camera_yaw_data = camera_yaw_multipose_data or camera_yaw_data
     camera_yaw = camera_yaw_classification_summary(repo_root, selected_camera_yaw_data, selected_camera_yaw_path)
+    three_pose_gate = facing_three_pose_gate_summary(repo_root, three_pose_gate_data, three_pose_gate_path)
+    restart_survival = facing_restart_survival_summary(repo_root, restart_survival_data, restart_survival_path)
+    turn_forward = turn_forward_experiment_summary(repo_root, turn_forward_data, turn_forward_path)
     api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
     warnings.extend(api_warnings)
 
@@ -978,6 +1146,8 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         "familySnapshotInputSent": bool(family_safety.get("inputSent")),
         "cameraYawClassificationMovementSent": bool(camera_yaw_safety.get("movementSent")),
         "cameraYawClassificationInputSent": bool(camera_yaw_safety.get("inputSent")),
+        "turnForwardExperimentMovementSent": bool(safe_mapping(safe_mapping(turn_forward_data).get("safety")).get("movementSent")),
+        "turnForwardExperimentInputSent": bool(safe_mapping(safe_mapping(turn_forward_data).get("safety")).get("inputSent")),
         "latestReadbackTargetMemoryBytesRead": bool(coord_safety.get("targetMemoryBytesRead"))
         or bool(nav_safety.get("targetMemoryBytesRead")),
     }
@@ -1048,6 +1218,27 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["cameraYawMultipose"],
         ),
+        "facingThreePoseGate": summarize_source(
+            repo_root,
+            three_pose_gate_path,
+            three_pose_gate_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["facingThreePoseGate"],
+        ),
+        "facingRestartSurvival": summarize_source(
+            repo_root,
+            restart_survival_path,
+            restart_survival_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["facingRestartSurvival"],
+        ),
+        "turnForwardExperiment": summarize_source(
+            repo_root,
+            turn_forward_path,
+            turn_forward_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["turnForwardExperiment"],
+        ),
     }
     freshness = aggregate_source_freshness(sources)
 
@@ -1078,14 +1269,34 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "coordinateDeltaCandidate": coordinate_delta,
             "cameraYawClassification": camera_yaw,
         },
+        "proofGates": {
+            "facingThreePoseGate": three_pose_gate,
+            "facingRestartSurvival": restart_survival,
+            "turnForwardExperiment": turn_forward,
+        },
         "promotionReadiness": {
             "coordinateResolver": static_status.get("status"),
             "currentApiNowStatus": api_now_status,
-            "facingTarget": "candidate-only-requires-proof" if facing_target else "missing",
+            "facingTarget": (
+                "candidate-only-gates-packaged-requires-review"
+                if facing_target
+                and safe_mapping(three_pose_gate).get("formalThreePoseGatePassed")
+                and safe_mapping(restart_survival).get("restartRelogSurvived")
+                else ("candidate-only-requires-proof" if facing_target else "missing")
+            ),
+            "facingThreePoseGate": "passed" if safe_mapping(three_pose_gate).get("formalThreePoseGatePassed") else "missing-or-not-passed",
+            "restartRelogSurvival": "passed" if safe_mapping(restart_survival).get("restartRelogSurvived") else "missing-or-not-passed",
+            "turnForwardLiveProgress": (
+                "passed"
+                if safe_mapping(turn_forward).get("status") == "passed"
+                and safe_mapping(turn_forward).get("routeStatus") == "progress"
+                else "missing-or-not-passed"
+            ),
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
+            "promotionReviewRequired": True,
             "proofPromotionPerformed": False,
         },
-        "next": build_next_action(freshness, facing_target, camera_yaw),
+        "next": build_next_action(freshness, facing_target, camera_yaw, three_pose_gate, restart_survival, turn_forward),
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "errors": errors,
@@ -1119,6 +1330,10 @@ def build_markdown(summary: dict[str, Any]) -> str:
     turn = safe_mapping(candidates.get("candidateTurnRate"))
     delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
+    proof_gates = safe_mapping(summary.get("proofGates"))
+    three_pose = safe_mapping(proof_gates.get("facingThreePoseGate"))
+    restart = safe_mapping(proof_gates.get("facingRestartSurvival"))
+    turn_forward = safe_mapping(proof_gates.get("turnForwardExperiment"))
     artifacts = safe_mapping(summary.get("artifacts"))
     freshness = safe_mapping(summary.get("freshness"))
     lines = [
@@ -1144,6 +1359,9 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Turn rate `+0x304` | `{turn.get('status')}` | `latest={turn.get('latestValue')}` | `candidate-only` |",
         f"| Coordinate delta evidence | `{delta.get('status')}` | `tracking max abs={delta.get('trackingErrorMaxAbs')}` | `matches promoted={delta.get('matchesPromotedCoordinateAddress')}` |",
         f"| Camera/yaw classification | `{camera_yaw.get('status')}` | `{camera_yaw.get('classification')}` | `route-actionable={camera_yaw.get('actionableForRouteControl')}` |",
+        f"| Facing three-pose gate | `{three_pose.get('status')}` | `poses={three_pose.get('passedPoseCount')}/{three_pose.get('poseCount')}; min progress={three_pose.get('minimumProgressDistance')}` | `candidate-only` |",
+        f"| Facing restart survival | `{restart.get('status')}` | `survived={restart.get('restartRelogSurvived')}; offsets stable={restart.get('offsetsStable')}` | `candidate-only` |",
+        f"| Turn-forward live progress | `{turn_forward.get('status')}` | `progress={turn_forward.get('totalProgressDistance')}; route={turn_forward.get('routeStatus')}` | `support-only` |",
         "",
         "## Source artifacts",
         "",

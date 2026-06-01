@@ -272,6 +272,101 @@ def seed_camera_yaw_multipose_report(root: Path) -> None:
     )
 
 
+def seed_facing_proof_gate_artifacts(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "facing-target-three-pose-gate-20260531-142500-000000"
+        / "summary.json",
+        {
+            "kind": "facing-target-three-pose-gate",
+            "status": "passed",
+            "verdict": "formal-three-pose-route-progress-gate-passed",
+            "generatedAtUtc": "2026-05-31T14:23:45Z",
+            "poseCount": 3,
+            "passedPoseCount": 3,
+            "analysis": {
+                "candidateOnly": True,
+                "promotionAllowed": False,
+                "formalThreePoseGatePassed": True,
+                "aggregateProgressDistance": 4.5,
+                "minimumProgressDistance": 1.25,
+                "maximumProgressDistance": 1.75,
+                "candidateFacingTargetOffset": "0x30C",
+                "supportOnlyTurnRateOffset": "0x304",
+            },
+            "sourceSafety": {"movementSent": True, "inputSent": True},
+            "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "facingPromotion": False},
+            "blockers": [],
+            "warnings": ["candidate-facing-target-only-no-promotion"],
+        },
+    )
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "facing-target-restart-survival-packet-20260531-142600-000000"
+        / "summary.json",
+        {
+            "kind": "facing-target-restart-survival-packet",
+            "status": "passed",
+            "verdict": "candidate-facing-target-restart-relog-survival-passed",
+            "generatedAtUtc": "2026-05-31T14:23:50Z",
+            "preRestart": {"summaryJson": "pre.json"},
+            "postRestart": {"summaryJson": "post.json"},
+            "analysis": {
+                "candidateOnly": True,
+                "promotionAllowed": False,
+                "restartRelogSurvived": True,
+                "offsetsStable": True,
+                "processStartChanged": True,
+                "processIdChanged": True,
+                "windowHandleChanged": True,
+                "ownerAddressChanged": True,
+                "facingTargetOffset": "0x30C",
+                "positionOffset": "0x320",
+                "supportOnlyTurnRateOffset": "0x304",
+            },
+            "sourceSafety": {"targetMemoryBytesRead": True, "movementSent": False, "inputSent": False},
+            "safety": {"movementSent": False, "inputSent": False, "proofPromotion": False, "facingPromotion": False},
+            "blockers": [],
+            "warnings": ["candidate-facing-target-only-no-promotion"],
+        },
+    )
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-turn-forward-experiment-20260531-142700-000000"
+        / "summary.json",
+        {
+            "kind": "static-owner-turn-forward-experiment",
+            "status": "passed",
+            "verdict": "turn-forward-live-progress-validated",
+            "generatedAtUtc": "2026-05-31T14:23:55Z",
+            "operator": {"movementApproved": True, "turnApproved": True, "allowCandidateTurnControl": True},
+            "forwardResult": {
+                "routeStatus": "progress",
+                "totalProgressDistance": 1.5,
+                "initialPlanarDistance": 10.0,
+                "finalPlanarDistance": 8.5,
+            },
+            "contract": {"status": "passed"},
+            "artifacts": {"forwardStepSummaryJson": "step.json", "turnAwarePlanSummaryJson": "plan.json"},
+            "safety": {
+                "movementSent": True,
+                "inputSent": True,
+                "navigationControl": True,
+                "proofPromotion": False,
+                "facingPromotion": False,
+            },
+            "blockers": [],
+            "warnings": [],
+        },
+    )
+
+
 class NavigationPointerDiscoveryTests(unittest.TestCase):
     def test_build_summary_indexes_promoted_and_candidate_navigation_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -328,6 +423,32 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertTrue(summary["sourceSafety"]["cameraYawClassificationInputSent"])
         self.assertTrue(any("three-pose gate" in item for item in summary["next"]["recommendedActions"]))
         self.assertFalse(any("Rerun a small camera/yaw proof pack" in item for item in summary["next"]["recommendedActions"]))
+
+    def test_facing_gate_artifacts_are_indexed_and_shift_next_action_to_review_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_camera_yaw_multipose_report(root)
+            seed_facing_proof_gate_artifacts(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        gates = summary["proofGates"]
+        readiness = summary["promotionReadiness"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertTrue(gates["facingThreePoseGate"]["formalThreePoseGatePassed"])
+        self.assertTrue(gates["facingRestartSurvival"]["restartRelogSurvived"])
+        self.assertEqual(1.5, gates["turnForwardExperiment"]["totalProgressDistance"])
+        self.assertEqual("candidate-only-gates-packaged-requires-review", readiness["facingTarget"])
+        self.assertEqual("passed", readiness["facingThreePoseGate"])
+        self.assertEqual("passed", readiness["restartRelogSurvival"])
+        self.assertEqual("passed", readiness["turnForwardLiveProgress"])
+        self.assertIn("promotion-readiness review packet", summary["next"]["recommendedAction"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+        self.assertFalse(summary["safety"]["facingPromotion"])
 
     def test_promoted_coordinate_uses_latest_readback_coordinate_over_tracked_truth_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

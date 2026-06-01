@@ -102,6 +102,55 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertFalse(plan["safety"]["trackedTruthWritten"])
         self.assertFalse(plan["safety"]["proofPromotion"])
 
+    def test_latest_current_truth_refresh_apply_reads_apply_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_json(
+                root / ".riftreader-local" / "current-truth-refresh-apply" / "latest" / "summary.json",
+                {
+                    "schemaVersion": 1,
+                    "kind": "riftreader-current-truth-refresh-apply",
+                    "generatedAtUtc": "2026-06-01T06:01:06Z",
+                    "status": "passed",
+                    "verdict": "current-truth-refresh-applied",
+                    "applyRequested": True,
+                    "target": {"processId": 41808, "targetWindowHandle": "0x2B0A26"},
+                    "plan": {"status": "passed", "updateCount": 34},
+                    "hashes": {"trackedAfterSha256": "abc"},
+                    "artifacts": {
+                        "summaryJson": ".riftreader-local/current-truth-refresh-apply/latest/summary.json",
+                        "summaryMarkdown": ".riftreader-local/current-truth-refresh-apply/latest/summary.md",
+                        "backupCurrentTruthJson": ".riftreader-local/current-truth-refresh-apply/latest/current-truth-before-apply.json",
+                    },
+                    "blockers": [],
+                    "warnings": ["no-facing-promotion-performed-by-apply-helper"],
+                    "errors": [],
+                    "safety": {
+                        "dryRunOnly": False,
+                        "applyFlagSent": True,
+                        "trackedTruthWritten": True,
+                        "movementSent": False,
+                        "inputSent": False,
+                        "targetMemoryBytesRead": False,
+                        "targetMemoryBytesWritten": False,
+                        "proofPromotion": False,
+                        "actorChainPromotion": False,
+                        "facingPromotion": False,
+                        "gitMutation": False,
+                    },
+                    "next": {"recommendedAction": "Refresh status."},
+                },
+            )
+
+            summary = status_packet.latest_current_truth_refresh_apply(root)
+
+        self.assertEqual("passed", summary["status"])
+        self.assertTrue(summary["applyRequested"])
+        self.assertEqual(34, summary["plan"]["updateCount"])
+        self.assertTrue(summary["safety"]["trackedTruthWritten"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+        self.assertIn("current-truth-before-apply.json", summary["backupCurrentTruthJson"])
+
     def test_latest_navigation_pointer_discovery_reads_dashboard_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -158,9 +207,46 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                             "matchesPromotedCoordinateAddress": True,
                         },
                     },
+                    "proofGates": {
+                        "facingThreePoseGate": {
+                            "status": "passed",
+                            "verdict": "formal-three-pose-route-progress-gate-passed",
+                            "candidateOnly": True,
+                            "promotionAllowed": False,
+                            "formalThreePoseGatePassed": True,
+                            "poseCount": 3,
+                            "passedPoseCount": 3,
+                            "minimumProgressDistance": 1.25,
+                        },
+                        "facingRestartSurvival": {
+                            "status": "passed",
+                            "verdict": "candidate-facing-target-restart-relog-survival-passed",
+                            "candidateOnly": True,
+                            "promotionAllowed": False,
+                            "restartRelogSurvived": True,
+                            "offsetsStable": True,
+                            "processStartChanged": True,
+                            "facingTargetOffset": "0x30C",
+                        },
+                        "turnForwardExperiment": {
+                            "status": "passed",
+                            "verdict": "turn-forward-live-progress-validated",
+                            "candidateOnly": True,
+                            "promotionAllowed": False,
+                            "routeStatus": "progress",
+                            "totalProgressDistance": 1.5,
+                            "movementApproved": True,
+                            "turnApproved": True,
+                            "sourceMovementSent": True,
+                            "sourceInputSent": True,
+                        },
+                    },
                     "promotionReadiness": {
                         "coordinateResolver": "promoted",
-                        "facingTarget": "candidate-only-requires-proof",
+                        "facingTarget": "candidate-only-gates-packaged-requires-review",
+                        "facingThreePoseGate": "passed",
+                        "restartRelogSurvival": "passed",
+                        "turnForwardLiveProgress": "passed",
                         "proofPromotionPerformed": False,
                     },
                     "next": {
@@ -195,6 +281,9 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertEqual(14.25, summary["candidateFacingTarget"]["comparisonMaxAbsYawDeltaDegrees"])
         self.assertEqual("0x304", summary["candidateTurnRate"]["offset"])
         self.assertEqual(0.01, summary["coordinateDeltaCandidate"]["trackingErrorMaxAbs"])
+        self.assertTrue(summary["proofGates"]["facingThreePoseGate"]["formalThreePoseGatePassed"])
+        self.assertTrue(summary["proofGates"]["facingRestartSurvival"]["restartRelogSurvived"])
+        self.assertEqual(1.5, summary["proofGates"]["turnForwardExperiment"]["totalProgressDistance"])
         self.assertFalse(summary["safety"]["movementSent"])
         self.assertFalse(summary["safety"]["inputSent"])
         self.assertFalse(summary["safety"]["proofPromotion"])
@@ -265,6 +354,11 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                     "comparisonMaxAbsYawDeltaDegrees": 12.0,
                 },
                 "candidateTurnRate": {"status": "candidate-only", "offset": "0x304"},
+                "promotionReadiness": {
+                    "facingThreePoseGate": "passed",
+                    "restartRelogSurvival": "passed",
+                    "turnForwardLiveProgress": "passed",
+                },
                 "nextRecommendedAction": "Run facing proof.",
             },
             "currentTruthRefreshPlan": {
@@ -275,6 +369,15 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
                 "requiresExplicitApprovalForApply": True,
                 "nextRecommendedAction": "Review ignored artifacts.",
             },
+            "currentTruthRefreshApply": {
+                "status": "passed",
+                "verdict": "current-truth-refresh-applied",
+                "summaryJson": ".riftreader-local/current-truth-refresh-apply/latest/summary.json",
+                "backupCurrentTruthJson": ".riftreader-local/current-truth-refresh-apply/latest/current-truth-before-apply.json",
+                "applyRequested": True,
+                "safety": {"trackedTruthWritten": True, "proofPromotion": False},
+                "nextRecommendedAction": "Refresh status.",
+            },
             "safety": {"movementSent": False, "gitMutation": False},
             "nextRecommendedAction": "none",
             "artifacts": {},
@@ -284,9 +387,12 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
 
         self.assertIn("## Navigation pointer discovery", markdown)
         self.assertIn("## Current truth refresh plan", markdown)
+        self.assertIn("## Current truth refresh apply", markdown)
         self.assertIn("0x30C", markdown)
+        self.assertIn("three-pose", markdown)
         self.assertIn("Run facing proof.", markdown)
         self.assertIn("proposed-current-truth.diff", markdown)
+        self.assertIn("current-truth-refresh-applied", markdown)
 
     def test_latest_static_owner_readback_reports_capture_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -435,6 +541,9 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             write_text(root / "scripts" / "static-owner-nav-report-route-run.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-navigation-pointer-discovery.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-current-truth-refresh-plan.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-current-truth-refresh-apply.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-facing-target-three-pose-gate.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-facing-target-restart-survival-packet.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -474,6 +583,12 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("read-only artifact index", commands["navigation-pointer-discovery"]["safety"])
         self.assertTrue(commands["current-truth-refresh-plan"]["exists"])
         self.assertIn("ignored dry-run plan only", commands["current-truth-refresh-plan"]["safety"])
+        self.assertTrue(commands["current-truth-refresh-apply"]["exists"])
+        self.assertIn("dry-run validation by default", commands["current-truth-refresh-apply"]["safety"])
+        self.assertTrue(commands["facing-target-three-pose-gate"]["exists"])
+        self.assertIn("report-only package", commands["facing-target-three-pose-gate"]["safety"])
+        self.assertTrue(commands["facing-target-restart-survival-packet"]["exists"])
+        self.assertIn("report-only pre/post", commands["facing-target-restart-survival-packet"]["safety"])
 
 
 if __name__ == "__main__":

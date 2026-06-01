@@ -60,6 +60,9 @@ DEFAULT_NAVIGATION_POINTER_DISCOVERY_SUMMARY = (
 DEFAULT_CURRENT_TRUTH_REFRESH_PLAN_SUMMARY = (
     Path(".riftreader-local") / "current-truth-refresh-plan" / "latest" / "summary.json"
 )
+DEFAULT_CURRENT_TRUTH_REFRESH_APPLY_SUMMARY = (
+    Path(".riftreader-local") / "current-truth-refresh-apply" / "latest" / "summary.json"
+)
 DEFAULT_LAUNCHER_INSPECTION_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_STATIC_OWNER_READBACK_MAX_AGE_SECONDS = 30 * 60
 DEFAULT_PROOF_ANCHOR_MAX_AGE_SECONDS = 60
@@ -132,6 +135,24 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "Current truth refresh dry-run plan",
         "scripts\\riftreader-current-truth-refresh-plan.cmd --json --write",
         "ignored dry-run plan only; no tracked truth write/input/movement/debugger/provider writes or promotion",
+    ),
+    (
+        "current-truth-refresh-apply",
+        "Current truth refresh apply gate",
+        "scripts\\riftreader-current-truth-refresh-apply.cmd --json",
+        "dry-run validation by default; --apply writes tracked current-truth and remains a deliberate truth-refresh gate",
+    ),
+    (
+        "facing-target-three-pose-gate",
+        "Facing-target three-pose gate",
+        "scripts\\riftreader-facing-target-three-pose-gate.cmd --json",
+        "report-only package of existing route-step summaries; no new input/movement/debugger/provider writes or promotion",
+    ),
+    (
+        "facing-target-restart-survival-packet",
+        "Facing-target restart survival packet",
+        "scripts\\riftreader-facing-target-restart-survival-packet.cmd --json",
+        "report-only pre/post nav-state comparison; no restart, input/movement/debugger/provider writes, or promotion",
     ),
     (
         "actor-chain-no-debug-status",
@@ -744,6 +765,7 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
         "candidateFacingTarget": {},
         "candidateTurnRate": {},
         "coordinateDeltaCandidate": {},
+        "proofGates": {},
         "promotionReadiness": {},
         "nextRecommendedAction": None,
         "recommendedActions": [],
@@ -792,6 +814,20 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
         else {}
     )
     freshness = payload.get("freshness") if isinstance(payload.get("freshness"), dict) else {}
+    proof_gates = payload.get("proofGates") if isinstance(payload.get("proofGates"), dict) else {}
+    three_pose_gate = (
+        proof_gates.get("facingThreePoseGate") if isinstance(proof_gates.get("facingThreePoseGate"), dict) else {}
+    )
+    restart_survival = (
+        proof_gates.get("facingRestartSurvival")
+        if isinstance(proof_gates.get("facingRestartSurvival"), dict)
+        else {}
+    )
+    turn_forward = (
+        proof_gates.get("turnForwardExperiment")
+        if isinstance(proof_gates.get("turnForwardExperiment"), dict)
+        else {}
+    )
     target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
     next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
     promotion_readiness = (
@@ -870,6 +906,51 @@ def latest_navigation_pointer_discovery(repo_root: Path) -> dict[str, Any]:
                 "familySummaryJson",
             ],
         ),
+        "proofGates": {
+            "facingThreePoseGate": _summarize_navigation_candidate(
+                three_pose_gate,
+                [
+                    "status",
+                    "verdict",
+                    "candidateOnly",
+                    "promotionAllowed",
+                    "formalThreePoseGatePassed",
+                    "poseCount",
+                    "passedPoseCount",
+                    "minimumProgressDistance",
+                    "aggregateProgressDistance",
+                    "candidateFacingTargetOffset",
+                ],
+            ),
+            "facingRestartSurvival": _summarize_navigation_candidate(
+                restart_survival,
+                [
+                    "status",
+                    "verdict",
+                    "candidateOnly",
+                    "promotionAllowed",
+                    "restartRelogSurvived",
+                    "offsetsStable",
+                    "processStartChanged",
+                    "facingTargetOffset",
+                ],
+            ),
+            "turnForwardExperiment": _summarize_navigation_candidate(
+                turn_forward,
+                [
+                    "status",
+                    "verdict",
+                    "candidateOnly",
+                    "promotionAllowed",
+                    "routeStatus",
+                    "totalProgressDistance",
+                    "movementApproved",
+                    "turnApproved",
+                    "sourceMovementSent",
+                    "sourceInputSent",
+                ],
+            ),
+        },
         "promotionReadiness": promotion_readiness,
         "nextRecommendedAction": next_section.get("recommendedAction"),
         "recommendedActions": recommended_actions,
@@ -962,6 +1043,94 @@ def latest_current_truth_refresh_plan(repo_root: Path) -> dict[str, Any]:
         "safety": {
             **base["safety"],
             "dryRunOnly": bool(safety.get("dryRunOnly", True)),
+            "trackedTruthWritten": bool(safety.get("trackedTruthWritten")),
+            "movementSent": bool(safety.get("movementSent")),
+            "inputSent": bool(safety.get("inputSent")),
+            "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
+            "targetMemoryBytesWritten": bool(safety.get("targetMemoryBytesWritten")),
+            "proofPromotion": bool(safety.get("proofPromotion")),
+            "actorChainPromotion": bool(safety.get("actorChainPromotion")),
+            "facingPromotion": bool(safety.get("facingPromotion")),
+            "gitMutation": bool(safety.get("gitMutation")),
+        },
+    }
+
+
+def latest_current_truth_refresh_apply(repo_root: Path) -> dict[str, Any]:
+    """Return the latest ignored current-truth refresh apply-gate summary."""
+
+    summary_path = repo_root / DEFAULT_CURRENT_TRUTH_REFRESH_APPLY_SUMMARY
+    base = {
+        "status": "missing",
+        "verdict": None,
+        "observedAtUtc": None,
+        "summaryJson": as_repo_path(repo_root, summary_path),
+        "summaryMarkdown": as_repo_path(repo_root, summary_path.with_suffix(".md")),
+        "backupCurrentTruthJson": as_repo_path(repo_root, summary_path.parent / "current-truth-before-apply.json"),
+        "applyRequested": None,
+        "target": {},
+        "plan": {},
+        "hashes": {},
+        "nextRecommendedAction": None,
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "safety": {
+            "dryRunOnly": True,
+            "applyFlagSent": False,
+            "trackedTruthWritten": False,
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "facingPromotion": False,
+            "gitMutation": False,
+        },
+    }
+    if not summary_path.is_file():
+        return base
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:  # noqa: BLE001 - malformed ignored artifacts must not fail status.
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = [
+            f"current-truth-refresh-apply-summary-parse-error:{type(exc).__name__}:{preview_text(str(exc))}"
+        ]
+        blocked["blockers"] = ["current-truth-refresh-apply-summary-unusable"]
+        return blocked
+    if not isinstance(payload, dict):
+        blocked = dict(base)
+        blocked["status"] = "parse-error"
+        blocked["warnings"] = ["current-truth-refresh-apply-summary-not-json-object"]
+        blocked["blockers"] = ["current-truth-refresh-apply-summary-unusable"]
+        return blocked
+
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    next_section = payload.get("next") if isinstance(payload.get("next"), dict) else {}
+    return {
+        **base,
+        "status": payload.get("status") or "unknown",
+        "verdict": payload.get("verdict"),
+        "observedAtUtc": payload.get("generatedAtUtc"),
+        "summaryJson": artifacts.get("summaryJson") or base["summaryJson"],
+        "summaryMarkdown": artifacts.get("summaryMarkdown") or base["summaryMarkdown"],
+        "backupCurrentTruthJson": artifacts.get("backupCurrentTruthJson") or base["backupCurrentTruthJson"],
+        "applyRequested": bool(payload.get("applyRequested")),
+        "target": payload.get("target") if isinstance(payload.get("target"), dict) else {},
+        "plan": payload.get("plan") if isinstance(payload.get("plan"), dict) else {},
+        "hashes": payload.get("hashes") if isinstance(payload.get("hashes"), dict) else {},
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "blockers": _list_or_empty(payload.get("blockers")),
+        "warnings": _list_or_empty(payload.get("warnings")),
+        "errors": _list_or_empty(payload.get("errors")),
+        "safety": {
+            **base["safety"],
+            "dryRunOnly": bool(safety.get("dryRunOnly", True)),
+            "applyFlagSent": bool(safety.get("applyFlagSent")),
             "trackedTruthWritten": bool(safety.get("trackedTruthWritten")),
             "movementSent": bool(safety.get("movementSent")),
             "inputSent": bool(safety.get("inputSent")),
@@ -1397,6 +1566,7 @@ def build_status_packet(
     static_owner_readback = latest_static_owner_readback(repo_root, errors, warnings, now=now)
     navigation_pointer_discovery = latest_navigation_pointer_discovery(repo_root)
     current_truth_refresh_plan = latest_current_truth_refresh_plan(repo_root)
+    current_truth_refresh_apply = latest_current_truth_refresh_apply(repo_root)
     blockers.extend(current_truth_summary.get("currentBlockers") or [])
 
     proof_status = current_proof_summary.get("status")
@@ -1525,6 +1695,18 @@ def build_status_packet(
             "Movement is proof-anchor freshness blocked. Continue no-input artifact/status diagnostics if useful, "
             "or request explicit same-target ProofOnly/proof-anchor refresh approval before any new movement."
         )
+    else:
+        navigation_readiness = (
+            navigation_pointer_discovery.get("promotionReadiness")
+            if isinstance(navigation_pointer_discovery.get("promotionReadiness"), dict)
+            else {}
+        )
+        navigation_next = navigation_pointer_discovery.get("nextRecommendedAction")
+        if (
+            navigation_next
+            and navigation_readiness.get("facingTarget") == "candidate-only-gates-packaged-requires-review"
+        ):
+            next_action = navigation_next
     if not next_action and blockers:
         next_action = "Resolve the listed blocker(s) before attempting live movement or proof promotion."
     if not next_action:
@@ -1558,6 +1740,7 @@ def build_status_packet(
         "staticOwnerReadback": static_owner_readback,
         "navigationPointerDiscovery": navigation_pointer_discovery,
         "currentTruthRefreshPlan": current_truth_refresh_plan,
+        "currentTruthRefreshApply": current_truth_refresh_apply,
         "coordinateRecoveryStatus": coordinate_status,
         "coordinateRecoveryStatusCommand": coordinate_envelope,
         "opencode": opencode,
@@ -1580,6 +1763,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
     supervisor = packet.get("characterLoginSupervisor") or {}
     navigation = packet.get("navigationPointerDiscovery") or {}
     truth_plan = packet.get("currentTruthRefreshPlan") or {}
+    truth_apply = packet.get("currentTruthRefreshApply") or {}
     stale_anchor = proof.get("staleAnchor") or {}
     proof_freshness = proof.get("proofFreshness") if isinstance(proof.get("proofFreshness"), dict) else {}
     handoff = packet.get("latestHandoff") or {}
@@ -1604,6 +1788,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Character login supervisor: `{supervisor.get('status')}`; approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Navigation pointer discovery: `{navigation.get('status')}`; freshness `{navigation.get('freshnessStatus')}`",
         f"- Current truth refresh plan: `{truth_plan.get('status')}`; updates `{truth_plan.get('updateCount')}`; apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
+        f"- Current truth refresh apply: `{truth_apply.get('status')}`; tracked write `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         "",
         "## Stale proof boundary",
@@ -1650,6 +1835,20 @@ def render_markdown(packet: dict[str, Any]) -> str:
                 f"- Summary JSON: `{truth_plan.get('summaryJson')}`",
                 f"- Proposed diff: `{truth_plan.get('proposedCurrentTruthDiff')}`",
                 f"- Next: {truth_plan.get('nextRecommendedAction')}",
+            ]
+        )
+    if truth_apply:
+        lines.extend(
+            [
+                "",
+                "## Current truth refresh apply",
+                "",
+                f"- Status: `{truth_apply.get('status')}` / `{truth_apply.get('verdict')}`",
+                f"- Apply requested: `{truth_apply.get('applyRequested')}`",
+                f"- Tracked truth written: `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
+                f"- Summary JSON: `{truth_apply.get('summaryJson')}`",
+                f"- Backup JSON: `{truth_apply.get('backupCurrentTruthJson')}`",
+                f"- Next: {truth_apply.get('nextRecommendedAction')}",
             ]
         )
     lines.extend(["", "## Errors", ""])
@@ -1704,6 +1903,9 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     )
     current_truth_refresh_plan = (
         packet.get("currentTruthRefreshPlan") if isinstance(packet.get("currentTruthRefreshPlan"), dict) else {}
+    )
+    current_truth_refresh_apply = (
+        packet.get("currentTruthRefreshApply") if isinstance(packet.get("currentTruthRefreshApply"), dict) else {}
     )
     handoff = packet.get("latestHandoff") if isinstance(packet.get("latestHandoff"), dict) else {}
     repo_root_raw = packet.get("repoRoot")
@@ -1809,6 +2011,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "candidateFacingTarget": navigation_pointer.get("candidateFacingTarget") or {},
             "candidateTurnRate": navigation_pointer.get("candidateTurnRate") or {},
             "coordinateDeltaCandidate": navigation_pointer.get("coordinateDeltaCandidate") or {},
+            "proofGates": navigation_pointer.get("proofGates") or {},
             "promotionReadiness": navigation_pointer.get("promotionReadiness") or {},
             "nextRecommendedAction": navigation_pointer.get("nextRecommendedAction"),
             "recommendedActions": navigation_pointer.get("recommendedActions") or [],
@@ -1833,6 +2036,23 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
             "errors": current_truth_refresh_plan.get("errors") or [],
             "safety": current_truth_refresh_plan.get("safety") or {},
         },
+        "currentTruthRefreshApply": {
+            "status": current_truth_refresh_apply.get("status") or "not-collected",
+            "verdict": current_truth_refresh_apply.get("verdict"),
+            "observedAtUtc": current_truth_refresh_apply.get("observedAtUtc"),
+            "summaryJson": current_truth_refresh_apply.get("summaryJson"),
+            "summaryMarkdown": current_truth_refresh_apply.get("summaryMarkdown"),
+            "backupCurrentTruthJson": current_truth_refresh_apply.get("backupCurrentTruthJson"),
+            "applyRequested": current_truth_refresh_apply.get("applyRequested"),
+            "target": current_truth_refresh_apply.get("target") or {},
+            "plan": current_truth_refresh_apply.get("plan") or {},
+            "hashes": current_truth_refresh_apply.get("hashes") or {},
+            "nextRecommendedAction": current_truth_refresh_apply.get("nextRecommendedAction"),
+            "blockers": current_truth_refresh_apply.get("blockers") or [],
+            "warnings": current_truth_refresh_apply.get("warnings") or [],
+            "errors": current_truth_refresh_apply.get("errors") or [],
+            "safety": current_truth_refresh_apply.get("safety") or {},
+        },
         "bridgeCommands": bridge_commands,
         "blockers": packet.get("blockers") or [],
         "warnings": packet.get("warnings") or [],
@@ -1855,6 +2075,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
     supervisor = summary.get("characterLoginSupervisor") or {}
     navigation = summary.get("navigationPointerDiscovery") or {}
     truth_plan = summary.get("currentTruthRefreshPlan") or {}
+    truth_apply = summary.get("currentTruthRefreshApply") or {}
     bridge_commands = summary.get("bridgeCommands") or []
     lines = [
         "# RiftReader Local Compact SITREP",
@@ -1871,6 +2092,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Character login supervisor: `{supervisor.get('status')}` target `{supervisor.get('targetCharacter')}` approval required `{supervisor.get('approvalTokenRequired')}`",
         f"- Navigation pointer discovery: `{navigation.get('status')}` freshness `{navigation.get('freshnessStatus')}` stale `{navigation.get('staleSources')}`",
         f"- Current truth refresh plan: `{truth_plan.get('status')}` updates `{truth_plan.get('updateCount')}` apply approval required `{truth_plan.get('requiresExplicitApprovalForApply')}`",
+        f"- Current truth refresh apply: `{truth_apply.get('status')}` tracked write `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
         f"- Workflow mode: local ChatGPT/helpers; external-agent checks `{opencode.get('checked')}`",
         f"- Next: {summary.get('nextRecommendedAction')}",
         "",
@@ -1886,6 +2108,7 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Promoted coordinate: `{(navigation.get('promotedCoordinate') or {}).get('status')}` chain `{(navigation.get('promotedCoordinate') or {}).get('chain')}`",
         f"- Candidate facing target: `{(navigation.get('candidateFacingTarget') or {}).get('status')}` offset `{(navigation.get('candidateFacingTarget') or {}).get('offset')}` max yaw `{(navigation.get('candidateFacingTarget') or {}).get('comparisonMaxAbsYawDeltaDegrees')}`",
         f"- Candidate turn rate: `{(navigation.get('candidateTurnRate') or {}).get('status')}` offset `{(navigation.get('candidateTurnRate') or {}).get('offset')}`",
+        f"- Proof gates: `{(navigation.get('promotionReadiness') or {}).get('facingThreePoseGate')}` three-pose, `{(navigation.get('promotionReadiness') or {}).get('restartRelogSurvival')}` restart, `{(navigation.get('promotionReadiness') or {}).get('turnForwardLiveProgress')}` turn-forward",
         f"- Next: {navigation.get('nextRecommendedAction')}",
         "",
         "## Current truth refresh plan",
@@ -1895,6 +2118,15 @@ def render_compact_markdown(packet: dict[str, Any]) -> str:
         f"- Update count: `{truth_plan.get('updateCount')}`",
         f"- Apply approval required: `{truth_plan.get('requiresExplicitApprovalForApply')}`",
         f"- Next: {truth_plan.get('nextRecommendedAction')}",
+        "",
+        "## Current truth refresh apply",
+        "",
+        f"- Summary JSON: `{truth_apply.get('summaryJson')}`",
+        f"- Status: `{truth_apply.get('status')}` / `{truth_apply.get('verdict')}`",
+        f"- Apply requested: `{truth_apply.get('applyRequested')}`",
+        f"- Tracked truth written: `{(truth_apply.get('safety') or {}).get('trackedTruthWritten')}`",
+        f"- Backup JSON: `{truth_apply.get('backupCurrentTruthJson')}`",
+        f"- Next: {truth_apply.get('nextRecommendedAction')}",
         "",
         "## Bridge commands",
         "",
