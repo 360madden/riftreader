@@ -1443,6 +1443,8 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     turn_rate = safe_mapping(candidates.get("candidateTurnRate"))
     coordinate_delta = safe_mapping(candidates.get("coordinateDeltaCandidate"))
     camera_yaw = safe_mapping(candidates.get("cameraYawClassification"))
+    proof_gates = safe_mapping(discovery_data.get("proofGates"))
+    ghidra_static = safe_mapping(proof_gates.get("ghidraStaticEvidence"))
     freshness = safe_mapping(discovery_data.get("freshness"))
     return {
         "status": discovery_data.get("status"),
@@ -1461,6 +1463,13 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
         "cameraYawStatus": camera_yaw.get("status"),
         "cameraYawClassification": camera_yaw.get("classification"),
         "cameraYawActionableForRouteControl": camera_yaw.get("actionableForRouteControl"),
+        "ghidraStaticEvidenceStatus": ghidra_static.get("status"),
+        "ghidraStaticEvidenceGeneratedAtUtc": ghidra_static.get("generatedAtUtc"),
+        "ghidraStaticRootAddress": ghidra_static.get("rootAddress"),
+        "ghidraStaticRootReferenceCountCaptured": ghidra_static.get("rootReferenceCountCaptured"),
+        "ghidraStaticInstructionsScanned": ghidra_static.get("instructionsScanned"),
+        "ghidraStaticAnalysisTimedOutProjectSaved": ghidra_static.get("analysisTimedOutProjectSaved"),
+        "ghidraStaticOfflineOnly": ghidra_static.get("offlineOnly"),
         "nextRecommendedAction": safe_mapping(discovery_data.get("next")).get("recommendedAction"),
     }
 
@@ -1683,6 +1692,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
         turn_rate = safe_mapping(discovery_candidates.get("candidateTurnRate"))
         coordinate_delta = safe_mapping(discovery_candidates.get("coordinateDeltaCandidate"))
         camera_yaw = safe_mapping(discovery_candidates.get("cameraYawClassification"))
+        ghidra_static = safe_mapping(safe_mapping(nav_discovery.get("proofGates")).get("ghidraStaticEvidence"))
         lines.extend(
             [
                 "",
@@ -1695,6 +1705,7 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Turn rate: `{turn_rate.get('status')}` at `{turn_rate.get('offset')}`",
                 f"- Coordinate delta: `{coordinate_delta.get('status')}`; tracking max abs `{coordinate_delta.get('trackingErrorMaxAbs')}`",
                 f"- Camera/yaw classification: `{camera_yaw.get('classification')}`; route-actionable `{camera_yaw.get('actionableForRouteControl')}`",
+                f"- Ghidra static evidence: `{ghidra_static.get('status')}`; root refs `{ghidra_static.get('rootReferenceCountCaptured')}`; instructions scanned `{ghidra_static.get('instructionsScanned')}`; offline-only `{ghidra_static.get('offlineOnly')}`",
                 f"- Next: {safe_mapping(nav_discovery.get('next')).get('recommendedAction')}",
             ]
         )

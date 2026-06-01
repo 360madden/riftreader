@@ -1396,6 +1396,17 @@ class DecisionPacketTests(unittest.TestCase):
                         "trackingErrorMaxAbs": 0.006,
                     },
                 },
+                "proofGates": {
+                    "ghidraStaticEvidence": {
+                        "status": "passed",
+                        "generatedAtUtc": "2026-06-01T07:21:17Z",
+                        "rootAddress": "1432ebc80",
+                        "rootReferenceCountCaptured": 200,
+                        "instructionsScanned": 8057130,
+                        "analysisTimedOutProjectSaved": True,
+                        "offlineOnly": True,
+                    },
+                },
                 "next": {"recommendedAction": "fixture"},
             },
             "retiredSurfaces": {
@@ -1442,6 +1453,15 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(compact["agentPlan"][0]["name"], "docs")
         self.assertEqual(compact["retiredSurfaces"]["paths"], ["tools/riftreader_workflow/opencode_bridge.py"])
         self.assertEqual(compact["performance"]["buildMode"], "fresh")
+        compact_nav = compact["navigationPointerDiscovery"]
+        self.assertEqual("passed", compact_nav["ghidraStaticEvidenceStatus"])
+        self.assertEqual("1432ebc80", compact_nav["ghidraStaticRootAddress"])
+        self.assertEqual(200, compact_nav["ghidraStaticRootReferenceCountCaptured"])
+        self.assertTrue(compact_nav["ghidraStaticOfflineOnly"])
+
+        markdown = decision_packet.build_markdown(packet)
+        self.assertIn("Ghidra static evidence", markdown)
+        self.assertIn("root refs `200`", markdown)
 
     def test_markdown_renders_big_reminder_banner(self) -> None:
         packet = {
