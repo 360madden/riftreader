@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -37,6 +38,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "currentTruth": CURRENT_READBACK_MAX_AGE_SECONDS,
     "coordinateReadback": CURRENT_READBACK_MAX_AGE_SECONDS,
     "navState": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "apiReference": CURRENT_READBACK_MAX_AGE_SECONDS,
     "facingComparison": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "pointerNeighborhood": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
@@ -71,6 +73,26 @@ def parse_iso(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def iso_utc(value: Any) -> str | None:
+    parsed = parse_iso(value)
+    if parsed is None:
+        return str(value) if value else None
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
+def normalize_hwnd(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        number = int(text, 16) if text.lower().startswith("0x") else int(text, 10)
+    except ValueError:
+        return text
+    return f"0x{number:X}"
 
 
 def load_json_object(path: Path) -> dict[str, Any]:
@@ -207,6 +229,223 @@ def summarize_source(
         "blockers": safe_list(data.get("blockers")),
         "warnings": safe_list(data.get("warnings")),
     }
+
+
+def summarize_api_reference_source(
+    repo_root: Path,
+    path: Path | None,
+    data: dict[str, Any] | None,
+    *,
+    now: datetime,
+    max_age_seconds: int,
+) -> dict[str, Any]:
+    if not path or not data:
+        return {
+            "status": "missing",
+            "freshness": freshness_summary(None, now=now, max_age_seconds=max_age_seconds),
+        }
+    observed = api_reference_observed_at(data)
+    return {
+        "status": data.get("Status") or data.get("status") or safe_mapping(data.get("marker")).get("status"),
+        "kind": data.get("Mode") or data.get("mode"),
+        "verdict": data.get("Status") or data.get("status") or safe_mapping(data.get("marker")).get("status"),
+        "generatedAtUtc": iso_utc(observed),
+        "freshness": freshness_summary(observed, now=now, max_age_seconds=max_age_seconds),
+        "path": artifact_path(repo_root, path),
+        "blockers": safe_list(data.get("Blockers") or data.get("blockers")),
+        "warnings": safe_list(data.get("Warnings") or data.get("warnings")),
+    }
+
+
+def newest_api_reference_for_pid(repo_root: Path, pid: Any) -> tuple[Path | None, dict[str, Any] | None, list[str]]:
+    warnings: list[str] = []
+    if pid is None:
+        return None, None, ["api-reference-target-pid-missing"]
+    capture_root = repo_root / CAPTURE_ROOT
+    valid: list[tuple[datetime, Path, dict[str, Any]]] = []
+    for path in capture_root.glob(f"rift-api-reference-currentpid-{pid}-*.json"):
+        data, error = try_load_json_object(path)
+        if error or data is None:
+            warnings.append(f"artifact-parse-error:{repo_rel(repo_root, path)}:{preview_text(error)}")
+            continue
+        observed = (
+            data.get("GeneratedAtUtc")
+            or data.get("generatedAtUtc")
+            or data.get("captured_at_utc")
+            or data.get("capturedAtUtc")
+            or safe_mapping(data.get("Coordinate")).get("CapturedAtUtc")
+            or safe_mapping(data.get("coordinate")).get("capturedAtUtc")
+        )
+        generated = parse_iso(observed)
+        if generated is None:
+            generated = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            warnings.append(f"artifact-generatedAtUtc-missing:{repo_rel(repo_root, path)}")
+        valid.append((generated, path, data))
+    if not valid:
+        return None, None, warnings
+    _generated, path, data = max(valid, key=lambda item: (item[0], item[1].stat().st_mtime_ns))
+    return path, data, warnings
+
+
+def api_reference_coordinate(api_reference: dict[str, Any] | None) -> dict[str, float] | None:
+    coordinate = safe_mapping(safe_mapping(api_reference).get("Coordinate")) or safe_mapping(
+        safe_mapping(api_reference).get("coordinate")
+    )
+    try:
+        return {
+            "x": float(coordinate.get("X", coordinate.get("x"))),
+            "y": float(coordinate.get("Y", coordinate.get("y"))),
+            "z": float(coordinate.get("Z", coordinate.get("z"))),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def api_reference_observed_at(api_reference: dict[str, Any] | None) -> Any:
+    api = safe_mapping(api_reference)
+    coordinate = safe_mapping(api.get("Coordinate")) or safe_mapping(api.get("coordinate"))
+    return (
+        api.get("captured_at_utc")
+        or api.get("capturedAtUtc")
+        or coordinate.get("captured_at_utc")
+        or coordinate.get("CapturedAtUtc")
+        or coordinate.get("capturedAtUtc")
+        or api.get("GeneratedAtUtc")
+        or api.get("generatedAtUtc")
+    )
+
+
+def api_now_comparison(
+    *,
+    target_pid: Any,
+    promoted_coordinate: dict[str, Any],
+    api_reference: dict[str, Any] | None,
+    api_path: Path | None,
+    repo_root: Path,
+) -> tuple[str | None, dict[str, Any] | None, list[str]]:
+    warnings: list[str] = []
+    if not api_reference or not api_path:
+        return None, None, warnings
+    marker = safe_mapping(api_reference.get("marker"))
+    api_status = api_reference.get("Status") or api_reference.get("status") or marker.get("status")
+    api_pid = api_reference.get("ProcessId") or api_reference.get("processId")
+    api_coord = api_reference_coordinate(api_reference)
+    chain_coord = safe_mapping(promoted_coordinate.get("coordinate"))
+    if str(api_status).lower() not in {"captured", "pass"}:
+        return "api-now-reference-not-captured", None, warnings
+    if target_pid is not None and str(api_pid) != str(target_pid):
+        warnings.append(f"api-reference-target-mismatch:api={api_pid};target={target_pid}")
+        return "stale-api-now-target-mismatch", None, warnings
+    if api_coord is None:
+        return "api-now-reference-coordinate-missing", None, warnings
+    try:
+        chain_xyz = {
+            "x": float(chain_coord["x"]),
+            "y": float(chain_coord["y"]),
+            "z": float(chain_coord["z"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return "api-now-chain-coordinate-missing", None, warnings
+    deltas = {axis: chain_xyz[axis] - api_coord[axis] for axis in ("x", "y", "z")}
+    abs_deltas = {axis: abs(value) for axis, value in deltas.items()}
+    max_abs_delta = max(abs_deltas.values())
+    tolerance = float(
+        api_reference.get("ReferenceTolerance")
+        or api_reference.get("referenceTolerance")
+        or api_reference.get("tolerance")
+        or 0.25
+    )
+    within_tolerance = max_abs_delta <= tolerance
+    status = (
+        f"passed-current-pid-{target_pid}-api-now-vs-chain-now"
+        if within_tolerance
+        else f"blocked-current-pid-{target_pid}-api-now-vs-chain-now-delta"
+    )
+    comparison = {
+        "status": status,
+        "apiReferenceJson": artifact_path(repo_root, api_path),
+        "capturedAtUtc": iso_utc(api_reference_observed_at(api_reference)),
+        "apiCoordinate": api_coord,
+        "chainCoordinate": chain_xyz,
+        "deltasChainMinusApi": deltas,
+        "absDeltas": abs_deltas,
+        "maxAbsDelta": max_abs_delta,
+        "tolerance": tolerance,
+        "withinTolerance": within_tolerance,
+    }
+    return status, comparison, warnings
+
+
+def readback_target(data: dict[str, Any] | None, *, source: str) -> dict[str, Any] | None:
+    if safe_mapping(data).get("status") != "passed":
+        return None
+    raw = safe_mapping(safe_mapping(data).get("target"))
+    pid = raw.get("processId") or raw.get("pid")
+    hwnd = normalize_hwnd(raw.get("targetWindowHandle") or raw.get("hwnd"))
+    if pid is None or hwnd is None:
+        return None
+    process_name = raw.get("processName") or "rift_x64"
+    process_start = (
+        raw.get("expectedProcessStartUtc")
+        or raw.get("processStartUtc")
+        or raw.get("actualProcessStartUtc")
+    )
+    module_base = raw.get("moduleBase") or safe_mapping(raw.get("moduleBaseCheck")).get("liveModuleBase")
+    return {
+        "processName": process_name,
+        "processId": int(pid),
+        "targetWindowHandle": hwnd,
+        "processStartUtc": iso_utc(process_start),
+        "moduleBase": module_base,
+        "status": f"current-pid-{int(pid)}-static-chain-readback-passed",
+        "identitySource": source,
+    }
+
+
+def current_readback_target(
+    coordinate_readback: dict[str, Any] | None,
+    nav_state: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    coordinate_target = readback_target(coordinate_readback, source="latest-coordinate-readback")
+    nav_target = readback_target(nav_state, source="latest-nav-state-readback")
+    warnings: list[str] = []
+    if coordinate_target and nav_target:
+        mismatch_fields: list[str] = []
+        for field in ("processName", "processId", "targetWindowHandle", "processStartUtc", "moduleBase"):
+            if str(coordinate_target.get(field)) != str(nav_target.get(field)):
+                mismatch_fields.append(field)
+        if mismatch_fields:
+            warnings.append(
+                "readback-target-identity-mismatch:"
+                + ",".join(
+                    f"{field}:coordinate={coordinate_target.get(field)};nav={nav_target.get(field)}"
+                    for field in mismatch_fields
+                )
+            )
+            return None, warnings
+        merged = dict(coordinate_target)
+        merged["identitySource"] = "latest-coordinate-and-nav-state-readbacks"
+        return merged, warnings
+    return coordinate_target or nav_target, warnings
+
+
+def api_now_status_for_target(static_status: dict[str, Any], target: dict[str, Any]) -> tuple[str | None, str | None]:
+    current_api = safe_mapping(static_status.get("latestApiNowValidation"))
+    current_pid_validation = safe_mapping(current_api.get("currentPidValidation"))
+    status = (
+        current_pid_validation.get("status")
+        or current_api.get("currentApiNowStatus")
+        or current_api.get("status")
+    )
+    if not status:
+        return None, None
+    target_pid = target.get("processId")
+    match = re.search(r"current-pid-(\d+)", str(status))
+    if match and target_pid is not None and str(target_pid) != match.group(1):
+        return "stale-api-now-target-mismatch", (
+            f"api-now-validation-target-mismatch:api={match.group(1)};target={target_pid}"
+        )
+    return str(status), None
 
 
 def aggregate_source_freshness(sources: dict[str, Any]) -> dict[str, Any]:
@@ -603,11 +842,28 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
+    readback_identity, identity_warnings = current_readback_target(coord_data, nav_data)
+    warnings.extend(identity_warnings)
+    truth_target = safe_mapping(safe_mapping(current_truth).get("target"))
+    target = readback_identity or {
+        "processName": truth_target.get("processName"),
+        "processId": truth_target.get("processId") or truth_target.get("pid"),
+        "targetWindowHandle": normalize_hwnd(truth_target.get("targetWindowHandle") or truth_target.get("hwnd")),
+        "processStartUtc": iso_utc(truth_target.get("processStartUtc")),
+        "moduleBase": truth_target.get("moduleBase"),
+        "status": truth_target.get("status"),
+        "identitySource": "current-truth",
+    }
+    if identity_warnings:
+        blockers.append("readback-target-identity-mismatch")
+
     promoted_coordinate = promoted_coordinate_summary(repo_root, current_truth, coord_data, coord_path)
     facing_target = facing_target_summary(repo_root, nav_data, nav_path, facing_data, facing_path, pointer_data, pointer_path)
     turn_rate = turn_rate_summary(nav_data, facing_data)
     coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
     camera_yaw = camera_yaw_classification_summary(repo_root, camera_yaw_data, camera_yaw_path)
+    api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
+    warnings.extend(api_warnings)
 
     if not coord_data and not nav_data and not facing_data and not family_data:
         blockers.append("navigation-pointer-evidence-missing")
@@ -618,10 +874,25 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     if coordinate_delta is None:
         warnings.append("coordinate-delta-candidate-missing")
 
-    target = safe_mapping(safe_mapping(current_truth).get("target"))
     static_status = safe_mapping(safe_mapping(current_truth).get("staticChainStatus"))
-    current_api = safe_mapping(static_status.get("latestApiNowValidation"))
-    current_pid_validation = safe_mapping(current_api.get("currentPidValidation"))
+    api_reference_status, api_comparison, api_comparison_warnings = api_now_comparison(
+        target_pid=target.get("processId"),
+        promoted_coordinate=promoted_coordinate,
+        api_reference=api_data,
+        api_path=api_path,
+        repo_root=repo_root,
+    )
+    warnings.extend(api_comparison_warnings)
+    api_now_status, api_now_warning = (
+        (api_reference_status, None)
+        if api_reference_status
+        else api_now_status_for_target(static_status, target)
+    )
+    if api_now_warning:
+        warnings.append(api_now_warning)
+    promoted_coordinate["apiNowStatus"] = api_now_status
+    if api_comparison:
+        promoted_coordinate["apiNowComparison"] = api_comparison
     family_safety = safe_mapping(safe_mapping(family_data).get("safety"))
     camera_yaw_safety = safe_mapping(safe_mapping(camera_yaw_data).get("safety"))
     coord_safety = safe_mapping(safe_mapping(coord_data).get("safety"))
@@ -658,6 +929,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             nav_data,
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["navState"],
+        ),
+        "apiReference": summarize_api_reference_source(
+            repo_root,
+            api_path,
+            api_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["apiReference"],
         ),
         "facingComparison": summarize_source(
             repo_root,
@@ -706,6 +984,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "processStartUtc": target.get("processStartUtc"),
             "moduleBase": target.get("moduleBase"),
             "status": target.get("status"),
+            "identitySource": target.get("identitySource"),
         },
         "sources": sources,
         "freshness": freshness,
@@ -718,7 +997,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         },
         "promotionReadiness": {
             "coordinateResolver": static_status.get("status"),
-            "currentApiNowStatus": current_pid_validation.get("status") or current_api.get("currentApiNowStatus") or current_api.get("status"),
+            "currentApiNowStatus": api_now_status,
             "facingTarget": "candidate-only-requires-proof" if facing_target else "missing",
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
             "proofPromotionPerformed": False,

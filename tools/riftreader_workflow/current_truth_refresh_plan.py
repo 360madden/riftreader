@@ -105,6 +105,18 @@ def append_unique_note(notes: Any, note: str) -> list[str]:
     return result
 
 
+def unique_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value)
+        if text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
 def truth_artifact_path(repo_root: Path, value: Any) -> str | None:
     if not value:
         return None
@@ -148,13 +160,28 @@ def target_identity(current_truth: dict[str, Any], dashboard: dict[str, Any]) ->
     return as_mapping(current_truth.get("target")), as_mapping(dashboard.get("target"))
 
 
+def dashboard_target_is_fresh_readback(target: dict[str, Any]) -> bool:
+    identity_source = str(target.get("identitySource") or "")
+    return identity_source in {
+        "latest-coordinate-readback",
+        "latest-nav-state-readback",
+        "latest-coordinate-and-nav-state-readbacks",
+    }
+
+
 def validate_target_identity(current_truth: dict[str, Any], dashboard: dict[str, Any]) -> list[str]:
     blockers: list[str] = []
     truth_target, dashboard_target = target_identity(current_truth, dashboard)
+    allow_refresh = dashboard_target_is_fresh_readback(dashboard_target)
     for field in ("processName", "processId", "targetWindowHandle", "processStartUtc", "moduleBase"):
         truth_value = truth_target.get(field)
         dashboard_value = dashboard_target.get(field)
-        if truth_value is None or dashboard_value is None:
+        if dashboard_value is None:
+            blockers.append(f"target-identity-field-missing:{field}")
+            continue
+        if allow_refresh:
+            continue
+        if truth_value is None:
             blockers.append(f"target-identity-field-missing:{field}")
             continue
         if str(truth_value) != str(dashboard_value):
@@ -217,27 +244,87 @@ def build_proposed_current_truth(
     latest_facing_evidence = as_mapping(facing.get("evidence"))
     process_id = target.get("processId")
     hwnd = target.get("targetWindowHandle")
+    api_now_status = promoted.get("apiNowStatus")
+    api_now_current = bool(
+        isinstance(api_now_status, str)
+        and api_now_status.startswith("passed")
+        and f"current-pid-{process_id}" in api_now_status
+    )
+    api_now_comparison = as_mapping(promoted.get("apiNowComparison"))
+    api_reference_json = truth_artifact_path(repo_root, api_now_comparison.get("apiReferenceJson"))
+    latest_api_validation = None
+    if api_now_comparison:
+        latest_api_validation = {
+            "status": api_now_status,
+            "currentPidValidation": {
+                "status": api_now_status,
+                "processId": process_id,
+                "targetWindowHandle": hwnd,
+                "capturedAtUtc": api_now_comparison.get("capturedAtUtc"),
+                "apiReferenceJson": api_reference_json,
+                "chainReadbackJson": latest_readback_json,
+                "apiCoordinate": api_now_comparison.get("apiCoordinate"),
+                "chainCoordinate": api_now_comparison.get("chainCoordinate"),
+                "deltasChainMinusApi": api_now_comparison.get("deltasChainMinusApi"),
+                "absDeltas": api_now_comparison.get("absDeltas"),
+                "maxAbsDelta": api_now_comparison.get("maxAbsDelta"),
+                "tolerance": api_now_comparison.get("tolerance"),
+                "withinTolerance": api_now_comparison.get("withinTolerance"),
+            },
+            "currentApiNowStatus": api_now_status,
+            "apiReferenceJson": api_reference_json,
+            "chainReadbackJson": latest_readback_json,
+            "maxAbsDelta": api_now_comparison.get("maxAbsDelta"),
+            "tolerance": api_now_comparison.get("tolerance"),
+        }
     verification_source = (
         f"Dry-run refresh plan from navigation pointer discovery dashboard generated {dashboard.get('generatedAtUtc')}. "
         f"Latest no-input static-chain readback for exact PID {process_id} / HWND {hwnd} passed at "
-        f"{latest_readback_at}. API-now status is not refreshed by this planner; this planner performs no "
+        f"{latest_readback_at}. API-now status is "
+        f"{'current for this target' if api_now_current else 'not refreshed for this target by this planner'}; this planner performs no "
         "proof/facing/actor promotion."
     )
     readback_status = promoted.get("status") or "promoted-static-coordinate-resolver-readback-passed"
-    live_status = f"current-pid-{process_id}-static-readback-refreshed-api-now-not-refreshed-by-plan"
-    live_source = (
-        "Promoted static owner coordinate resolver latest no-input readback. "
-        "RRAPICOORD/API-now evidence remains the previous recorded validation unless separately refreshed."
+    live_status = (
+        f"current-pid-{process_id}-static-readback-and-api-now-current"
+        if api_now_current
+        else f"current-pid-{process_id}-static-readback-refreshed-api-now-not-refreshed-by-plan"
     )
+    live_source = "Promoted static owner coordinate resolver latest no-input readback."
+    if api_now_current:
+        live_source += " RRAPICOORD/API-now evidence is current for this target."
+    else:
+        live_source += " RRAPICOORD/API-now evidence remains stale or from a prior target unless separately refreshed."
     live_view = (
         f"Current target PID {process_id} / HWND {hwnd} has a proposed tracked-truth refresh from "
-        f"static-chain readback at {latest_readback_at}; no proof promotion or live input is performed."
+        f"static-chain readback at {latest_readback_at}; "
+        f"API-now status is {api_now_status or 'missing'}; no proof promotion or live input is performed."
     )
     coordinate_with_time = dict(coordinate)
     coordinate_with_time["recordedAtUtc"] = latest_readback_at
     note = (
         f"Dry-run current-truth refresh plan generated {generated_at_utc}; applying tracked truth remains a separate gate."
     )
+    current_warnings = [
+        str(item) for item in as_list(current_truth.get("currentWarnings"))
+    ]
+    refreshed_warnings: list[str] = []
+    historical_api_warning_prefixes: list[str] = []
+    for item in current_warnings:
+        if item.startswith("current-pid-") and "api-now-validation-refreshed-at" in item:
+            continue
+        stale_api_warning_marker = "-api-validation-must-not-be-presented-as-current-pid-"
+        if item.startswith("historical-pid-") and stale_api_warning_marker in item:
+            historical_api_warning_prefixes.append(item.split(stale_api_warning_marker, 1)[0])
+            continue
+        refreshed_warnings.append(item)
+    for prefix in unique_strings(historical_api_warning_prefixes):
+        refreshed_warnings.append(f"{prefix}-api-validation-must-not-be-presented-as-current-pid-{process_id}-api-now")
+    if api_now_current:
+        refreshed_warnings.append(
+            f"current-pid-{process_id}-api-now-validation-refreshed-at-{api_now_comparison.get('capturedAtUtc')}"
+        )
+    current_warnings = unique_strings(refreshed_warnings)
     latest_static_readback = {
         "status": promoted.get("latestReadbackStatus") or coordinate_source.get("status"),
         "processId": process_id,
@@ -252,13 +339,126 @@ def build_proposed_current_truth(
         "summaryJson": latest_readback_json,
         "summaryMarkdown": latest_readback_markdown,
     }
-    movement_gate_reason = (
-        f"The static coordinate resolver is promoted, current PID {process_id} exact-target readback passed at "
-        f"{latest_readback_at}, and current PID RRAPICOORD/API-now validation is recorded in tracked truth. "
-        "Live consumers must still verify PID/HWND/process-start/module-base and perform a fresh static-chain "
-        "readback before input."
+    turn_rate = as_mapping(candidates.get("candidateTurnRate"))
+    latest_nav_state_readback = {
+        "status": nav_state_source.get("status"),
+        "processId": process_id,
+        "targetWindowHandle": hwnd,
+        "processStartUtc": target.get("processStartUtc"),
+        "coordinate": coordinate,
+        "facingTargetCoordinate": facing.get("latestFacingTargetCoordinate"),
+        "yawDegrees": facing.get("latestYawDegrees"),
+        "pitchDegrees": facing.get("latestPitchDegrees"),
+        "turnRate0x304": turn_rate.get("latestValue"),
+        "turnRateClassification": turn_rate.get("classification"),
+        "recordedAtUtc": latest_nav_state_at,
+        "summaryJson": latest_nav_state_json,
+        "summaryMarkdown": sibling_markdown_artifact(latest_nav_state_json),
+    }
+    live_notes: list[str] = []
+    for item in as_list(get_path(current_truth, ("liveReferenceSurface", "notes"))):
+        text = str(item)
+        if text.startswith("Current target is PID "):
+            continue
+        if text.startswith("Current PID static-chain readback and RRAPICOORD API-now validation are fresh as of "):
+            continue
+        if text.startswith("Current PID static-chain readback is fresh as of "):
+            continue
+        if text.startswith("Dry-run current-truth refresh plan generated "):
+            continue
+        live_notes.append(text)
+    live_notes = append_unique_note(
+        live_notes,
+        f"Current target is PID {process_id} / HWND {hwnd} with process start {target.get('processStartUtc')}.",
     )
+    if api_now_current:
+        live_notes = append_unique_note(
+            live_notes,
+            "Current PID static-chain readback and RRAPICOORD API-now validation are fresh as of "
+            f"{latest_readback_at} / {api_now_comparison.get('capturedAtUtc')} for this tracked refresh.",
+        )
+    else:
+        live_notes = append_unique_note(
+            live_notes,
+            f"Current PID static-chain readback is fresh as of {latest_readback_at}; "
+            "RRAPICOORD/API-now validation is not current for this target.",
+        )
+    live_notes = append_unique_note(live_notes, note)
+    if api_now_current:
+        next_recommended_action = (
+            f"Use the promoted static player-coordinate resolver with exact PID/HWND/process-start/module-base "
+            f"preflights; current PID {process_id} API-now vs chain-now validation is current at "
+            f"{api_now_comparison.get('capturedAtUtc')}. Keep facing/turn-rate chains candidate-only until "
+            "restart/relog survival, static-root proof, and formal three-pose displacement gates pass."
+        )
+    else:
+        next_recommended_action = (
+            f"Use the promoted static player-coordinate resolver only after exact PID/HWND/process-start/module-base "
+            f"preflights, and capture current PID {process_id} API-now vs chain-now evidence before presenting "
+            "coordinates as current API truth or promoting additional proof. Keep actor/stat discovery separate "
+            "from the coordinate resolver."
+        )
+    best_reuse_policy = (
+        "Promoted as the static player-coordinate resolver. Reacquire the owner from rift_x64+0x32EBC80 "
+        f"each session; do not use a heap owner address as static; do not treat historical API-now evidence "
+        f"as current PID {process_id} API proof."
+    )
+    stale_or_invalid: list[Any] = []
+    stale_or_invalid_changed = False
+    for item in as_list(current_truth.get("staleOrInvalid")):
+        if not isinstance(item, dict):
+            stale_or_invalid.append(item)
+            continue
+        refreshed_item = dict(item)
+        if refreshed_item.get("status") == "historical-stale-superseded-by-promoted-static-player-coordinate-resolver":
+            refreshed_item["reason"] = (
+                "The promoted static resolver passed historical PID 34176 RRAPICOORD API-now vs chain-now "
+                f"displacement validation, but the current live target is PID {process_id} / HWND {hwnd}. "
+                "Old absolute proof-anchor addresses remain stale."
+            )
+            refreshed_item["reusePolicy"] = (
+                f"historical audit/discovery context only; never current movement/API proof for PID {process_id}"
+            )
+        if refreshed_item != item:
+            stale_or_invalid_changed = True
+        stale_or_invalid.append(refreshed_item)
+    movement_gate_status = (
+        "allowed-with-current-pid-exact-target-fresh-static-readback-and-api-now-validation"
+        if api_now_current
+        else "blocked-current-target-api-now-not-refreshed"
+    )
+    movement_gate_reason = (
+        f"The static coordinate resolver is promoted and current PID {process_id} exact-target readback passed at "
+        f"{latest_readback_at}. "
+    )
+    if api_now_current:
+        movement_gate_reason += (
+            "Current PID RRAPICOORD/API-now validation is current in tracked truth. Live consumers must still "
+            "verify PID/HWND/process-start/module-base and perform a fresh static-chain readback before input."
+        )
+    else:
+        movement_gate_reason += (
+            f"Current PID RRAPICOORD/API-now validation is not current for this target "
+            f"(status={api_now_status or 'missing'}), so movement remains blocked until API-now is refreshed."
+        )
 
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("status",),
+        value=live_status.replace("-", "_"),
+        reason="align top-level truth status with latest target/readback/API freshness",
+    )
+    for field in ("processName", "processId", "targetWindowHandle", "processStartUtc", "moduleBase", "status"):
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("target", field),
+            value=target.get(field),
+            reason="refresh current target identity from latest exact-target readback",
+        )
     add_update(
         current_truth=current_truth,
         proposed=proposed,
@@ -319,9 +519,89 @@ def build_proposed_current_truth(
         current_truth=current_truth,
         proposed=proposed,
         updates=updates,
+        path=("currentWarnings",),
+        value=current_warnings,
+        reason="refresh current-pid API-now warning marker",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("liveReferenceSurface", "apiNowStatus"),
+        value=api_now_status or "missing",
+        reason="record API-now freshness relative to refreshed target",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("liveReferenceSurface", "apiNowBlockers"),
+        value=[] if api_now_current else ["current-target-api-now-not-refreshed"],
+        reason="keep API-now blockers aligned with refreshed target",
+    )
+    if latest_api_validation:
+        latest_api_coordinate = {
+            "status": api_now_status,
+            "coordinate": api_now_comparison.get("apiCoordinate"),
+            "capturedAtUtc": api_now_comparison.get("capturedAtUtc"),
+            "referenceFile": api_reference_json,
+            "deltasChainMinusApi": api_now_comparison.get("deltasChainMinusApi"),
+            "absDeltas": api_now_comparison.get("absDeltas"),
+            "maxAbsDelta": api_now_comparison.get("maxAbsDelta"),
+            "tolerance": api_now_comparison.get("tolerance"),
+            "staticReadbackJson": latest_readback_json,
+            "note": (
+                "Current-target RRAPICOORD coordinate matched the latest static-chain readback within "
+                "tolerance; refresh again before later current-now claims."
+            ),
+        }
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("liveReferenceSurface", "latestApiCoordinate"),
+            value=latest_api_coordinate,
+            reason="record latest current-target RRAPICOORD coordinate",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("liveReferenceSurface", "latestApiNowVsChainNow"),
+            value=latest_api_validation,
+            reason="record latest current-target API-now vs static-chain comparison",
+        )
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staticChainStatus", "latestApiNowValidation"),
+            value=latest_api_validation,
+            reason="record latest current-target API-now vs static-chain comparison",
+        )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
         path=("liveReferenceSurface", "notes"),
-        value=append_unique_note(get_path(current_truth, ("liveReferenceSurface", "notes")), note),
+        value=live_notes,
         reason="preserve dry-run/apply boundary in tracked notes",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("liveReferenceSurface", "latestCurrentStaticReadback"),
+        value=latest_static_readback,
+        reason="mirror latest exact-target static readback payload",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("liveReferenceSurface", "latestCurrentNavStateReadback"),
+        value=latest_nav_state_readback,
+        reason="mirror latest exact-target nav-state readback payload",
     )
     add_update(
         current_truth=current_truth,
@@ -469,6 +749,48 @@ def build_proposed_current_truth(
         current_truth=current_truth,
         proposed=proposed,
         updates=updates,
+        path=("bestCurrentCandidate", "reusePolicy"),
+        value=best_reuse_policy,
+        reason="align promoted coordinate resolver reuse policy with refreshed target identity",
+    )
+    if api_reference_json:
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("bestCurrentCandidate", "latestCurrentApiNowVsChainNowArtifact"),
+            value=api_reference_json,
+            reason="latest current-target API-now reference artifact",
+        )
+    if stale_or_invalid_changed:
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("staleOrInvalid",),
+            value=stale_or_invalid,
+            reason="align stale-proof explanatory text with refreshed target identity",
+        )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("movementGate", "allowed"),
+        value=api_now_current,
+        reason="block movement when API-now is stale for the refreshed target",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("movementGate", "status"),
+        value=movement_gate_status,
+        reason="align movement gate status with current API-now freshness",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
         path=("movementGate", "reason"),
         value=movement_gate_reason,
         reason="align movement gate explanation with latest static readback",
@@ -481,6 +803,15 @@ def build_proposed_current_truth(
         value=latest_readback_json,
         reason="latest exact-target static-chain coordinate readback artifact",
     )
+    if api_reference_json:
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("movementGate", "latestCurrentApiNowValidationArtifact"),
+            value=api_reference_json,
+            reason="latest current-target API-now reference artifact",
+        )
     if facing:
         add_update(
             current_truth=current_truth,
@@ -555,6 +886,23 @@ def build_proposed_current_truth(
         path=("canonicalArtifacts", "latestCurrentPidNavStateReadback"),
         value=latest_nav_state_json,
         reason="latest exact-target nav-state readback artifact",
+    )
+    if api_reference_json:
+        add_update(
+            current_truth=current_truth,
+            proposed=proposed,
+            updates=updates,
+            path=("canonicalArtifacts", "latestCurrentPidRrapicoordApiReference"),
+            value=api_reference_json,
+            reason="latest current-target API-now reference artifact",
+        )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("nextRecommendedAction",),
+        value=next_recommended_action,
+        reason="align next action with refreshed target identity and API-now status",
     )
     return proposed, updates
 

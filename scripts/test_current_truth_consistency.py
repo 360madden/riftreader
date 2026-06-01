@@ -33,9 +33,9 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
         current_hwnd = str(target["targetWindowHandle"]).upper()
         current_start = str(target["processStartUtc"])
 
-        self.assertEqual(current_pid, 25668)
-        self.assertEqual(current_hwnd, "0X320CB0")
-        self.assertEqual(current_start, "2026-05-30T02:46:41.581536+00:00")
+        self.assertGreater(current_pid, 0)
+        self.assertRegex(current_hwnd, r"^0X[0-9A-F]+$")
+        self.assertTrue(current_start)
         self.assertNotIn("current_pid_34176", str(truth.get("status", "")))
         self.assertNotIn("PID 34176 / HWND 0x3D1544", str(live.get("view", "")))
 
@@ -106,7 +106,7 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
         self.assertIn(f"| Process start UTC | `{process_start}` |", markdown)
         self.assertIn(f"| Module base | `{module_base}` |", markdown)
         self.assertIn(f"Latest RRAPICOORD API coordinate for PID {pid}", markdown)
-        self.assertIn("Current PID 25668 API-now validation", markdown)
+        self.assertIn(f"current PID `{pid}` API-now", markdown)
 
         current_target_section = re.search(
             r"## Current target\n(?P<section>.*?)(?:\n## Promotion gate summary)",

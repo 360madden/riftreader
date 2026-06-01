@@ -66,6 +66,13 @@ def seed_navigation_artifacts(root: Path) -> None:
             "generatedAtUtc": "2026-05-31T14:23:12Z",
             "reads": {"ownerAddress": "0x1000", "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0}},
             "analysis": {"maxPlanarDelta": 0.0},
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "expectedProcessStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+            },
             "safety": {"targetMemoryBytesRead": True},
         },
     )
@@ -76,6 +83,13 @@ def seed_navigation_artifacts(root: Path) -> None:
             "status": "passed",
             "verdict": "position-and-facing-nav-state-readback-passed",
             "generatedAtUtc": "2026-05-31T14:23:13Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "expectedProcessStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+            },
             "latestState": {
                 "ownerAddress": "0x1000",
                 "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
@@ -230,6 +244,7 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertTrue(summary["sourceSafety"]["cameraYawClassificationInputSent"])
         self.assertEqual(summary["freshness"]["status"], "fresh")
         self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
+        self.assertEqual(summary["target"]["identitySource"], "latest-coordinate-and-nav-state-readbacks")
 
     def test_promoted_coordinate_uses_latest_readback_coordinate_over_tracked_truth_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -250,6 +265,26 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(promoted["ownerAddress"], "0x1000")
         self.assertEqual(promoted["coordinateAddress"], "0x1320")
         self.assertEqual(promoted["coordinate"], {"x": 1.0, "y": 2.0, "z": 3.0})
+
+    def test_target_identity_prefers_latest_readback_when_current_truth_pid_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            truth_path = root / "docs" / "recovery" / "current-truth.json"
+            truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            truth["target"]["processId"] = 11111
+            truth["target"]["targetWindowHandle"] = "0xBAD"
+            truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(25668, summary["target"]["processId"])
+        self.assertEqual("0x320CB0", summary["target"]["targetWindowHandle"])
+        self.assertEqual("latest-coordinate-and-nav-state-readbacks", summary["target"]["identitySource"])
 
     def test_freshness_classifies_stale_current_readbacks_without_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

@@ -52,7 +52,11 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
                 "recordedAtUtc": "2026-05-31T14:23:12Z",
             },
             "apiNowStatus": "passed-current-pid-25668-api-now-vs-chain-now",
-            "notes": ["existing note"],
+            "notes": [
+                "existing note",
+                "Current target is PID 11111 / HWND 0xOLD with process start 2026-05-30T00:00:00Z.",
+                "Dry-run current-truth refresh plan generated 2026-05-31T00:00:00Z; applying tracked truth remains a separate gate.",
+            ],
         },
         "staticChainStatus": {
             "status": "old-static-status",
@@ -72,20 +76,39 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
         "canonicalArtifacts": {
             "latestCurrentPidStaticOwnerReadback": "C:\\old\\coordinate-summary.json",
             "latestCurrentPidNavStateReadback": "C:\\old\\nav-state-summary.json",
+            "latestCurrentPidRrapicoordApiReference": "C:\\old\\api.json",
         },
+        "bestCurrentCandidate": {
+            "reusePolicy": "do not treat historical API-now evidence as current PID 11111 API proof",
+            "latestCurrentApiNowVsChainNowArtifact": "C:\\old\\delta-summary.json",
+        },
+        "staleOrInvalid": [
+            {
+                "item": "PID 12148 / HWND 0x640C0C proof pointer and route-smoke epoch",
+                "status": "historical-stale-superseded-by-promoted-static-player-coordinate-resolver",
+                "reason": "current live target is PID 11111 / HWND 0xOLD",
+                "reusePolicy": "never current movement/API proof for PID 11111",
+            }
+        ],
+        "currentWarnings": [
+            "historical-pid-34176-api-validation-must-not-be-presented-as-current-pid-11111-api-now",
+            "current-pid-11111-api-now-validation-refreshed-at-2026-05-31T00:00:00Z",
+        ],
+        "nextRecommendedAction": "capture current PID 11111 API-now vs chain-now evidence",
     }
     dashboard = {
         "schemaVersion": 1,
         "kind": "riftreader-navigation-pointer-discovery-status",
         "generatedAtUtc": "2026-05-31T15:19:44Z",
         "status": "passed",
-        "target": {
-            "processName": "rift_x64",
-            "processId": 25668,
-            "targetWindowHandle": "0x320CB0",
-            "processStartUtc": "2026-05-30T02:46:41Z",
-            "moduleBase": "0x7FF6EE5D0000",
-        },
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "processStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+                "identitySource": "current-truth",
+            },
         "sources": {
             "currentTruth": {"freshness": {"status": "stale"}, "status": "loaded"},
             "coordinateReadback": {
@@ -111,6 +134,19 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
                 "ownerAddress": "0x1B53D7806A0",
                 "coordinateAddress": "0x1B53D7809C0",
                 "coordinate": {"x": 7264.431640625, "y": 821.6972045898438, "z": 3003.875732421875},
+                "apiNowStatus": "passed-current-pid-25668-api-now-vs-chain-now",
+                "apiNowComparison": {
+                    "status": "passed-current-pid-25668-api-now-vs-chain-now",
+                    "capturedAtUtc": "2026-05-31T15:19:45Z",
+                    "apiReferenceJson": "scripts\\captures\\rift-api-reference-currentpid-25668-20260531-151945.json",
+                    "apiCoordinate": {"x": 7264.43, "y": 821.70, "z": 3003.88},
+                    "chainCoordinate": {"x": 7264.431640625, "y": 821.6972045898438, "z": 3003.875732421875},
+                    "deltasChainMinusApi": {"x": 0.001640625, "y": -0.0027954101562, "z": -0.004267578125},
+                    "absDeltas": {"x": 0.001640625, "y": 0.0027954101562, "z": 0.004267578125},
+                    "maxAbsDelta": 0.004267578125,
+                    "tolerance": 0.25,
+                    "withinTolerance": True,
+                },
                 "latestReadbackStatus": "passed",
                 "latestReadbackAtUtc": "2026-05-31T15:19:42Z",
                 "latestReadbackJson": "scripts\\captures\\static-owner-coordinate-chain-readback-20260531-151942\\summary.json",
@@ -180,6 +216,28 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
             "2026-05-31T15:19:42Z",
             proposed["liveReferenceSurface"]["currentCoordinateFromStaticChainCandidate"]["recordedAtUtc"],
         )
+        self.assertEqual(25668, proposed["liveReferenceSurface"]["latestCurrentStaticReadback"]["processId"])
+        self.assertEqual(25668, proposed["liveReferenceSurface"]["latestCurrentNavStateReadback"]["processId"])
+        self.assertTrue(
+            proposed["canonicalArtifacts"]["latestCurrentPidRrapicoordApiReference"].endswith(
+                "scripts\\captures\\rift-api-reference-currentpid-25668-20260531-151945.json"
+            )
+        )
+        self.assertNotIn("current PID 11111", proposed["nextRecommendedAction"])
+        self.assertIn("current PID 25668 API-now vs chain-now validation is current", proposed["nextRecommendedAction"])
+        self.assertNotIn("current-pid-11111", " ".join(proposed["currentWarnings"]))
+        self.assertIn(
+            "historical-pid-34176-api-validation-must-not-be-presented-as-current-pid-25668-api-now",
+            proposed["currentWarnings"],
+        )
+        self.assertIn("current PID 25668 API proof", proposed["bestCurrentCandidate"]["reusePolicy"])
+        self.assertTrue(
+            proposed["bestCurrentCandidate"]["latestCurrentApiNowVsChainNowArtifact"].endswith(
+                "scripts\\captures\\rift-api-reference-currentpid-25668-20260531-151945.json"
+            )
+        )
+        self.assertIn("PID 25668 / HWND 0x320CB0", proposed["staleOrInvalid"][0]["reason"])
+        self.assertIn("proof for PID 25668", proposed["staleOrInvalid"][0]["reusePolicy"])
         self.assertFalse(summary["safety"]["trackedTruthWritten"])
         self.assertFalse(summary["safety"]["movementSent"])
         self.assertFalse(summary["safety"]["proofPromotion"])
@@ -216,6 +274,40 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
         self.assertIn("target-identity-mismatch:processId:truth=25668;dashboard=99999", summary["blockers"])
         self.assertIsNone(summary["proposedCurrentTruth"])
         self.assertFalse(summary["safety"]["trackedTruthWritten"])
+
+    def test_target_mismatch_from_latest_readback_plans_identity_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _truth_path, dashboard_path = seed_current_truth_and_dashboard(root)
+            dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+            dashboard["target"].update(
+                {
+                    "processId": 41808,
+                    "targetWindowHandle": "0x2B0A26",
+                    "processStartUtc": "2026-06-01T01:50:50Z",
+                    "identitySource": "latest-coordinate-and-nav-state-readbacks",
+                    "status": "current-pid-41808-static-chain-readback-passed",
+                }
+            )
+            dashboard["candidates"]["promotedCoordinate"].update(
+                {
+                    "ownerAddress": "0x1E16E8706A0",
+                    "coordinateAddress": "0x1E16E8709C0",
+                    "apiNowStatus": "stale-api-now-target-mismatch",
+                }
+            )
+            write_json(dashboard_path, dashboard)
+
+            summary = planner.build_current_truth_refresh_plan(root)
+
+        self.assertEqual("passed", summary["status"])
+        proposed = summary["proposedCurrentTruth"]
+        self.assertEqual(41808, proposed["target"]["processId"])
+        self.assertEqual("0x2B0A26", proposed["target"]["targetWindowHandle"])
+        self.assertFalse(proposed["movementGate"]["allowed"])
+        self.assertEqual("blocked-current-target-api-now-not-refreshed", proposed["movementGate"]["status"])
+        self.assertIn("capture current PID 41808 API-now", proposed["nextRecommendedAction"])
+        self.assertNotIn("current PID 25668 API-now", proposed["nextRecommendedAction"])
 
     def test_stale_readback_source_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
