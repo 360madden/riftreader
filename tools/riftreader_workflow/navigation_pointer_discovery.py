@@ -47,6 +47,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "facingThreePoseGate": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingRestartSurvival": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "facingPromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
 }
 
 
@@ -929,6 +930,36 @@ def turn_forward_experiment_summary(
     }
 
 
+def facing_promotion_readiness_review_summary(
+    repo_root: Path,
+    review: dict[str, Any] | None,
+    review_path: Path | None,
+) -> dict[str, Any] | None:
+    if not review:
+        return None
+    decision = safe_mapping(review.get("promotionDecision"))
+    next_section = safe_mapping(review.get("next"))
+    artifacts = safe_mapping(review.get("artifacts"))
+    return {
+        "status": review.get("status"),
+        "verdict": review.get("verdict"),
+        "generatedAtUtc": review.get("generatedAtUtc"),
+        "summaryJson": artifacts.get("summaryJson") or artifact_path(repo_root, review_path),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "reviewPassed": bool(decision.get("reviewPassed")),
+        "promotionAllowed": bool(decision.get("promotionAllowed")),
+        "promotionPerformed": bool(decision.get("promotionPerformed")),
+        "explicitPromotionGateRequired": bool(decision.get("explicitPromotionGateRequired", True)),
+        "freshPrePromotionReadbackRequired": bool(decision.get("freshPrePromotionReadbackRequired", True)),
+        "recommendedPromotionState": decision.get("recommendedPromotionState"),
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "target": safe_mapping(review.get("target")),
+        "candidate": safe_mapping(review.get("candidate")),
+        "blockers": safe_list(review.get("blockers")),
+        "warnings": safe_list(review.get("warnings")),
+    }
+
+
 def build_next_action(
     freshness: dict[str, Any],
     facing_target: dict[str, Any] | None,
@@ -936,6 +967,7 @@ def build_next_action(
     three_pose_gate: dict[str, Any] | None = None,
     restart_survival: dict[str, Any] | None = None,
     turn_forward: dict[str, Any] | None = None,
+    promotion_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     stale_sources = set(str(item) for item in safe_list(freshness.get("staleSources")))
     recommended_actions: list[str] = []
@@ -951,11 +983,29 @@ def build_next_action(
     three_pose_map = safe_mapping(three_pose_gate)
     restart_map = safe_mapping(restart_survival)
     turn_forward_map = safe_mapping(turn_forward)
+    promotion_review_map = safe_mapping(promotion_review)
     three_pose_passed = three_pose_map.get("formalThreePoseGatePassed") is True
     restart_survived = restart_map.get("restartRelogSurvived") is True
     turn_forward_passed = turn_forward_map.get("status") == "passed" and turn_forward_map.get("routeStatus") == "progress"
+    review_passed = (
+        promotion_review_map.get("status") == "passed"
+        and promotion_review_map.get("reviewPassed") is True
+        and promotion_review_map.get("promotionAllowed") is False
+        and promotion_review_map.get("promotionPerformed") is False
+    )
 
-    if facing_target and three_pose_passed and restart_survived:
+    if facing_target and three_pose_passed and restart_survived and review_passed:
+        recommended_actions.append(
+            "Refresh exact-target static/nav/API readbacks immediately before any explicit facing-promotion gate."
+        )
+        recommended_actions.append(
+            "Run a separate explicit facing-promotion gate only after reviewing the latest readiness packet; do not promote from the dashboard."
+        )
+        if turn_forward_passed:
+            recommended_actions.append(
+                "Keep the latest turn-forward progress proof as supporting evidence only; it does not grant movement or promotion permission."
+            )
+    elif facing_target and three_pose_passed and restart_survived:
         recommended_actions.append(
             "Build a separate candidate-facing promotion-readiness review packet from the three-pose gate, restart-survival packet, latest turn-forward progress proof, and static-root/source-site evidence; do not promote automatically."
         )
@@ -1065,6 +1115,11 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="static-owner-turn-forward-experiment-20",
         expected_kind="static-owner-turn-forward-experiment",
     )
+    promotion_review_path, promotion_review_data, promotion_review_warnings = newest_summary(
+        repo_root,
+        directory_prefix="facing-target-promotion-readiness-review-",
+        expected_kind="facing-target-promotion-readiness-review-packet",
+    )
     warnings.extend(
         coord_warnings
         + nav_warnings
@@ -1076,6 +1131,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + three_pose_gate_warnings
         + restart_survival_warnings
         + turn_forward_warnings
+        + promotion_review_warnings
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
@@ -1104,6 +1160,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     three_pose_gate = facing_three_pose_gate_summary(repo_root, three_pose_gate_data, three_pose_gate_path)
     restart_survival = facing_restart_survival_summary(repo_root, restart_survival_data, restart_survival_path)
     turn_forward = turn_forward_experiment_summary(repo_root, turn_forward_data, turn_forward_path)
+    promotion_review = facing_promotion_readiness_review_summary(repo_root, promotion_review_data, promotion_review_path)
     api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
     warnings.extend(api_warnings)
 
@@ -1239,8 +1296,31 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["turnForwardExperiment"],
         ),
+        "facingPromotionReadinessReview": summarize_source(
+            repo_root,
+            promotion_review_path,
+            promotion_review_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["facingPromotionReadinessReview"],
+        ),
     }
     freshness = aggregate_source_freshness(sources)
+    promotion_review_passed = (
+        safe_mapping(promotion_review).get("reviewPassed") is True
+        and safe_mapping(promotion_review).get("promotionAllowed") is False
+        and safe_mapping(promotion_review).get("promotionPerformed") is False
+    )
+    facing_readiness = (
+        "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback"
+        if promotion_review_passed
+        else (
+            "candidate-only-gates-packaged-requires-review"
+            if facing_target
+            and safe_mapping(three_pose_gate).get("formalThreePoseGatePassed")
+            and safe_mapping(restart_survival).get("restartRelogSurvived")
+            else ("candidate-only-requires-proof" if facing_target else "missing")
+        )
+    )
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
     summary: dict[str, Any] = {
@@ -1273,17 +1353,12 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "facingThreePoseGate": three_pose_gate,
             "facingRestartSurvival": restart_survival,
             "turnForwardExperiment": turn_forward,
+            "facingPromotionReadinessReview": promotion_review,
         },
         "promotionReadiness": {
             "coordinateResolver": static_status.get("status"),
             "currentApiNowStatus": api_now_status,
-            "facingTarget": (
-                "candidate-only-gates-packaged-requires-review"
-                if facing_target
-                and safe_mapping(three_pose_gate).get("formalThreePoseGatePassed")
-                and safe_mapping(restart_survival).get("restartRelogSurvived")
-                else ("candidate-only-requires-proof" if facing_target else "missing")
-            ),
+            "facingTarget": facing_readiness,
             "facingThreePoseGate": "passed" if safe_mapping(three_pose_gate).get("formalThreePoseGatePassed") else "missing-or-not-passed",
             "restartRelogSurvival": "passed" if safe_mapping(restart_survival).get("restartRelogSurvived") else "missing-or-not-passed",
             "turnForwardLiveProgress": (
@@ -1294,9 +1369,18 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             ),
             "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
             "promotionReviewRequired": True,
+            "promotionReview": "passed" if safe_mapping(promotion_review).get("reviewPassed") else "missing-or-not-passed",
             "proofPromotionPerformed": False,
         },
-        "next": build_next_action(freshness, facing_target, camera_yaw, three_pose_gate, restart_survival, turn_forward),
+        "next": build_next_action(
+            freshness,
+            facing_target,
+            camera_yaw,
+            three_pose_gate,
+            restart_survival,
+            turn_forward,
+            promotion_review,
+        ),
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "errors": errors,
@@ -1334,6 +1418,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
     three_pose = safe_mapping(proof_gates.get("facingThreePoseGate"))
     restart = safe_mapping(proof_gates.get("facingRestartSurvival"))
     turn_forward = safe_mapping(proof_gates.get("turnForwardExperiment"))
+    promotion_review = safe_mapping(proof_gates.get("facingPromotionReadinessReview"))
     artifacts = safe_mapping(summary.get("artifacts"))
     freshness = safe_mapping(summary.get("freshness"))
     lines = [
@@ -1362,6 +1447,7 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Facing three-pose gate | `{three_pose.get('status')}` | `poses={three_pose.get('passedPoseCount')}/{three_pose.get('poseCount')}; min progress={three_pose.get('minimumProgressDistance')}` | `candidate-only` |",
         f"| Facing restart survival | `{restart.get('status')}` | `survived={restart.get('restartRelogSurvived')}; offsets stable={restart.get('offsetsStable')}` | `candidate-only` |",
         f"| Turn-forward live progress | `{turn_forward.get('status')}` | `progress={turn_forward.get('totalProgressDistance')}; route={turn_forward.get('routeStatus')}` | `support-only` |",
+        f"| Facing promotion-readiness review | `{promotion_review.get('status')}` | `reviewPassed={promotion_review.get('reviewPassed')}` | `promotionAllowed={promotion_review.get('promotionAllowed')}; performed={promotion_review.get('promotionPerformed')}` |",
         "",
         "## Source artifacts",
         "",

@@ -367,6 +367,65 @@ def seed_facing_proof_gate_artifacts(root: Path) -> None:
     )
 
 
+def seed_facing_promotion_readiness_review(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "facing-target-promotion-readiness-review-20260531-142800-000000"
+        / "summary.json",
+        {
+            "kind": "facing-target-promotion-readiness-review-packet",
+            "status": "passed",
+            "verdict": "candidate-facing-review-ready-for-explicit-promotion-gate",
+            "generatedAtUtc": "2026-05-31T14:23:58Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "processStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+            },
+            "candidate": {
+                "status": "candidate-only",
+                "chainExpression": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+                "offset": "0x30C",
+                "promotionAllowed": False,
+                "candidateOnly": True,
+            },
+            "promotionDecision": {
+                "reviewPassed": True,
+                "promotionAllowed": False,
+                "promotionPerformed": False,
+                "explicitPromotionGateRequired": True,
+                "freshPrePromotionReadbackRequired": True,
+                "recommendedPromotionState": "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback",
+            },
+            "next": {
+                "recommendedAction": "Refresh exact-target static/nav/API readbacks, then run a separate explicit promotion gate only if approved."
+            },
+            "artifacts": {
+                "summaryJson": "scripts\\captures\\facing-target-promotion-readiness-review-20260531-142800-000000\\summary.json",
+                "summaryMarkdown": "scripts\\captures\\facing-target-promotion-readiness-review-20260531-142800-000000\\summary.md",
+            },
+            "safety": {
+                "movementSent": False,
+                "inputSent": False,
+                "targetMemoryBytesRead": False,
+                "targetMemoryBytesWritten": False,
+                "proofPromotion": False,
+                "actorChainPromotion": False,
+                "facingPromotion": False,
+                "currentTruthWrite": False,
+                "gitMutation": False,
+            },
+            "sourceSafety": {"movementSent": True, "inputSent": True, "targetMemoryBytesRead": True},
+            "blockers": [],
+            "warnings": ["candidate-facing-target-only-no-promotion"],
+        },
+    )
+
+
 class NavigationPointerDiscoveryTests(unittest.TestCase):
     def test_build_summary_indexes_promoted_and_candidate_navigation_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -447,6 +506,37 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual("passed", readiness["restartRelogSurvival"])
         self.assertEqual("passed", readiness["turnForwardLiveProgress"])
         self.assertIn("promotion-readiness review packet", summary["next"]["recommendedAction"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
+        self.assertFalse(summary["safety"]["facingPromotion"])
+
+    def test_facing_review_packet_shifts_next_action_to_explicit_gate_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_camera_yaw_multipose_report(root)
+            seed_facing_proof_gate_artifacts(root)
+            seed_facing_promotion_readiness_review(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        gates = summary["proofGates"]
+        readiness = summary["promotionReadiness"]
+        review = gates["facingPromotionReadinessReview"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertTrue(review["reviewPassed"])
+        self.assertFalse(review["promotionAllowed"])
+        self.assertFalse(review["promotionPerformed"])
+        self.assertEqual("passed", readiness["promotionReview"])
+        self.assertEqual(
+            "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback",
+            readiness["facingTarget"],
+        )
+        self.assertEqual(summary["sources"]["facingPromotionReadinessReview"]["status"], "passed")
+        self.assertIn("explicit facing-promotion gate", summary["next"]["recommendedAction"])
+        self.assertFalse(any("promotion-readiness review packet" in item for item in summary["next"]["recommendedActions"]))
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertFalse(summary["safety"]["facingPromotion"])
 
