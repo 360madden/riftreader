@@ -2,6 +2,43 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — Ghidra evidence surfaced + no-input truth refresh — 2026-06-01 07:48 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-0748-ghidra-evidence-current-truth-refresh-handoff.md`.
+
+Safe local continuation after the 06:53 handoff is pushed through HEAD
+`caaedaa` (`Refresh current truth from no-input readbacks`). Ghidra static
+evidence is now visible in the navigation dashboard, compact workflow status,
+and compact decision packet, and tracked `docs\recovery\current-truth.json` has
+been refreshed from fresh no-input current-PID readbacks/API-now evidence.
+
+Current target identity remains PID `41808`, HWND `0x2B0A26`, process start
+`2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`.
+
+Fresh evidence now indexed:
+
+| Evidence | Status | Path |
+|---|---|---|
+| Static owner coordinate readback | `passed`; stationary; `x=7259.82568359375`, `y=821.4274291992188`, `z=2994.700439453125` | `scripts\captures\static-owner-coordinate-chain-readback-20260601-074133-448811\summary.json` |
+| Static owner nav/facing readback | `passed`; candidate yaw `75.17711284220054` degrees; pitch `4.941137747009679` degrees | `scripts\captures\static-owner-nav-state-20260601-074144-187124\summary.json` |
+| RRAPICOORD/API-now reference | `passed`; max abs chain-vs-API delta `0.004394406249957683` <= `0.25` | `scripts\captures\rift-api-reference-currentpid-41808-20260601-074156.json` |
+| Offline Ghidra static evidence | `passed`; `200` root refs; `8057130` instructions scanned; warning `ghidra-analysis-timeout-project-saved` | `scripts\captures\ghidra-static-analysis-20260601-071020\summary.json` |
+| Navigation pointer dashboard | `passed`; freshness `fresh`; no stale sources | `.riftreader-local\navigation-pointer-discovery\latest\summary.json` |
+| Compact workflow status | `passed`; clean Git at `caaedaa` | `.riftreader-local\workflow-status\20260601-074448Z\compact-sitrep.json` |
+
+Safety: this continuation sent no live input/movement, did not attach
+x64dbg/Cheat Engine, did not write provider repos, and did not perform
+proof/facing/actor promotion. It did read target memory through approved
+read-only static owner/API capture helpers and applied tracked current truth
+only through the explicit refresh helper.
+
+Current safe next action: if pursuing facing promotion, refresh exact-target
+static/nav/API readbacks again immediately before the gate, then run a separate
+explicit promotion gate. `keep working` alone is not approval to cross that
+promotion/proof boundary.
+
 ## Latest compact handoff — fresh current-truth refresh + facing review — 2026-06-01 06:53 UTC
 
 A new compact handoff exists at
