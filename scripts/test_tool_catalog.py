@@ -41,6 +41,8 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-facing-target-restart-survival-packet.cmd",
         "scripts/riftreader-facing-target-promotion-readiness-review.cmd",
         "scripts/riftreader-facing-target-promotion-apply.cmd",
+        "scripts/riftreader-turn-rate-promotion-readiness-review.cmd",
+        "scripts/riftreader-turn-rate-promotion-apply.cmd",
         "scripts/riftreader-sensitive-artifact-scan.cmd",
         "scripts/riftreader-live-input-surface-audit.cmd",
         "scripts/riftreader-actor-chain-no-debug-status.cmd",
@@ -109,6 +111,8 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "facing-restart-survival-report" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "facing-promotion-readiness-review" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "facing-promotion-apply-dry-run" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "turn-rate-promotion-readiness-review" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "turn-rate-promotion-apply-dry-run" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
         self.assertTrue(
             any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
@@ -126,6 +130,9 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("facing-target-promotion-readiness-review", compact["canonicalToolKeys"])
         self.assertIn("facing-target-promotion-apply", compact["canonicalToolKeys"])
         self.assertIn("facing-target-promotion-apply", compact["gatedToolKeys"])
+        self.assertIn("turn-rate-promotion-readiness-review", compact["canonicalToolKeys"])
+        self.assertIn("turn-rate-promotion-apply", compact["canonicalToolKeys"])
+        self.assertIn("turn-rate-promotion-apply", compact["gatedToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
         self.assertIn("static-owner-camera-yaw-classification", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])

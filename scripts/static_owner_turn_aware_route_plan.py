@@ -362,10 +362,14 @@ def build_turn_aware_plan(
     )
     execution_blockers = list(gate["blockers"]) if first_action.startswith("turn-") else []
 
-    # Cross-check atan2-derived turn direction against the engine's 0x304 turn rate.
-    # 0x304 sign-flip pattern: positive = left turn, negative = right turn.
-    # This is a single 4-byte float read vs. the full atan2 (6 floats, 24 bytes).
+    # Cross-check atan2-derived turn direction against the candidate 0x304 sign.
+    # This remains diagnostic unless current truth explicitly promotes the field:
+    # 2026-06-01 live delta gating showed 0x304 can persist non-zero at rest.
     engine_turn_classification = str(latest_state.get("turnRateClassification") or "unknown")
+    turn_rate_state = str(
+        safe_mapping(safe_mapping(latest_state.get("chainStates")).get("turnRate")).get("state") or "candidate"
+    )
+    turn_rate_promoted = turn_rate_state == "promoted"
     if engine_turn_classification == "unknown":
         gate.setdefault("warnings", []).append("turn-rate-discriminator-unavailable-stale-or-old-state-format")
     if suggested_turn in {"left", "right"} and engine_turn_classification in {"left", "right"}:
@@ -374,10 +378,13 @@ def build_turn_aware_plan(
                 f"turn-direction-mismatch-atan2-wants-{suggested_turn}"
                 f"-but-engine-0x304-is-turning-{engine_turn_classification}"
             )
-            gate["blockers"].append(conflict_msg)
-            gate["blockers"] = sorted(set(gate["blockers"]))
-            gate["status"] = "blocked"
-            execution_blockers.append(conflict_msg)
+            if turn_rate_promoted:
+                gate["blockers"].append(conflict_msg)
+                gate["blockers"] = sorted(set(gate["blockers"]))
+                gate["status"] = "blocked"
+                execution_blockers.append(conflict_msg)
+            else:
+                gate.setdefault("warnings", []).append(f"candidate-{conflict_msg}-not-a-hard-block")
 
     nav_cross_check = _build_nav_state_cross_check(latest_state, nav_state_readback)
     return {
@@ -395,6 +402,7 @@ def build_turn_aware_plan(
         "turnMagnitudeClass": magnitude,
         "engineTurnRateClassification": engine_turn_classification,
         "engineTurnRateDiscriminator": latest_state.get("turnRateDiscriminator"),
+        "turnRatePromotionState": turn_rate_state,
         "executionBlocked": bool(execution_blockers),
         "executionBlockers": sorted(set(execution_blockers)),
         "navigationTarget": navigation_target,

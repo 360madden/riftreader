@@ -97,8 +97,11 @@ def seed_navigation_artifacts(root: Path) -> None:
                 "yawDegrees": 22.5,
                 "pitchDegrees": -4.0,
                 "planarLookaheadDistance": 9.9,
+                "headingSupport0x300": 12.5,
                 "turnRate0x304": 1.25,
                 "turnRateClassification": "left",
+                "rotationSupport0x308": 0.5,
+                "animationTimer0x408": 0.125,
                 "facingTargetOffset": "0x30C",
                 "turnRateOffset": "0x304",
             },
@@ -426,6 +429,63 @@ def seed_facing_promotion_readiness_review(root: Path) -> None:
     )
 
 
+def seed_turn_rate_promotion_readiness_review(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "turn-rate-promotion-readiness-review-20260531-142900-000000"
+        / "summary.json",
+        {
+            "kind": "turn-rate-promotion-readiness-review-packet",
+            "status": "passed",
+            "verdict": "candidate-turn-rate-review-ready-for-explicit-promotion-gate",
+            "generatedAtUtc": "2026-05-31T14:23:59Z",
+            "target": {
+                "processName": "rift_x64",
+                "processId": 25668,
+                "targetWindowHandle": "0x320CB0",
+                "processStartUtc": "2026-05-30T02:46:41Z",
+                "moduleBase": "0x7FF6EE5D0000",
+            },
+            "candidate": {
+                "status": "candidate-only",
+                "chainExpression": "[rift_x64+0x32EBC80]+0x304",
+                "offset": "0x304",
+                "promotionAllowed": False,
+                "candidateOnly": True,
+            },
+            "promotionDecision": {
+                "reviewPassed": True,
+                "promotionAllowed": False,
+                "promotionPerformed": False,
+                "explicitPromotionGateRequired": True,
+                "freshPrePromotionReadbackRequired": True,
+                "recommendedPromotionState": "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback",
+            },
+            "next": {"recommendedAction": "Refresh exact-target static/nav/API readbacks before turn-rate apply."},
+            "artifacts": {
+                "summaryJson": "scripts\\captures\\turn-rate-promotion-readiness-review-20260531-142900-000000\\summary.json",
+                "summaryMarkdown": "scripts\\captures\\turn-rate-promotion-readiness-review-20260531-142900-000000\\summary.md",
+            },
+            "safety": {
+                "movementSent": False,
+                "inputSent": False,
+                "targetMemoryBytesRead": False,
+                "targetMemoryBytesWritten": False,
+                "proofPromotion": False,
+                "actorChainPromotion": False,
+                "turnRatePromotion": False,
+                "currentTruthWrite": False,
+                "gitMutation": False,
+            },
+            "sourceSafety": {"movementSent": True, "inputSent": True, "targetMemoryBytesRead": True},
+            "blockers": [],
+            "warnings": ["turn-rate-candidate-only-no-promotion"],
+        },
+    )
+
+
 def seed_ghidra_static_evidence(root: Path) -> None:
     write_json(
         root / "scripts" / "captures" / "ghidra-static-analysis-20260531-142900-000000" / "summary.json",
@@ -504,6 +564,12 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(candidates["candidateFacingTarget"]["offset"], "0x30C")
         self.assertEqual(candidates["candidateFacingTarget"]["comparisonMaxAbsYawDeltaDegrees"], 62.1)
         self.assertTrue(candidates["candidateTurnRate"]["candidateOnly"])
+        self.assertEqual(candidates["candidateTurnRate"]["chainShape"], "[rift_x64+0x32EBC80]+0x304")
+        self.assertEqual(candidates["candidateTurnRate"]["latestClassification"], "left")
+        self.assertEqual(summary["navigationControlChains"]["turnRate"]["state"], "candidate")
+        self.assertEqual(summary["navigationControlChains"]["supportFields"]["headingSupport0x300"]["latestValue"], 12.5)
+        self.assertEqual(summary["candidateLedger"]["velocitySpeed"]["state"], "candidate")
+        self.assertEqual(summary["candidateLedger"]["actorState"]["status"], "not-discovered")
         self.assertEqual(candidates["coordinateDeltaCandidate"]["status"], "confirms-promoted-coordinate-offset")
         self.assertEqual(candidates["coordinateDeltaCandidate"]["trackingErrorMaxAbs"], 0.006)
         self.assertEqual(candidates["cameraYawClassification"]["classification"], "visual-changed-static-yaw-unchanged")
@@ -565,6 +631,31 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertIn("promotion-readiness review packet", summary["next"]["recommendedAction"])
         self.assertFalse(summary["safety"]["proofPromotion"])
         self.assertFalse(summary["safety"]["facingPromotion"])
+
+    def test_turn_rate_review_packet_is_indexed_without_promoting(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_turn_rate_promotion_readiness_review(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        review = summary["proofGates"]["turnRatePromotionReadinessReview"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertTrue(review["reviewPassed"])
+        self.assertFalse(review["promotionAllowed"])
+        self.assertFalse(review["promotionPerformed"])
+        self.assertEqual("passed", summary["promotionReadiness"]["turnRatePromotionReview"])
+        self.assertEqual(
+            "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback",
+            summary["promotionReadiness"]["turnRate"],
+        )
+        self.assertEqual("passed", summary["sources"]["turnRatePromotionReadinessReview"]["status"])
+        self.assertEqual("candidate", summary["navigationControlChains"]["turnRate"]["state"])
+        self.assertFalse(summary["safety"]["proofPromotion"])
 
     def test_facing_review_packet_shifts_next_action_to_explicit_gate_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

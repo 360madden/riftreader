@@ -13,11 +13,22 @@ from scripts.static_owner_turn_aware_route_plan import (
 )
 
 
-def state(yaw: float, x: float = 0.0, z: float = 0.0) -> dict:
-    return {
+def state(
+    yaw: float,
+    x: float = 0.0,
+    z: float = 0.0,
+    *,
+    turn_rate_classification: str | None = None,
+    turn_rate_state: str = "candidate",
+) -> dict:
+    result = {
         "coordinate": {"x": x, "y": 0.0, "z": z},
         "yawDegrees": yaw,
     }
+    if turn_rate_classification is not None:
+        result["turnRateClassification"] = turn_rate_classification
+        result["chainStates"] = {"turnRate": {"state": turn_rate_state}}
+    return result
 
 
 def target(x: float, z: float, *, label: str = "test", alignment: float = 7.5) -> dict:
@@ -68,6 +79,31 @@ class StaticOwnerTurnAwareRoutePlanTests(unittest.TestCase):
         self.assertEqual("turn-right", plan["firstAction"])
         self.assertFalse(plan["executionBlocked"])
         self.assertEqual("passed", plan["turnControlGate"]["status"])
+
+    def test_candidate_turn_rate_mismatch_is_warning_not_hard_block(self):
+        plan = build_turn_aware_plan(
+            state(0.0, turn_rate_classification="left", turn_rate_state="candidate"),
+            target(0.0, 10.0, label="turn"),
+            allow_candidate_turn_control=True,
+        )
+
+        self.assertEqual("turn-right", plan["firstAction"])
+        self.assertFalse(plan["executionBlocked"])
+        self.assertIn("candidate-turn-direction-mismatch", " ".join(plan["turnControlGate"]["warnings"]))
+
+    def test_promoted_turn_rate_mismatch_blocks(self):
+        plan = build_turn_aware_plan(
+            state(0.0, turn_rate_classification="left", turn_rate_state="promoted"),
+            target(0.0, 10.0, label="turn"),
+            allow_candidate_turn_control=True,
+        )
+
+        self.assertEqual("turn-right", plan["firstAction"])
+        self.assertTrue(plan["executionBlocked"])
+        self.assertIn(
+            "turn-direction-mismatch-atan2-wants-right-but-engine-0x304-is-turning-left",
+            plan["executionBlockers"],
+        )
 
     def test_multi_step_turn_control_stays_blocked_even_with_candidate_turn_gate(self):
         plan = build_turn_aware_plan(

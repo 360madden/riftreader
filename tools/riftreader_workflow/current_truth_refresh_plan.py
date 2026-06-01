@@ -377,10 +377,73 @@ def build_proposed_current_truth(
         "yawDegrees": facing.get("latestYawDegrees"),
         "pitchDegrees": facing.get("latestPitchDegrees"),
         "turnRate0x304": turn_rate.get("latestValue"),
-        "turnRateClassification": turn_rate.get("classification"),
+        "turnRateClassification": turn_rate.get("latestClassification") or turn_rate.get("classification"),
         "recordedAtUtc": latest_nav_state_at,
         "summaryJson": latest_nav_state_json,
         "summaryMarkdown": sibling_markdown_artifact(latest_nav_state_json),
+    }
+    current_control_chains = as_mapping(current_truth.get("navigationControlChains"))
+    existing_turn_rate_truth = as_mapping(current_control_chains.get("turnRate")) or as_mapping(
+        current_truth.get("staticOwnerTurnRate")
+    )
+    existing_turn_rate_primary = as_mapping(existing_turn_rate_truth.get("primaryCandidate"))
+    turn_rate_promoted = (
+        existing_turn_rate_truth.get("promotionAllowed") is True
+        and bool(existing_turn_rate_truth.get("promotionArtifact"))
+        and (existing_turn_rate_truth.get("offset") or existing_turn_rate_primary.get("turnRateOffset") or "0x304")
+        == "0x304"
+    )
+    navigation_control_chains = {
+        "position": {
+            "state": "promoted",
+            "chain": promoted.get("chain") or "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+            "latestReadbackJson": latest_readback_json,
+            "latestReadbackAtUtc": latest_readback_at,
+        },
+        "facingYaw": {
+            "state": "promoted" if facing_already_promoted else "candidate",
+            "chain": facing.get("chainShape") or "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "latestYawDegrees": facing.get("latestYawDegrees"),
+            "latestReadbackJson": latest_nav_state_json,
+            "promotionArtifact": (
+                truth_artifact_path(repo_root, facing.get("promotionArtifact") or current_facing.get("promotionArtifact"))
+                if facing_already_promoted
+                else None
+            ),
+        },
+        "turnRate": {
+            "state": "promoted" if turn_rate_promoted else "candidate",
+            "chain": "[rift_x64+0x32EBC80]+0x304",
+            "offset": "0x304",
+            "latestValue": turn_rate.get("latestValue"),
+            "latestClassification": turn_rate.get("latestClassification") or turn_rate.get("classification"),
+            "latestReadbackJson": latest_nav_state_json,
+            "promotionAllowed": bool(turn_rate_promoted),
+            "promotionArtifact": existing_turn_rate_truth.get("promotionArtifact") if turn_rate_promoted else None,
+            "blockers": [] if turn_rate_promoted else ["candidate-only-turn-rate", "requires-dedicated-turn-rate-promotion-gate"],
+        },
+        "supportFields": {
+            "headingSupport0x300": {
+                "state": "candidate",
+                "offset": "0x300",
+                "latestValue": turn_rate.get("headingSupport0x300"),
+            },
+            "rotationSupport0x308": {
+                "state": "candidate",
+                "offset": "0x308",
+                "latestValue": turn_rate.get("rotationSupport0x308"),
+            },
+            "animationTimer0x408": {
+                "state": "candidate",
+                "offset": "0x408",
+                "latestValue": turn_rate.get("animationTimer0x408"),
+            },
+        },
+        "policy": {
+            "routeControlRequiresPromotedPositionAndFacingYaw": True,
+            "candidateTurnRateRequiresAllowCandidateTurnControlFlag": not bool(turn_rate_promoted),
+            "supportFieldsDoNotAuthorizeControl": True,
+        },
     }
     live_notes: list[str] = []
     for item in as_list(get_path(current_truth, ("liveReferenceSurface", "notes"))):
@@ -637,6 +700,14 @@ def build_proposed_current_truth(
         path=("liveReferenceSurface", "latestCurrentNavStateReadback"),
         value=latest_nav_state_readback,
         reason="mirror latest exact-target nav-state readback payload",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
+        path=("navigationControlChains",),
+        value=navigation_control_chains,
+        reason="label promoted/candidate navigation control fields from latest dashboard and tracked promotion artifacts",
     )
     add_update(
         current_truth=current_truth,
@@ -1029,7 +1100,18 @@ def build_current_truth_refresh_plan(
         facing = as_mapping(candidates.get("candidateFacingTarget"))
         if facing.get("promotionAllowed") and not promoted_facing_yaw_already_recorded(current_facing, facing):
             blockers.append("facing-target-promotion-unexpectedly-allowed")
-        if as_mapping(candidates.get("candidateTurnRate")).get("promotionAllowed"):
+        turn_rate = as_mapping(candidates.get("candidateTurnRate"))
+        truth_turn_rate = as_mapping(
+            as_mapping(current_truth.get("navigationControlChains")).get("turnRate")
+        ) or as_mapping(current_truth.get("staticOwnerTurnRate"))
+        truth_turn_rate_primary = as_mapping(truth_turn_rate.get("primaryCandidate"))
+        turn_rate_already_promoted = (
+            truth_turn_rate.get("promotionAllowed") is True
+            and truth_turn_rate.get("promotionArtifact")
+            and (truth_turn_rate.get("offset") or truth_turn_rate_primary.get("turnRateOffset") or "0x304")
+            == "0x304"
+        )
+        if turn_rate.get("promotionAllowed") and not turn_rate_already_promoted:
             blockers.append("turn-rate-promotion-unexpectedly-allowed")
         if current_facing.get("promotionAllowed") is True and facing.get("candidateOnly"):
             if not current_facing.get("promotionArtifact"):

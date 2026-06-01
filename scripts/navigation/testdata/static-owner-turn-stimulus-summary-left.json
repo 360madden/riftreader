@@ -24,10 +24,21 @@
     "direction": "left",
     "key": "left",
     "preYawDegrees": 92.11673917694314,
+    "midTurnYawDegrees": 60.0,
     "postYawDegrees": 28.588648937607957,
     "signedYawDeltaDegrees": -63.528090239335185,
     "absoluteYawDeltaDegrees": 63.528090239335185,
     "minimumYawDeltaDegrees": 2.0,
+    "preTurnRate0x304": 0.0,
+    "midTurnRate0x304": 1.25,
+    "postTurnRate0x304": 0.0,
+    "turnRateDelta": 1.25,
+    "turnRateObservedDirection": "left",
+    "turnRateExpectedDirection": "left",
+    "turnRateSignMatchedDirection": true,
+    "minimumTurnRateAbs": 0.01,
+    "stimulusRunningBeforeMidReadback": true,
+    "stimulusRunningAfterMidReadback": true,
     "coordinateDelta": {
       "x": 0.0,
       "y": 0.0,
@@ -51,14 +62,19 @@
       "ok": true
     },
     {
-      "label": "03-post-state",
+      "label": "03-mid-turn-state",
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "04-post-state",
       "exitCode": 0,
       "ok": true
     }
   ],
   "blockers": [],
   "warnings": [
-    "candidate-facing-yaw-not-promoted"
+    "candidate-turn-rate-not-promoted"
   ],
   "errors": [],
   "safety": {
@@ -82,6 +98,7 @@
     "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170126-146711\\summary.json",
     "summaryMarkdown": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170126-146711\\summary.md",
     "preStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-170126-404277\\summary.json",
+    "midTurnStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-170127-404277\\summary.json",
     "postStateSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-nav-state-20260528-170129-493845\\summary.json",
     "stimulusStdout": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-owner-turn-stimulus-20260528-170126-146711\\child-outputs\\02-turn-stimulus.stdout.txt"
   }

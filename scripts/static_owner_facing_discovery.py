@@ -69,22 +69,27 @@ def classify_turn_direction_from_rate(
     rate: float | None,
     threshold: float = DEFAULT_TURN_RATE_THRESHOLD,
 ) -> dict[str, Any]:
-    """Classify turn direction from the 0x304 directional turn rate sign.
+    """Classify candidate turn direction from the 0x304 sign.
 
-    Positive rate (> +threshold) = turning left.
-    Negative rate (< −threshold) = turning right.
-    Within ±threshold = stationary / no active turn.
+    Positive values (> +threshold) have correlated with left turns in historical
+    captures; negative values (< -threshold) have correlated with right turns.
+    Within +/-threshold is a low-magnitude candidate state.
 
-    This is a single 4-byte float read that discriminates left-from-right
-    without the full atan2(yaw) computation (which requires reading 6 floats
-    from 0x30C–0x314 and 0x320–0x328).
+    This is a single 4-byte float read and must stay candidate/support unless
+    the dedicated turn-rate promotion gate proves live non-zero delta,
+    settle-to-baseline behavior, restart survival, and current-PID freshness.
+    Use promoted atan2(yaw) from 0x30C-0x314 and 0x320-0x328 as the hard source.
 
-    Evidence: 4-pose triangulation (baseline / turn-right-2 / turn-left-3 /
-    turn-left-symmetric):
+    Historical evidence: 4-pose triangulation (baseline / turn-right-2 /
+    turn-left-3 / turn-left-symmetric):
       - baseline (stationary): 0.247  → within threshold → stationary
       - turn-right-2 (D 500ms):  −1.18 → below −threshold  → right
       - turn-left-3 (A 800ms):   +2.77 → above +threshold  → left
       - turn-left-sym (A 1000ms):+0.61 → above +threshold  → left (settling)
+
+    Current-PID note (2026-06-01): a live stimulus review observed 0x304 can
+    remain non-zero at rest and produce turnRateDelta=0.0 during a turn key
+    capture, so sign alone is insufficient proof.
     """
     if rate is None or not math.isfinite(rate):
         return {"direction": "unknown", "rate": rate, "turning": False}
@@ -205,7 +210,10 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
     distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
     yaw = math.degrees(math.atan2(dz, dx))
     pitch = math.degrees(math.atan2(dy, planar)) if planar else 0.0
+    heading_support = unpack_float(data, 0x300)
     turn_rate = unpack_float(data, 0x304)
+    rotation_support = unpack_float(data, 0x308)
+    animation_timer = unpack_float(data, 0x408)
     turn_discriminator = classify_turn_direction_from_rate(turn_rate)
     return {
         "ownerAddress": int_hex(owner_address),
@@ -216,13 +224,68 @@ def nav_state_from_owner_window(data: bytes, *, owner_address: int) -> dict[str,
         "pitchDegrees": pitch,
         "planarLookaheadDistance": planar,
         "lookaheadDistance3d": distance,
+        "headingSupport0x300": heading_support,
         "turnRate0x304": turn_rate,
         "turnRateClassification": turn_discriminator["direction"],
         "turnRateDiscriminator": turn_discriminator,
+        "rotationSupport0x308": rotation_support,
+        "animationTimer0x408": animation_timer,
         "positionOffset": "0x320",
         "facingTargetOffset": "0x30C",
+        "headingSupportOffset": "0x300",
         "turnRateOffset": "0x304",
+        "rotationSupportOffset": "0x308",
+        "animationTimerOffset": "0x408",
     }
+
+
+def navigation_control_chain_labels(root: Path, truth_path_text: str | None) -> dict[str, Any]:
+    """Return promoted/candidate labels for nav-state fields from tracked truth.
+
+    The state readback itself is read-only and should not infer promotion from
+    raw offsets. This helper lets the summary label fields using the tracked
+    current-truth contract when available, while failing closed to candidate
+    labels on malformed/missing truth.
+    """
+
+    labels: dict[str, Any] = {
+        "position": {"state": "promoted", "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328"},
+        "facingYaw": {"state": "candidate", "chain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314"},
+        "turnRate": {"state": "candidate", "offset": "0x304"},
+        "headingSupport": {"state": "candidate", "offset": "0x300"},
+        "rotationSupport": {"state": "candidate", "offset": "0x308"},
+        "animationTimer": {"state": "candidate", "offset": "0x408"},
+    }
+    if not truth_path_text:
+        labels["warning"] = "current-truth-path-missing"
+        return labels
+    try:
+        truth_path = Path(truth_path_text)
+        if not truth_path.is_absolute():
+            truth_path = root / truth_path
+        truth = load_json_object(truth_path)
+    except Exception as exc:  # noqa: BLE001 - labels must not fail readback.
+        labels["warning"] = f"current-truth-label-load-failed:{type(exc).__name__}"
+        return labels
+
+    facing = safe_mapping(truth.get("staticOwnerFacing"))
+    facing_primary = safe_mapping(facing.get("primaryCandidate"))
+    if facing.get("promotionAllowed") is True and facing.get("promotionArtifact"):
+        labels["facingYaw"] = {
+            "state": "promoted",
+            "chain": facing_primary.get("expression") or "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "promotionArtifact": facing.get("promotionArtifact"),
+        }
+
+    control = safe_mapping(truth.get("navigationControlChains"))
+    turn_rate = safe_mapping(control.get("turnRate"))
+    if turn_rate.get("promotionAllowed") is True and turn_rate.get("promotionArtifact"):
+        labels["turnRate"] = {
+            "state": "promoted",
+            "offset": turn_rate.get("offset") or "0x304",
+            "promotionArtifact": turn_rate.get("promotionArtifact"),
+        }
+    return labels
 
 
 def build_yaw_transition_analysis(samples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -628,10 +691,12 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
         "resolver": {
             "positionChain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
             "facingTargetChain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "turnRateChain": "[rift_x64+0x32EBC80]+0x304",
             "yawFormula": "atan2((owner+0x314)-(owner+0x328), (owner+0x30C)-(owner+0x320))",
             "currentTruthStaticResolverStatus": defaults.get("staticResolverStatus"),
             "currentTruthPromotionAllowed": defaults.get("promotionAllowed"),
         },
+        "chainStates": navigation_control_chain_labels(root, defaults.get("path")),
         "polling": {
             "requestedSampleCount": int(args.samples),
             "intervalSeconds": float(args.interval_seconds),
@@ -743,8 +808,16 @@ def run_state(args: argparse.Namespace) -> dict[str, Any]:
         else:
             summary["status"] = "passed"
             summary["verdict"] = "position-and-facing-nav-state-readback-passed"
-            summary["classification"] = "candidate-facing-state-source-not-promoted"
-            summary["warnings"].append("facing-candidate-readback-only-not-promoted")
+            chain_states = safe_mapping(summary.get("chainStates"))
+            facing_state = safe_mapping(chain_states.get("facingYaw")).get("state")
+            turn_rate_state = safe_mapping(chain_states.get("turnRate")).get("state")
+            if facing_state == "promoted":
+                summary["classification"] = "promoted-position-facing-yaw-readback-with-candidate-control-fields"
+                if turn_rate_state != "promoted":
+                    summary["warnings"].append("turn-rate-control-field-candidate-only-not-promoted")
+            else:
+                summary["classification"] = "candidate-facing-state-source-not-promoted"
+                summary["warnings"].append("facing-candidate-readback-only-not-promoted")
     except Exception as exc:  # noqa: BLE001
         summary["status"] = "failed"
         summary["verdict"] = "nav-state-readback-error"

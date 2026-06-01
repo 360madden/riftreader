@@ -81,7 +81,7 @@ This checks all 5 promotion gates offline (~1 second, no live process).
 | `navState.navStateError` | `null` |
 | `navState.yawDegrees` | Non-None, plausible (-180 to 180) |
 | `navState.facingTargetCoordinate` | Non-zero x/y/z |
-| `navState.turnRateClassification` | `"stationary"` or `"turning"` |
+| `navState.turnRateClassification` | Candidate/support only; do not treat as active-turn truth unless 0x304 is promoted |
 | `coordinate` | Non-zero, plausible for current zone |
 
 ---

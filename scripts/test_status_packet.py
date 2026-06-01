@@ -730,6 +730,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
             write_text(root / "scripts" / "riftreader-facing-target-restart-survival-packet.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-promotion-readiness-review.cmd", "@echo off\n")
             write_text(root / "scripts" / "riftreader-facing-target-promotion-apply.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-turn-rate-promotion-readiness-review.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-turn-rate-promotion-apply.cmd", "@echo off\n")
             packet = {
                 "schemaVersion": 1,
                 "kind": "riftreader-local-workflow-status-packet",
@@ -779,6 +781,10 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         self.assertIn("report-only review", commands["facing-target-promotion-readiness-review"]["safety"])
         self.assertTrue(commands["facing-target-promotion-apply"]["exists"])
         self.assertIn("--apply writes tracked facing/yaw promotion", commands["facing-target-promotion-apply"]["safety"])
+        self.assertTrue(commands["turn-rate-promotion-readiness-review"]["exists"])
+        self.assertIn("report-only owner+0x304 review", commands["turn-rate-promotion-readiness-review"]["safety"])
+        self.assertTrue(commands["turn-rate-promotion-apply"]["exists"])
+        self.assertIn("--apply writes tracked turn-rate promotion", commands["turn-rate-promotion-apply"]["safety"])
 
 
 if __name__ == "__main__":

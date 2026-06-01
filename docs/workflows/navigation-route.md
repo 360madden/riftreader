@@ -19,7 +19,7 @@ _chain_readback.py          aware_route_plan.py          (ScanCode keys)
        │                            │                          │
        ├── coords (0x320)    ────► bearing calc     ────► W/S keys
        ├── yaw (atan2)       ────► turn direction     ────► A/D keys
-       ├── turn rate (0x304) ────► turn cross-check      (key press pulse)
+       ├── turn rate (0x304) ────► candidate/promoted turn cross-check
        └── facing (0x30C)         route plan output
 ```
 
@@ -84,13 +84,16 @@ facing target chain, and determines turn direction:
 1. **Bearing:** `atan2(waypointZ - playerZ, waypointX - playerX)`
 2. **Yaw:** `atan2(Z_at_0x314 - playerZ, X_at_0x30C - playerX)` (from promoted resolver)
 3. **Turn delta:** normalized angle difference between yaw and bearing
-4. **Engine cross-check:** 0x304 turn rate sign must agree with atan2 direction
+4. **Engine cross-check:** 0x304 turn rate sign can be used only after turn-rate
+   promotion or behind the explicit `--allow-candidate-turn-control` gate.
 
 If delta > threshold: route plan outputs turn direction (left/right) and degrees.
 If delta ≤ threshold: player is aligned, proceed to forward movement.
 
-**Blocker:** `turn-direction-mismatch` — atan2 says "left" but engine 0x304 turn rate
-says "right". This means the player is mid-turn or the facing data is ambiguous.
+**Blocker:** `turn-direction-mismatch` only when `owner+0x304` has been promoted
+and disagrees with atan2. While 0x304 is still candidate-only, a mismatch is a
+diagnostic warning; promoted position plus promoted facing/yaw remains the hard
+route-planning source.
 
 ---
 

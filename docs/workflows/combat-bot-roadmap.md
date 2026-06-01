@@ -14,7 +14,7 @@
 |---|---|---|
 | 0a | Player position resolver | ✅ Promoted |
 | 0b | Player facing / yaw resolver | ✅ Promoted |
-| 0c | Turn rate discriminator (0x304) | ✅ Promoted |
+| 0c | Turn rate discriminator (0x304) | 🔄 Candidate/support — promotion gate pending |
 | 0d | SendInput (ScanCode) for movement keys | ✅ Proven |
 | 0e | Navigation route planner (turn-aware) | ✅ Built |
 | 0f | Module base freshness gate | ✅ Shipped (#1) |

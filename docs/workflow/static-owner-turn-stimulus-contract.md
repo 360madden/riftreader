@@ -3,15 +3,16 @@
 ## Purpose
 
 This document defines the bounded turn/yaw stimulus lane for the static-owner
-facing-target/yaw readback fields. The `+0x30C/+0x310/+0x314` readback source is
-promoted separately for yaw readback, but turn stimulus captures remain evidence
-collection only and do not grant route-control permission.
+facing-target/yaw readback fields and candidate `owner+0x304` turn-rate evidence.
+The `+0x30C/+0x310/+0x314` readback source is promoted separately for yaw
+readback, but turn stimulus captures remain evidence collection only and do not
+grant route-control permission.
 
 ## Helper chain
 
 | Step | Command | Output kind | Safety |
 |---|---|---|---|
-| Capture turn stimulus | `cmd /c scripts\static-owner-turn-stimulus-capture.cmd --direction left --turn-approved --json` | `static-owner-turn-stimulus-capture` | Exact-target pre/post static-owner reads around one C# SendInput turn key. |
+| Capture turn stimulus | `cmd /c scripts\static-owner-turn-stimulus-capture.cmd --direction left --turn-approved --json` | `static-owner-turn-stimulus-capture` | Exact-target pre/mid/post static-owner reads around one C# SendInput turn key. |
 | Validate turn summary | `cmd /c scripts\static-owner-validate-turn-stimulus.cmd <turn-summary.json> --json` | `static-owner-turn-stimulus-contract-validation` | Saved-summary contract validation; no live read or input. |
 | Review with route-run report | `cmd /c scripts\static-owner-nav-report-route-run.cmd <route-run-summary.json> --turn-summary-json <turn-summary.json> --json` | `static-owner-nav-route-run-report` | Shows turn evidence beside forward route progress without granting control permission. |
 
@@ -29,6 +30,9 @@ Consumers must reject a turn capture summary unless all of these are true:
 | `analysis.actionableForNavigation` | `false` |
 | `analysis.movementPermission` | `false` |
 | `analysis.facingPromotion` | `false` |
+| `analysis.turnRateSignMatchedDirection` | `true` |
+| `analysis.midTurnRate0x304` | finite float |
+| `analysis.turnRateDelta` | finite float with `abs(delta) >= analysis.minimumTurnRateDeltaAbs` |
 | `safety.movementSent` | `true` |
 | `safety.inputSent` | `true` |
 | `safety.noCheatEngine` | `true` |
@@ -38,13 +42,14 @@ Consumers must reject a turn capture summary unless all of these are true:
 | `safety.actorChainPromotion` | `false` |
 | `safety.facingPromotion` | `false` |
 | `safety.navigationControl` | `false` |
+| `artifacts.midTurnStateSummaryJson` | non-empty path |
 
 Checked-in fixtures:
 
 | Fixture | Direction | Result |
 |---|---|---|
-| `scripts\navigation\testdata\static-owner-turn-stimulus-summary-left.json` | left | Passed; signed yaw delta is negative. |
-| `scripts\navigation\testdata\static-owner-turn-stimulus-summary-right.json` | right | Passed; signed yaw delta is positive. |
+| `scripts\navigation\testdata\static-owner-turn-stimulus-summary-left.json` | left | Passed; signed yaw delta is negative and `owner+0x304` delta is positive. |
+| `scripts\navigation\testdata\static-owner-turn-stimulus-summary-right.json` | right | Passed; signed yaw delta is positive and `owner+0x304` delta is negative. |
 
 ## Live validation results
 
@@ -66,9 +71,11 @@ python -m unittest scripts.test_static_owner_turn_stimulus_capture
 ## Boundary
 
 Turn stimulus captures prove that the promoted yaw readback responds to bounded
-turn input. They do **not** prove route turn control, full actor/stat-chain
-truth, or ProofOnly/proof freshness. Any route controller that consumes turn
-evidence must still exact-target the current process and keep proof/current-truth
-promotion as separate explicit gates. The next-stage turn-aware planner and
-single turn-forward experiment are documented separately in
+turn input. `owner+0x304` is still candidate/support evidence unless its
+readiness review proves both direction sign and non-zero live delta. Captures do
+**not** prove route turn control, full actor/stat-chain truth, or
+ProofOnly/proof freshness. Any route controller that consumes turn evidence must
+still exact-target the current process and keep proof/current-truth promotion as
+separate explicit gates. The next-stage turn-aware planner and single
+turn-forward experiment are documented separately in
 `docs\workflow\static-owner-turn-aware-route-contract.md`.

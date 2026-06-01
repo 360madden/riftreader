@@ -6,8 +6,8 @@ dereferenced from `[rift_x64+0x32EBC80]`.
 **When to use:** Understanding what fields are available, discovering new fields,
 or validating after a game update.
 
-**Status:** Promoted (coordinates, facing target, turn rate). Some fields are
-historical/candidate-only.
+**Status:** Promoted coordinates and facing/yaw. Turn-rate and adjacent support
+fields are candidate-only until a dedicated turn-rate promotion packet passes.
 
 ---
 
@@ -29,9 +29,9 @@ Classification: Player position/rotation controller object
 | `+0x060` | 12 | vec3 | Actor basis forward row | Historical | Different object (actor, not owner). Revalidate after updates. |
 | `+0x094` | 12 | vec3 | Actor basis duplicate | Historical | Duplicate basis at different object |
 | `+0x2F8` | 1 | byte | Flag byte | Candidate | Set to 0x1 in some states |
-| `+0x300` | 4 | float | Accumulated heading | **Promoted (diagnostic)** | Monotonic counter of total lifetime degrees turned |
-| `+0x304` | 4 | float | **Turn rate discriminator** | **Promoted** | Positive = turning left, negative = turning right |
-| `+0x308` | 4 | float | (unknown) | Candidate | Adjacent to turn rate |
+| `+0x300` | 4 | float | Accumulated heading / heading support | Candidate/support | Monotonic counter-like value; not promoted for control |
+| `+0x304` | 4 | float | Turn-rate / yaw-adjacent scalar candidate | Candidate/support | Sign has correlated with left/right in some captures, but current-PID delta proof is blocked; do not use as promoted turn rate |
+| `+0x308` | 4 | float | Rotation support | Candidate/support | Adjacent to turn rate; semantics unproven |
 | `+0x30C` | 4 | float | **Facing target X** | **Promoted** | World-space look-at point |
 | `+0x310` | 4 | float | **Facing target Y** | **Promoted** | Elevation of look-at point |
 | `+0x314` | 4 | float | **Facing target Z** | **Promoted** | World-space look-at point |
@@ -54,7 +54,8 @@ owner+0x310 → facing Y    │  Same object, 20 bytes (0x14) before coordinates
 owner+0x314 → facing Z    ┘
 
 Yaw = atan2(facingZ - playerZ, facingX - playerX)
-Turn direction = sign(owner+0x304)  →  + = left, - = right
+Candidate/support turn hint = sign(owner+0x304)  →  + often left, - often right;
+requires live delta proof before use as a control discriminator
 ```
 
 ## Behavioral notes
@@ -66,12 +67,18 @@ Turn direction = sign(owner+0x304)  →  + = left, - = right
 - Can be (0,0,0) on fresh zone-in — guarded by zero-vector check (#2 gate).
 - Validated through 4-pose yaw triangulation (baseline, turn-right, turn-left, symmetric-left).
 
-### 0x304 — Turn rate
+### 0x304 — Turn-rate / yaw-adjacent scalar candidate
 
-- Positive float = turning left (counter-clockwise)
-- Negative float = turning right (clockwise)
-- Near zero when stationary (< 0.01)
-- Cross-checked against atan2-derived turn direction in the route planner
+- Historical captures showed positive values during left turns and negative
+  values during right turns.
+- Current-PID validation on 2026-06-01 found the value can persist non-zero
+  while stationary and can show `turnRateDelta=0.0` during a live turn
+  stimulus; therefore it is **not proven as an instantaneous turn rate**.
+- Cross-checked against atan2-derived turn direction in the route planner only
+  as candidate/support evidence unless the turn-rate promotion artifact exists
+- Must remain candidate-only until left/right sign proof, non-zero live delta,
+  settle-to-baseline behavior, no-drift proof, restart survival, and fresh
+  current-PID readback gates pass
 
 ### 0x300 — Accumulated heading
 
@@ -127,5 +134,5 @@ This needs a live discovery session with `rift-discovery` during combat.
 | P0 | Root RVA still valid | AOB signature scan or `--scan-module-pattern` |
 | P0 | Owner layout unchanged | Read owner+0x300 through +0x340, verify floats are plausible |
 | P1 | 0x30C is still 0x14 before 0x320 | Neighborhood inspector scan for vec3 pairs 20 bytes apart |
-| P2 | 0x304 turn rate still works | Send turn key, verify sign flips |
+| P2 | 0x304 turn-rate candidate still works | Send turn key, verify sign flips **and non-zero live delta**; do not mark promoted without the turn-rate promotion artifact |
 | P3 | Full layout scan | Pointer owner neighborhood inspector, full window dump |

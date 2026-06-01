@@ -50,6 +50,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "turnForwardExperiment": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "ghidraStaticEvidence": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "facingPromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
+    "turnRatePromotionReadinessReview": CURRENT_READBACK_MAX_AGE_SECONDS,
 }
 
 
@@ -668,25 +669,175 @@ def facing_target_summary(
     }
 
 
-def turn_rate_summary(nav_state: dict[str, Any] | None, facing_comparison: dict[str, Any] | None) -> dict[str, Any] | None:
+def turn_rate_summary(
+    current_truth: dict[str, Any] | None,
+    nav_state: dict[str, Any] | None,
+    facing_comparison: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
     scalar = scalar_candidate_by_offset(facing_comparison, "0x304")
     if not latest_state and scalar is None:
         return None
+    truth_control = safe_mapping(safe_mapping(current_truth).get("navigationControlChains"))
+    truth_turn_rate = safe_mapping(truth_control.get("turnRate")) or safe_mapping(
+        safe_mapping(current_truth).get("staticOwnerTurnRate")
+    )
+    truth_turn_rate_primary = safe_mapping(truth_turn_rate.get("primaryCandidate"))
+    promoted = (
+        truth_turn_rate.get("promotionAllowed") is True
+        and (truth_turn_rate.get("offset") or truth_turn_rate_primary.get("turnRateOffset") or "0x304") == "0x304"
+        and bool(truth_turn_rate.get("promotionArtifact"))
+    )
     return {
-        "status": "candidate-only",
-        "candidateOnly": True,
-        "promotionAllowed": False,
+        "status": "promoted-static-owner-turn-rate-current-pid-readback-passed" if promoted else "candidate-only",
+        "candidateOnly": not promoted,
+        "promotionAllowed": bool(promoted),
         "offset": latest_state.get("turnRateOffset") or "0x304",
+        "chainShape": "[rift_x64+0x32EBC80]+0x304",
         "latestValue": latest_state.get("turnRate0x304"),
         "latestClassification": latest_state.get("turnRateClassification"),
+        "latestDiscriminator": latest_state.get("turnRateDiscriminator"),
+        "headingSupport0x300": latest_state.get("headingSupport0x300"),
+        "rotationSupport0x308": latest_state.get("rotationSupport0x308"),
+        "animationTimer0x408": latest_state.get("animationTimer0x408"),
         "comparisonDeltasFromBaseline": safe_mapping(scalar).get("deltasFromBaseline"),
         "comparisonMaxAbsDelta": safe_mapping(scalar).get("maxAbsDelta"),
-        "promotionBlockers": [
+        "promotionArtifact": truth_turn_rate.get("promotionArtifact") if promoted else None,
+        "promotedAtUtc": truth_turn_rate.get("promotedAtUtc") if promoted else None,
+        "latestPromotionReview": truth_turn_rate.get("latestPromotionReview") if promoted else None,
+        "promotionBlockers": []
+        if promoted
+        else [
             "candidate-only-turn-rate",
             "requires-dedicated-turn-stimulus-proof",
             "requires-restart-relog-survival",
         ],
+    }
+
+
+def navigation_control_chains_summary(
+    promoted_coordinate: Mapping[str, Any] | None,
+    facing_target: Mapping[str, Any] | None,
+    turn_rate: Mapping[str, Any] | None,
+    nav_state: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
+    facing = safe_mapping(facing_target)
+    turn = safe_mapping(turn_rate)
+    return {
+        "position": {
+            "state": "promoted" if safe_mapping(promoted_coordinate).get("promotionAllowed") else "missing",
+            "chain": safe_mapping(promoted_coordinate).get("chain") or "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+            "latestReadbackJson": safe_mapping(promoted_coordinate).get("latestReadbackJson"),
+        },
+        "facingYaw": {
+            "state": "promoted" if facing.get("promotionAllowed") else "candidate",
+            "chain": facing.get("chainShape") or "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "latestYawDegrees": facing.get("latestYawDegrees"),
+            "promotionArtifact": facing.get("promotionArtifact"),
+        },
+        "turnRate": {
+            "state": "promoted" if turn.get("promotionAllowed") else "candidate",
+            "chain": turn.get("chainShape") or "[rift_x64+0x32EBC80]+0x304",
+            "offset": turn.get("offset") or "0x304",
+            "latestValue": turn.get("latestValue"),
+            "latestClassification": turn.get("latestClassification"),
+            "promotionArtifact": turn.get("promotionArtifact"),
+            "blockers": turn.get("promotionBlockers") or [],
+        },
+        "supportFields": {
+            "headingSupport0x300": {
+                "state": "candidate",
+                "offset": latest_state.get("headingSupportOffset") or "0x300",
+                "latestValue": latest_state.get("headingSupport0x300"),
+            },
+            "rotationSupport0x308": {
+                "state": "candidate",
+                "offset": latest_state.get("rotationSupportOffset") or "0x308",
+                "latestValue": latest_state.get("rotationSupport0x308"),
+            },
+            "animationTimer0x408": {
+                "state": "candidate",
+                "offset": latest_state.get("animationTimerOffset") or "0x408",
+                "latestValue": latest_state.get("animationTimer0x408"),
+            },
+        },
+        "policy": {
+            "routeControlRequiresPromotedPositionAndFacingYaw": True,
+            "candidateTurnRateRequiresAllowCandidateTurnControlFlag": not bool(turn.get("promotionAllowed")),
+            "supportFieldsDoNotAuthorizeControl": True,
+        },
+    }
+
+
+def candidate_ledger_summary(
+    coordinate_readback: Mapping[str, Any] | None,
+    nav_state: Mapping[str, Any] | None,
+    turn_rate: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Return candidate-only navigation/actor ledger entries for unpromoted control fields."""
+
+    coordinate_analysis = safe_mapping(safe_mapping(coordinate_readback).get("analysis"))
+    latest_state = safe_mapping(safe_mapping(nav_state).get("latestState"))
+    turn = safe_mapping(turn_rate)
+    return {
+        "velocitySpeed": {
+            "state": "candidate",
+            "status": "needs-forward-back-stop-live-correlation",
+            "latestPlanarSpeedPerSecond": coordinate_analysis.get("maxSpeedPlanarPerSecond"),
+            "evidence": safe_mapping(coordinate_readback).get("artifacts"),
+            "promotionBlockers": [
+                "requires-forward-back-stop-snapshots",
+                "requires-wrong-way-or-blocked-contrast",
+                "requires-restart-survival",
+            ],
+        },
+        "turnRate": {
+            "state": "promoted" if turn.get("promotionAllowed") else "candidate",
+            "status": turn.get("status") or "missing",
+            "chain": turn.get("chainShape") or "[rift_x64+0x32EBC80]+0x304",
+            "latestValue": turn.get("latestValue") or latest_state.get("turnRate0x304"),
+            "latestClassification": turn.get("latestClassification") or latest_state.get("turnRateClassification"),
+            "promotionBlockers": turn.get("promotionBlockers") or [],
+        },
+        "controlLock": {
+            "state": "candidate",
+            "status": "not-discovered",
+            "promotionBlockers": [
+                "requires-live-state-transition-proof",
+                "requires-self-actor-or-static-root-identity",
+            ],
+        },
+        "actorState": {
+            "state": "candidate",
+            "status": "not-discovered",
+            "promotionBlockers": [
+                "requires-self-actor-chain-inventory",
+                "requires-restart-relog-survival",
+                "requires-live-state-transition-proof",
+            ],
+        },
+        "supportFields": {
+            "owner+0x300": {
+                "state": "candidate",
+                "latestValue": latest_state.get("headingSupport0x300"),
+                "promotionBlockers": ["requires-independent-semantic-proof"],
+            },
+            "owner+0x308": {
+                "state": "candidate",
+                "latestValue": latest_state.get("rotationSupport0x308"),
+                "promotionBlockers": ["requires-independent-semantic-proof"],
+            },
+            "owner+0x408": {
+                "state": "candidate",
+                "latestValue": latest_state.get("animationTimer0x408"),
+                "promotionBlockers": ["requires-direct-control-state-semantic-proof"],
+            },
+        },
+        "policy": {
+            "candidateFieldsMustNotBeMixedIntoCurrentTruthAsPromoted": True,
+            "promotionRequiresDedicatedGatePacket": True,
+        },
     }
 
 
@@ -992,6 +1143,36 @@ def facing_promotion_readiness_review_summary(
     }
 
 
+def turn_rate_promotion_readiness_review_summary(
+    repo_root: Path,
+    review: dict[str, Any] | None,
+    review_path: Path | None,
+) -> dict[str, Any] | None:
+    if not review:
+        return None
+    decision = safe_mapping(review.get("promotionDecision"))
+    next_section = safe_mapping(review.get("next"))
+    artifacts = safe_mapping(review.get("artifacts"))
+    return {
+        "status": review.get("status"),
+        "verdict": review.get("verdict"),
+        "generatedAtUtc": review.get("generatedAtUtc"),
+        "summaryJson": artifacts.get("summaryJson") or artifact_path(repo_root, review_path),
+        "summaryMarkdown": artifacts.get("summaryMarkdown"),
+        "reviewPassed": bool(decision.get("reviewPassed")),
+        "promotionAllowed": bool(decision.get("promotionAllowed")),
+        "promotionPerformed": bool(decision.get("promotionPerformed")),
+        "explicitPromotionGateRequired": bool(decision.get("explicitPromotionGateRequired", True)),
+        "freshPrePromotionReadbackRequired": bool(decision.get("freshPrePromotionReadbackRequired", True)),
+        "recommendedPromotionState": decision.get("recommendedPromotionState"),
+        "nextRecommendedAction": next_section.get("recommendedAction"),
+        "target": safe_mapping(review.get("target")),
+        "candidate": safe_mapping(review.get("candidate")),
+        "blockers": safe_list(review.get("blockers")),
+        "warnings": safe_list(review.get("warnings")),
+    }
+
+
 def ghidra_static_evidence_summary(
     repo_root: Path,
     evidence: dict[str, Any] | None,
@@ -1201,6 +1382,11 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="facing-target-promotion-readiness-review-",
         expected_kind="facing-target-promotion-readiness-review-packet",
     )
+    turn_rate_promotion_review_path, turn_rate_promotion_review_data, turn_rate_promotion_review_warnings = newest_summary(
+        repo_root,
+        directory_prefix="turn-rate-promotion-readiness-review-",
+        expected_kind="turn-rate-promotion-readiness-review-packet",
+    )
     ghidra_static_path, ghidra_static_data, ghidra_static_warnings = newest_summary(
         repo_root,
         directory_prefix="ghidra-static-analysis-",
@@ -1219,6 +1405,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + restart_survival_warnings
         + turn_forward_warnings
         + promotion_review_warnings
+        + turn_rate_promotion_review_warnings
         + ghidra_static_warnings
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
@@ -1249,7 +1436,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         pointer_data,
         pointer_path,
     )
-    turn_rate = turn_rate_summary(nav_data, facing_data)
+    turn_rate = turn_rate_summary(current_truth, nav_data, facing_data)
+    navigation_control_chains = navigation_control_chains_summary(
+        promoted_coordinate,
+        facing_target,
+        turn_rate,
+        nav_data,
+    )
     coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
     selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
     selected_camera_yaw_data = camera_yaw_multipose_data or camera_yaw_data
@@ -1258,6 +1451,11 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     restart_survival = facing_restart_survival_summary(repo_root, restart_survival_data, restart_survival_path)
     turn_forward = turn_forward_experiment_summary(repo_root, turn_forward_data, turn_forward_path)
     promotion_review = facing_promotion_readiness_review_summary(repo_root, promotion_review_data, promotion_review_path)
+    turn_rate_promotion_review = turn_rate_promotion_readiness_review_summary(
+        repo_root,
+        turn_rate_promotion_review_data,
+        turn_rate_promotion_review_path,
+    )
     ghidra_static = ghidra_static_evidence_summary(repo_root, ghidra_static_data, ghidra_static_path)
     api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
     warnings.extend(api_warnings)
@@ -1408,6 +1606,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["facingPromotionReadinessReview"],
         ),
+        "turnRatePromotionReadinessReview": summarize_source(
+            repo_root,
+            turn_rate_promotion_review_path,
+            turn_rate_promotion_review_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["turnRatePromotionReadinessReview"],
+        ),
     }
     freshness = aggregate_source_freshness(sources)
     promotion_review_passed = (
@@ -1416,6 +1621,12 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         and safe_mapping(promotion_review).get("promotionPerformed") is False
     )
     facing_promoted = safe_mapping(facing_target).get("promotionAllowed") is True
+    turn_rate_promoted = safe_mapping(turn_rate).get("promotionAllowed") is True
+    turn_rate_review_passed = (
+        safe_mapping(turn_rate_promotion_review).get("reviewPassed") is True
+        and safe_mapping(turn_rate_promotion_review).get("promotionAllowed") is False
+        and safe_mapping(turn_rate_promotion_review).get("promotionPerformed") is False
+    )
     facing_readiness = (
         "promoted-static-owner-facing-yaw-current-pid-readback-passed"
         if facing_promoted
@@ -1431,6 +1642,16 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             )
         )
     )
+    turn_rate_readiness = (
+        "promoted-static-owner-turn-rate-current-pid-readback-passed"
+        if turn_rate_promoted
+        else (
+            "review-passed-awaiting-explicit-promotion-gate-and-fresh-readback"
+            if turn_rate_review_passed
+            else ("candidate-only-requires-proof" if turn_rate else "missing")
+        )
+    )
+    candidate_ledger = candidate_ledger_summary(coord_data, nav_data, turn_rate)
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
     summary: dict[str, Any] = {
@@ -1459,12 +1680,15 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             "coordinateDeltaCandidate": coordinate_delta,
             "cameraYawClassification": camera_yaw,
         },
+        "navigationControlChains": navigation_control_chains,
+        "candidateLedger": candidate_ledger,
         "proofGates": {
             "facingThreePoseGate": three_pose_gate,
             "facingRestartSurvival": restart_survival,
             "turnForwardExperiment": turn_forward,
             "ghidraStaticEvidence": ghidra_static,
             "facingPromotionReadinessReview": promotion_review,
+            "turnRatePromotionReadinessReview": turn_rate_promotion_review,
         },
         "promotionReadiness": {
             "coordinateResolver": static_status.get("status"),
@@ -1479,7 +1703,8 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
                 else "missing-or-not-passed"
             ),
             "staticEvidence": "passed" if safe_mapping(ghidra_static).get("status") == "passed" else "missing-or-not-passed",
-            "turnRate": "candidate-only-requires-proof" if turn_rate else "missing",
+            "turnRate": turn_rate_readiness,
+            "turnRatePromotionReview": "passed" if turn_rate_review_passed else "missing-or-not-passed",
             "promotionReviewRequired": not facing_promoted,
             "promotionReview": "passed" if safe_mapping(promotion_review).get("reviewPassed") else "missing-or-not-passed",
             "facingPromotionPerformed": facing_promoted,
@@ -1533,8 +1758,12 @@ def build_markdown(summary: dict[str, Any]) -> str:
     turn_forward = safe_mapping(proof_gates.get("turnForwardExperiment"))
     ghidra_static = safe_mapping(proof_gates.get("ghidraStaticEvidence"))
     promotion_review = safe_mapping(proof_gates.get("facingPromotionReadinessReview"))
+    turn_rate_promotion_review = safe_mapping(proof_gates.get("turnRatePromotionReadinessReview"))
     artifacts = safe_mapping(summary.get("artifacts"))
     freshness = safe_mapping(summary.get("freshness"))
+    candidate_ledger = safe_mapping(summary.get("candidateLedger"))
+    facing_state = "promoted" if facing.get("promotionAllowed") else "candidate-only"
+    turn_state = "promoted" if turn.get("promotionAllowed") else "candidate-only"
     lines = [
         "# RiftReader Navigation Pointer Discovery Status",
         "",
@@ -1554,8 +1783,8 @@ def build_markdown(summary: dict[str, Any]) -> str:
         "| Candidate | Status | Key evidence | Promotion state |",
         "|---|---|---|---|",
         f"| Coordinate `+0x320/+0x324/+0x328` | `{promoted.get('status')}` | `{promoted.get('chain')}` | `promoted={str(bool(promoted.get('promotionAllowed'))).lower()}` |",
-        f"| Facing target `+0x30C/+0x310/+0x314` | `{facing.get('status')}` | `max yaw delta={facing.get('comparisonMaxAbsYawDeltaDegrees')}` | `candidate-only` |",
-        f"| Turn rate `+0x304` | `{turn.get('status')}` | `latest={turn.get('latestValue')}` | `candidate-only` |",
+        f"| Facing target `+0x30C/+0x310/+0x314` | `{facing.get('status')}` | `max yaw delta={facing.get('comparisonMaxAbsYawDeltaDegrees')}` | `{facing_state}` |",
+        f"| Turn rate `+0x304` | `{turn.get('status')}` | `latest={turn.get('latestValue')}; class={turn.get('latestClassification')}` | `{turn_state}` |",
         f"| Coordinate delta evidence | `{delta.get('status')}` | `tracking max abs={delta.get('trackingErrorMaxAbs')}` | `matches promoted={delta.get('matchesPromotedCoordinateAddress')}` |",
         f"| Camera/yaw classification | `{camera_yaw.get('status')}` | `{camera_yaw.get('classification')}` | `route-actionable={camera_yaw.get('actionableForRouteControl')}` |",
         f"| Facing three-pose gate | `{three_pose.get('status')}` | `poses={three_pose.get('passedPoseCount')}/{three_pose.get('poseCount')}; min progress={three_pose.get('minimumProgressDistance')}` | `candidate-only` |",
@@ -1563,6 +1792,15 @@ def build_markdown(summary: dict[str, Any]) -> str:
         f"| Turn-forward live progress | `{turn_forward.get('status')}` | `progress={turn_forward.get('totalProgressDistance')}; route={turn_forward.get('routeStatus')}` | `support-only` |",
         f"| Ghidra static pointer evidence | `{ghidra_static.get('status')}` | `root refs={ghidra_static.get('rootReferenceCountCaptured')}; root={ghidra_static.get('rootAddress')}` | `offline-only` |",
         f"| Facing promotion-readiness review | `{promotion_review.get('status')}` | `reviewPassed={promotion_review.get('reviewPassed')}` | `promotionAllowed={promotion_review.get('promotionAllowed')}; performed={promotion_review.get('promotionPerformed')}` |",
+        f"| Turn-rate promotion-readiness review | `{turn_rate_promotion_review.get('status')}` | `reviewPassed={turn_rate_promotion_review.get('reviewPassed')}` | `promotionAllowed={turn_rate_promotion_review.get('promotionAllowed')}; performed={turn_rate_promotion_review.get('promotionPerformed')}` |",
+        "",
+        "## Candidate ledger",
+        "",
+        "| Candidate family | State | Status | Promotion boundary |",
+        "|---|---|---|---|",
+        f"| Velocity/speed | `{safe_mapping(candidate_ledger.get('velocitySpeed')).get('state')}` | `{safe_mapping(candidate_ledger.get('velocitySpeed')).get('status')}` | `requires movement correlation + restart survival` |",
+        f"| Control lock | `{safe_mapping(candidate_ledger.get('controlLock')).get('state')}` | `{safe_mapping(candidate_ledger.get('controlLock')).get('status')}` | `candidate-only` |",
+        f"| Actor state | `{safe_mapping(candidate_ledger.get('actorState')).get('state')}` | `{safe_mapping(candidate_ledger.get('actorState')).get('status')}` | `candidate-only` |",
         "",
         "## Source artifacts",
         "",
