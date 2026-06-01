@@ -211,6 +211,67 @@ def seed_navigation_artifacts(root: Path) -> None:
     )
 
 
+def seed_camera_yaw_multipose_report(root: Path) -> None:
+    write_json(
+        root
+        / "scripts"
+        / "captures"
+        / "static-owner-camera-yaw-multipose-report-20260531-174600-000000"
+        / "summary.json",
+        {
+            "kind": "static-owner-camera-yaw-multipose-report",
+            "status": "passed",
+            "verdict": "route-actionable-candidate-present-needs-proof",
+            "generatedAtUtc": "2026-05-31T14:23:30Z",
+            "sourceCount": 2,
+            "poses": [
+                {
+                    "summaryJson": "right-summary.json",
+                    "stimulus": {"type": "mouse-look", "direction": "right", "pixels": 120, "approved": True},
+                    "classification": "visual-and-static-yaw-changed",
+                    "staticYawChanged": True,
+                    "signedYawDeltaDegrees": 8.4,
+                    "actionableForRouteControl": True,
+                },
+                {
+                    "summaryJson": "left-summary.json",
+                    "stimulus": {"type": "mouse-look", "direction": "left", "pixels": 120, "approved": True},
+                    "classification": "visual-and-static-yaw-changed",
+                    "staticYawChanged": True,
+                    "signedYawDeltaDegrees": -8.4,
+                    "actionableForRouteControl": True,
+                },
+            ],
+            "offsetAggregate": {
+                "0x300": {"sampleCount": 2, "directions": ["left", "right"], "maxAbsDelta": 8.4},
+                "0x304": {"sampleCount": 2, "directions": ["left", "right"], "maxAbsDelta": 0.01},
+            },
+            "analysis": {
+                "classificationCounts": {"visual-and-static-yaw-changed": 2},
+                "routeActionablePoseCount": 2,
+                "visualChangedStaticYawUnchangedCount": 0,
+                "changedOffsetCount": 2,
+                "candidateOnly": True,
+                "promotionAllowed": False,
+                "actionableForRouteControl": True,
+            },
+            "sourceSafety": {
+                "inputSent": True,
+                "movementSent": False,
+                "targetMemoryBytesRead": True,
+                "targetMemoryBytesWritten": False,
+            },
+            "safety": {
+                "inputSent": False,
+                "movementSent": False,
+                "targetMemoryBytesRead": False,
+                "targetMemoryBytesWritten": False,
+                "proofPromotion": False,
+            },
+        },
+    )
+
+
 class NavigationPointerDiscoveryTests(unittest.TestCase):
     def test_build_summary_indexes_promoted_and_candidate_navigation_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -245,6 +306,28 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(summary["freshness"]["status"], "fresh")
         self.assertEqual(summary["sources"]["coordinateReadback"]["freshness"]["status"], "fresh")
         self.assertEqual(summary["target"]["identitySource"], "latest-coordinate-and-nav-state-readbacks")
+
+    def test_multipose_camera_yaw_report_is_preferred_for_route_next_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            seed_camera_yaw_multipose_report(root)
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 24, tzinfo=timezone.utc),
+            )
+
+        camera_yaw = summary["candidates"]["cameraYawClassification"]
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(camera_yaw["proofPackKind"], "multipose-camera-yaw-report")
+        self.assertEqual(camera_yaw["routeActionablePoseCount"], 2)
+        self.assertTrue(camera_yaw["candidateOnly"])
+        self.assertFalse(camera_yaw["promotionAllowed"])
+        self.assertEqual(summary["sources"]["cameraYawMultipose"]["status"], "passed")
+        self.assertTrue(summary["sourceSafety"]["cameraYawClassificationInputSent"])
+        self.assertTrue(any("three-pose gate" in item for item in summary["next"]["recommendedActions"]))
+        self.assertFalse(any("Rerun a small camera/yaw proof pack" in item for item in summary["next"]["recommendedActions"]))
 
     def test_promoted_coordinate_uses_latest_readback_coordinate_over_tracked_truth_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

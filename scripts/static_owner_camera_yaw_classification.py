@@ -18,6 +18,7 @@ import math
 import sys
 import time
 import tempfile
+from ctypes import wintypes
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -32,7 +33,16 @@ from workflow_common import (
     utc_stamp,
     write_json,
 )
-from static_owner_mouse_turn_probe import perform_mouse_turn, target_from_summary
+from static_owner_mouse_turn_probe import (
+    SW_RESTORE,
+    foreground_info,
+    get_user32,
+    hwnd_to_hex,
+    parse_hwnd,
+    perform_mouse_turn,
+    process_id_for_hwnd,
+    target_from_summary,
+)
 
 
 SCHEMA_VERSION = 1
@@ -127,6 +137,81 @@ def compact_capture_artifact(capture_summary: Mapping[str, Any]) -> dict[str, An
         "method": tool.get("captureMethod"),
         "width": tool.get("width"),
         "height": tool.get("height"),
+    }
+
+
+def visual_foreground_capture_gate(
+    *,
+    target: Mapping[str, Any],
+    capture_summary: Mapping[str, Any],
+    focus_delay_milliseconds: int,
+) -> dict[str, Any]:
+    """Fail closed unless the visual capture and foreground target match the exact Rift HWND.
+
+    This is intentionally a pre-input guard for live helpers.  The capture tool
+    proves the captured visual artifact is tied to the expected window identity;
+    the foreground check catches screen/top-layer mismatches where a different
+    application would receive raw input.
+    """
+
+    blockers: list[str] = []
+    warnings: list[str] = []
+    details: dict[str, Any] = {}
+    expected_pid = int(target.get("processId") or 0)
+    expected_hwnd = hwnd_to_hex(target.get("targetWindowHandle"))
+    tool = safe_mapping(capture_summary.get("toolReport"))
+    details["capture"] = {
+        "usable": tool.get("usable"),
+        "windowPid": tool.get("windowPid"),
+        "hwnd": tool.get("hwnd"),
+        "windowTitle": tool.get("windowTitle"),
+        "captureMethod": tool.get("captureMethod"),
+        "output": tool.get("output"),
+    }
+    if tool.get("usable") is not True:
+        blockers.append("visual-capture-not-usable")
+    if str(tool.get("windowPid")) != str(expected_pid):
+        blockers.append(f"visual-capture-pid-mismatch:{tool.get('windowPid')}!={expected_pid}")
+    if str(tool.get("windowProcessName") or "").lower() != "rift_x64":
+        blockers.append(f"visual-capture-process-mismatch:{tool.get('windowProcessName')}")
+    captured_hwnd = tool.get("hwnd")
+    if not captured_hwnd:
+        blockers.append("visual-capture-hwnd-missing")
+    elif hwnd_to_hex(captured_hwnd) != expected_hwnd:
+        blockers.append(f"visual-capture-hwnd-mismatch:{captured_hwnd}!={expected_hwnd}")
+    if str(tool.get("windowTitle") or "") != "RIFT":
+        warnings.append(f"visual-capture-title-not-exact-rift:{tool.get('windowTitle')}")
+
+    try:
+        user32 = get_user32()
+        hwnd = parse_hwnd(expected_hwnd)
+        details["foregroundBeforeGate"] = foreground_info(user32)
+        if not user32.IsWindow(wintypes.HWND(hwnd)):
+            blockers.append("visual-gate-target-window-not-found")
+        else:
+            actual_pid = process_id_for_hwnd(user32, hwnd)
+            details["targetWindowProcessId"] = actual_pid
+            if actual_pid != expected_pid:
+                blockers.append(f"visual-gate-target-pid-mismatch:{actual_pid}!={expected_pid}")
+            user32.ShowWindow(wintypes.HWND(hwnd), SW_RESTORE)
+            user32.BringWindowToTop(wintypes.HWND(hwnd))
+            user32.SetForegroundWindow(wintypes.HWND(hwnd))
+            if focus_delay_milliseconds:
+                time.sleep(focus_delay_milliseconds / 1000.0)
+            details["foregroundAfterGate"] = foreground_info(user32)
+            foreground = safe_mapping(details["foregroundAfterGate"])
+            if foreground.get("processId") != expected_pid:
+                blockers.append(f"visual-gate-target-not-foreground:{foreground.get('processId')}!={expected_pid}")
+            elif parse_hwnd(foreground.get("hwnd")) != hwnd:
+                blockers.append(f"visual-gate-target-not-exact-foreground-window:{foreground.get('hwnd')}!={expected_hwnd}")
+    except Exception as exc:  # noqa: BLE001 - gate must report and fail closed.
+        blockers.append(f"visual-foreground-gate-error:{type(exc).__name__}:{exc}")
+
+    return {
+        "status": "passed" if not blockers else "blocked",
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "details": details,
     }
 
 
@@ -485,9 +570,15 @@ def aggregate_camera_yaw_summaries(args: argparse.Namespace, root: Path, run_dir
         summary["warnings"].append("candidate-only-multipose-report-no-promotion")
         if route_actionable_count:
             summary["verdict"] = "route-actionable-candidate-present-needs-proof"
-            summary["next"]["recommendedAction"] = (
-                "Rerun a bounded proof pack for the route-actionable candidate before any turn-dependent route movement."
-            )
+            if route_actionable_count >= 2:
+                summary["next"]["recommendedAction"] = (
+                    "Package the route-forward passes into a formal three-pose gate and preserve this aggregate "
+                    "as candidate-only camera/yaw evidence before any promotion review."
+                )
+            else:
+                summary["next"]["recommendedAction"] = (
+                    "Rerun a bounded proof pack for the route-actionable candidate before any turn-dependent route movement."
+                )
         elif visual_changed_static_unchanged_count:
             summary["verdict"] = "visual-changed-static-yaw-unchanged-across-poses"
         else:
@@ -575,6 +666,7 @@ def run_classification(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         },
         "commands": [],
         "visualEvidence": {},
+        "visualPreflightGate": {},
         "snapshotEvidence": {},
         "analysis": {},
         "blockers": [],
@@ -611,6 +703,16 @@ def run_classification(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             raise RuntimeError("visual-baseline-capture-failed")
         baseline_capture_json = safe_mapping(baseline_capture.get("json"))
         baseline_visual = compact_capture_artifact(baseline_capture_json)
+        visual_gate = visual_foreground_capture_gate(
+            target=truth_target,
+            capture_summary=baseline_capture_json,
+            focus_delay_milliseconds=args.focus_delay_milliseconds,
+        )
+        summary["visualPreflightGate"] = visual_gate
+        summary["warnings"].extend(str(item) for item in visual_gate.get("warnings", []))
+        if visual_gate.get("status") != "passed":
+            summary["blockers"].extend(str(item) for item in visual_gate.get("blockers", []))
+            raise RuntimeError("visual-foreground-capture-gate-failed")
 
         baseline_snapshot_cmd = run_child(
             label="snapshot-baseline",

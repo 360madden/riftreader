@@ -43,6 +43,7 @@ SOURCE_FRESHNESS_BUDGETS_SECONDS = {
     "pointerNeighborhood": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "familySnapshot": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
     "cameraYawClassification": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
+    "cameraYawMultipose": DISCOVERY_EVIDENCE_MAX_AGE_SECONDS,
 }
 
 
@@ -705,6 +706,61 @@ def camera_yaw_classification_summary(
 ) -> dict[str, Any] | None:
     if not camera_yaw:
         return None
+    if camera_yaw.get("kind") == "static-owner-camera-yaw-multipose-report":
+        analysis = safe_mapping(camera_yaw.get("analysis"))
+        source_safety = safe_mapping(camera_yaw.get("sourceSafety"))
+        poses = safe_list(camera_yaw.get("poses"))
+        route_actionable_count = int(analysis.get("routeActionablePoseCount") or 0)
+        offset_aggregate = safe_mapping(camera_yaw.get("offsetAggregate"))
+        return {
+            "status": "candidate-only",
+            "candidateOnly": True,
+            "promotionAllowed": False,
+            "proofPackKind": "multipose-camera-yaw-report",
+            "verdict": camera_yaw.get("verdict"),
+            "classification": camera_yaw.get("verdict"),
+            "generatedAtUtc": camera_yaw.get("generatedAtUtc"),
+            "sourceCount": camera_yaw.get("sourceCount"),
+            "classificationCounts": analysis.get("classificationCounts"),
+            "routeActionablePoseCount": route_actionable_count,
+            "visualChangedStaticYawUnchangedCount": analysis.get("visualChangedStaticYawUnchangedCount"),
+            "changedFocusOffsetCount": analysis.get("changedOffsetCount"),
+            "changedFocusOffsets": [
+                {
+                    "offset": offset,
+                    "sampleCount": safe_mapping(item).get("sampleCount"),
+                    "directions": safe_mapping(item).get("directions"),
+                    "maxAbsDelta": safe_mapping(item).get("maxAbsDelta"),
+                }
+                for offset, item in sorted(offset_aggregate.items())
+            ][:10],
+            "actionableForRouteControl": analysis.get("actionableForRouteControl"),
+            "poses": [
+                {
+                    "summaryJson": safe_mapping(pose).get("summaryJson"),
+                    "direction": safe_mapping(safe_mapping(pose).get("stimulus")).get("direction"),
+                    "pixels": safe_mapping(safe_mapping(pose).get("stimulus")).get("pixels"),
+                    "classification": safe_mapping(pose).get("classification"),
+                    "staticYawChanged": safe_mapping(pose).get("staticYawChanged"),
+                    "signedYawDeltaDegrees": safe_mapping(pose).get("signedYawDeltaDegrees"),
+                    "actionableForRouteControl": safe_mapping(pose).get("actionableForRouteControl"),
+                }
+                for pose in poses[:10]
+            ],
+            "evidence": {
+                "summaryJson": artifact_path(repo_root, camera_yaw_path),
+                "sourceInputSent": source_safety.get("inputSent"),
+                "sourceMovementSent": source_safety.get("movementSent"),
+                "sourceTargetMemoryBytesRead": source_safety.get("targetMemoryBytesRead"),
+            },
+            "promotionBlockers": [
+                "candidate-only-camera-yaw-multipose-report",
+                "requires-route-actionable-yaw-control-proof",
+                "requires-formal-three-pose-displacement-validation",
+                "requires-restart-relog-survival",
+                "requires-separate-promotion-approval",
+            ],
+        }
     analysis = safe_mapping(camera_yaw.get("analysis"))
     stimulus = safe_mapping(camera_yaw.get("stimulus"))
     visual = safe_mapping(camera_yaw.get("visualEvidence"))
@@ -768,7 +824,17 @@ def build_next_action(
         )
     camera_yaw_map = safe_mapping(camera_yaw)
     if camera_yaw_map:
-        if camera_yaw_map.get("actionableForRouteControl") is True:
+        if (
+            camera_yaw_map.get("proofPackKind") == "multipose-camera-yaw-report"
+            and int(camera_yaw_map.get("routeActionablePoseCount") or 0) >= 2
+        ):
+            recommended_actions.append(
+                "Package the existing route-forward passes into a formal three-pose gate before any promotion review."
+            )
+            recommended_actions.append(
+                "Refresh exact-target static/nav/API readbacks, then run one bounded turn-forward proof only if continuing live route-control evidence."
+            )
+        elif camera_yaw_map.get("actionableForRouteControl") is True:
             recommended_actions.append(
                 "Rerun a small camera/yaw proof pack before any turn-dependent route movement."
             )
@@ -832,6 +898,11 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         directory_prefix="static-owner-camera-yaw-classification-",
         expected_kind="static-owner-camera-yaw-classification",
     )
+    camera_yaw_multipose_path, camera_yaw_multipose_data, camera_yaw_multipose_warnings = newest_summary(
+        repo_root,
+        directory_prefix="static-owner-camera-yaw-multipose-report-",
+        expected_kind="static-owner-camera-yaw-multipose-report",
+    )
     warnings.extend(
         coord_warnings
         + nav_warnings
@@ -839,6 +910,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         + pointer_warnings
         + family_warnings
         + camera_yaw_warnings
+        + camera_yaw_multipose_warnings
     )
     candidate_vec3 = load_candidate_vec3(repo_root, family_data, warnings)
 
@@ -861,7 +933,9 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     facing_target = facing_target_summary(repo_root, nav_data, nav_path, facing_data, facing_path, pointer_data, pointer_path)
     turn_rate = turn_rate_summary(nav_data, facing_data)
     coordinate_delta = coordinate_delta_summary(repo_root, current_truth, family_data, family_path, candidate_vec3)
-    camera_yaw = camera_yaw_classification_summary(repo_root, camera_yaw_data, camera_yaw_path)
+    selected_camera_yaw_path = camera_yaw_multipose_path or camera_yaw_path
+    selected_camera_yaw_data = camera_yaw_multipose_data or camera_yaw_data
+    camera_yaw = camera_yaw_classification_summary(repo_root, selected_camera_yaw_data, selected_camera_yaw_path)
     api_path, api_data, api_warnings = newest_api_reference_for_pid(repo_root, target.get("processId"))
     warnings.extend(api_warnings)
 
@@ -894,7 +968,9 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
     if api_comparison:
         promoted_coordinate["apiNowComparison"] = api_comparison
     family_safety = safe_mapping(safe_mapping(family_data).get("safety"))
-    camera_yaw_safety = safe_mapping(safe_mapping(camera_yaw_data).get("safety"))
+    camera_yaw_safety = safe_mapping(safe_mapping(selected_camera_yaw_data).get("sourceSafety")) or safe_mapping(
+        safe_mapping(selected_camera_yaw_data).get("safety")
+    )
     coord_safety = safe_mapping(safe_mapping(coord_data).get("safety"))
     nav_safety = safe_mapping(safe_mapping(nav_data).get("safety"))
     source_safety = {
@@ -964,6 +1040,13 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
             camera_yaw_data,
             now=now_utc,
             max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["cameraYawClassification"],
+        ),
+        "cameraYawMultipose": summarize_source(
+            repo_root,
+            camera_yaw_multipose_path,
+            camera_yaw_multipose_data,
+            now=now_utc,
+            max_age_seconds=SOURCE_FRESHNESS_BUDGETS_SECONDS["cameraYawMultipose"],
         ),
     }
     freshness = aggregate_source_freshness(sources)

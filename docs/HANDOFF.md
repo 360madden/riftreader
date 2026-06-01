@@ -2,38 +2,40 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
-## Latest compact handoff — camera/yaw proof pack refresh — 2026-06-01 05:21 UTC
+## Latest compact handoff — facing-target gates and live proof refresh — 2026-06-01 05:51 UTC
 
 A new compact handoff exists at
-`docs/handoffs/2026-06-01-0521-camera-yaw-proof-pack-handoff.md`.
+`docs/handoffs/2026-06-01-0551-facing-target-gates-live-proof-handoff.md`.
 
 Current target identity and tracked truth remain PID `41808`, HWND `0x2B0A26`,
 process start
 `2026-06-01T01:50:50.903773Z`, module base `0x7FF6EE5D0000`. The promoted
-coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`, and current
-API-now vs chain-now previously passed with max abs delta
-`0.004333406249998006` <= tolerance `0.25`.
+coordinate chain remains `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328`.
 
-The live-window visual blocker from 05:11 UTC was resolved after the operator
-moved the Amazon browser page. Exact PID/HWND binding for PID `41808` /
-HWND `0x2B0A26` reported `isForeground=true`, and
-`tools\rift-game-mcp\.runtime\screenshots\capture-20260601-011842-185.png`
-showed the Rift frame.
+Latest post-proof API-now vs chain-now passed from
+`scripts\captures\rift-api-reference-currentpid-41808-20260601-054745.json`
+against
+`scripts\captures\static-owner-coordinate-chain-readback-20260601-054735-005823\summary.json`
+with max abs delta `0.004416406250129512` <= tolerance `0.25`.
 
-Newest live proof pack: two bounded exact-target mouse-look camera/yaw stimuli
-passed, with right `+8.469205989610003°` and left `-8.469205989610003°`
-static yaw deltas. Aggregate report:
-`C:\RIFT MODDING\RiftReader\scripts\captures\static-owner-camera-yaw-multipose-report-20260601-052037-685312\summary.json`.
+Newest gate packets:
+
+| Packet | Status | Path |
+|---|---|---|
+| Camera/yaw multipose aggregate | `passed`, route-actionable pose count `2` | `scripts\captures\static-owner-camera-yaw-multipose-report-20260601-052037-685312\summary.json` |
+| Three-pose route-progress gate | `passed` | `scripts\captures\facing-target-three-pose-gate-20260601-054258-066521\summary.json` |
+| Current PID turn-forward proof | `passed`, route progress `1.5254744940722471` | `scripts\captures\static-owner-turn-forward-experiment-20260601-054700-011212\summary.json` |
+| Restart/relog survival packet | `passed`, distinct process epochs and stable offsets | `scripts\captures\facing-target-restart-survival-packet-20260601-054826-920485\summary.json` |
 
 Current state: `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314` is still the closest
-facing-target candidate and remains **candidate-only**. The previous
-current-truth/Ghidra handoff remains useful for target/truth/static evidence:
-`docs/handoffs/2026-06-01-0458-current-truth-ghidra-static-refresh-handoff.md`.
+facing-target candidate and remains **candidate-only** for truth/promotion. The
+new Ghidra review note is
+`docs/recovery/ghidra-facing-coordinate-source-site-review-2026-06-01.md`.
 
-Main blockers: restart/relog survival, independent static-root/subfield proof,
-formal three-pose gate packaging, and separate proof/promotion review. Do not
-promote facing/turn-rate/actor chains from current-session readback or the
-camera/yaw proof pack alone.
+Main blocker: a separate proof/promotion review artifact still has to consume
+the three-pose gate, live turn-forward proof, restart/relog packet, and Ghidra
+source-site review. Tracked current truth was not updated; a dry-run proposal is
+available under `.riftreader-local\current-truth-refresh-plan\latest\`.
 
 ## Ghidra offline-static lane reintroduced as a default discovery step — 2026-06-01
 
