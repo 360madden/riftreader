@@ -181,6 +181,7 @@ def newest_summary(
     directory_prefix: str,
     expected_kind: str | None = None,
     warn_kind_mismatch: bool = True,
+    recursive: bool = False,
 ) -> tuple[Path | None, dict[str, Any] | None, list[str]]:
     capture_root = repo_root / CAPTURE_ROOT
     warnings: list[str] = []
@@ -188,7 +189,9 @@ def newest_summary(
         return None, None, [f"capture-root-missing:{repo_rel(repo_root, capture_root)}"]
 
     valid: list[tuple[datetime, Path, dict[str, Any]]] = []
-    for path in capture_root.glob(f"{directory_prefix}*/summary.json"):
+    pattern = f"{directory_prefix}*/summary.json"
+    candidates = capture_root.rglob(pattern) if recursive else capture_root.glob(pattern)
+    for path in candidates:
         if not path.is_file():
             continue
         data, error = try_load_json_object(path)
@@ -1123,6 +1126,7 @@ def build_navigation_pointer_discovery(repo_root: Path, *, now: datetime | None 
         repo_root,
         directory_prefix="static-owner-facing-comparison-",
         expected_kind="static-owner-facing-comparison",
+        recursive=True,
     )
     pointer_path, pointer_data, pointer_warnings = newest_summary(
         repo_root,

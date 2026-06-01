@@ -675,6 +675,59 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertIn("navState", summary["freshness"]["staleSources"])
         self.assertNotIn("facingComparison", summary["freshness"]["staleSources"])
 
+    def test_nested_facing_comparison_from_camera_yaw_run_can_refresh_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            seed_navigation_artifacts(root)
+            nested_path = (
+                root
+                / "scripts"
+                / "captures"
+                / "static-owner-camera-yaw-classification-20260531-143000-000000"
+                / "static-owner-facing-comparison-20260531-143001-000000"
+                / "summary.json"
+            )
+            write_json(
+                nested_path,
+                {
+                    "kind": "static-owner-facing-comparison",
+                    "status": "passed",
+                    "verdict": "static-owner-facing-candidates-scored",
+                    "generatedAtUtc": "2026-05-31T14:30:01Z",
+                    "comparison": {
+                        "ownerAddresses": ["0x1000"],
+                        "maxCoordinatePlanarDrift": 0.0,
+                        "relativeTargetCandidates": [
+                            {
+                                "offset": "0x30C",
+                                "address": "0x130C",
+                                "yawDeltasFromBaseline": {"return": 33.8},
+                                "maxAbsYawDeltaDegrees": 33.8,
+                            }
+                        ],
+                        "scalarCandidates": [
+                            {
+                                "offset": "0x304",
+                                "address": "0x1304",
+                                "deltasFromBaseline": {"return": -0.59},
+                                "maxAbsDelta": 0.59,
+                            }
+                        ],
+                    },
+                },
+            )
+
+            summary = discovery.build_navigation_pointer_discovery(
+                root,
+                now=datetime(2026, 5, 31, 14, 31, tzinfo=timezone.utc),
+            )
+
+        facing = summary["candidates"]["candidateFacingTarget"]
+        self.assertEqual("passed", summary["status"])
+        self.assertNotIn("facingComparison", summary["freshness"]["staleSources"])
+        self.assertIn("static-owner-camera-yaw-classification-20260531-143000-000000", summary["sources"]["facingComparison"]["path"])
+        self.assertEqual(33.8, facing["comparisonMaxAbsYawDeltaDegrees"])
+
     def test_next_action_prioritizes_truth_refresh_when_only_current_truth_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
