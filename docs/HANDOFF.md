@@ -17,6 +17,47 @@ formal three-pose gate packaging, stale tracked current truth, and separate
 promotion/current-truth-write approval. Do not promote facing/turn-rate/actor
 chains or rewrite current truth from the dashboard alone.
 
+## Ghidra offline-static lane reintroduced as a default discovery step — 2026-06-01
+
+Treat Ghidra as a first-class reverse-engineering platform — decompiler, xrefs,
+control-flow/data-flow, writer-site discovery, and type/structure recovery —
+not as a simple reader. Use it before another live/debugger/proof escalation
+when reviewing pointer-chain candidates, owner-layout semantics, or
+restart-survival failures. The safe planner command is:
+
+```powershell
+cmd /c scripts\riftreader-ghidra-static-evidence.cmd --plan --json
+```
+
+To run the actual offline import/xref/writer evidence extractor, pass the local
+RIFT binary explicitly:
+
+```powershell
+cmd /c scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path "C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe" --json
+```
+
+This lane is powerful but offline-only: it plans/runs against offline files and
+does **not** attach to the live process, read/write target memory, send input,
+write provider repos, update current truth, or promote candidates. Prioritize
+decompiler/xref/writer analysis and layout semantics around
+`rift_x64+0x32EBC80`, `owner+0x300/+0x304/+0x30C`,
+`owner+0x320/+0x324/+0x328`, and `owner+0x438/+0x43C/+0x440`.
+
+The helper intentionally writes Ghidra projects under ignored
+`scripts\captures\ghidra-static-projects\project-*` instead of
+`.riftreader-local`, because Ghidra rejects project path components beginning
+with `.`. It also uses Windows short paths internally to avoid batch-file
+breakage on paths containing spaces or parentheses.
+
+Latest offline Ghidra evidence:
+`docs/recovery/ghidra-static-pointer-evidence-2026-06-01.md`.
+The first pass imported `rift_x64.exe`, scanned `5,162,625` instructions, and
+captured 200 capped refs to `rift_x64+0x32EBC80` (`101` READ / `99` WRITE in the
+cap). It also found the key same-owner write cluster at `0x14003FA33..0x14003FA75`
+for `owner+0x304`, `owner+0x30C/+0x310/+0x314`, and
+`owner+0x320/+0x324/+0x328`. This supports `0x30C` as owner-layout evidence, but
+the restart zero-vector result still keeps it candidate-only/state-dependent.
+
 ## Current state
 
 RIFT automated navigation is in **Phase 0 (correctness)**. Four of four
@@ -48,6 +89,12 @@ state readback → plan (bearing + 0x304) → turn (mouse-look pulse-loop verifi
 | `scripts/static_owner_nav_route_step.py` | Single forward step with pre/post state analysis |
 | `scripts/nav_state_readback.py` | Read yaw, turn rate, facing from promoted static chain |
 | `scripts/capture_root_signature.py` | Capture AOB signatures for game-update resilience |
+| `scripts/riftreader-tool-catalog.cmd` | Safe tool catalog and Ghidra static-lane planner |
+| `scripts/riftreader-ghidra-static-evidence.cmd` | Runs/plans offline Ghidra import plus pointer evidence extraction with Windows path fixups |
+| `tools/riftreader_workflow/tool_catalog.py` | Ghidra/offline-static priority, target offsets, and safety metadata |
+| `tools/riftreader_workflow/ghidra_static_evidence.py` | Python orchestrator for Ghidra headless runs and summary artifacts |
+| `tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java` | Ghidra script extracting root refs, owner-offset hits, and decompiler snippets |
+| `tools/riftreader_workflow/decision_packet.py` | Safe next-action routing; candidate-only actor/navigation evidence now surfaces Ghidra first |
 | `docs/workflows/README.md` | Master decision tree (8 scenarios) |
 | `docs/workflows/session-startup.md` | "I just logged in, what now?" |
 

@@ -31,6 +31,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-decision-packet.cmd",
         "scripts/riftreader-workflow-status.cmd",
         "scripts/riftreader-tool-catalog.cmd",
+        "scripts/riftreader-ghidra-static-evidence.cmd",
         "scripts/riftreader-policy-lint.cmd",
         "scripts/riftreader-validation-ledger.cmd",
         "scripts/riftreader-navigation-pointer-discovery.cmd",
@@ -48,6 +49,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/static-owner-nav-report-route-run.cmd",
         "scripts/riftscan_milestone_review.py",
         "tools/riftreader_workflow/opencode_bridge.py",
+        "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
         "tools/RiftReader.SendInput/Program.cs",
         "tools/RiftReader.WindowTools/Program.cs",
     ]:
@@ -89,7 +91,11 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertEqual(compact["kind"], "riftreader-tool-catalog-compact")
         self.assertEqual(compact["ghidraStaticLane"]["status"], "ready")
         self.assertEqual(compact["inputSurfacePolicyCommand"], ["scripts\\riftreader-live-input-surface-audit.cmd", "--json"])
+        workflow_steps = [item["step"] for item in compact["recommendedWorkflow"]]
         self.assertTrue(any(item["step"] == "offline-static-first" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "ghidra-static-evidence-plan" for item in compact["recommendedWorkflow"]))
+        self.assertLess(workflow_steps.index("offline-static-first"), workflow_steps.index("workflow-status"))
+        self.assertLess(workflow_steps.index("offline-static-first"), workflow_steps.index("navigation-pointer-discovery"))
         self.assertTrue(any(item["step"] == "actor-chain-status-separate" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "navigation-pointer-discovery" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "current-truth-refresh-plan" for item in compact["recommendedWorkflow"]))
@@ -100,11 +106,17 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
         self.assertIn("actor-chain-no-debug-status", compact["canonicalToolKeys"])
         self.assertIn("validation-ledger", compact["canonicalToolKeys"])
+        self.assertIn("ghidra-static-evidence", compact["canonicalToolKeys"])
         self.assertIn("navigation-pointer-discovery", compact["canonicalToolKeys"])
         self.assertIn("current-truth-refresh-plan", compact["canonicalToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
         self.assertIn("static-owner-camera-yaw-classification", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
+        self.assertIn("restart-survival-failure", compact["ghidraStaticLane"]["recommendedTriggers"])
+        self.assertIn("owner+0x30C", compact["ghidraStaticLane"]["targetOffsets"])
+        self.assertIn("owner+0x438", compact["ghidraStaticLane"]["targetOffsets"])
+        self.assertIn("suggestedRunCommand", compact["ghidraStaticLane"])
+        self.assertIn("decompiler", compact["ghidraStaticLane"]["capabilities"])
 
     def test_missing_external_tools_warns_without_authorizing_debugger(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -127,7 +139,15 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertEqual(plan["status"], "ready")
         self.assertFalse(plan["doesRun"])
         self.assertFalse(plan["safety"]["x64dbgAttach"])
-        self.assertIn("-import", plan["commandTemplate"])
+        self.assertIn("scripts\\riftreader-ghidra-static-evidence.cmd", plan["commandTemplate"])
+        self.assertIn("--run", plan["suggestedRunCommand"])
+        self.assertIn("-import", plan["headlessCommandTemplate"])
+        self.assertIn("default-offline-static-first-for-pointer-chain-discovery", plan["priority"])
+        self.assertIn("navigation-pointer-discovery", plan["recommendedTriggers"])
+        self.assertIn("rift_x64+0x32EBC80", plan["targetOffsets"])
+        self.assertIn("writer-site discovery", plan["capabilities"])
+        self.assertTrue(any("not a simple reader" in note for note in plan["whyUseMoreOften"]))
+        self.assertTrue(plan["defaultBinaryCandidates"])
 
     def test_cli_self_test_and_compact_json(self) -> None:
         stdout = io.StringIO()

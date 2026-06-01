@@ -573,6 +573,18 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(safe_next["key"], "report-local-commits-ahead")
         self.assertEqual(safe_next["command"], ["git", "--no-pager", "status", "--short", "--branch"])
 
+    def test_candidate_only_routes_to_ghidra_static_plan_before_more_actor_work(self) -> None:
+        safe_next = decision_packet.build_safe_next_action(
+            "actor-chain",
+            {"status": "current"},
+            {"dirty": False, "ahead": 0, "changedFiles": []},
+            {"actorChain": {"status": "candidate-only"}},
+        )
+
+        self.assertEqual(safe_next["key"], "ghidra-static-plan-before-actor-chain-status")
+        self.assertEqual(safe_next["command"], [".\\scripts\\riftreader-tool-catalog.cmd", "--ghidra-static-plan", "--json"])
+        self.assertIn("offline Ghidra static lane", safe_next["why"])
+
     def test_post_validation_commit_ready_action_avoids_safe_check_loop(self) -> None:
         safe_next = decision_packet.build_post_validation_next_action(
             True,
@@ -992,6 +1004,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("command", packet["safeNextAction"])
         self.assertIn("commands", packet["validationPlan"])
         self.assertIn("safeRefreshCommand", packet["toolCatalog"])
+        self.assertIn("recommendedGhidraAction", packet["toolCatalog"])
+        self.assertIn("recommendedTriggers", packet["toolCatalog"]["ghidraStaticLane"])
         self.assertIn("recommended", packet["commitPlan"])
         self.assertIn("banner", packet["llmReminder"])
         self.assertIn("state", packet["milestoneStatus"])
@@ -1441,6 +1455,19 @@ class DecisionPacketTests(unittest.TestCase):
             "milestoneStatus": {"state": "blocked-safe"},
             "validationPlan": {"commands": []},
             "commitPlan": {"recommended": False, "reason": "no-stageable-tracked-paths", "explicitPaths": []},
+            "toolCatalog": {
+                "ghidraStaticLane": {
+                    "status": "ready",
+                    "priority": "default-offline-static-first-for-pointer-chain-discovery",
+                    "capabilities": ["decompiler", "cross-references", "writer-site discovery"],
+                    "recommendedTriggers": ["navigation-pointer-discovery", "restart-survival-failure"],
+                    "targetOffsets": ["rift_x64+0x32EBC80", "owner+0x30C", "owner+0x438"],
+                    "suggestedRunCommand": [".\\scripts\\riftreader-tool-catalog.cmd", "--ghidra-static-plan", "--json"],
+                },
+                "recommendedGhidraAction": {
+                    "command": [".\\scripts\\riftreader-tool-catalog.cmd", "--ghidra-static-plan", "--json"],
+                },
+            },
             "performance": {
                 "buildMode": "fresh",
                 "cacheReused": False,
@@ -1459,6 +1486,9 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("# **⚠️ NOT COMMIT-READY**", markdown)
         self.assertIn("## Performance", markdown)
         self.assertIn("| Build mode | `fresh` |", markdown)
+        self.assertIn("## Offline static analysis / Ghidra", markdown)
+        self.assertIn("first-class reverse-engineering/decompiler platform", markdown)
+        self.assertIn("owner+0x30C", markdown)
 
     def test_markdown_renders_retired_surface_approval_banner(self) -> None:
         packet = {

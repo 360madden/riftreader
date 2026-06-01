@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.4"
+HELPER_VERSION = "0.1.5"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -84,6 +84,7 @@ ALLOWED_ACTIONS = [
     "inspect_git",
     "read_current_truth_artifacts",
     "read_status_artifacts",
+    "plan_offline_ghidra_static_analysis",
     "write_ignored_decision_packet_artifacts",
     "run_safe_validations_when_explicitly_requested",
 ]
@@ -785,6 +786,21 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "Run fixture-only tool catalog self-test.",
             )
         )
+    if any("ghidra_static_evidence" in path or "riftreader-ghidra-static-evidence" in path or "ghidra_scripts" in path for path in lower_paths):
+        commands.append(
+            command_spec(
+                "ghidra-static-evidence-tests",
+                ["python", "-m", "unittest", "scripts.test_ghidra_static_evidence"],
+                "Validate the offline Ghidra evidence runner plans safe non-dot ignored project paths.",
+            )
+        )
+        commands.append(
+            command_spec(
+                "ghidra-static-evidence-self-test",
+                ["python", "tools/riftreader_workflow/ghidra_static_evidence.py", "--self-test", "--json"],
+                "Run plan-only self-test for the Ghidra static evidence helper.",
+            )
+        )
     if any("live_input_surface_audit" in path or "riftreader-live-input-surface-audit" in path for path in lower_paths):
         commands.append(
             command_spec(
@@ -1034,9 +1050,12 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
         }
     if actor.get("status") == "candidate-only":
         return {
-            "key": "actor-chain-no-debug-status",
-            "command": [".\\scripts\\riftreader-actor-chain-no-debug-status.cmd", "--json"],
-            "why": "Actor-chain evidence is candidate-only; keep using the no-debug status gate.",
+            "key": "ghidra-static-plan-before-actor-chain-status",
+            "command": [".\\scripts\\riftreader-tool-catalog.cmd", "--ghidra-static-plan", "--json"],
+            "why": (
+                "Actor/navigation evidence is candidate-only; review the offline Ghidra static lane "
+                "before more live-stimulus, debugger, proof, or actor-chain status work."
+            ),
         }
     return {
         "key": "compact-workflow-status",
@@ -1512,6 +1531,28 @@ def build_markdown(packet: dict[str, Any]) -> str:
         f"- Command: `{format_command(safe_next.get('command'))}`",
         f"- Why: {safe_next.get('why')}",
     ]
+    tool_catalog = safe_mapping(packet.get("toolCatalog"))
+    ghidra_lane = safe_mapping(tool_catalog.get("ghidraStaticLane"))
+    ghidra_action = safe_mapping(tool_catalog.get("recommendedGhidraAction"))
+    if ghidra_lane or ghidra_action:
+        capabilities = ", ".join(str(item) for item in safe_list(ghidra_lane.get("capabilities"))) or "none"
+        triggers = ", ".join(str(item) for item in safe_list(ghidra_lane.get("recommendedTriggers"))) or "none"
+        offsets = ", ".join(str(item) for item in safe_list(ghidra_lane.get("targetOffsets"))[:12]) or "none"
+        lines.extend(
+            [
+                "",
+                "## Offline static analysis / Ghidra",
+                "",
+                f"- Lane status: `{ghidra_lane.get('status')}`",
+                f"- Priority: `{ghidra_lane.get('priority')}`",
+                f"- Recommended command: `{format_command(ghidra_action.get('command') or ghidra_lane.get('suggestedRunCommand'))}`",
+                f"- Capabilities: `{capabilities}`",
+                f"- Triggers: `{triggers}`",
+                f"- Target offsets: `{offsets}`",
+                "- Framing: first-class reverse-engineering/decompiler platform, not a simple reader.",
+                "- Safety: offline static analysis only; no live input, target memory read/write, x64dbg, CE, provider write, or truth promotion.",
+            ]
+        )
     if retired_surface_paths:
         lines.extend(
             [

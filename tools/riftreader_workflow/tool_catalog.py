@@ -26,9 +26,48 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "riftreader-tool-catalog-v0.1.0"
+TOOL_VERSION = "riftreader-tool-catalog-v0.1.2"
 DEFAULT_EXTERNAL_TOOLS_ROOT = Path(r"C:\RIFT MODDING\Tools")
 DEFAULT_OUTPUT_ROOT = Path(".riftreader-local") / "tool-catalog"
+DEFAULT_RIFT_X64_BINARY_CANDIDATES = (
+    Path(r"C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe"),
+    Path(r"C:\Program Files\Glyph\Games\RIFT\Live\rift_x64.exe"),
+)
+GHIDRA_RECOMMENDED_TRIGGERS = [
+    "navigation-pointer-discovery",
+    "facing-yaw-turn-rate-candidate-review",
+    "restart-survival-failure",
+    "owner-layout-offset-semantics",
+    "static-root-or-xref-discovery",
+]
+GHIDRA_TARGET_OFFSETS = [
+    "rift_x64+0x32EBC80",
+    "owner+0x300",
+    "owner+0x304",
+    "owner+0x30C",
+    "owner+0x310",
+    "owner+0x314",
+    "owner+0x320",
+    "owner+0x324",
+    "owner+0x328",
+    "owner+0x438",
+    "owner+0x43C",
+    "owner+0x440",
+]
+GHIDRA_WHY_USE_MORE_OFTEN = [
+    "Ghidra is an industry-grade reverse-engineering platform, not a simple reader: decompiler, xrefs, control-flow, data-flow, and type/structure recovery",
+    "offline xrefs/writers can explain whether an offset is persistent state or transient derived state before live probes",
+    "use Ghidra as the primary static-analysis pass; debugger/watchpoints should answer narrowed questions after static evidence",
+]
+GHIDRA_CAPABILITIES = [
+    "decompiler",
+    "cross-references",
+    "writer-site discovery",
+    "control-flow analysis",
+    "data-flow analysis",
+    "type-and-structure recovery",
+    "offline binary import",
+]
 
 RISK_SORT = {
     "safe-read-only": 0,
@@ -193,6 +232,19 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
             allowed=True,
             approval=False,
             command=["scripts\\riftreader-tool-catalog.cmd", "--compact-json"],
+        ),
+        repo_tool(
+            repo_root,
+            key="ghidra-static-evidence",
+            label="Ghidra static evidence runner",
+            kind="offline-static-analysis",
+            rel_path="scripts/riftreader-ghidra-static-evidence.cmd",
+            risk="offline-static-analysis",
+            default_use="run or plan the primary offline Ghidra decompiler/xref/writer evidence lane with Windows path fixups",
+            allowed=True,
+            approval=False,
+            command=["scripts\\riftreader-ghidra-static-evidence.cmd", "--plan", "--json"],
+            notes=["actual --run writes ignored scripts/captures artifacts only; no live process attach/read/write"],
         ),
         repo_tool(
             repo_root,
@@ -459,14 +511,17 @@ def build_external_entries(external_root: Path) -> list[ToolEntry]:
         external_tool(
             external_root,
             key="ghidra-headless",
-            label="Ghidra headless analyzer wrapper",
+            label="Ghidra headless decompiler/static analyzer wrapper",
             kind="offline-static-analysis",
             rel_path="ghidra-headless.bat",
             risk="offline-static-analysis",
-            default_use="default offline static-analysis lane for pointer-chain research",
+            default_use="primary offline reverse-engineering/decompiler lane for pointer-chain research, xrefs, writers, and owner-layout recovery",
             allowed=True,
             approval=False,
-            notes=["plan commands first; do not attach to live RIFT"],
+            notes=[
+                "treat as a strong worldwide RE platform, not a simple reader",
+                "plan commands first; do not attach to live RIFT",
+            ],
         ),
         external_tool(
             external_root,
@@ -475,7 +530,7 @@ def build_external_entries(external_root: Path) -> list[ToolEntry]:
             kind="offline-static-analysis",
             rel_path="ghidra_12.1_PUBLIC/ghidraRun.bat",
             risk="offline-static-analysis",
-            default_use="manual offline reverse-engineering review",
+            default_use="manual full Ghidra reverse-engineering session: decompiler, xrefs, function/data type recovery",
             allowed=True,
             approval=False,
         ),
@@ -589,13 +644,47 @@ def build_inventory(repo_root: Path, external_tools_root: Path) -> dict[str, Any
     }
 
 
+def build_default_ghidra_binary_candidates() -> list[dict[str, Any]]:
+    return [
+        {
+            "label": "installed-rift-live-x64",
+            "path": str(path),
+            "exists": path.is_file(),
+            "recommended": path.is_file(),
+        }
+        for path in DEFAULT_RIFT_X64_BINARY_CANDIDATES
+    ]
+
+
+def first_existing_binary_path(candidates: list[dict[str, Any]]) -> Path | None:
+    for item in candidates:
+        path = Path(str(item.get("path") or ""))
+        if item.get("exists") and path.is_file():
+            return path
+    return None
+
+
 def build_ghidra_static_lane(repo_root: Path, external_tools_root: Path, *, binary_path: Path | None = None) -> dict[str, Any]:
     wrapper = external_tools_root / "ghidra-headless.bat"
-    output_root = repo_root / DEFAULT_OUTPUT_ROOT / "ghidra-static"
-    project_dir = output_root / "project"
+    output_root = repo_root / "scripts" / "captures" / "ghidra-static-analysis-<timestamp>"
+    project_dir = repo_root / "scripts" / "captures" / "ghidra-static-projects" / "project-<timestamp>"
     project_name = "riftreader-offline-static-analysis"
+    default_binary_candidates = build_default_ghidra_binary_candidates()
+    suggested_binary = binary_path or first_existing_binary_path(default_binary_candidates)
     import_arg = str(binary_path) if binary_path else "<offline-binary-path>"
-    command = [str(wrapper), str(project_dir), project_name, "-import", import_arg, "-analysisTimeoutPerFile", "300"]
+    command = ["scripts\\riftreader-ghidra-static-evidence.cmd", "--run", "--binary-path", import_arg, "--json"]
+    plan_command = ["scripts\\riftreader-ghidra-static-evidence.cmd", "--plan", "--json"]
+    suggested_import_arg = str(suggested_binary) if suggested_binary else "<offline-binary-path>"
+    suggested_command = ["scripts\\riftreader-ghidra-static-evidence.cmd", "--run", "--binary-path", suggested_import_arg, "--json"]
+    headless_command = [
+        str(wrapper),
+        str(project_dir),
+        project_name,
+        "-import",
+        suggested_import_arg,
+        "-analysisTimeoutPerFile",
+        "300",
+    ]
     blockers: list[str] = []
     if not wrapper.is_file():
         blockers.append("ghidra-headless-wrapper-missing")
@@ -603,6 +692,7 @@ def build_ghidra_static_lane(repo_root: Path, external_tools_root: Path, *, bina
         blockers.append("offline-binary-path-missing")
     return {
         "key": "ghidra-static-pointer-chain-plan",
+        "priority": "default-offline-static-first-for-pointer-chain-discovery",
         "status": "ready" if not blockers else "blocked-safe",
         "blockers": blockers,
         "wrapper": str(wrapper),
@@ -610,8 +700,17 @@ def build_ghidra_static_lane(repo_root: Path, external_tools_root: Path, *, bina
         "projectDirectory": repo_rel(repo_root, project_dir),
         "projectName": project_name,
         "targetBinary": str(binary_path) if binary_path else None,
+        "suggestedTargetBinary": str(suggested_binary) if suggested_binary else None,
+        "defaultBinaryCandidates": default_binary_candidates,
         "commandTemplate": command,
+        "planCommand": plan_command,
+        "suggestedRunCommand": suggested_command,
+        "headlessCommandTemplate": headless_command,
         "doesRun": False,
+        "recommendedTriggers": list(GHIDRA_RECOMMENDED_TRIGGERS),
+        "targetOffsets": list(GHIDRA_TARGET_OFFSETS),
+        "capabilities": list(GHIDRA_CAPABILITIES),
+        "whyUseMoreOften": list(GHIDRA_WHY_USE_MORE_OFTEN),
         "safety": {
             **safety_flags(),
             "offlineOnly": True,
@@ -621,8 +720,10 @@ def build_ghidra_static_lane(repo_root: Path, external_tools_root: Path, *, bina
         },
         "next": [
             "choose an offline RIFT binary or dump artifact explicitly",
-            "run the generated headless command only against offline files",
-            "write Ghidra outputs under .riftreader-local/tool-catalog/ghidra-static",
+            "run the generated helper command only against offline files",
+            "review xrefs/writers/types around rift_x64+0x32EBC80 and owner offsets 0x300/0x304/0x30C/0x438 before another live stimulus lane",
+            "use decompiler/control-flow/data-flow output to label persistent fields versus transient derived state",
+            "write Ghidra outputs under ignored scripts/captures/ghidra-static-analysis-* and project-* folders",
             "feed candidate pointer-chain evidence back into current-truth only through proof gates",
         ],
     }
@@ -687,11 +788,12 @@ def build_recommended_workflow() -> list[dict[str, str]]:
     return [
         {"step": "decision-packet", "command": "scripts\\riftreader-decision-packet.cmd --compact-json --write"},
         {"step": "tool-catalog", "command": "scripts\\riftreader-tool-catalog.cmd --compact-json"},
+        {"step": "offline-static-first", "command": "scripts\\riftreader-tool-catalog.cmd --ghidra-static-plan --json"},
+        {"step": "ghidra-static-evidence-plan", "command": "scripts\\riftreader-ghidra-static-evidence.cmd --plan --json"},
         {"step": "workflow-status", "command": "scripts\\riftreader-workflow-status.cmd --compact-json"},
         {"step": "navigation-pointer-discovery", "command": "scripts\\riftreader-navigation-pointer-discovery.cmd --json --write"},
         {"step": "current-truth-refresh-plan", "command": "scripts\\riftreader-current-truth-refresh-plan.cmd --json --write"},
         {"step": "validation-ledger-smoke", "command": "scripts\\riftreader-validation-ledger.cmd --tier smoke"},
-        {"step": "offline-static-first", "command": "scripts\\riftreader-tool-catalog.cmd --ghidra-static-plan --json"},
         {"step": "actor-chain-status-separate", "command": "scripts\\riftreader-actor-chain-no-debug-status.cmd --json"},
         {
             "step": "static-chain-readback-before-nav",
@@ -764,6 +866,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "current-truth-refresh-plan",
             "live-input-surface-audit",
             "ghidra-headless",
+            "ghidra-static-evidence",
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
             "static-owner-turn-aware-plan",
@@ -811,6 +914,14 @@ def build_compact_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
             "status": ghidra_lane.get("status"),
             "wrapper": ghidra_lane.get("wrapper"),
             "commandTemplate": ghidra_lane.get("commandTemplate"),
+            "planCommand": ghidra_lane.get("planCommand"),
+            "suggestedRunCommand": ghidra_lane.get("suggestedRunCommand"),
+            "headlessCommandTemplate": ghidra_lane.get("headlessCommandTemplate"),
+            "defaultBinaryCandidates": ghidra_lane.get("defaultBinaryCandidates"),
+            "recommendedTriggers": ghidra_lane.get("recommendedTriggers"),
+            "targetOffsets": ghidra_lane.get("targetOffsets"),
+            "capabilities": ghidra_lane.get("capabilities"),
+            "priority": ghidra_lane.get("priority"),
             "doesRun": False,
         },
         "inputSurfacePolicyCommand": input_policy.get("sourceOfTruthCommand"),
@@ -826,6 +937,19 @@ def build_decision_packet_tool_catalog(repo_root: Path) -> dict[str, Any]:
 
     try:
         compact = build_compact_catalog(build_tool_catalog(repo_root))
+        ghidra_lane = compact.get("ghidraStaticLane") if isinstance(compact.get("ghidraStaticLane"), dict) else {}
+        recommended_command = [".\\scripts\\riftreader-ghidra-static-evidence.cmd", "--plan", "--json"]
+        recommended_run_command = [".\\scripts\\riftreader-ghidra-static-evidence.cmd", "--run", "--json"]
+        for item in ghidra_lane.get("defaultBinaryCandidates") or []:
+            if isinstance(item, dict) and item.get("exists") and item.get("path"):
+                recommended_run_command = [
+                    ".\\scripts\\riftreader-ghidra-static-evidence.cmd",
+                    "--run",
+                    "--binary-path",
+                    str(item["path"]),
+                    "--json",
+                ]
+                break
         return {
             "status": compact.get("status"),
             "toolVersion": compact.get("toolVersion"),
@@ -834,6 +958,35 @@ def build_decision_packet_tool_catalog(repo_root: Path) -> dict[str, Any]:
             "canonicalToolKeys": compact.get("canonicalToolKeys"),
             "gatedToolKeys": compact.get("gatedToolKeys"),
             "ghidraStaticLane": compact.get("ghidraStaticLane"),
+            "recommendedGhidraAction": {
+                "key": "ghidra-static-plan",
+                "command": recommended_command,
+                "why": (
+                    "Plan an offline Ghidra static pass before new pointer-chain discovery/promotion, "
+                    "restart-survival failure analysis, or debugger/live-stimulus escalation."
+                ),
+                "doesRun": False,
+                "safety": {
+                    **safety_flags(),
+                    "offlineOnly": True,
+                    "x64dbgAttach": False,
+                    "targetMemoryBytesRead": False,
+                    "targetMemoryBytesWritten": False,
+                },
+            },
+            "recommendedGhidraEvidenceRun": {
+                "key": "ghidra-static-evidence-run",
+                "command": recommended_run_command,
+                "why": "Run the actual offline Ghidra import/xref/writer evidence extractor; writes ignored scripts/captures artifacts only.",
+                "doesRun": True,
+                "safety": {
+                    **safety_flags(),
+                    "offlineOnly": True,
+                    "x64dbgAttach": False,
+                    "targetMemoryBytesRead": False,
+                    "targetMemoryBytesWritten": False,
+                },
+            },
             "safeRefreshCommand": [".\\scripts\\riftreader-tool-catalog.cmd", "--compact-json"],
             "warnings": compact.get("warnings") or [],
             "blockers": compact.get("blockers") or [],
@@ -905,6 +1058,23 @@ def build_markdown(payload: dict[str, Any]) -> str:
         lines.extend(["## Catalog entries", ""])
         lines.extend(markdown_table(rows, ["key", "risk", "exists", "approval", "defaultUse"]))
         lines.append("")
+    lanes = payload.get("lanes") if isinstance(payload.get("lanes"), dict) else {}
+    ghidra_lane = lanes.get("ghidraStatic") if isinstance(lanes.get("ghidraStatic"), dict) else {}
+    if ghidra_lane:
+        lines.extend(
+            [
+                "## Ghidra offline static lane",
+                "",
+                f"- Status: `{ghidra_lane.get('status')}`",
+                f"- Priority: `{ghidra_lane.get('priority')}`",
+                f"- Suggested command: `{' '.join(str(part) for part in ghidra_lane.get('suggestedRunCommand') or [])}`",
+                f"- Capabilities: `{', '.join(str(item) for item in ghidra_lane.get('capabilities') or [])}`",
+                f"- Triggers: `{', '.join(str(item) for item in ghidra_lane.get('recommendedTriggers') or [])}`",
+                f"- Target offsets: `{', '.join(str(item) for item in ghidra_lane.get('targetOffsets') or [])}`",
+                "- Safety: offline files only; no live input, target memory read/write, x64dbg, CE, provider write, or promotion.",
+                "",
+            ]
+        )
     if payload.get("recommendedWorkflow"):
         lines.extend(["## Recommended workflow", ""])
         lines.extend(markdown_table(payload["recommendedWorkflow"], ["step", "command"]))
@@ -926,6 +1096,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-decision-packet.cmd",
             "scripts/riftreader-workflow-status.cmd",
             "scripts/riftreader-tool-catalog.cmd",
+            "scripts/riftreader-ghidra-static-evidence.cmd",
             "scripts/riftreader-policy-lint.cmd",
             "scripts/riftreader-sensitive-artifact-scan.cmd",
             "scripts/riftreader-live-input-surface-audit.cmd",
@@ -939,6 +1110,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/static-owner-nav-route-run.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
+            "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
             "tools/RiftReader.SendInput/Program.cs",
             "tools/RiftReader.WindowTools/Program.cs",
         ]:
@@ -964,6 +1136,7 @@ def build_self_test() -> dict[str, Any]:
             [
                 {"name": "catalog-passes", "pass": catalog["status"] == "passed"},
                 {"name": "ghidra-lane-ready", "pass": catalog["lanes"]["ghidraStatic"]["status"] == "ready"},
+                {"name": "ghidra-static-evidence-canonical", "pass": "ghidra-static-evidence" in compact["canonicalToolKeys"]},
                 {"name": "x64dbg-gated", "pass": "x64dbg-gui" in catalog["gatedToolKeys"]},
                 {"name": "tool-catalog-canonical", "pass": "tool-catalog" in compact["canonicalToolKeys"]},
                 {"name": "safety-no-input", "pass": catalog["safety"]["inputSent"] is False},
