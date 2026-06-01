@@ -636,6 +636,14 @@ def build_proposed_current_truth(
         current_truth=current_truth,
         proposed=proposed,
         updates=updates,
+        path=("liveReferenceSurface", "currentCoordinateFromPromotedStaticResolver"),
+        value=coordinate_with_time,
+        reason="keep legacy promoted static resolver coordinate alias aligned with latest readback",
+    )
+    add_update(
+        current_truth=current_truth,
+        proposed=proposed,
+        updates=updates,
         path=("currentWarnings",),
         value=current_warnings,
         reason="refresh current-pid API-now warning marker",

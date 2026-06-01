@@ -2,6 +2,33 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — current proof anchor restored — 2026-06-01 21:50 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-01-2150-current-proof-anchor-restored-handoff.md`.
+
+The current proof anchor has been restored for active target PID `12664` /
+HWND `0x205146C`. A targeted current-PID family scan found
+`api-family-hit-000001 @ 0x1E067A80330`, the displaced-pose batch captured
+3 poses with 2 bounded exact-HWND `W` pulses, promotion validated, and final
+same-target `ProofOnly` passed.
+
+| Evidence | Result |
+|---|---|
+| Current proof pointer | `docs\recovery\current-proof-anchor-readback.json` status `current-target-proofonly-passed`. |
+| Final ProofOnly | `scripts\captures\live-test-ProofOnly-20260601-214524\run-summary.json`; `passed-proof-only`. |
+| Current truth | `docs\recovery\current-truth.json` updated `2026-06-01T21:52:01Z`. |
+| API vs chain | Final max abs delta `0.003935546875027285 <= 0.25`. |
+| Actor no-debug | `scripts\captures\actor-chain-no-debug-status-20260601-214643-169924\summary.json`; blockers `[]`. |
+| Historical stale pointer | `docs\recovery\historical\current-proof-anchor-readback-2026-06-01-pid12148-hwnd640C0C-historical.json`. |
+
+Safety: movement was limited to the proof-pose batch's two exact-HWND `W`
+pulses; final ProofOnly sent no movement. No Cheat Engine/x64dbg, target memory
+writes, provider writes, push, or branch rewrite were performed.
+
+Current safe next action: continue actor/stat-chain provenance work from the
+now-current proof anchor, or push only if explicitly approved.
+
 ## Latest compact handoff — stage-0 navigation pointer refresh — 2026-06-01 21:24 UTC
 
 A new compact handoff exists at

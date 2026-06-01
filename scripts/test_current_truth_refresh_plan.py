@@ -51,6 +51,12 @@ def seed_current_truth_and_dashboard(root: Path) -> tuple[Path, Path]:
                 "z": 3.0,
                 "recordedAtUtc": "2026-05-31T14:23:12Z",
             },
+            "currentCoordinateFromPromotedStaticResolver": {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "recordedAtUtc": "2026-05-31T14:23:12Z",
+            },
             "apiNowStatus": "passed-current-pid-25668-api-now-vs-chain-now",
             "notes": [
                 "existing note",
@@ -215,6 +221,10 @@ class CurrentTruthRefreshPlanTests(unittest.TestCase):
         self.assertEqual(
             "2026-05-31T15:19:42Z",
             proposed["liveReferenceSurface"]["currentCoordinateFromStaticChainCandidate"]["recordedAtUtc"],
+        )
+        self.assertEqual(
+            proposed["liveReferenceSurface"]["currentCoordinateFromStaticChainCandidate"],
+            proposed["liveReferenceSurface"]["currentCoordinateFromPromotedStaticResolver"],
         )
         self.assertEqual(25668, proposed["liveReferenceSurface"]["latestCurrentStaticReadback"]["processId"])
         self.assertEqual(25668, proposed["liveReferenceSurface"]["latestCurrentNavStateReadback"]["processId"])
