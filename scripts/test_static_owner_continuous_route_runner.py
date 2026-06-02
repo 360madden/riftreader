@@ -835,6 +835,43 @@ class MockedIntegrationTests(unittest.TestCase):
 
     # --- Tests ---
 
+    def test_dry_run_does_not_require_live_approval_flags(self) -> None:
+        """Dry run should build a plan without turn/movement approval flags."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        add_state, add_plan, _add_turn, _add_forward, get_summary, mock_run = self._mock_run_child_fn()
+
+        add_state("00-initial-state", {"x": 7261.83, "y": 821.45, "z": 2998.98}, 80.82, "stationary")
+        add_plan("00-initial-plan", "turn-left", "large", "left",
+                 -40.58, 40.58, 37.49, False, False, False, "left")
+
+        args = _make_args(
+            dry_run=True,
+            turn_approved=False,
+            movement_approved=False,
+            allow_candidate_turn_control=False,
+            skip_readback_freshness_gate=True,
+            repo_root=str(self.tmp_path),
+            output_root=str(self.tmp_path / "out"),
+            current_truth_json=str(self.tmp_path / "docs" / "recovery" / "current-truth.json"),
+        )
+
+        with mock.patch.object(route_runner, "run_child", side_effect=mock_run) as mocked_run:
+            with mock.patch.object(workflow_common_module, "load_json_object", side_effect=get_summary):
+                result = route_runner.run(args)
+
+        labels = [call.kwargs.get("label") for call in mocked_run.call_args_list]
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "dry-run-plan-built")
+        self.assertIn("dry-run-only-no-input-sent", result["warnings"])
+        self.assertIn("00-initial-state", labels)
+        self.assertIn("00-initial-plan", labels)
+        self.assertFalse(any(str(label).startswith("turn-") for label in labels))
+        self.assertFalse(any(str(label).startswith("forward-") for label in labels))
+        self.assertFalse(result["safety"]["inputSent"])
+        self.assertFalse(result["safety"]["movementSent"])
+        self.assertFalse(result["safety"]["navigationControl"])
+
     def test_two_iteration_arrival(self) -> None:
         """Full happy path: state → plan → turn → replan → forward → arrived."""
         import scripts.static_owner_continuous_route_runner as route_runner
@@ -1088,6 +1125,16 @@ class LoadWaypointSequenceTests(unittest.TestCase):
         self.assertEqual(result[0]["arrivalRadius"], 2.5)
         self.assertEqual(result[1]["id"], "wp2")
         self.assertIsNone(result[1]["arrivalRadius"])
+
+    def test_accepts_radius_alias_for_legacy_waypoint_files(self) -> None:
+        legacy_file = self.root / "legacy-radius-waypoints.json"
+        legacy_file.write_text(json.dumps({
+            "waypoints": [
+                {"id": "legacy", "x": 10.0, "y": 20.0, "z": 30.0, "radius": 1.25},
+            ],
+        }), encoding="utf-8")
+        result = load_waypoint_sequence(self.root, str(legacy_file))
+        self.assertEqual(result[0]["arrivalRadius"], 1.25)
 
     def test_filters_by_specific_ids(self) -> None:
         result = load_waypoint_sequence(self.root, str(self.waypoints_file), "wp1,wp3")
@@ -1970,6 +2017,59 @@ class WaypointSequenceIntegrationTests(unittest.TestCase):
         self.assertEqual(result["total"]["totalProgressDistance"], 70.0)  # 35 per leg
         self.assertEqual(len(result["legs"]), 2)
         self.assertEqual(len(result["waypointSequence"]), 2)
+
+    def test_dry_run_sequence_stops_after_first_unreached_plan(self) -> None:
+        """Dry-run sequence must not claim later waypoints were reached."""
+        import scripts.static_owner_continuous_route_runner as route_runner
+
+        call_count: list[int] = [0]
+
+        def mock_run_dry_plan(args: Any) -> dict[str, Any]:
+            call_count[0] += 1
+            return {
+                "status": "passed",
+                "verdict": "dry-run-plan-built",
+                "total": {
+                    "iterationCount": 0,
+                    "turnsExecuted": 0,
+                    "forwardSteps": 0,
+                    "totalProgressDistance": 0.0,
+                },
+                "safety": {
+                    "movementSent": False,
+                    "inputSent": False,
+                    "navigationControl": False,
+                },
+                "blockers": [],
+                "warnings": ["dry-run-only-no-input-sent"],
+                "errors": [],
+            }
+
+        args = _make_args(
+            dry_run=True,
+            turn_approved=False,
+            movement_approved=False,
+            allow_candidate_turn_control=False,
+            waypoint_sequence_json=str(self.waypoints_file),
+            waypoint_sequence_ids="wp1,wp2",
+            repo_root=str(self.root),
+            output_root=str(self.root / "out"),
+        )
+
+        with mock.patch.object(route_runner, "run", side_effect=mock_run_dry_plan):
+            result = route_runner.run_sequence(args)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["verdict"], "sequence-dry-run-plan-built")
+        self.assertEqual(result["total"]["totalLegs"], 2)
+        self.assertEqual(result["total"]["legsPlanned"], 1)
+        self.assertEqual(result["total"]["legsArrived"], 0)
+        self.assertEqual(result["total"]["legsFailed"], 0)
+        self.assertEqual(len(result["legs"]), 1)
+        self.assertEqual(call_count[0], 1)
+        self.assertFalse(result["safety"]["inputSent"])
+        self.assertFalse(result["safety"]["movementSent"])
+        self.assertIn("sequence-dry-run-stopped-after-leg-1-plan-no-simulated-movement", result["warnings"])
 
     def test_first_leg_fails_sequence_stops(self) -> None:
         """If first waypoint fails, sequence stops and does not attempt second."""

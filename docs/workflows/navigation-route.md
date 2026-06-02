@@ -38,15 +38,31 @@ scripts\riftreader-navigation-consumer-state.cmd --json --write
 ### Dry-run route plan (no movement)
 ```powershell
 python scripts/static_owner_turn_aware_route_plan.py `
-  --use-current-truth `
   --destination-waypoint-json <waypoint.json> `
   --json
 ```
 
+### Dry-run continuous waypoint sequence (no movement/input)
+```powershell
+python scripts/static_owner_continuous_route_runner.py `
+  --waypoint-sequence-json <waypoints.json> `
+  --dry-run `
+  --json
+```
+
+`--dry-run` is a consumer-safe planning/readback mode: it does not require
+`--turn-approved`, `--movement-approved`, or `--allow-candidate-turn-control`
+because it stops before turn or forward input can be sent.
+For waypoint sequences, dry-run advances across waypoints that are already
+within arrival radius, then stops after the first unreached leg plan; it does
+not simulate movement or claim later waypoints were reached.
+The route planning/execution scripts default to
+`--current-truth-json docs/recovery/current-truth.json`; pass an explicit
+`--current-truth-json <path>` only when using a different target packet.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `
-  --use-current-truth `
   --destination-waypoint-json <waypoint.json> `
   --movement-approved `
   --json
@@ -55,7 +71,6 @@ python scripts/static_owner_nav_route_step.py `
 ### Execute continuous multi-step route
 ```powershell
 python scripts/static_owner_continuous_route_runner.py `
-  --use-current-truth `
   --waypoint-sequence-json <waypoints.json> `
   --turn-backend mouse-look `
   --mouse-pixels-per-pulse 40 `
@@ -68,7 +83,6 @@ python scripts/static_owner_continuous_route_runner.py `
 ### Execute a direct coordinate route
 ```powershell
 python scripts/static_owner_continuous_route_runner.py `
-  --use-current-truth `
   --destination-x 7295 `
   --destination-z 2945 `
   --turn-backend mouse-look `
@@ -133,11 +147,15 @@ Each step:
 {
   "schemaVersion": 1,
   "waypoints": [
-    {"x": 7265.0, "y": 821.5, "z": 3010.0, "radius": 0.75},
-    {"x": 7270.0, "y": 821.5, "z": 3020.0, "radius": 0.75}
+    {"x": 7265.0, "y": 821.5, "z": 3010.0, "arrivalRadius": 0.75},
+    {"x": 7270.0, "y": 821.5, "z": 3020.0, "arrivalRadius": 0.75}
   ]
 }
 ```
+
+`arrivalRadius` is the canonical per-waypoint radius field. Legacy files using
+`radius` are also accepted by `static_owner_continuous_route_runner.py` when
+`arrivalRadius` is absent.
 
 ## Movement safety gates
 

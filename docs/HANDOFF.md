@@ -2,6 +2,32 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation sequence dry-run reliability — 2026-06-02 06:40 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0640-navigation-sequence-dry-run-handoff.md`.
+
+The continuous route runner now has a safer consumer-facing dry-run sequence
+contract: dry-run does not require live approval flags, and a multi-waypoint
+dry-run no longer claims all waypoints were reached without movement.
+
+| Evidence | Result |
+|---|---|
+| Helper updated | `scripts\static_owner_continuous_route_runner.py`. |
+| Dry-run approval behavior | `--dry-run` bypasses `--turn-approved`, `--movement-approved`, and `--allow-candidate-turn-control` because no input can be sent. |
+| Sequence dry-run behavior | Stops after the first unreached leg plan with verdict `sequence-dry-run-plan-built`; `legsPlanned=1`, `legsArrived=0`. |
+| Waypoint compatibility | `arrivalRadius` remains canonical; legacy `radius` is accepted when `arrivalRadius` is absent. |
+| Live no-input verification | `python scripts\static_owner_continuous_route_runner.py --waypoint-sequence-json scripts\navigation\smoke-test-waypoints.json --dry-run --json` passed with `movementSent=false` and `inputSent=false`. |
+
+Safety: no input, movement, `/reloadui`, screenshot key, debugger/CE attach,
+provider write, target memory write, proof/actor promotion, or route-control
+promotion was performed. Live multi-waypoint execution remains gated by the
+existing approval flags and proof-anchor movement freshness checks.
+
+Current next action: add a saved-summary validator/report for sequence dry-runs
+so external projects can consume waypoint feasibility output without knowing
+runner internals.
+
 ## Latest compact handoff — navigation consumer state contract — 2026-06-02 06:22 UTC
 
 A new compact handoff exists at

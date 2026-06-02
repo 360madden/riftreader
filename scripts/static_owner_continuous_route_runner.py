@@ -501,13 +501,16 @@ def load_waypoint_sequence(
         missing_axes = [axis for axis in ("x", "y", "z") if w.get(axis) is None]
         if missing_axes:
             raise ValueError(f"waypoint-missing-coordinate:{','.join(missing_axes)}")
+        arrival_radius_value = w.get("arrivalRadius")
+        if "arrivalRadius" not in w and w.get("radius") is not None:
+            arrival_radius_value = w.get("radius")
         result.append({
             "id": str(w.get("id", "") or ""),
             "label": str(w.get("label") or w.get("id") or "waypoint"),
             "x": float(w["x"]),
             "y": float(w["y"]),
             "z": float(w["z"]),
-            "arrivalRadius": None if w.get("arrivalRadius") is None else float(w["arrivalRadius"]),
+            "arrivalRadius": None if arrival_radius_value is None else float(arrival_radius_value),
         })
     return result
 
@@ -540,6 +543,7 @@ def compact_sequence_summary(summary: Mapping[str, Any]) -> dict[str, Any]:
         "verdict": summary.get("verdict"),
         "kind": summary.get("kind"),
         "totalLegs": total.get("totalLegs"),
+        "legsPlanned": total.get("legsPlanned", 0),
         "legsArrived": total.get("legsArrived"),
         "legsFailed": total.get("legsFailed"),
         "totalDurationSeconds": total.get("totalDurationSeconds"),
@@ -577,6 +581,7 @@ def build_sequence_markdown(summary: Mapping[str, Any]) -> str:
         "## Waypoint sequence",
         "",
         f"Total legs: `{total.get('totalLegs')}`",
+        f"Planned: `{total.get('legsPlanned', 0)}`",
         f"Arrived: `{total.get('legsArrived')}`",
         f"Failed: `{total.get('legsFailed')}`",
         "",
@@ -671,6 +676,7 @@ def run_sequence(args: argparse.Namespace) -> dict[str, Any]:
         "legs": [],
         "total": {
             "totalLegs": 0,
+            "legsPlanned": 0,
             "legsArrived": 0,
             "legsFailed": 0,
             "totalDurationSeconds": 0.0,
@@ -701,6 +707,13 @@ def run_sequence(args: argparse.Namespace) -> dict[str, Any]:
             sequence_summary["legs"].append(leg_result)
 
             if leg_result.get("status") == "passed":
+                leg_verdict = str(leg_result.get("verdict") or "")
+                if args.dry_run and leg_verdict == "dry-run-plan-built":
+                    sequence_summary["total"]["legsPlanned"] += 1
+                    sequence_summary["warnings"].append(
+                        f"sequence-dry-run-stopped-after-leg-{i + 1}-plan-no-simulated-movement"
+                    )
+                    break
                 sequence_summary["total"]["legsArrived"] += 1
             else:
                 sequence_summary["total"]["legsFailed"] += 1
@@ -744,9 +757,13 @@ def run_sequence(args: argparse.Namespace) -> dict[str, Any]:
 
         # Determine final status
         total_legs = len(waypoints)
+        legs_planned = int(sequence_summary["total"].get("legsPlanned") or 0)
         if legs_arrived == total_legs:
             sequence_summary["status"] = "passed"
             sequence_summary["verdict"] = "sequence-all-waypoints-reached"
+        elif args.dry_run and legs_planned > 0:
+            sequence_summary["status"] = "passed"
+            sequence_summary["verdict"] = "sequence-dry-run-plan-built"
         elif sequence_summary.get("blockers"):
             sequence_summary["status"] = "blocked"
             sequence_summary["verdict"] = "sequence-blocked"
@@ -963,23 +980,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if errors:
         return summary
 
-    if not args.turn_approved:
-        summary["status"] = "blocked"
-        summary["verdict"] = "turn-approval-required"
-        summary["blockers"].append("turn-approved-flag-required")
-        return summary
+    if not args.dry_run:
+        if not args.turn_approved:
+            summary["status"] = "blocked"
+            summary["verdict"] = "turn-approval-required"
+            summary["blockers"].append("turn-approved-flag-required")
+            return summary
 
-    if not args.movement_approved:
-        summary["status"] = "blocked"
-        summary["verdict"] = "movement-approval-required"
-        summary["blockers"].append("movement-approved-flag-required")
-        return summary
+        if not args.movement_approved:
+            summary["status"] = "blocked"
+            summary["verdict"] = "movement-approval-required"
+            summary["blockers"].append("movement-approved-flag-required")
+            return summary
 
-    if not args.allow_candidate_turn_control:
-        summary["status"] = "blocked"
-        summary["verdict"] = "candidate-turn-control-approval-required"
-        summary["blockers"].append("allow-candidate-turn-control-flag-required")
-        return summary
+        if not args.allow_candidate_turn_control:
+            summary["status"] = "blocked"
+            summary["verdict"] = "candidate-turn-control-approval-required"
+            summary["blockers"].append("allow-candidate-turn-control-flag-required")
+            return summary
 
     # --- Pre-flight static resolver readback freshness gate ---
     if not args.skip_readback_freshness_gate:
