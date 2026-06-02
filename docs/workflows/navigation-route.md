@@ -149,6 +149,20 @@ instead of coordinating multiple summaries. It may read target memory through
 the consumer refresh step, but it sends no input/movement and still does not
 authorize live route execution.
 
+### Create a saved gated live-run request
+```powershell
+scripts\riftreader-navigation-live-run-request.cmd `
+  --downstream-package-json <package-summary.json> `
+  --json
+```
+
+This saved-JSON-only artifact records that an external consumer wants a later
+live route run reviewed. It accepts only a passed downstream package whose
+capabilities say `canQueueGatedLiveRunRequest=true` and
+`canExecuteLiveNavigation=false`. It does not read target memory, send input,
+invoke a route runner, or authorize movement. Live execution still requires a
+separate explicit live movement approval plus fresh target/proof/input gates.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

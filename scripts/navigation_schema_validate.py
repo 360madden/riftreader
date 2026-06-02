@@ -28,6 +28,7 @@ SCHEMA_FILES = {
     "navigation-consumer-refresh": "navigation-consumer-refresh.schema.json",
     "navigation-route-preview": "navigation-route-preview.schema.json",
     "navigation-downstream-package": "navigation-downstream-package.schema.json",
+    "navigation-live-run-request": "navigation-live-run-request.schema.json",
 }
 
 KIND_TO_SCHEMA_KEY = {
@@ -42,6 +43,7 @@ KIND_TO_SCHEMA_KEY = {
     "riftreader-navigation-consumer-refresh": "navigation-consumer-refresh",
     "riftreader-navigation-route-preview": "navigation-route-preview",
     "riftreader-navigation-downstream-package": "navigation-downstream-package",
+    "riftreader-navigation-live-run-request": "navigation-live-run-request",
 }
 
 

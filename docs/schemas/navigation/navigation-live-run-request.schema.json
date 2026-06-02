@@ -1,0 +1,154 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-live-run-request.schema.json",
+  "title": "RiftReader navigation live-run request",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "contractVersion",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "request",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-live-run-request" },
+    "contractVersion": { "const": "navigation-live-run-request/v1" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": ["downstreamPackageJson", "requestedMode", "requestedBy", "requestId"],
+      "properties": {
+        "downstreamPackageJson": { "type": ["string", "null"] },
+        "requestedMode": { "enum": ["continuous-route-run", "single-route-step", "preview-only"] },
+        "requestedBy": { "type": "string" },
+        "requestId": { "type": ["string", "null"] }
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "requestedMode",
+        "requestedBy",
+        "sourcePackageSummaryJson",
+        "sourceArtifacts",
+        "capabilitySnapshot",
+        "executionGate",
+        "consumerInstruction"
+      ],
+      "properties": {
+        "requestId": { "type": "string" },
+        "requestedMode": { "enum": ["continuous-route-run", "single-route-step", "preview-only"] },
+        "requestedBy": { "type": "string" },
+        "sourcePackageSummaryJson": { "type": ["string", "null"] },
+        "sourcePackageStatus": { "type": ["string", "null"] },
+        "sourcePackageVerdict": { "type": ["string", "null"] },
+        "sourceArtifacts": {
+          "type": "object",
+          "properties": {
+            "downstreamPackageSummaryJson": { "type": ["string", "null"] },
+            "consumerRefreshSummaryJson": { "type": ["string", "null"] },
+            "consumerDemoSummaryJson": { "type": ["string", "null"] },
+            "consumerStateSummaryJson": { "type": ["string", "null"] },
+            "routePreviewSummaryJson": { "type": ["string", "null"] }
+          }
+        },
+        "capabilitySnapshot": {
+          "type": "object",
+          "required": [
+            "canQueueGatedLiveRunRequest",
+            "canExecuteLiveNavigation",
+            "liveExecutionRequiresExplicitApproval"
+          ],
+          "properties": {
+            "canRenderRoute": { "type": ["boolean", "null"] },
+            "canUseDryRunContract": { "type": ["boolean", "null"] },
+            "canRenderRoutePreview": { "type": ["boolean", "null"] },
+            "canUseRoutePreview": { "type": ["boolean", "null"] },
+            "canQueueGatedLiveRunRequest": { "type": ["boolean", "null"] },
+            "canExecuteLiveNavigation": { "const": false },
+            "liveExecutionRequiresExplicitApproval": { "const": true },
+            "recommendedMode": { "type": ["string", "null"] },
+            "nextRecommendedAction": { "type": ["string", "null"] }
+          }
+        },
+        "executionGate": {
+          "type": "object",
+          "required": [
+            "state",
+            "requestAcceptedForReview",
+            "executionAuthorized",
+            "executionAttempted",
+            "routeRunnerInvoked",
+            "movementApproved",
+            "turnApproved",
+            "candidateTurnControlAllowed",
+            "requiresExplicitLiveMovementApproval",
+            "requiredBeforeExecution"
+          ],
+          "properties": {
+            "state": { "enum": ["queued-request-only", "blocked-source-package-not-queue-ready"] },
+            "requestAcceptedForReview": { "type": "boolean" },
+            "executionAuthorized": { "const": false },
+            "executionAttempted": { "const": false },
+            "routeRunnerInvoked": { "const": false },
+            "movementApproved": { "const": false },
+            "turnApproved": { "const": false },
+            "candidateTurnControlAllowed": { "const": false },
+            "requiresExplicitLiveMovementApproval": { "const": true },
+            "requiredBeforeExecution": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "consumerInstruction": {
+          "type": "object",
+          "required": ["queueable", "safeForExternalQueue", "notExecutableByThisArtifact", "handoff"],
+          "properties": {
+            "queueable": { "type": "boolean" },
+            "safeForExternalQueue": { "type": "boolean" },
+            "notExecutableByThisArtifact": { "const": true },
+            "handoff": { "type": "string" }
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "readOnlySavedJson": { "const": true },
+        "liveRunRequestOnly": { "const": true },
+        "routeControlAuthorized": { "const": false },
+        "routeRunnerInvoked": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}
