@@ -119,6 +119,10 @@ GUI_PALETTE = {
     "output_fg": "#e5e7eb",
     "status_bg": "#0b1220",
     "status_fg": "#93c5fd",
+    "truth_bg": "#132033",
+    "truth_border": "#2563eb",
+    "truth_fg": "#bfdbfe",
+    "truth_accent": "#4dd4ac",
     "primary": "#2563eb",
     "primary_active": "#1d4ed8",
     "success": "#15803d",
@@ -955,6 +959,65 @@ def bridge_status_text(repo_root: Path) -> str:
     )
 
 
+def read_json_file(path: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def latest_phase1_summary_path(repo_root: Path) -> Path | None:
+    captures = repo_root / "scripts" / "captures"
+    if not captures.is_dir():
+        return None
+    candidates = sorted(captures.glob("phase1-target-entity-snapshot-*/summary.json"), key=lambda path: path.stat().st_mtime)
+    return candidates[-1] if candidates else None
+
+
+def operator_truth_summary(repo_root: Path) -> dict[str, Any]:
+    decision_path = repo_root / ".riftreader-local" / "decision-packet" / "latest" / "decision-packet-compact.json"
+    decision = read_json_file(decision_path) if decision_path.is_file() else None
+    phase1_path = latest_phase1_summary_path(repo_root)
+    phase1 = read_json_file(phase1_path) if phase1_path else None
+    decision_status = str((decision or {}).get("status") or "missing")
+    phase1_status = str((phase1 or {}).get("status") or "missing")
+    next_action = (decision or {}).get("safeNextAction") or {}
+    target_reader = (phase1 or {}).get("targetCurrentReader") or {}
+    reader_json = target_reader.get("readerJson") or {}
+    family_id = reader_json.get("familyId") or "unknown-family"
+    target_name = (((phase1 or {}).get("readerBridge") or {}).get("target") or {}).get("name") or "unknown-target"
+    blockers = list((decision or {}).get("blockers") or []) + list((phase1 or {}).get("blockers") or [])
+    if blockers:
+        status = "blocked-safe"
+    elif decision_status == "passed" and phase1_status == "passed":
+        status = "passed"
+    elif decision or phase1:
+        status = "partial"
+    else:
+        status = "missing"
+    return {
+        "status": status,
+        "decisionStatus": decision_status,
+        "phase1Status": phase1_status,
+        "nextAction": next_action.get("key") or "none",
+        "familyId": family_id,
+        "targetName": target_name,
+        "decisionPath": str(decision_path) if decision_path.is_file() else None,
+        "phase1Path": str(phase1_path) if phase1_path else None,
+        "blockers": blockers[:3],
+    }
+
+
+def operator_truth_text(repo_root: Path) -> str:
+    summary = operator_truth_summary(repo_root)
+    blocker_text = "; blockers=" + ", ".join(str(item) for item in summary["blockers"]) if summary["blockers"] else ""
+    return (
+        f"Truth: {summary['status']} · decision={summary['decisionStatus']} · "
+        f"phase1={summary['phase1Status']} · target={summary['targetName']} · "
+        f"family={summary['familyId']} · next={summary['nextAction']}{blocker_text}"
+    )
+
+
 def redacted_bridge_instructions(repo_root: Path) -> str:
     docs = bridge_docs_path(repo_root)
     return "\n".join(
@@ -1129,6 +1192,8 @@ def gui_theme_summary() -> dict[str, Any]:
             "local decision packet refresh button",
             "decision packet schema contract button",
             "decision packet agent plan button",
+            "browser-dashboard-aligned truth banner",
+            "Phase 1 target family/status line",
         ],
     }
 
@@ -1172,7 +1237,35 @@ def run_gui(repo_root: Path) -> int:
         anchor="w",
     ).pack(fill=tk.X, pady=(2, 0))
 
+    truth_status_var = tk.StringVar(value=operator_truth_text(repo_root))
     bridge_status_var = tk.StringVar(value=bridge_status_text(repo_root))
+    truth_banner = tk.Frame(
+        header,
+        bg=palette["truth_bg"],
+        highlightbackground=palette["truth_border"],
+        highlightthickness=1,
+        padx=10,
+        pady=8,
+    )
+    truth_banner.pack(fill=tk.X, pady=(8, 0))
+    tk.Label(
+        truth_banner,
+        text="Current Truth / Phase 1 Target",
+        bg=palette["truth_bg"],
+        fg=palette["truth_accent"],
+        font=panel_font,
+        anchor="w",
+    ).pack(fill=tk.X)
+    tk.Label(
+        truth_banner,
+        textvariable=truth_status_var,
+        bg=palette["truth_bg"],
+        fg=palette["truth_fg"],
+        font=small_font,
+        anchor="w",
+        justify=tk.LEFT,
+        wraplength=1120,
+    ).pack(fill=tk.X, pady=(3, 0))
 
     def panel(parent: tk.Misc, title: str, subtitle: str | None = None) -> tk.LabelFrame:
         frame = tk.LabelFrame(
@@ -1269,6 +1362,7 @@ def run_gui(repo_root: Path) -> int:
 
     def refresh_bridge_status_panel() -> None:
         bridge_status_var.set(bridge_status_text(repo_root))
+        truth_status_var.set(operator_truth_text(repo_root))
 
     def run_spec(key: str) -> None:
         spec = specs[key]
@@ -1421,6 +1515,8 @@ def run_gui(repo_root: Path) -> int:
         "Visual Gate",
         "ProofOnly",
         "Movement",
+        "Promotion",
+        "Git Push",
         "Bridge Serve/Tunnel",
     ]:
         locked_badge(locked_frame, label)
@@ -1440,7 +1536,7 @@ def run_gui(repo_root: Path) -> int:
 
     status_bar = tk.Label(
         root,
-        text="READY · Safe/offline mode · Read-only artifacts + guarded inbox · No live input · No CE/x64dbg · No Git mutation",
+        text="READY · Truth banner mirrors browser dashboard · Safe/offline mode · No live input · No CE/x64dbg · No promotion/push",
         bg=palette["status_bg"],
         fg=palette["status_fg"],
         font=small_font,

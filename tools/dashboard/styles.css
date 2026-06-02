@@ -421,11 +421,20 @@ th.wrap {
     gap: 14px;
 }
 
+.live-grid--priority {
+    margin: 14px 0;
+}
+
 .live-card {
     border: 1px solid var(--border);
     background: rgba(10, 17, 30, 0.68);
     border-radius: 16px;
     padding: 14px;
+}
+
+.live-card--priority {
+    background: rgba(15, 24, 40, 0.9);
+    border-color: rgba(98, 166, 255, 0.25);
 }
 
 .live-card__title {
@@ -467,6 +476,88 @@ th.wrap {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.truth-banner {
+    border: 1px solid rgba(98, 166, 255, 0.28);
+    background:
+        linear-gradient(135deg, rgba(98, 166, 255, 0.14), rgba(10, 17, 30, 0.82)),
+        rgba(10, 17, 30, 0.86);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.truth-banner.status-active {
+    border-color: rgba(77, 212, 172, 0.36);
+    background:
+        linear-gradient(135deg, rgba(77, 212, 172, 0.16), rgba(10, 17, 30, 0.82)),
+        rgba(10, 17, 30, 0.86);
+}
+
+.truth-banner.status-partial {
+    border-color: rgba(247, 200, 107, 0.42);
+    background:
+        linear-gradient(135deg, rgba(247, 200, 107, 0.16), rgba(10, 17, 30, 0.82)),
+        rgba(10, 17, 30, 0.86);
+}
+
+.truth-banner.status-error {
+    border-color: rgba(255, 127, 150, 0.48);
+    background:
+        linear-gradient(135deg, rgba(255, 127, 150, 0.16), rgba(10, 17, 30, 0.82)),
+        rgba(10, 17, 30, 0.86);
+}
+
+.truth-banner__main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.truth-banner__eyebrow {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.truth-banner h3 {
+    margin: 4px 0 6px;
+    font-size: 1.15rem;
+}
+
+.truth-banner p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.truth-banner__badges,
+.truth-banner__notes {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.truth-banner__badges {
+    justify-content: flex-end;
+}
+
+.truth-banner__notes {
+    margin-top: 12px;
+}
+
+.truth-banner__notes span {
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 999px;
+    padding: 5px 9px;
+    color: #d8e3f5;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.82rem;
 }
 
 @media (max-width: 860px) {

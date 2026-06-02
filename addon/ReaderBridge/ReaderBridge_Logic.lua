@@ -109,6 +109,10 @@ local function BuildState()
             visible = true,
             locked = false,
             showBuffPanel = true,
+            compactStatus = "starting",
+            compactStatusReason = "Waiting for first telemetry refresh.",
+            compactTarget = "none",
+            compactSafety = "read-only; no input; no CE/x64dbg",
         },
         tracked = {
             playerId = nil,
@@ -497,6 +501,31 @@ local function UpdateDistance()
     )
 end
 
+local function UpdateHudCompactStatus()
+    local state = Logic.State
+    if not state or not state.hud then
+        return
+    end
+
+    local playerName = state.player and state.player.name or ""
+    local targetName = state.target and state.target.name or ""
+    local targetSelected = state.tracked and state.tracked.targetId ~= nil
+
+    if playerName == "" then
+        state.hud.compactStatus = "player-missing"
+        state.hud.compactStatusReason = "Waiting for player detail."
+    elseif targetSelected then
+        state.hud.compactStatus = "target-selected"
+        state.hud.compactStatusReason = "Target " .. (targetName ~= "" and targetName or tostring(state.tracked.targetId))
+    else
+        state.hud.compactStatus = "no-target"
+        state.hud.compactStatusReason = "No selected target."
+    end
+
+    state.hud.compactTarget = targetSelected and (targetName ~= "" and targetName or tostring(state.tracked.targetId)) or "none"
+    state.hud.compactSafety = "read-only; no input; no CE/x64dbg"
+end
+
 local function RefreshUnits(now, fullBuffResync)
     local oldTargetId = Logic.State.tracked.targetId
 
@@ -518,6 +547,7 @@ local function RefreshUnits(now, fullBuffResync)
 
     UpdateDistance()
     UpdateTargetTtd(now)
+    UpdateHudCompactStatus()
 
     if fullBuffResync then
         ResyncBuffStore("player", Logic.State.buffs.player, now)

@@ -174,7 +174,11 @@ public static class ReaderBridgeSnapshotLoader
         return new ReaderBridgeHudSnapshot(
             Visible: table.GetBoolean("visible"),
             Locked: table.GetBoolean("locked"),
-            ShowBuffPanel: table.GetBoolean("showBuffPanel"));
+            ShowBuffPanel: table.GetBoolean("showBuffPanel"),
+            CompactStatus: table.GetString("compactStatus"),
+            CompactStatusReason: table.GetString("compactStatusReason"),
+            CompactTarget: table.GetString("compactTarget"),
+            CompactSafety: table.GetString("compactSafety"));
     }
 
     private static ReaderBridgeUnitSnapshot? MapUnit(LuaTable? table)

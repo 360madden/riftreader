@@ -858,8 +858,8 @@ end
 -- ============================================================================
 -- GUI status panel
 -- ============================================================================
-local GUI_WIDTH = 220
-local GUI_HEIGHT = 46
+local GUI_WIDTH = 300
+local GUI_HEIGHT = 66
 local GUI_HEADER_HEIGHT = 18
 
 local guiCtx    = UI.CreateContext("ReaderBridgeGUI")
@@ -904,6 +904,24 @@ guiSeq:SetText("seq:0")
 guiSeq:SetFontSize(10)
 guiSeq:SetWordwrap(false)
 guiSeq:SetFontColor(0.65, 0.85, 1.0, 1)
+
+local guiStatus = UI.CreateFrame("Text", "RBGuiStatus", guiFrame)
+guiStatus:SetPoint("TOPLEFT", guiFrame, "TOPLEFT", 6, 38)
+guiStatus:SetWidth(GUI_WIDTH - 12)
+guiStatus:SetHeight(12)
+guiStatus:SetText("truth: starting | target: ? | pub: ?")
+guiStatus:SetFontSize(9)
+guiStatus:SetWordwrap(false)
+guiStatus:SetFontColor(0.78, 0.90, 1.0, 1)
+
+local guiSafety = UI.CreateFrame("Text", "RBGuiSafety", guiFrame)
+guiSafety:SetPoint("TOPLEFT", guiFrame, "TOPLEFT", 6, 51)
+guiSafety:SetWidth(GUI_WIDTH - 12)
+guiSafety:SetHeight(12)
+guiSafety:SetText("safe: read-only bridge | no input | no CE/x64dbg")
+guiSafety:SetFontSize(9)
+guiSafety:SetWordwrap(false)
+guiSafety:SetFontColor(0.66, 0.72, 0.82, 1)
 
 local lightNames = { "Tick", "Pub", "Plr", "Tgt", "Cbt" }
 local lights = {}
@@ -971,6 +989,26 @@ function updateGuiIndicators(nowMs)
         lastGuiSeq = seq
         guiSeq:SetText("seq:" .. tostring(seq))
     end
+
+    local truthStatus = "ready"
+    if state.player.name == "" then
+        truthStatus = "player-missing"
+        guiStatus:SetFontColor(1.00, 0.54, 0.60, 1)
+    elseif publishDurMs > 3 then
+        truthStatus = "slow-publish"
+        guiStatus:SetFontColor(1.00, 0.82, 0.40, 1)
+    else
+        guiStatus:SetFontColor(0.78, 0.90, 1.0, 1)
+    end
+
+    local targetStatus = state.target.exists and "selected" or "none"
+    local combatStatus = state.player.inCombat and "combat" or "safe"
+    guiStatus:SetText(
+        "truth:" .. truthStatus
+        .. " | target:" .. targetStatus
+        .. " | " .. combatStatus
+        .. " | pub:" .. tostring(publishDurMs) .. "ms"
+    )
 end
 
 -- Drag (same pattern as PlayerCoords lines 73-88)

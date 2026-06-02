@@ -105,6 +105,27 @@ function Get-ItemCount {
     return @($Value).Count
 }
 
+function Get-ObjectPropertyValue {
+    param(
+        [object]$Object,
+        [string[]]$Names,
+        [object]$Default = $null
+    )
+
+    if (-not $Object) {
+        return $Default
+    }
+
+    foreach ($name in $Names) {
+        $property = $Object.PSObject.Properties[$name]
+        if ($property) {
+            return $property.Value
+        }
+    }
+
+    return $Default
+}
+
 function Read-KeyValueFile {
     param([string]$Path)
 
@@ -693,7 +714,11 @@ function Build-RichActorBranch {
 
     $screenSummary = 'No structured screen run data configured.'
     if ($screen) {
-        $screenSummary = "Screened $($screen.ScreenedCandidateCount) candidates; responsive=$($screen.ResponsiveCandidateCount); dead=$($screen.DeadCandidateCount); recoveryRuns=$($screen.RecoveryRunCount)."
+        $screenedCandidateCount = Get-ObjectPropertyValue -Object $screen -Names @('ScreenedCandidateCount', 'CandidateCount') -Default 0
+        $responsiveCandidateCount = Get-ObjectPropertyValue -Object $screen -Names @('ResponsiveCandidateCount', 'PointerHopCandidateCount') -Default 0
+        $deadCandidateCount = Get-ObjectPropertyValue -Object $screen -Names @('DeadCandidateCount') -Default 0
+        $recoveryRunCount = Get-ObjectPropertyValue -Object $screen -Names @('RecoveryRunCount') -Default 0
+        $screenSummary = "Screened $screenedCandidateCount candidates; responsive=$responsiveCandidateCount; dead=$deadCandidateCount; recoveryRuns=$recoveryRunCount."
     }
 
     $recoverySummary = 'No structured recovery data configured.'
@@ -733,10 +758,13 @@ function Build-RichActorBranch {
     $branchData.status = 'active'
     $branchData.bottleneck = if ((Get-ItemCount -Value $nowRows) -gt 0) { $nowRows[0].item } else { $branchData.bottleneck }
     $branchData.truth = $truthRows
+    $screenGeneratedAt = if ($screen) { Get-ObjectPropertyValue -Object $screen -Names @('GeneratedAtUtc', 'GeneratedAt') -Default (Try-GetFileLastWrite -Path $screenPath) } else { $null }
+    $recoveryGeneratedAt = if ($recovery) { Get-ObjectPropertyValue -Object $recovery -Names @('GeneratedAtUtc', 'GeneratedAt') -Default (Try-GetFileLastWrite -Path $recoveryPath) } else { $null }
+    $probeGeneratedAt = if ($probe) { Get-ObjectPropertyValue -Object $probe -Names @('GeneratedAtUtc', 'GeneratedAt') -Default (Try-GetFileLastWrite -Path $probePath) } else { $null }
     $branchData.latestRuns = [ordered]@{
-        screen   = [ordered]@{ label = 'Latest screen run'; at = $(if ($screen) { $screen.GeneratedAtUtc } else { $null }); summary = $screenSummary }
-        recovery = [ordered]@{ label = 'Latest recovery run'; at = $(if ($recovery) { $recovery.GeneratedAtUtc } else { $null }); summary = $recoverySummary }
-        probe    = [ordered]@{ label = 'Latest addon probe'; at = $(if ($probe) { $probe.GeneratedAtUtc } else { $null }); summary = $probeSummary }
+        screen   = [ordered]@{ label = 'Latest screen run'; at = $screenGeneratedAt; summary = $screenSummary }
+        recovery = [ordered]@{ label = 'Latest recovery run'; at = $recoveryGeneratedAt; summary = $recoverySummary }
+        probe    = [ordered]@{ label = 'Latest addon probe'; at = $probeGeneratedAt; summary = $probeSummary }
     }
     $branchData.workboard = [ordered]@{
         now         = $nowRows

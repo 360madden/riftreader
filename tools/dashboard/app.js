@@ -71,7 +71,7 @@
       return "status-error";
     }
 
-    if (["stale", "partial", "dirty", "manual", "warning", "degraded", "fallback", "snapshot-only"].some((token) => normalized.includes(token))) {
+    if (["stale", "partial", "dirty", "manual", "warning", "degraded", "fallback", "snapshot-only", "blocked"].some((token) => normalized.includes(token))) {
       return "status-partial";
     }
 
@@ -83,7 +83,7 @@
       return "status-active";
     }
 
-    if (["working", "active", "ready", "healthy", "clean", "current", "configured", "present", "loaded", "ok", "success"].some((token) => normalized.includes(token))) {
+    if (["working", "active", "ready", "healthy", "clean", "current", "configured", "present", "loaded", "ok", "success", "passed"].some((token) => normalized.includes(token))) {
       return "status-active";
     }
 
@@ -567,6 +567,159 @@
     return entries.length ? entries.join(" • ") : "No comparison flags.";
   }
 
+  function normalizeTextList(value) {
+    if (!value) {
+      return [];
+    }
+
+    if (Array.isArray(value)) {
+      return value.filter((item) => item !== null && item !== undefined && item !== "").map((item) => String(item));
+    }
+
+    return [String(value)];
+  }
+
+  function formatCommand(command) {
+    if (Array.isArray(command)) {
+      return command.join(" ");
+    }
+
+    return command || "—";
+  }
+
+  function getPhase1Reader(phase1Target) {
+    return phase1Target?.targetCurrentReader?.readerJson || phase1Target?.readerJson || {};
+  }
+
+  function renderSafetyGateBadges(liveData) {
+    const gates = liveData?.safetyGates ?? {};
+    const orderedKeys = ["movement", "liveInput", "proofOnly", "debugger", "providerWrites", "promotion", "gitPush"];
+    const badges = orderedKeys
+      .map((key) => {
+        const gate = gates[key];
+        if (!gate) {
+          return "";
+        }
+
+        const label = gate.label || humanizeKey(key);
+        const status = gate.status || (gate.allowed ? "approval required" : "blocked");
+        const className = gate.allowed ? "status-partial" : getStatusClass(status);
+        return renderBadge(`${label}: ${status}`, className);
+      })
+      .filter(Boolean)
+      .join("");
+
+    return badges ? `<div class="live-badge-line">${badges}</div>` : "";
+  }
+
+  function renderTruthBanner(liveData, loadState) {
+    const overall = getLiveOverallStatus(liveData, loadState);
+    const banner = liveData?.truthBanner ?? {};
+    const status = banner.status || overall.text;
+    const statusClass = getStatusClass(status);
+    const ageSeconds = getLiveAgeSeconds(liveData);
+    const reason =
+      banner.reason ||
+      (isLiveDataStale(liveData)
+        ? "Generated live payload is older than its freshness budget."
+        : "Dashboard is showing local read-only status and generated live payload data.");
+    const blockers = normalizeTextList(banner.blockers);
+    const warnings = normalizeTextList(banner.warnings);
+
+    return `
+      <div class="truth-banner ${statusClass}">
+        <div class="truth-banner__main">
+          <div>
+            <div class="truth-banner__eyebrow">Current Truth</div>
+            <h3>${escapeHtml(banner.label || humanizeKey(status))}</h3>
+            <p>${escapeHtml(reason)}</p>
+          </div>
+          <div class="truth-banner__badges">
+            ${renderBadge(status || "unknown", statusClass)}
+            ${renderBadge(`age ${ageSeconds === null ? "—" : `${formatNumber(ageSeconds, 1)}s`}`, isLiveDataStale(liveData) ? "status-partial" : "status-active")}
+            ${liveData?.meta?.schemaVersion ? renderBadge(`live v${liveData.meta.schemaVersion}`, "role") : ""}
+          </div>
+        </div>
+        ${
+          blockers.length || warnings.length
+            ? `<div class="truth-banner__notes">
+                ${blockers.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+                ${warnings.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+              </div>`
+            : ""
+        }
+        ${renderSafetyGateBadges(liveData)}
+      </div>`;
+  }
+
+  function renderNextSafeActionCard(liveData) {
+    const action = liveData?.nextSafeAction || liveData?.decision?.safeNextAction || liveData?.decision?.llmReminder?.continueWith || null;
+    const decision = liveData?.decision ?? {};
+    const status = decision.status || liveData?.truthBanner?.status || "unknown";
+
+    if (!action) {
+      return `
+        <div class="live-card live-card--priority">
+          <div class="panel__header">
+            <div>
+              <h2 class="live-card__title">Next safe action</h2>
+              <p class="panel__subtitle">Decision-packet action is not available in the live payload.</p>
+            </div>
+            ${renderBadge("unavailable", "status-minimal")}
+          </div>
+          <div class="empty-state">Run the Python live-data generator or refresh the decision packet to populate this card.</div>
+        </div>`;
+    }
+
+    return `
+      <div class="live-card live-card--priority">
+        <div class="panel__header">
+          <div>
+            <h2 class="live-card__title">Next safe action</h2>
+            <p class="panel__subtitle">Pulled from the local decision packet; hard-stop gates still apply.</p>
+          </div>
+          ${renderBadge(status, getStatusClass(status))}
+        </div>
+        ${renderLiveValueList([
+          { label: "Action", value: action.key || "—" },
+          { label: "Decision source", value: decision.source || "—" },
+          { label: "Why", value: action.why || "—", wide: true },
+          { label: "Command", value: formatCommand(action.command), wide: true },
+        ])}
+      </div>`;
+  }
+
+  function renderPhase1TargetCard(liveData) {
+    const phase1Target = liveData?.phase1Target ?? {};
+    const reader = getPhase1Reader(phase1Target);
+    const target = phase1Target.readerBridge?.target ?? {};
+    const status = phase1Target.status || phase1Target.targetCurrentReader?.status || (reader.familyId ? "available" : "unavailable");
+    const targetName = target.name || liveData?.target?.name || "—";
+    const familyId = reader.familyId || liveData?.target?.anchor?.familyId || "—";
+    const address = reader.memoryAddressHex || liveData?.target?.anchor?.address || "—";
+
+    return `
+      <div class="live-card live-card--priority">
+        <div class="panel__header">
+          <div>
+            <h2 class="live-card__title">Phase 1 target</h2>
+            <p class="panel__subtitle">Selected-target readout focus and resolver evidence.</p>
+          </div>
+          ${renderBadge(status, getStatusClass(status))}
+        </div>
+        ${renderLiveValueList([
+          { label: "Target", value: targetName },
+          { label: "Verdict", value: phase1Target.verdict || "—" },
+          { label: "Family", value: familyId },
+          { label: "Address", value: address },
+          { label: "Selection", value: reader.selectionSource || "—" },
+          { label: "Generated", value: formatTime(phase1Target.generatedAtUtc) },
+          { label: "Match", value: summarizeMatchFlags(reader.match || liveData?.target?.memoryMatch), wide: true },
+          { label: "Artifact", value: phase1Target.artifacts?.summaryJson || phase1Target.summaryJson || "—", wide: true },
+        ])}
+      </div>`;
+  }
+
   function renderLiveValueList(rows) {
     const renderedRows = rows
       .filter((row) => row)
@@ -758,6 +911,8 @@
           { label: "Coords", value: formatCoords(target.coords) },
           { label: "Location", value: target.location || "—", wide: true },
           { label: "Match", value: summarizeMatchFlags(target.memoryMatch), wide: true },
+          { label: "Family", value: target.anchor?.familyId || "—" },
+          { label: "Address", value: target.anchor?.address || "—" },
           { label: "Source file", value: target.sourceFile || "—", wide: true },
         ])}
       </div>`;
@@ -772,9 +927,14 @@
       <section class="panel live-panel">
         <div class="panel__header">
           <div>
-            <h2>Live prototype overlay</h2>
-            <p class="panel__subtitle">Local file-based live details for the current branch view. Static branch docs remain snapshot-driven.</p>
+            <h2>Live HUD overlay</h2>
+            <p class="panel__subtitle">Read-only local truth banner, safe next action, Phase 1 target readout, and live status for the current branch.</p>
           </div>
+        </div>
+        ${renderTruthBanner(liveData, loadState)}
+        <div class="live-grid live-grid--priority">
+          ${renderNextSafeActionCard(liveData)}
+          ${renderPhase1TargetCard(liveData)}
         </div>
         <div class="live-grid">
           ${renderLiveFeedCard(liveData, loadState)}

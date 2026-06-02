@@ -13,10 +13,10 @@ if ([string]::IsNullOrWhiteSpace($RepoPath)) {
 
 $repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
 $buildSummaryScript = Join-Path $repoRoot 'scripts\build-dashboard-summary.ps1'
-$buildLiveScript = Join-Path $repoRoot 'scripts\build-dashboard-live-data.ps1'
+$buildLiveScript = Join-Path $repoRoot 'scripts\dashboard-live-data.cmd'
 $appScript = Join-Path $repoRoot 'tools\dashboard\app.js'
 $dashboardDataPath = Join-Path $repoRoot 'tools\dashboard\dashboard-data.js'
-$dashboardLiveDataPath = Join-Path $repoRoot 'tools\dashboard\dashboard-live-data.js'
+$dashboardLiveDataPath = Join-Path $repoRoot '.riftreader-local\dashboard-live-data-test.js'
 
 function Read-AssignedJson {
     param(
@@ -75,8 +75,9 @@ if (-not $?) {
 }
 
 Write-Host '[DashboardTest] Rebuilding live dashboard data...' -ForegroundColor Cyan
-& $buildLiveScript -RepoPath $repoRoot
-if (-not $?) {
+& $buildLiveScript --repo-path $repoRoot --output-path $dashboardLiveDataPath --skip-live-reads
+$liveExitCode = $LASTEXITCODE
+if (($liveExitCode -ne 0) -and ($liveExitCode -ne 2)) {
     throw 'Live dashboard build failed.'
 }
 

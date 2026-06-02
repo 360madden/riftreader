@@ -23,12 +23,25 @@ That rewrites:
 Regenerate the live dashboard payload:
 
 ```powershell
-C:\RIFT MODDING\RiftReader\scripts\build-dashboard-live-data.ps1
+C:\RIFT MODDING\RiftReader\scripts\dashboard-live-data.cmd
 ```
 
 That rewrites:
 
 - `C:\RIFT MODDING\RiftReader\tools\dashboard\dashboard-live-data.js`
+
+The Python v2 payload keeps the original live player/target contract and adds:
+
+- Truth Banner state
+- Next Safe Action from the local decision packet
+- Phase 1 selected-target resolver card
+- explicit safety-gate badges for movement/input/debugger/promotion/push boundaries
+
+The legacy PowerShell builder remains available as a compatibility fallback:
+
+```powershell
+C:\RIFT MODDING\RiftReader\scripts\build-dashboard-live-data.ps1
+```
 
 ## Open the dashboard
 
@@ -66,6 +79,8 @@ Manual fallback:
 - `C:\RIFT MODDING\RiftReader\tools\dashboard\app.js`
 - `C:\RIFT MODDING\RiftReader\tools\dashboard\styles.css`
 - `C:\RIFT MODDING\RiftReader\scripts\build-dashboard-summary.ps1`
+- `C:\RIFT MODDING\RiftReader\scripts\dashboard_live_data.py`
+- `C:\RIFT MODDING\RiftReader\scripts\dashboard-live-data.cmd`
 
 ## Current limits
 

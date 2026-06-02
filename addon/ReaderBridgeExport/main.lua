@@ -714,6 +714,10 @@ local function copyHud(hud)
     visible = copyBoolean(hud.visible),
     locked = copyBoolean(hud.locked),
     showBuffPanel = copyBoolean(hud.showBuffPanel),
+    compactStatus = copyString(hud.compactStatus),
+    compactStatusReason = copyString(hud.compactStatusReason),
+    compactTarget = copyString(hud.compactTarget),
+    compactSafety = copyString(hud.compactSafety),
   }
 end
 

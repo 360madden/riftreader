@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $buildScript = Join-Path $PSScriptRoot 'build-dashboard-summary.ps1'
-$buildLiveScript = Join-Path $PSScriptRoot 'build-dashboard-live-data.ps1'
+$buildLiveScript = Join-Path $PSScriptRoot 'dashboard-live-data.cmd'
 $dashboardPath = Join-Path $repoRoot 'tools\dashboard\index.html'
 
 if (-not (Test-Path -LiteralPath $buildScript)) {
@@ -33,8 +33,9 @@ if (-not $?) {
 
 if ($Live) {
     Write-Host "[Dashboard] Building live dashboard payload..." -ForegroundColor Cyan
-    & $buildLiveScript -RepoPath $repoRoot -PollSeconds $PollSeconds
-    if (-not $?) {
+    & $buildLiveScript --repo-path $repoRoot --poll-seconds $PollSeconds
+    $liveExitCode = $LASTEXITCODE
+    if (($liveExitCode -ne 0) -and ($liveExitCode -ne 2)) {
         exit 1
     }
 }
@@ -58,4 +59,4 @@ else {
 }
 
 Write-Host "[Dashboard] Live mode running. Press Ctrl+C to stop." -ForegroundColor Yellow
-& $buildLiveScript -RepoPath $repoRoot -PollSeconds $PollSeconds -Watch
+& $buildLiveScript --repo-path $repoRoot --poll-seconds $PollSeconds --watch

@@ -615,6 +615,12 @@ function UIModule:Refresh(force)
 
     frames.window:SetVisible(state.hud.visible and true or false)
     frames.titleText:SetText("ReaderBridge Telemetry HUD v" .. tostring(Const.VERSION))
+    frames.subtitleText:SetText(
+        "Status "
+        .. tostring(state.hud.compactStatus or "unknown")
+        .. " | "
+        .. tostring(state.hud.compactStatusReason or "No compact status.")
+    )
 
     UpdatePanel(frames.playerPanel, state.player, false)
     UpdatePanel(frames.targetPanel, state.target, true)
