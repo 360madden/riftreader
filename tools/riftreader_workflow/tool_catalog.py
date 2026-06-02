@@ -265,6 +265,22 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="postupdate-static-access-chain",
+            label="Post-update static access-chain packet",
+            kind="offline-static-analysis",
+            rel_path="scripts/riftreader-postupdate-static-access-chain.cmd",
+            risk="safe-read-only",
+            default_use="candidate-only post-update constructor/global-root packet with exact-target no-input readback",
+            allowed=True,
+            approval=False,
+            command=["scripts\\riftreader-postupdate-static-access-chain.cmd", "--json"],
+            notes=[
+                "offline binary scan plus optional exact-target memory readback; sends no input and performs no debugger attach",
+                "classifies static roots as candidate-only and never promotes current truth",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="phase1-target-entity-snapshot",
             label="Phase 1 target entity snapshot",
             kind="phase1-target-discovery",
@@ -1165,6 +1181,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
         {"step": "ghidra-static-evidence-plan", "command": "scripts\\riftreader-ghidra-static-evidence.cmd --plan --json"},
         {"step": "static-field-access-matrix-quick", "command": "scripts\\riftreader-static-field-access-matrix.cmd --json"},
         {
+            "step": "postupdate-static-access-chain",
+            "command": "scripts\\riftreader-postupdate-static-access-chain.cmd --json",
+        },
+        {
             "step": "phase1-target-entity-snapshot",
             "command": "scripts\\riftreader-phase1-target-entity-snapshot.cmd --pid <current-pid> --hwnd <current-hwnd> --json",
         },
@@ -1324,6 +1344,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "ghidra-headless",
             "ghidra-static-evidence",
             "static-field-access-matrix",
+            "postupdate-static-access-chain",
             "phase1-target-entity-snapshot",
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
@@ -1567,6 +1588,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-tool-catalog.cmd",
             "scripts/riftreader-ghidra-static-evidence.cmd",
             "scripts/riftreader-static-field-access-matrix.cmd",
+            "scripts/riftreader-postupdate-static-access-chain.cmd",
             "scripts/riftreader-phase1-target-entity-snapshot.cmd",
             "scripts/riftreader-policy-lint.cmd",
             "scripts/riftreader-validation-ledger.cmd",
@@ -1631,6 +1653,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "static-field-access-matrix-canonical",
                     "pass": "static-field-access-matrix" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "postupdate-static-access-chain-canonical",
+                    "pass": "postupdate-static-access-chain" in compact["canonicalToolKeys"],
                 },
                 {
                     "name": "phase1-target-entity-snapshot-canonical",

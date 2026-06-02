@@ -98,6 +98,7 @@ def latest_artifact_paths(repo_root: Path) -> dict[str, str | None]:
         "ownerBatch": "pointer-owner-batch-currentpid-*/summary.json",
         "rootSignatureSeed": "postupdate-root-signature-seed-currentpid-*/root-signature-seed.json",
         "rootSignatureBatch": "root-signature-batch-sweep-currentpid-*/summary.json",
+        "staticAccessChain": "postupdate-static-access-chain-*/summary.json",
     }
     return {
         key: str(path.resolve()) if (path := latest_path(capture_root, pattern)) else None
@@ -553,6 +554,30 @@ def summarize_root_signature_batch(batch: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_static_access_chain(packet: Mapping[str, Any]) -> dict[str, Any]:
+    constructor = safe_mapping(packet.get("constructorEvidence"))
+    roots = [safe_mapping(item) for item in safe_list(constructor.get("candidateGlobalRoots"))]
+    samples = [safe_mapping(item) for item in safe_list(packet.get("liveRootSamples"))]
+    breadcrumbs = [safe_mapping(item) for item in safe_list(packet.get("callBreadcrumbs"))]
+    classifications = sorted({str(item.get("classification")) for item in samples if item.get("classification")})
+    return {
+        "status": packet.get("status"),
+        "verdict": packet.get("verdict"),
+        "path": safe_mapping(packet.get("artifacts")).get("summaryJson"),
+        "generatedAtUtc": packet.get("generatedAtUtc"),
+        "functionRva": constructor.get("functionRva"),
+        "fieldWriteCount": constructor.get("fieldWriteCount"),
+        "fieldOffsets": safe_list(constructor.get("fieldOffsets")),
+        "candidateGlobalRoots": roots[:8],
+        "liveRootClassifications": classifications,
+        "liveRootSamples": samples[:8],
+        "callBreadcrumbDepth": len(breadcrumbs),
+        "topCallBreadcrumbs": breadcrumbs[:6],
+        "candidateOnly": True,
+        "promotionEligible": False,
+    }
+
+
 class FILETIME(ctypes.Structure):
     _fields_ = [("dwLowDateTime", ctypes.c_ulong), ("dwHighDateTime", ctypes.c_ulong)]
 
@@ -730,6 +755,30 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                 f"| `{item.get('rva')}` | `{item.get('modulePointerHitCount')}` | `{item.get('topOwnerScore')}` | "
                 f"`{matched}/{total}` | `{item.get('topParentScore')}` | `{str(bool(item.get('highSignal'))).lower()}` |"
             )
+    static_chain = safe_mapping(summary.get("staticAccessChain"))
+    if static_chain:
+        lines.extend(
+            [
+                "",
+                "## Static access-chain packet",
+                "",
+                f"- Verdict: `{static_chain.get('verdict')}`",
+                f"- Function RVA: `{static_chain.get('functionRva')}`",
+                f"- Field writes: `{static_chain.get('fieldWriteCount')}`",
+                f"- Live root classifications: `{', '.join(safe_list(static_chain.get('liveRootClassifications')))}`",
+                "",
+                "| Root RVA | Instruction | Classification |",
+                "|---|---|---|",
+            ]
+        )
+        samples_by_root = {
+            str(safe_mapping(item).get("rootRva")): safe_mapping(item)
+            for item in safe_list(static_chain.get("liveRootSamples"))
+        }
+        for row in safe_list(static_chain.get("candidateGlobalRoots"))[:8]:
+            item = safe_mapping(row)
+            sample = samples_by_root.get(str(item.get("globalRva")), {})
+            lines.append(f"| `{item.get('globalRva')}` | `{item.get('instruction')}` | `{sample.get('classification')}` |")
     lines.extend(["", "## Blockers"])
     for blocker in safe_list(summary.get("blockers")):
         lines.append(f"- `{blocker}`")
@@ -754,6 +803,9 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root_signature_batch_path = resolve_path(repo_root, args.root_signature_batch_json) or (
         Path(latest["rootSignatureBatch"]) if latest["rootSignatureBatch"] else None
     )
+    static_access_chain_path = resolve_path(repo_root, args.static_access_chain_json) or (
+        Path(latest["staticAccessChain"]) if latest["staticAccessChain"] else None
+    )
 
     candidate_readback = load_json_object(candidate_path) or {}
     static_readback = load_json_object(static_readback_path) or {}
@@ -769,6 +821,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     pointer_family = load_json_object(pointer_family_path) or {}
     root_signature_seed = load_json_object(root_signature_seed_path) or {}
     root_signature_batch = load_json_object(root_signature_batch_path) or {}
+    static_access_chain = load_json_object(static_access_chain_path) or {}
 
     candidate_address = parse_int(args.candidate_address) or candidate_address_from_readback(candidate_readback)
     reference = reference_from_readback(candidate_readback)
@@ -798,6 +851,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         warnings.append("root-signature-seed-missing")
     if not root_signature_batch_path:
         warnings.append("root-signature-batch-missing")
+    if not static_access_chain_path:
+        warnings.append("postupdate-static-access-chain-missing")
     if not candidate_address:
         blockers.append("coordinate-candidate-address-missing")
     if not module_base:
@@ -862,9 +917,12 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     owner_batch_summary = summarize_owner_batch(owner_batch)
     root_signature_seed_summary = summarize_root_signature_seed(root_signature_seed)
     root_signature_batch_summary = summarize_root_signature_batch(root_signature_batch)
+    static_access_chain_summary = summarize_static_access_chain(static_access_chain)
     ghidra_summary = safe_mapping(ghidra_static.get("evidenceSummary"))
     if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
         blockers.append("root-signature-sweeps-found-no-parent-root-candidate")
+    if "orientation-matrix-root-not-position-root" in safe_list(static_access_chain_summary.get("liveRootClassifications")):
+        warnings.append("static-access-chain-root-orientation-only-not-position")
 
     status = "blocked" if blockers else "candidate"
     verdict = (
@@ -886,10 +944,17 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
     top_rvas = [str(item.get("rva")) for item in safe_list(owner_batch_summary.get("moduleRvaHints"))[:3] if item.get("rva")]
     if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
-        recommended = (
-            "Stop repeating the same module-RVA root sweeps for this epoch; they reconfirm the heap/ref-storage island but found no parent/root candidate. "
-            "Shift to offline/static access-chain tracing around the 0x3F8B0 layout cluster and fresh broad family/container scans if a new seed appears."
-        )
+        if static_access_chain_path:
+            recommended = (
+                "Stop repeating the same module-RVA root sweeps for this epoch; they reconfirm the heap/ref-storage island but found no parent/root candidate. "
+                "The static access-chain packet found rift_x64+0x335F508, but current readback classifies it as orientation/matrix rather than world position. "
+                "Continue caller-chain tracing above 0x13A37D0/0x13AFAD0/0x13B5E00 and run fresh read-only scans for the higher-level object that owns the world-coordinate copy."
+            )
+        else:
+            recommended = (
+                "Stop repeating the same module-RVA root sweeps for this epoch; they reconfirm the heap/ref-storage island but found no parent/root candidate. "
+                "Shift to offline/static access-chain tracing around the 0x3F8B0 layout cluster and fresh broad family/container scans if a new seed appears."
+            )
     elif blockers:
         recommended = (
             "Use the owner-batch module RVA hints as read-only root-signature sweep seeds, but first build/refresh a current root-signature packet; "
@@ -923,6 +988,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "ownerBatch": str(owner_batch_path.resolve()) if owner_batch_path else None,
             "rootSignatureSeed": str(root_signature_seed_path.resolve()) if root_signature_seed_path else None,
             "rootSignatureBatch": str(root_signature_batch_path.resolve()) if root_signature_batch_path else None,
+            "staticAccessChain": str(static_access_chain_path.resolve()) if static_access_chain_path else None,
         },
         "coordinateCandidate": {
             "addressHex": hex_int(candidate_address),
@@ -945,12 +1011,18 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "ownerBatch": owner_batch_summary,
         "rootSignatureSeed": root_signature_seed_summary,
         "rootSignatureBatch": root_signature_batch_summary,
+        "staticAccessChain": static_access_chain_summary,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "safety": safety,
         "next": {
             "recommendedAction": recommended,
             "topReadOnlyCommands": [
+                [
+                    "python",
+                    "scripts\\postupdate_static_access_chain.py",
+                    "--json",
+                ],
                 [
                     "python",
                     "scripts\\postupdate_root_signature_seed.py",
@@ -1078,6 +1150,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner-batch-json")
     parser.add_argument("--root-signature-seed-json")
     parser.add_argument("--root-signature-batch-json")
+    parser.add_argument("--static-access-chain-json")
     parser.add_argument("--output-root")
     parser.add_argument("--owner-window-bytes", type=lambda value: int(value, 0), default=DEFAULT_OWNER_WINDOW_BYTES)
     parser.add_argument("--tolerance", type=float, default=0.25)
@@ -1110,6 +1183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "topStaticCluster": (safe_list(summary.get("staticFieldClusters")) or [None])[0],
                     "ownerBatchModuleRvaHints": safe_list(safe_mapping(summary.get("ownerBatch")).get("moduleRvaHints"))[:5],
                     "rootSignatureBatch": summary.get("rootSignatureBatch"),
+                    "staticAccessChain": summary.get("staticAccessChain"),
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),
                 },

@@ -167,6 +167,37 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
         self.assertEqual(summary["classification"], "root-candidate-leads-present")
         self.assertEqual(summary["highSignalResultCount"], 1)
 
+    def test_static_access_chain_summary_surfaces_orientation_root(self) -> None:
+        packet = {
+            "status": "blocked",
+            "verdict": "static-access-chain-found-orientation-root-only",
+            "artifacts": {"summaryJson": "summary.json"},
+            "constructorEvidence": {
+                "functionRva": "0x3F8B0",
+                "fieldWriteCount": 10,
+                "fieldOffsets": ["0x300", "0x320"],
+                "candidateGlobalRoots": [
+                    {
+                        "globalRva": "0x335F508",
+                        "instruction": "mov qword ptr [rip + 0x331f804], rdi",
+                    }
+                ],
+            },
+            "liveRootSamples": [
+                {
+                    "rootRva": "0x335F508",
+                    "classification": "orientation-matrix-root-not-position-root",
+                }
+            ],
+            "callBreadcrumbs": [{"depth": 0}],
+        }
+
+        summary = helper.summarize_static_access_chain(packet)
+
+        self.assertEqual(summary["verdict"], "static-access-chain-found-orientation-root-only")
+        self.assertIn("orientation-matrix-root-not-position-root", summary["liveRootClassifications"])
+        self.assertEqual(summary["candidateGlobalRoots"][0]["globalRva"], "0x335F508")
+
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")
 

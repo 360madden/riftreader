@@ -33,6 +33,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-tool-catalog.cmd",
         "scripts/riftreader-ghidra-static-evidence.cmd",
         "scripts/riftreader-static-field-access-matrix.cmd",
+        "scripts/riftreader-postupdate-static-access-chain.cmd",
         "scripts/riftreader-phase1-target-entity-snapshot.cmd",
         "scripts/riftreader-policy-lint.cmd",
         "scripts/riftreader-validation-ledger.cmd",
@@ -116,9 +117,12 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "offline-static-first" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "ghidra-static-evidence-plan" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-field-access-matrix-quick" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "postupdate-static-access-chain" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "phase1-target-entity-snapshot" for item in compact["recommendedWorkflow"]))
         self.assertLess(workflow_steps.index("offline-static-first"), workflow_steps.index("workflow-status"))
         self.assertLess(workflow_steps.index("static-field-access-matrix-quick"), workflow_steps.index("actor-chain-status-separate"))
+        self.assertLess(workflow_steps.index("static-field-access-matrix-quick"), workflow_steps.index("postupdate-static-access-chain"))
+        self.assertLess(workflow_steps.index("postupdate-static-access-chain"), workflow_steps.index("workflow-status"))
         self.assertLess(workflow_steps.index("phase1-target-entity-snapshot"), workflow_steps.index("workflow-status"))
         self.assertLess(workflow_steps.index("offline-static-first"), workflow_steps.index("navigation-pointer-discovery"))
         self.assertTrue(any(item["step"] == "actor-chain-status-separate" for item in compact["recommendedWorkflow"]))
@@ -175,6 +179,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("validation-ledger", compact["canonicalToolKeys"])
         self.assertIn("ghidra-static-evidence", compact["canonicalToolKeys"])
         self.assertIn("static-field-access-matrix", compact["canonicalToolKeys"])
+        self.assertIn("postupdate-static-access-chain", compact["canonicalToolKeys"])
         self.assertIn("phase1-target-entity-snapshot", compact["canonicalToolKeys"])
         self.assertIn("navigation-pointer-discovery", compact["canonicalToolKeys"])
         self.assertIn("current-truth-refresh-plan", compact["canonicalToolKeys"])
