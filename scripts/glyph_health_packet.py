@@ -142,6 +142,7 @@ def build_health_packet(
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
     module_summary = safe_mapping(summary.get("moduleOriginSummary"))
+    loaded_module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
     module_inventory_rows = summary.get("moduleInventory") if isinstance(summary.get("moduleInventory"), list) else []
     timeline = safe_mapping(summary.get("logTimeline"))
     safety = base_safety()
@@ -194,6 +195,13 @@ def build_health_packet(
             "originCounts": module_summary.get("categoryCounts", {}),
             "nonWindowsNonGlyphCount": module_summary.get("nonWindowsNonGlyphCount"),
             "nonWindowsNonGlyphModules": module_summary.get("nonWindowsNonGlyphModules", [])[:25],
+            "signatureCheckedCount": loaded_module_trust.get("signatureCheckedCount"),
+            "signatureStatusCounts": loaded_module_trust.get("statusCounts", {}),
+            "categorySignatureStatusCounts": loaded_module_trust.get("categoryStatusCounts", {}),
+            "nonValidSignatureCount": loaded_module_trust.get("nonValidCount"),
+            "glyphInstallNonValidSignatureCount": loaded_module_trust.get("glyphInstallNonValidCount"),
+            "nonWindowsNonGlyphNonValidSignatureCount": loaded_module_trust.get("nonWindowsNonGlyphNonValidCount"),
+            "nonWindowsNonGlyphNonValidModules": loaded_module_trust.get("nonWindowsNonGlyphNonValidModules", [])[:25],
         },
         "counts": {
             "targetedFileCount": len([item for item in summary.get("targetedFileInventory", []) if isinstance(item, Mapping) and item.get("exists")]),

@@ -101,26 +101,47 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertEqual(summary["nonValidCount"], 1)
 
     def test_module_origin_summary_flags_non_windows_non_glyph_modules(self) -> None:
-        summary = glyph.module_origin_summary(
-            [
-                {
-                    "pid": 10,
-                    "moduleCount": 3,
-                    "truncated": False,
-                    "modules": [
-                        {"ModuleName": "GlyphClientApp.exe", "FileName": r"C:\Program Files (x86)\Glyph\GlyphClientApp.exe"},
-                        {"ModuleName": "kernel32.dll", "FileName": r"C:\Windows\System32\kernel32.dll"},
-                        {"ModuleName": "odd.dll", "FileName": r"C:\Users\mrkoo\AppData\Local\Temp\odd.dll"},
-                    ],
-                }
-            ],
-            install_roots=[Path(r"C:\Program Files (x86)\Glyph")],
-        )
+        inventories = [
+            {
+                "pid": 10,
+                "moduleCount": 3,
+                "truncated": False,
+                "modules": [
+                    {"ModuleName": "GlyphClientApp.exe", "FileName": r"C:\Program Files (x86)\Glyph\GlyphClientApp.exe"},
+                    {"ModuleName": "kernel32.dll", "FileName": r"C:\Windows\System32\kernel32.dll"},
+                    {"ModuleName": "odd.dll", "FileName": r"C:\Users\mrkoo\AppData\Local\Temp\odd.dll"},
+                ],
+            }
+        ]
+        summary = glyph.module_origin_summary(inventories, install_roots=[Path(r"C:\Program Files (x86)\Glyph")])
 
         self.assertEqual(summary["categoryCounts"]["glyph-install"], 1)
         self.assertEqual(summary["categoryCounts"]["windows"], 1)
         self.assertEqual(summary["categoryCounts"]["temp"], 1)
         self.assertEqual(summary["nonWindowsNonGlyphCount"], 1)
+        self.assertEqual(len(glyph.unique_loaded_module_paths(inventories)), 3)
+
+    def test_loaded_module_trust_summary_counts_non_valid_by_origin(self) -> None:
+        paths = [
+            Path(r"C:\Program Files (x86)\Glyph\GlyphClientApp.exe"),
+            Path(r"C:\Windows\System32\kernel32.dll"),
+            Path(r"C:\Users\mrkoo\AppData\Local\Temp\odd.dll"),
+        ]
+
+        summary = glyph.loaded_module_trust_summary(
+            paths,
+            [
+                {"path": str(paths[0]), "signatureStatus": "Valid"},
+                {"path": str(paths[1]), "signatureStatus": "Valid"},
+                {"path": str(paths[2]), "signatureStatus": "NotSigned"},
+            ],
+            install_roots=[Path(r"C:\Program Files (x86)\Glyph")],
+        )
+
+        self.assertEqual(summary["signatureCheckedCount"], 3)
+        self.assertEqual(summary["statusCounts"]["Valid"], 2)
+        self.assertEqual(summary["statusCounts"]["NotSigned"], 1)
+        self.assertEqual(summary["nonWindowsNonGlyphNonValidCount"], 1)
 
     def test_health_packet_summarizes_key_fields(self) -> None:
         summary = {
@@ -136,6 +157,15 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
             "dependencyMetadata": [{}],
             "logTimeline": {"eventCount": 5},
             "moduleOriginSummary": {"processCount": 1, "totalModuleCount": 3, "categoryCounts": {"windows": 2}, "nonWindowsNonGlyphCount": 0},
+            "loadedModuleTrustSummary": {
+                "signatureCheckedCount": 3,
+                "statusCounts": {"Valid": 3},
+                "categoryStatusCounts": {"windows": {"Valid": 3}},
+                "nonValidCount": 0,
+                "glyphInstallNonValidCount": 0,
+                "nonWindowsNonGlyphNonValidCount": 0,
+                "nonWindowsNonGlyphNonValidModules": [],
+            },
         }
         ghidra_summary = {
             "programName": "GlyphClientApp.exe",
@@ -166,6 +196,7 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertEqual(packet["trust"]["dependencyNonValidSignatureCount"], 1)
         self.assertEqual(packet["manifests"][0]["version"], "v1")
         self.assertEqual(packet["modules"]["totalModuleCount"], 3)
+        self.assertEqual(packet["modules"]["signatureStatusCounts"]["Valid"], 3)
         self.assertEqual(packet["staticReverseEngineering"]["totalReferencesCaptured"], 7)
         self.assertEqual(packet["staticReverseEngineering"]["topReferencedFunctionsByCategory"]["auth"][0]["functionEntry"], "001")
 

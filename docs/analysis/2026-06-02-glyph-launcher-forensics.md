@@ -9,12 +9,12 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-105421-945238\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-105421-945238\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-110135-779413\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-110135-779413\summary.md`
 
 Compact health packet:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-105458-357772\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-110213-476865\summary.json`
 
 Offline Ghidra artifact:
 
@@ -100,11 +100,24 @@ Loaded module origin rollup from the live Glyph processes:
 | Modules from Glyph install root | `26` |
 | Modules from Windows root | `161` |
 | Non-Windows/non-Glyph loaded modules | `0` |
+| Unique loaded module paths signature-checked | `131` |
+| Loaded module signature statuses | `Valid=111`, `NotSigned=20` |
+| Windows loaded module signature statuses | `Valid=105` |
+| Glyph-install loaded module signature statuses | `Valid=6`, `NotSigned=20` |
+| Non-Windows/non-Glyph non-valid loaded signatures | `0` |
 
 Interpretation: the query-only module inventory did not show obvious injected or
 third-party loaded DLLs outside Windows and the Glyph install root. This is not a
 kernel-grade anti-tamper proof, but it is a useful non-invasive signal for the
 "may already have something attached" concern.
+
+The loaded modules that were `NotSigned` were all inside the Glyph install root:
+`GlyphCrashHandler64.exe`, `Qt5Core.dll`, `SSLEAY32.dll`, `Qt5Gui.dll`,
+`Qt5Network.dll`, `Qt5Xml.dll`, `Qt5Widgets.dll`,
+`libzmq-v120-mt-4_3_5.dll`, `xlpack.dll`, `icuin57.dll`, `LIBEAY32.dll`,
+`Qt5Multimedia.dll`, `Qt5WinExtras.dll`, `icuuc57.dll`, `icudt57.dll`,
+`qwindows.dll`, `qgif.dll`, `qjpeg.dll`, `qwebp.dll`, and
+`qtaudio_windows.dll`.
 
 ## Config and log locations found
 

@@ -1307,7 +1307,7 @@ def signature_trust_summary(signatures: Sequence[Mapping[str, Any]]) -> dict[str
     }
 
 
-def signature_and_version(paths: Iterable[Path]) -> list[dict[str, Any]]:
+def signature_and_version(paths: Iterable[Path], *, timeout_seconds: float = 30.0) -> list[dict[str, Any]]:
     path_list = [str(path) for path in paths if path.exists() and path.is_file()]
     if not path_list:
         return []
@@ -1333,7 +1333,7 @@ $items = foreach ($p in $paths) {{
 }}
 $items | ConvertTo-Json -Depth 5
 """
-    data = run_powershell_json(script, timeout_seconds=30.0)
+    data = run_powershell_json(script, timeout_seconds=timeout_seconds)
     if isinstance(data, Mapping):
         return [dict(data)]
     if isinstance(data, list):
@@ -1438,6 +1438,74 @@ def module_origin_summary(module_inventories: Sequence[Mapping[str, Any]], *, in
         "nonWindowsNonGlyphCount": len(non_windows_non_glyph),
         "nonWindowsNonGlyphModules": non_windows_non_glyph[:100],
         "processes": process_rows,
+    }
+
+
+def unique_loaded_module_paths(module_inventories: Sequence[Mapping[str, Any]]) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for inventory in module_inventories:
+        modules = inventory.get("modules") if isinstance(inventory.get("modules"), list) else []
+        for module in modules:
+            if not isinstance(module, Mapping):
+                continue
+            file_name = module.get("FileName")
+            if not isinstance(file_name, str) or not file_name:
+                continue
+            key = _normalized_path_text(file_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            paths.append(Path(file_name))
+    return paths
+
+
+def loaded_module_trust_summary(
+    module_paths: Sequence[Path],
+    signatures: Sequence[Mapping[str, Any]],
+    *,
+    install_roots: Sequence[Path],
+) -> dict[str, Any]:
+    signature_by_path = {_normalized_path_text(item.get("path")): item for item in signatures if isinstance(item.get("path"), str)}
+    status_counts: dict[str, int] = {}
+    category_counts: dict[str, int] = {}
+    category_status_counts: dict[str, dict[str, int]] = {}
+    non_valid: list[dict[str, Any]] = []
+    for path in module_paths:
+        category = classify_module_origin(str(path), install_roots=install_roots)
+        category_counts[category] = category_counts.get(category, 0) + 1
+        signature = signature_by_path.get(_normalized_path_text(path), {})
+        status = str(signature.get("signatureStatus") or "Unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        category_bucket = category_status_counts.setdefault(category, {})
+        category_bucket[status] = category_bucket.get(status, 0) + 1
+        if status.lower() != "valid":
+            non_valid.append(
+                {
+                    "path": str(path),
+                    "category": category,
+                    "signatureStatus": status,
+                    "version": signature.get("version"),
+                    "productName": signature.get("productName"),
+                    "companyName": signature.get("companyName"),
+                }
+            )
+    non_windows_non_glyph_non_valid = [
+        item for item in non_valid if item.get("category") not in {"windows", "glyph-install"}
+    ]
+    glyph_install_non_valid = [item for item in non_valid if item.get("category") == "glyph-install"]
+    return {
+        "uniqueModulePathCount": len(module_paths),
+        "signatureCheckedCount": len(signatures),
+        "statusCounts": status_counts,
+        "categoryCounts": category_counts,
+        "categoryStatusCounts": category_status_counts,
+        "nonValidCount": len(non_valid),
+        "glyphInstallNonValidCount": len(glyph_install_non_valid),
+        "nonWindowsNonGlyphNonValidCount": len(non_windows_non_glyph_non_valid),
+        "nonValidModules": non_valid[:100],
+        "glyphInstallNonValidModules": glyph_install_non_valid[:80],
+        "nonWindowsNonGlyphNonValidModules": non_windows_non_glyph_non_valid[:80],
     }
 
 
@@ -1571,6 +1639,12 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     lines.append(f"- total modules: `{module_summary.get('totalModuleCount')}`")
     lines.append(f"- category counts: `{module_summary.get('categoryCounts')}`")
     lines.append(f"- non-Windows/non-Glyph module count: `{module_summary.get('nonWindowsNonGlyphCount')}`")
+    module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
+    lines.extend(["", "## Loaded module trust summary", ""])
+    lines.append(f"- unique module paths checked: `{module_trust.get('signatureCheckedCount')}`")
+    lines.append(f"- signature statuses: `{module_trust.get('statusCounts')}`")
+    lines.append(f"- category signature statuses: `{module_trust.get('categoryStatusCounts')}`")
+    lines.append(f"- non-Windows/non-Glyph non-valid signatures: `{module_trust.get('nonWindowsNonGlyphNonValidCount')}`")
     lines.extend(["", "## PE summaries", ""])
     for item in summary.get("peSummaries", []):
         if isinstance(item, Mapping):
@@ -1719,6 +1793,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         modules.append(module_inventory(pid))
     module_roots = [root for root in (install_root, Path(r"C:\Program Files (x86)\Glyph"), Path(r"C:\Program Files\Glyph")) if root]
     module_summary = module_origin_summary(modules, install_roots=module_roots)
+    loaded_module_paths = unique_loaded_module_paths(modules)
+    loaded_module_signatures = signature_and_version(
+        loaded_module_paths,
+        timeout_seconds=max(30.0, min(180.0, len(loaded_module_paths) * 1.5)),
+    )
+    loaded_module_trust = loaded_module_trust_summary(
+        loaded_module_paths,
+        loaded_module_signatures,
+        install_roots=module_roots,
+    )
     string_summaries = [extract_ascii_strings(path, max_hits=int(args.max_string_hits)) for path in unique_exes[:20]]
     previews = collect_previews(inventories, limit_bytes=int(args.text_preview_bytes))
     targeted_previews = collect_targeted_previews(targeted_files, limit_bytes=int(args.text_preview_bytes))
@@ -1769,6 +1853,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "debuggerIndicators": debug_checks,
         "moduleInventory": modules,
         "moduleOriginSummary": module_summary,
+        "loadedModuleSignaturesAndVersions": loaded_module_signatures,
+        "loadedModuleTrustSummary": loaded_module_trust,
         "candidateRoots": [str(item) for item in roots],
         "fileInventories": inventories,
         "targetedFileInventory": targeted_files,
@@ -1820,6 +1906,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
     module_summary = safe_mapping(summary.get("moduleOriginSummary"))
+    loaded_module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
     return {
         "status": summary.get("status"),
         "kind": summary.get("kind"),
@@ -1840,6 +1927,10 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "loadedModuleTotalCount": module_summary.get("totalModuleCount"),
         "loadedModuleOriginCounts": module_summary.get("categoryCounts"),
         "nonWindowsNonGlyphModuleCount": module_summary.get("nonWindowsNonGlyphCount"),
+        "loadedModuleSignatureCheckedCount": loaded_module_trust.get("signatureCheckedCount"),
+        "loadedModuleSignatureStatusCounts": loaded_module_trust.get("statusCounts"),
+        "loadedModuleNonValidSignatureCount": loaded_module_trust.get("nonValidCount"),
+        "loadedModuleNonWindowsNonGlyphNonValidCount": loaded_module_trust.get("nonWindowsNonGlyphNonValidCount"),
         "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
         "activeNetworkConnectionCount": len(summary.get("activeNetworkConnections", [])),
         "serviceCount": len(summary.get("serviceInventory", [])),
