@@ -2,6 +2,33 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation sequence contract report — 2026-06-02 06:55 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0655-navigation-sequence-contract-handoff.md`.
+
+RiftReader now has a saved-summary contract report for continuous route
+sequence dry-runs, so external consumers can validate a dry-run artifact without
+reading route-runner internals.
+
+| Evidence | Result |
+|---|---|
+| Contract helper | `scripts\navigation_sequence_summary_contract.py`; launcher `scripts\static-owner-continuous-route-sequence-contract.cmd`. |
+| Accepted source | `kind=static-owner-continuous-route-sequence`, `operator.dryRun=true`, `status=passed`. |
+| Safety contract | Requires no movement, no input, no navigation control, no debugger attach, no provider writes, and no target memory writes. |
+| Sequence contract | Accepts `sequence-dry-run-plan-built` or already-arrived dry-run sequences; rejects simulated multi-waypoint arrival claims. |
+| Tool catalog | `static-owner-route-sequence-contract` is canonical, safe-read-only, and in the recommended workflow; tool count is now `43`. |
+| Saved-summary smoke | `scripts\static-owner-continuous-route-sequence-contract.cmd scripts\captures\static-owner-continuous-route-sequence-20260602-064437-323455\summary.json --json` passed with `consumable=true`. |
+
+Safety: the contract helper reads a saved JSON summary only. It sends no input
+or movement, reads no live target memory, performs no `/reloadui`, screenshot
+key, debugger/CE attach, provider write, target memory write, proof/actor
+promotion, or route-control promotion.
+
+Current next action: add an offline waypoint-file linter/generator that checks
+schema, radius, IDs, coordinate shape, and produces a first-leg dry-run plus
+contract report in one command.
+
 ## Latest compact handoff — navigation sequence dry-run reliability — 2026-06-02 06:40 UTC
 
 A new compact handoff exists at

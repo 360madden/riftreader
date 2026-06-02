@@ -60,6 +60,17 @@ The route planning/execution scripts default to
 `--current-truth-json docs/recovery/current-truth.json`; pass an explicit
 `--current-truth-json <path>` only when using a different target packet.
 
+### Validate a saved continuous dry-run for consumers
+```powershell
+scripts\static-owner-continuous-route-sequence-contract.cmd `
+  <sequence-summary.json> `
+  --json
+```
+
+Use this before handing a sequence dry-run to another project. It accepts only
+saved summaries with `operator.dryRun=true`, no movement/input, no route-control
+promotion, and no simulated multi-waypoint arrival claims.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

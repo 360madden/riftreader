@@ -620,6 +620,26 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="static-owner-route-sequence-contract",
+            label="Static-owner route sequence dry-run contract",
+            kind="navigation-report",
+            rel_path="scripts/static-owner-continuous-route-sequence-contract.cmd",
+            risk="safe-read-only",
+            default_use="validate saved continuous route sequence dry-run summaries for external consumers",
+            allowed=True,
+            approval=False,
+            command=[
+                "scripts\\static-owner-continuous-route-sequence-contract.cmd",
+                "<sequence-summary.json>",
+                "--json",
+            ],
+            notes=[
+                "saved-summary contract only; sends no input and reads no live target memory",
+                "requires dryRun=true, no movement/input, and no simulated multi-waypoint arrival claims",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -1008,6 +1028,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "route-run-report-before-rerun",
             "command": "scripts\\static-owner-nav-report-route-run.cmd <route-run-summary.json> --json",
         },
+        {
+            "step": "route-sequence-contract-for-consumer",
+            "command": "scripts\\static-owner-continuous-route-sequence-contract.cmd <sequence-summary.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -1081,6 +1105,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "static-owner-turn-aware-plan",
             "static-owner-camera-yaw-classification",
             "static-owner-route-run-report",
+            "static-owner-route-sequence-contract",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,
@@ -1329,6 +1354,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/static-owner-nav-route-step.cmd",
             "scripts/static-owner-nav-route-run.cmd",
             "scripts/static-owner-nav-report-route-run.cmd",
+            "scripts/static-owner-continuous-route-sequence-contract.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
             "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
