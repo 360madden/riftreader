@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import struct
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -90,6 +91,81 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
 
         self.assertEqual(helper.candidate_address_from_readback(readback), 0x1234)
         self.assertEqual(helper.reference_from_readback(readback), {"x": 1.0, "y": 2.0, "z": 3.0})
+
+    def test_read_game_epoch_extracts_manifest_version_and_exe_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "manifest64.txt").write_text(
+                "version STABLE-1-1152-a-1256395\n"
+                "rift_x64.exe:a8ba8748ea752e4e5581cea34188dc702469c923:59955136\n",
+                encoding="utf-8",
+            )
+            (root / "rift_x64.exe").write_bytes(b"fake")
+
+            epoch = helper.read_game_epoch(root)
+
+        self.assertEqual(epoch["status"], "passed")
+        self.assertEqual(epoch["manifestVersion"], "STABLE-1-1152-a-1256395")
+        self.assertEqual(epoch["manifestRiftX64Sha1"], "a8ba8748ea752e4e5581cea34188dc702469c923")
+        self.assertEqual(epoch["manifestRiftX64Size"], 59955136)
+        self.assertEqual(epoch["executableLength"], 4)
+
+    def test_root_signature_batch_summary_classifies_heap_only_sweeps(self) -> None:
+        batch = {
+            "status": "passed",
+            "counts": {"selectedRvaCount": 1, "resultCount": 1, "commandStatuses": {"completed": 1}},
+            "results": [
+                {
+                    "rva": "0x26E5E80",
+                    "status": "passed",
+                    "counts": {"modulePointerHitCount": 1024},
+                    "topOwnerFieldCandidate": {
+                        "score": 190,
+                        "ownerBase": "0x1D4BA11F480",
+                        "fieldMatches": [
+                            {"matched": True},
+                            {"matched": True},
+                            {"matched": False},
+                            {"matched": False},
+                        ],
+                        "scoreReasons": ["matched-owner-module-fields=2/4", "matches-known-owner"],
+                    },
+                    "topParentSlotCandidate": {
+                        "score": 15,
+                        "parentSlot": "0x1D4BA093D30",
+                        "ownerPointer": "0x1D4BA093D40",
+                        "scoreReasons": ["owner-pointer-heap-like"],
+                    },
+                }
+            ],
+        }
+
+        summary = helper.summarize_root_signature_batch(batch)
+
+        self.assertEqual(summary["classification"], "heap-ref-storage-only-no-parent-root")
+        self.assertEqual(summary["highSignalResultCount"], 0)
+        self.assertFalse(summary["topResults"][0]["highSignal"])
+
+    def test_root_signature_batch_summary_detects_high_signal_parent(self) -> None:
+        batch = {
+            "status": "passed",
+            "counts": {"selectedRvaCount": 1, "resultCount": 1},
+            "results": [
+                {
+                    "rva": "0x1",
+                    "topOwnerFieldCandidate": {"fieldMatches": [{"matched": False}], "scoreReasons": []},
+                    "topParentSlotCandidate": {
+                        "score": 160,
+                        "scoreReasons": ["matches-known-owner", "matches-known-parent-slot"],
+                    },
+                }
+            ],
+        }
+
+        summary = helper.summarize_root_signature_batch(batch)
+
+        self.assertEqual(summary["classification"], "root-candidate-leads-present")
+        self.assertEqual(summary["highSignalResultCount"], 1)
 
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")

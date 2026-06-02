@@ -26,6 +26,9 @@ candidate-only and not movement proof.
 | HWND | `0x17A0DB2` |
 | Process start UTC | `2026-06-02T15:45:29.2617327Z` |
 | Module base | `0x7FF7211C0000` |
+| RIFT manifest version | `STABLE-1-1152-a-1256395` |
+| RIFT manifest path | `C:\Program Files (x86)\Glyph\Games\RIFT\Live\manifest64.txt` |
+| Manifest `rift_x64.exe` SHA1 | `a8ba8748ea752e4e5581cea34188dc702469c923` |
 | Binary LastWriteTimeUtc | `2026-06-02T09:04:57.6557069Z` |
 | Binary SHA256 | `339F5FF5D52EDE1CDC3F239E3DA927A8872B595EE1AABCB799725E93F0085977` |
 | Client size | `640x360` |
@@ -37,6 +40,7 @@ candidate-only and not movement proof.
 | Exact target/window | One RIFT window, target matches PID/HWND | live MCP + PowerShell checks |
 | Old static root read | `0x7FF7244ABC80 -> 0x0` | console root qword probe |
 | Old promoted coordinate/facing chains | Blocked with explicit `root-pointer-null` verdict | `scripts/captures/static-owner-coordinate-chain-readback-20260602-175043-068641/summary.json` |
+| RIFT manifest version | Current install is `STABLE-1-1152-a-1256395`; PE version fields are generic `1.0.0.0`, so manifest version is the authoritative semantic update identifier | `C:\Program Files (x86)\Glyph\Games\RIFT\Live\manifest64.txt` |
 | Current-PID fast reacquire | Found direct vec3 candidate | `scripts/captures/recover-currentpid-coord-anchor-fast-execute-77152-20260602-162111-548228/summary.json` |
 | Candidate readback | Fresh API-vs-memory max delta about `0.005` | `scripts/captures/candidate-readback-currentpid-77152-20260602-170631-488108/candidate-readback-summary.json` |
 | Quick static field matrix | Owner-layout offsets still have static access evidence; old root refs not found in bounded pass | `scripts/captures/static-field-access-matrix-20260602-173358-216541/summary.json` |
@@ -44,6 +48,11 @@ candidate-only and not movement proof.
 | Static readback helper hardening | Added explicit `root-pointer-null` classification for readable static roots that contain null | `scripts/static_owner_coordinate_chain_readback.py` |
 | Candidate-minus-0x320 owner hypothesis | Rejected: no owner/vtable module pointers, nonsense facing/support fields | `scripts/captures/postupdate-owner-hypothesis-currentpid-77152-20260602-175553-458224/summary.json` |
 | Pointer refs to direct coordinate candidate | Weak: one non-module same-family ref, no module/static root hit | `scripts/captures/pointer-family-scan-20260602-175458-061032/summary.json` |
+| Owner-batch module hints | Candidate-only ref-storage island at `0x1D4BA11F480`; module-RVA hints `0x26E5E80`, `0x26E5278`, `0x26E3200` | `scripts/captures/pointer-owner-batch-currentpid-77152-20260602-181241-737979/summary.json` |
+| Post-update root-signature seed | Reproducible candidate-only seed built from owner-batch evidence; not a promoted root | `scripts/postupdate_root_signature_seed.py`; `scripts/captures/postupdate-root-signature-seed-currentpid-77152-20260602-184943-874781/root-signature-seed.json` |
+| Root-signature batch sweep | Negative: three module-RVA sweeps reconfirmed heap/ref-storage evidence but found no high-signal parent/root candidate | `scripts/captures/root-signature-batch-sweep-currentpid-77152-20260602-183920-580940/summary.json` |
+| Root-family classifiers | Negative/weak: priority parent leads are low-score heap-like or string/asset-heavy; no promotion candidates | `scripts/captures/root-signature-family-classifier-20260602-185009-448441/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-419098/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-432017/summary.json` |
+| Priority lead pointer-family follow-ups | Negative: bounded scans over exported classifier leads found `0` module/RIFT-module hits; largest scan hit the 32-target cap | `scripts/captures/pointer-family-scan-20260602-185045-917536/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-954296/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-985913/summary.json` |
 
 ## Recovery methods examined
 
@@ -93,6 +102,8 @@ Preferred sequence:
 3. From the direct coordinate candidate, inspect nearby memory for owner-shaped windows with coordinate at a stable owner-relative offset. Completed first hypothesis: `candidateAddress-0x320` is not owner-shaped, so do not assume the direct candidate is embedded in the old owner layout.
 4. Run pointer-family scans looking for module/static references to any inferred owner, mirroring the successful 2026-05-27 workflow. Pointer refs to the direct coordinate candidate alone produced no module/static root hit.
 5. Reject roots that only point to stale heap addresses, copied coordinate buffers, or single-pose aliases.
+
+Current post-update result: the candidate-only owner-batch/root-signature path is now exhausted for the three available module-RVA hints. The sweeps and classifier follow-ups stayed heap-only/no-module-root. Do not repeat the same `0x26E5E80`, `0x26E5278`, or `0x26E3200` sweeps unless a fresh owner batch produces new evidence. The next safe lane is static/access-chain tracing around the updated layout writer cluster, especially `0x3F8B0`, or a new non-repeating current-PID family/container scan.
 
 Success criteria:
 
@@ -149,7 +160,7 @@ scripts\riftreader-static-field-access-matrix.cmd --binary-path "C:\Program File
 python scripts\current_pid_candidate_readback.py --pid 77152 --hwnd 0x17A0DB2 --candidate-jsonl "C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-77152-20260602-162409-918002\api-family-vec3-candidates.jsonl" --reference-timeout-seconds 180 --json
 ```
 
-Next safe no-input implementation work is owner/root rediscovery from the candidate neighborhood plus pointer-family module-root scans.
+Next safe no-input implementation work is static/access-chain tracing around the updated layout writer cluster plus any fresh non-repeating current-PID family/container scan. The candidate-neighborhood module-RVA sweep lane has current negative evidence and should not be repeated blindly.
 
 Gated sequence after explicit approval:
 

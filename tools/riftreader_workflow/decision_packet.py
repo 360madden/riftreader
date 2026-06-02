@@ -879,6 +879,21 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "Run fixture-only post-update owner/root rediscovery self-test.",
             )
         )
+    if any("postupdate_root_signature_seed" in path for path in lower_paths):
+        commands.append(
+            command_spec(
+                "postupdate-root-signature-seed-tests",
+                ["python", "-m", "unittest", "scripts.test_postupdate_root_signature_seed"],
+                "Validate candidate-only post-update root-signature seed generation.",
+            )
+        )
+        commands.append(
+            command_spec(
+                "postupdate-root-signature-seed-self-test",
+                ["python", "scripts\\postupdate_root_signature_seed.py", "--self-test", "--json"],
+                "Run fixture-only post-update root-signature seed self-test.",
+            )
+        )
     if any("tool_catalog" in path or "riftreader-tool-catalog" in path for path in lower_paths):
         commands.append(
             command_spec(

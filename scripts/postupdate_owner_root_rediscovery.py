@@ -32,6 +32,7 @@ from workflow_common import base_safety, repo_root as default_repo_root, utc_iso
 SCHEMA_VERSION = 1
 DEFAULT_MODULE_SIZE = 0x5000000
 DEFAULT_OWNER_WINDOW_BYTES = 0x480
+DEFAULT_RIFT_LIVE_ROOT = Path(r"C:\Program Files (x86)\Glyph\Games\RIFT\Live")
 OLD_OWNER_COORD_OFFSET = 0x320
 OWNER_HYPOTHESIS_OFFSETS = (0x320, 0x324, 0x328, 0x300, 0x30C, 0x310, 0x314)
 PROMOTED_LAYOUT_OFFSETS = ("0x300", "0x304", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328")
@@ -95,11 +96,63 @@ def latest_artifact_paths(repo_root: Path) -> dict[str, str | None]:
         "ghidraStatic": "ghidra-static-analysis-*/summary.json",
         "pointerFamily": "pointer-family-scan-*/summary.json",
         "ownerBatch": "pointer-owner-batch-currentpid-*/summary.json",
+        "rootSignatureSeed": "postupdate-root-signature-seed-currentpid-*/root-signature-seed.json",
+        "rootSignatureBatch": "root-signature-batch-sweep-currentpid-*/summary.json",
     }
     return {
         key: str(path.resolve()) if (path := latest_path(capture_root, pattern)) else None
         for key, pattern in patterns.items()
     }
+
+
+def file_mtime_utc(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def read_game_epoch(rift_live_root: Path) -> dict[str, Any]:
+    manifest = rift_live_root / "manifest64.txt"
+    executable = rift_live_root / "rift_x64.exe"
+    result: dict[str, Any] = {
+        "riftLiveRoot": str(rift_live_root),
+        "manifestPath": str(manifest),
+        "manifestExists": manifest.is_file(),
+        "manifestVersion": None,
+        "manifestLastWriteTimeUtc": file_mtime_utc(manifest),
+        "manifestLength": manifest.stat().st_size if manifest.exists() else None,
+        "manifestRiftX64Sha1": None,
+        "manifestRiftX64Size": None,
+        "executablePath": str(executable),
+        "executableExists": executable.is_file(),
+        "executableLastWriteTimeUtc": file_mtime_utc(executable),
+        "executableLength": executable.stat().st_size if executable.exists() else None,
+        "candidateOnly": False,
+    }
+    if not manifest.is_file():
+        result["status"] = "missing"
+        result["blockers"] = ["manifest64-missing"]
+        return result
+
+    try:
+        lines = manifest.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+    except OSError as exc:
+        result["status"] = "blocked"
+        result["blockers"] = [f"manifest64-read-failed:{type(exc).__name__}"]
+        return result
+
+    if lines and lines[0].startswith("version "):
+        result["manifestVersion"] = lines[0].split(" ", 1)[1].strip()
+    for line in lines:
+        if line.startswith("rift_x64.exe:"):
+            parts = line.split(":")
+            if len(parts) >= 3:
+                result["manifestRiftX64Sha1"] = parts[1]
+                result["manifestRiftX64Size"] = parse_int(parts[2])
+            break
+    result["status"] = "passed" if result["manifestVersion"] else "blocked"
+    result["blockers"] = [] if result["manifestVersion"] else ["manifest-version-missing"]
+    return result
 
 
 def coordinate_from_mapping(value: Any) -> dict[str, float] | None:
@@ -407,6 +460,99 @@ def summarize_owner_batch(owner_batch: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_root_signature_seed(seed: Mapping[str, Any]) -> dict[str, Any]:
+    signature = safe_mapping(seed.get("signature"))
+    fields = [safe_mapping(item) for item in safe_list(signature.get("ownerModuleFields"))]
+    return {
+        "status": seed.get("status"),
+        "path": safe_mapping(seed.get("artifacts")).get("seedJson"),
+        "generatedAtUtc": seed.get("generatedAtUtc"),
+        "ownerBase": signature.get("ownerBase"),
+        "coordPointer": signature.get("coordPointer"),
+        "coordPointerSlotOffset": signature.get("coordPointerSlotOffset"),
+        "ownerModuleFieldCount": len(fields),
+        "ownerModuleFields": fields[:12],
+        "blockers": safe_list(seed.get("blockers")),
+        "warnings": safe_list(seed.get("warnings")),
+        "candidateOnly": True,
+        "promotionEligible": False,
+    }
+
+
+def _matched_field_count(candidate: Mapping[str, Any]) -> int:
+    return sum(1 for field in safe_list(candidate.get("fieldMatches")) if safe_mapping(field).get("matched"))
+
+
+def _field_count(candidate: Mapping[str, Any]) -> int:
+    return len(safe_list(candidate.get("fieldMatches")))
+
+
+def _root_sweep_high_signal(result: Mapping[str, Any]) -> bool:
+    owner = safe_mapping(result.get("topOwnerFieldCandidate"))
+    parent = safe_mapping(result.get("topParentSlotCandidate"))
+    reasons = {str(reason) for reason in safe_list(owner.get("scoreReasons"))}
+    parent_reasons = {str(reason) for reason in safe_list(parent.get("scoreReasons"))}
+    matched = _matched_field_count(owner)
+    total = _field_count(owner)
+    if "complete-owner-module-field-signature" in reasons:
+        return True
+    if matched >= 3 and total and matched / total >= 0.5:
+        return True
+    if "matches-known-owner" in parent_reasons and int(parent.get("score") or 0) >= 80:
+        return True
+    return False
+
+
+def summarize_root_signature_batch(batch: Mapping[str, Any]) -> dict[str, Any]:
+    results = [safe_mapping(item) for item in safe_list(batch.get("results"))]
+    high_signal = [item for item in results if _root_sweep_high_signal(item)]
+    top_results: list[dict[str, Any]] = []
+    for item in results[:8]:
+        owner = safe_mapping(item.get("topOwnerFieldCandidate"))
+        parent = safe_mapping(item.get("topParentSlotCandidate"))
+        top_results.append(
+            {
+                "rva": item.get("rva"),
+                "status": item.get("status"),
+                "summaryJson": item.get("summaryJson"),
+                "modulePointerHitCount": safe_mapping(item.get("counts")).get("modulePointerHitCount"),
+                "topOwnerScore": owner.get("score"),
+                "topOwnerBase": owner.get("ownerBase"),
+                "topOwnerMatchedFields": _matched_field_count(owner),
+                "topOwnerFieldCount": _field_count(owner),
+                "topParentScore": parent.get("score"),
+                "topParentSlot": parent.get("parentSlot"),
+                "topParentOwnerPointer": parent.get("ownerPointer"),
+                "warningCount": len(safe_list(item.get("warnings"))),
+                "highSignal": _root_sweep_high_signal(item),
+            }
+        )
+    selected_count = int(safe_mapping(batch.get("counts")).get("selectedRvaCount") or 0)
+    result_count = int(safe_mapping(batch.get("counts")).get("resultCount") or len(results))
+    classification = "not-run"
+    if result_count and high_signal:
+        classification = "root-candidate-leads-present"
+    elif result_count:
+        classification = "heap-ref-storage-only-no-parent-root"
+    elif selected_count == 0:
+        classification = "no-rvas-selected"
+    return {
+        "status": batch.get("status"),
+        "path": safe_mapping(batch.get("artifacts")).get("summaryJson"),
+        "generatedAtUtc": batch.get("generatedAtUtc"),
+        "classification": classification,
+        "selectedRvaCount": selected_count,
+        "resultCount": result_count,
+        "commandStatuses": safe_mapping(safe_mapping(batch.get("counts")).get("commandStatuses")),
+        "highSignalResultCount": len(high_signal),
+        "topResults": top_results,
+        "blockers": safe_list(batch.get("blockers")),
+        "warnings": safe_list(batch.get("warnings")),
+        "candidateOnly": True,
+        "promotionEligible": False,
+    }
+
+
 class FILETIME(ctypes.Structure):
     _fields_ = [("dwLowDateTime", ctypes.c_ulong), ("dwHighDateTime", ctypes.c_ulong)]
 
@@ -502,14 +648,27 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     paths = safe_mapping(summary.get("artifactInputs"))
     stale = safe_mapping(summary.get("staleStaticRoot"))
     candidate = safe_mapping(summary.get("coordinateCandidate"))
+    game_epoch = safe_mapping(summary.get("gameEpoch"))
     lines = [
         "# Post-update owner/root rediscovery",
         "",
         f"- Status: `{summary.get('status')}`",
         f"- Verdict: `{summary.get('verdict')}`",
         f"- Generated UTC: `{summary.get('generatedAtUtc')}`",
+        f"- Game manifest version: `{game_epoch.get('manifestVersion')}`",
         f"- Coordinate candidate: `{candidate.get('addressHex')}`",
         f"- Old static root verdict: `{stale.get('verdict')}` pointer `{stale.get('rootPointer')}`",
+        "",
+        "## Game/update epoch",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Manifest version | `{game_epoch.get('manifestVersion')}` |",
+        f"| Manifest mtime UTC | `{game_epoch.get('manifestLastWriteTimeUtc')}` |",
+        f"| `rift_x64.exe` manifest SHA1 | `{game_epoch.get('manifestRiftX64Sha1')}` |",
+        f"| `rift_x64.exe` manifest size | `{game_epoch.get('manifestRiftX64Size')}` |",
+        f"| `rift_x64.exe` mtime UTC | `{game_epoch.get('executableLastWriteTimeUtc')}` |",
+        f"| `rift_x64.exe` size | `{game_epoch.get('executableLength')}` |",
         "",
         "## Artifact inputs",
         "",
@@ -533,6 +692,44 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     for index, row in enumerate(safe_list(owner_batch.get("moduleRvaHints"))[:8], start=1):
         item = safe_mapping(row)
         lines.append(f"| {index} | `{item.get('rva')}` | `{item.get('ownerWindowHitCount')}` | `{', '.join(safe_list(item.get('owners')))}` |")
+    seed = safe_mapping(summary.get("rootSignatureSeed"))
+    if seed:
+        lines.extend(
+            [
+                "",
+                "## Root-signature seed",
+                "",
+                "| Field | Value |",
+                "|---|---|",
+                f"| Status | `{seed.get('status')}` |",
+                f"| Owner base | `{seed.get('ownerBase')}` |",
+                f"| Coord pointer | `{seed.get('coordPointer')}` |",
+                f"| Owner module fields | `{seed.get('ownerModuleFieldCount')}` |",
+            ]
+        )
+    root_batch = safe_mapping(summary.get("rootSignatureBatch"))
+    if root_batch:
+        lines.extend(
+            [
+                "",
+                "## Root-signature batch sweep evidence",
+                "",
+                f"- Classification: `{root_batch.get('classification')}`",
+                f"- Results: `{root_batch.get('resultCount')}`",
+                f"- High-signal results: `{root_batch.get('highSignalResultCount')}`",
+                "",
+                "| RVA | Module hits | Owner score | Matched fields | Parent score | High signal |",
+                "|---|---:|---:|---:|---:|---|",
+            ]
+        )
+        for row in safe_list(root_batch.get("topResults"))[:8]:
+            item = safe_mapping(row)
+            matched = item.get("topOwnerMatchedFields")
+            total = item.get("topOwnerFieldCount")
+            lines.append(
+                f"| `{item.get('rva')}` | `{item.get('modulePointerHitCount')}` | `{item.get('topOwnerScore')}` | "
+                f"`{matched}/{total}` | `{item.get('topParentScore')}` | `{str(bool(item.get('highSignal'))).lower()}` |"
+            )
     lines.extend(["", "## Blockers"])
     for blocker in safe_list(summary.get("blockers")):
         lines.append(f"- `{blocker}`")
@@ -544,20 +741,34 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
 
 def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     repo_root = Path(args.repo_root).resolve() if args.repo_root else default_repo_root()
+    rift_live_root = Path(args.rift_live_root).resolve() if args.rift_live_root else DEFAULT_RIFT_LIVE_ROOT
     latest = latest_artifact_paths(repo_root)
     candidate_path = resolve_path(repo_root, args.candidate_readback_json) or (Path(latest["candidateReadback"]) if latest["candidateReadback"] else None)
     static_readback_path = resolve_path(repo_root, args.static_readback_json) or (Path(latest["staticReadback"]) if latest["staticReadback"] else None)
     static_matrix_path = resolve_path(repo_root, args.static_field_matrix_json) or (Path(latest["staticFieldMatrix"]) if latest["staticFieldMatrix"] else None)
     ghidra_path = resolve_path(repo_root, args.ghidra_static_json) or (Path(latest["ghidraStatic"]) if latest["ghidraStatic"] else None)
-    pointer_family_path = resolve_path(repo_root, args.pointer_family_json) or (Path(latest["pointerFamily"]) if latest["pointerFamily"] else None)
     owner_batch_path = resolve_path(repo_root, args.owner_batch_json) or (Path(latest["ownerBatch"]) if latest["ownerBatch"] else None)
+    root_signature_seed_path = resolve_path(repo_root, args.root_signature_seed_json) or (
+        Path(latest["rootSignatureSeed"]) if latest["rootSignatureSeed"] else None
+    )
+    root_signature_batch_path = resolve_path(repo_root, args.root_signature_batch_json) or (
+        Path(latest["rootSignatureBatch"]) if latest["rootSignatureBatch"] else None
+    )
 
     candidate_readback = load_json_object(candidate_path) or {}
     static_readback = load_json_object(static_readback_path) or {}
     static_matrix = load_json_object(static_matrix_path) or {}
     ghidra_static = load_json_object(ghidra_path) or {}
-    pointer_family = load_json_object(pointer_family_path) or {}
     owner_batch = load_json_object(owner_batch_path) or {}
+    owner_batch_pointer_family_path = resolve_path(repo_root, safe_mapping(owner_batch.get("inputs")).get("pointerFamilySummary"))
+    pointer_family_path = (
+        resolve_path(repo_root, args.pointer_family_json)
+        or owner_batch_pointer_family_path
+        or (Path(latest["pointerFamily"]) if latest["pointerFamily"] else None)
+    )
+    pointer_family = load_json_object(pointer_family_path) or {}
+    root_signature_seed = load_json_object(root_signature_seed_path) or {}
+    root_signature_batch = load_json_object(root_signature_batch_path) or {}
 
     candidate_address = parse_int(args.candidate_address) or candidate_address_from_readback(candidate_readback)
     reference = reference_from_readback(candidate_readback)
@@ -574,12 +785,19 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
     blockers: list[str] = []
     warnings: list[str] = []
+    game_epoch = read_game_epoch(rift_live_root)
+    if game_epoch.get("status") != "passed":
+        warnings.extend(f"game-epoch:{blocker}" for blocker in safe_list(game_epoch.get("blockers")))
     if not candidate_path:
         blockers.append("candidate-readback-missing")
     if not static_readback_path:
         blockers.append("static-readback-missing")
     if not static_matrix_path:
         warnings.append("static-field-matrix-missing")
+    if not root_signature_seed_path:
+        warnings.append("root-signature-seed-missing")
+    if not root_signature_batch_path:
+        warnings.append("root-signature-batch-missing")
     if not candidate_address:
         blockers.append("coordinate-candidate-address-missing")
     if not module_base:
@@ -642,7 +860,11 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     static_clusters = rank_static_clusters(static_matrix)
     pointer_family_summary = summarize_pointer_family(pointer_family)
     owner_batch_summary = summarize_owner_batch(owner_batch)
+    root_signature_seed_summary = summarize_root_signature_seed(root_signature_seed)
+    root_signature_batch_summary = summarize_root_signature_batch(root_signature_batch)
     ghidra_summary = safe_mapping(ghidra_static.get("evidenceSummary"))
+    if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
+        blockers.append("root-signature-sweeps-found-no-parent-root-candidate")
 
     status = "blocked" if blockers else "candidate"
     verdict = (
@@ -663,12 +885,18 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     )
 
     top_rvas = [str(item.get("rva")) for item in safe_list(owner_batch_summary.get("moduleRvaHints"))[:3] if item.get("rva")]
-    recommended = (
-        "Use the owner-batch module RVA hints as read-only root-signature sweep seeds, but first build/refresh a current root-signature packet; "
-        "the old static root is null and the direct coordinate candidate is not old-owner-shaped."
-        if blockers
-        else "Run pointer-family/root-signature sweeps against the owner-shaped candidate, then require movement/restart proof before any promotion."
-    )
+    if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
+        recommended = (
+            "Stop repeating the same module-RVA root sweeps for this epoch; they reconfirm the heap/ref-storage island but found no parent/root candidate. "
+            "Shift to offline/static access-chain tracing around the 0x3F8B0 layout cluster and fresh broad family/container scans if a new seed appears."
+        )
+    elif blockers:
+        recommended = (
+            "Use the owner-batch module RVA hints as read-only root-signature sweep seeds, but first build/refresh a current root-signature packet; "
+            "the old static root is null and the direct coordinate candidate is not old-owner-shaped."
+        )
+    else:
+        recommended = "Run pointer-family/root-signature sweeps against the owner-shaped candidate, then require movement/restart proof before any promotion."
     if top_rvas:
         recommended += " Top current module RVA hints: " + ", ".join(top_rvas) + "."
 
@@ -684,6 +912,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "status": status,
         "verdict": verdict,
         "repoRoot": str(repo_root),
+        "gameEpoch": game_epoch,
         "target": target,
         "artifactInputs": {
             "candidateReadback": str(candidate_path.resolve()) if candidate_path else None,
@@ -692,6 +921,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "ghidraStatic": str(ghidra_path.resolve()) if ghidra_path else None,
             "pointerFamily": str(pointer_family_path.resolve()) if pointer_family_path else None,
             "ownerBatch": str(owner_batch_path.resolve()) if owner_batch_path else None,
+            "rootSignatureSeed": str(root_signature_seed_path.resolve()) if root_signature_seed_path else None,
+            "rootSignatureBatch": str(root_signature_batch_path.resolve()) if root_signature_batch_path else None,
         },
         "coordinateCandidate": {
             "addressHex": hex_int(candidate_address),
@@ -712,12 +943,21 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         },
         "pointerFamily": pointer_family_summary,
         "ownerBatch": owner_batch_summary,
+        "rootSignatureSeed": root_signature_seed_summary,
+        "rootSignatureBatch": root_signature_batch_summary,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "safety": safety,
         "next": {
             "recommendedAction": recommended,
             "topReadOnlyCommands": [
+                [
+                    "python",
+                    "scripts\\postupdate_root_signature_seed.py",
+                    "--from-owner-batch-summary",
+                    str(owner_batch_path) if owner_batch_path else "<owner-batch-summary>",
+                    "--json",
+                ],
                 [
                     "python",
                     "scripts\\pointer_owner_batch_inspector.py",
@@ -823,6 +1063,7 @@ def self_test() -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="No-input post-update owner/root rediscovery status helper.")
     parser.add_argument("--repo-root")
+    parser.add_argument("--rift-live-root", default=str(DEFAULT_RIFT_LIVE_ROOT))
     parser.add_argument("--pid", type=int)
     parser.add_argument("--hwnd")
     parser.add_argument("--expected-process-start-utc")
@@ -835,6 +1076,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ghidra-static-json")
     parser.add_argument("--pointer-family-json")
     parser.add_argument("--owner-batch-json")
+    parser.add_argument("--root-signature-seed-json")
+    parser.add_argument("--root-signature-batch-json")
     parser.add_argument("--output-root")
     parser.add_argument("--owner-window-bytes", type=lambda value: int(value, 0), default=DEFAULT_OWNER_WINDOW_BYTES)
     parser.add_argument("--tolerance", type=float, default=0.25)
@@ -862,9 +1105,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "verdict": summary.get("verdict"),
                     "summaryJson": safe_mapping(summary.get("artifacts")).get("summaryJson"),
                     "coordinateCandidate": summary.get("coordinateCandidate"),
+                    "gameEpoch": summary.get("gameEpoch"),
                     "topOwnerHypothesis": (safe_list(summary.get("ownerShapeHypotheses")) or [None])[0],
                     "topStaticCluster": (safe_list(summary.get("staticFieldClusters")) or [None])[0],
                     "ownerBatchModuleRvaHints": safe_list(safe_mapping(summary.get("ownerBatch")).get("moduleRvaHints"))[:5],
+                    "rootSignatureBatch": summary.get("rootSignatureBatch"),
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),
                 },

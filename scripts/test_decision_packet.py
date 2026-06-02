@@ -518,6 +518,16 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("tool-catalog-tests", labels)
         self.assertIn("tool-catalog-self-test", labels)
 
+    def test_validation_plan_selects_postupdate_seed_checks_for_seed_change(self) -> None:
+        plan = decision_packet.build_validation_plan(
+            {"changedFiles": [{"path": "scripts/postupdate_root_signature_seed.py"}]},
+            "proof-recovery",
+        )
+        labels = {item["label"] for item in plan["commands"]}
+
+        self.assertIn("postupdate-root-signature-seed-tests", labels)
+        self.assertIn("postupdate-root-signature-seed-self-test", labels)
+
     def test_validation_plan_selects_live_input_audit_checks_for_audit_change(self) -> None:
         plan = decision_packet.build_validation_plan(
             {"changedFiles": [{"path": "scripts/live_input_surface_audit.py"}]},
