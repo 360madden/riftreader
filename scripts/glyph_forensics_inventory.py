@@ -667,6 +667,175 @@ Get-CimInstance Win32_Process |
     return rows
 
 
+def active_network_connections(processes: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    pids: list[int] = []
+    for proc in processes:
+        try:
+            pids.append(int(proc.get("ProcessId")))
+        except (TypeError, ValueError):
+            continue
+    if not pids:
+        return []
+    encoded = json.dumps(pids)
+    script = rf"""
+$pids = ConvertFrom-Json @'
+{encoded}
+'@
+$items = foreach ($pid in $pids) {{
+  Get-NetTCPConnection -OwningProcess $pid -ErrorAction SilentlyContinue |
+    Select-Object OwningProcess,State,LocalAddress,LocalPort,RemoteAddress,RemotePort,AppliedSetting,CreationTime
+}}
+$items | ConvertTo-Json -Depth 4
+"""
+    data = run_powershell_json(script, timeout_seconds=20.0)
+    if isinstance(data, Mapping):
+        return [dict(data)]
+    if isinstance(data, list):
+        return [dict(item) for item in data if isinstance(item, Mapping)]
+    return []
+
+
+def service_inventory() -> list[dict[str, Any]]:
+    script = r"""
+$pattern = '(?i)(glyph|trion|rift|gamigo)'
+Get-CimInstance Win32_Service |
+  Where-Object { $_.Name -match $pattern -or $_.DisplayName -match $pattern -or $_.PathName -match $pattern } |
+  Select-Object Name,DisplayName,State,StartMode,PathName,ProcessId,Started |
+  ConvertTo-Json -Depth 4
+"""
+    data = run_powershell_json(script, timeout_seconds=20.0)
+    if isinstance(data, Mapping):
+        return [redact_jsonish(dict(data))]
+    if isinstance(data, list):
+        return [redact_jsonish(dict(item)) for item in data if isinstance(item, Mapping)]
+    return []
+
+
+def scheduled_task_inventory() -> list[dict[str, Any]]:
+    script = r"""
+$pattern = '(?i)(glyph|trion|rift|gamigo)'
+$items = foreach ($task in Get-ScheduledTask -ErrorAction SilentlyContinue) {
+  $actions = @($task.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" })
+  $text = "$($task.TaskName) $($task.TaskPath) $($actions -join ' ')"
+  if ($text -match $pattern) {
+    [PSCustomObject]@{
+      TaskName = $task.TaskName
+      TaskPath = $task.TaskPath
+      State = [string]$task.State
+      Actions = $actions
+    }
+  }
+}
+$items | ConvertTo-Json -Depth 5
+"""
+    data = run_powershell_json(script, timeout_seconds=30.0)
+    if isinstance(data, Mapping):
+        return [redact_jsonish(dict(data))]
+    if isinstance(data, list):
+        return [redact_jsonish(dict(item)) for item in data if isinstance(item, Mapping)]
+    return []
+
+
+def autorun_inventory() -> list[dict[str, Any]]:
+    registry_roots = [
+        r"HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
+        r"HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+        r"HKLM:\Software\Microsoft\Windows\CurrentVersion\Run",
+        r"HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+        r"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run",
+        r"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce",
+    ]
+    encoded = json.dumps(registry_roots)
+    script = rf"""
+$roots = ConvertFrom-Json @'
+{encoded}
+'@
+$pattern = '(?i)(glyph|trion|rift|gamigo)'
+$items = @()
+foreach ($root in $roots) {{
+  if (Test-Path -LiteralPath $root) {{
+    $props = Get-ItemProperty -LiteralPath $root -ErrorAction SilentlyContinue
+    if ($props) {{
+      foreach ($prop in $props.PSObject.Properties) {{
+        if ($prop.Name -like 'PS*') {{ continue }}
+        $value = [string]$prop.Value
+        if ($prop.Name -match $pattern -or $value -match $pattern) {{
+          $items += [PSCustomObject]@{{ source='registry-run'; path=$root; name=$prop.Name; value=$value }}
+        }}
+      }}
+    }}
+  }}
+}}
+$startupDirs = @(
+  [Environment]::GetFolderPath('Startup'),
+  [Environment]::GetFolderPath('CommonStartup')
+)
+foreach ($dir in $startupDirs) {{
+  if (Test-Path -LiteralPath $dir) {{
+    Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue | Where-Object {{
+      $_.Name -match $pattern -or $_.FullName -match $pattern
+    }} | ForEach-Object {{
+      $items += [PSCustomObject]@{{ source='startup-folder'; path=$dir; name=$_.Name; value=$_.FullName }}
+    }}
+  }}
+}}
+$items | ConvertTo-Json -Depth 5
+"""
+    data = run_powershell_json(script, timeout_seconds=30.0)
+    if isinstance(data, Mapping):
+        return [redact_jsonish(dict(data))]
+    if isinstance(data, list):
+        return [redact_jsonish(dict(item)) for item in data if isinstance(item, Mapping)]
+    return []
+
+
+def uninstall_inventory() -> list[dict[str, Any]]:
+    roots = [
+        r"HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ]
+    encoded = json.dumps(roots)
+    script = rf"""
+$roots = ConvertFrom-Json @'
+{encoded}
+'@
+$broadPattern = '(?i)(glyph|trion|gamigo)'
+$items = foreach ($root in $roots) {{
+  if (-not (Test-Path -LiteralPath $root)) {{ continue }}
+  Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | ForEach-Object {{
+    $props = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+    $text = "$($props.DisplayName) $($props.Publisher) $($props.InstallLocation) $($props.DisplayIcon) $($props.UninstallString)"
+    $riftGlyphInstall = (
+      ([string]$props.DisplayName -eq 'RIFT' -and [string]$props.InstallLocation -match '(?i)\\Glyph\\') -or
+      [string]$props.DisplayIcon -match '(?i)\\Glyph\\' -or
+      [string]$props.UninstallString -match '(?i)GlyphClientApp'
+    )
+    if ($text -match $broadPattern -or $riftGlyphInstall) {{
+      [PSCustomObject]@{{
+        keyPath = $_.PSPath
+        displayName = $props.DisplayName
+        displayVersion = $props.DisplayVersion
+        publisher = $props.Publisher
+        installLocation = $props.InstallLocation
+        displayIcon = $props.DisplayIcon
+        uninstallString = $props.UninstallString
+        quietUninstallString = $props.QuietUninstallString
+        estimatedSize = $props.EstimatedSize
+      }}
+    }}
+  }}
+}}
+$items | ConvertTo-Json -Depth 6
+"""
+    data = run_powershell_json(script, timeout_seconds=30.0)
+    if isinstance(data, Mapping):
+        return [redact_jsonish(dict(data))]
+    if isinstance(data, list):
+        return [redact_jsonish(dict(item)) for item in data if isinstance(item, Mapping)]
+    return []
+
+
 def debugger_indicators(pid: int) -> dict[str, Any]:
     if sys.platform != "win32":
         return {"status": "unsupported-non-windows"}
@@ -973,6 +1142,17 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                 lines.append(f"- PID `{proc.get('ProcessId')}` `{proc.get('Name')}` path=`{proc.get('ExecutablePath')}`")
     else:
         lines.append("- no known debugger-like process names were found")
+    lines.extend(["", "## Active network connections", ""])
+    network_connections = summary.get("activeNetworkConnections") if isinstance(summary.get("activeNetworkConnections"), list) else []
+    if network_connections:
+        for item in network_connections:
+            if isinstance(item, Mapping):
+                lines.append(
+                    f"- PID `{item.get('OwningProcess')}` `{item.get('State')}` "
+                    f"{item.get('LocalAddress')}:{item.get('LocalPort')} -> {item.get('RemoteAddress')}:{item.get('RemotePort')}"
+                )
+    else:
+        lines.append("- no active Glyph-owned TCP connections were reported")
     lines.extend(["", "## Executables", ""])
     for item in summary.get("executableMetadata", []):
         if isinstance(item, Mapping):
@@ -994,6 +1174,15 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             lines.append(f"- `{item.get('path')}` values=`{value_count}` subKeys=`{subkey_count}`")
     else:
         lines.append("- none of the seeded Glyph/Trion registry keys existed")
+    lines.extend(["", "## Startup/service/install inventory", ""])
+    for label, key in (
+        ("Services", "serviceInventory"),
+        ("Scheduled tasks", "scheduledTaskInventory"),
+        ("Autoruns", "autorunInventory"),
+        ("Uninstall entries", "uninstallInventory"),
+    ):
+        rows = summary.get(key) if isinstance(summary.get(key), list) else []
+        lines.append(f"- {label}: `{len(rows)}`")
     lines.extend(["", "## Safety", ""])
     safety = safe_mapping(summary.get("safety"))
     for key in ("debuggerAttachedByThisHelper", "processMemoryDumped", "processMemoryRead", "debuggerAttach", "tokensRedacted"):
@@ -1015,6 +1204,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     processes = process_inventory()
     debugger_processes = debugger_process_scan()
     glyph_processes = [proc for proc in processes if str(proc.get("Name", "")).lower().startswith("glyph")]
+    network_connections = active_network_connections(glyph_processes)
+    services = service_inventory()
+    scheduled_tasks = scheduled_task_inventory()
+    autoruns = autorun_inventory()
+    uninstall_entries = uninstall_inventory()
     roots = likely_roots(glyph_processes)
     inventories = [walk_interesting_files(root_path, max_files=int(args.max_files_per_root)) for root_path in roots]
     exe_paths: list[Path] = []
@@ -1082,6 +1276,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         },
         "processes": processes,
         "debuggerProcessScan": debugger_processes,
+        "activeNetworkConnections": network_connections,
+        "serviceInventory": services,
+        "scheduledTaskInventory": scheduled_tasks,
+        "autorunInventory": autoruns,
+        "uninstallInventory": uninstall_entries,
         "debuggerIndicators": debug_checks,
         "moduleInventory": modules,
         "candidateRoots": [str(item) for item in roots],
@@ -1127,6 +1326,11 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "executableCount": len(summary.get("executableMetadata", [])),
         "peSummaryCount": len(summary.get("peSummaries", [])),
         "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
+        "activeNetworkConnectionCount": len(summary.get("activeNetworkConnections", [])),
+        "serviceCount": len(summary.get("serviceInventory", [])),
+        "scheduledTaskCount": len(summary.get("scheduledTaskInventory", [])),
+        "autorunCount": len(summary.get("autorunInventory", [])),
+        "uninstallEntryCount": len(summary.get("uninstallInventory", [])),
         "registryKeyCount": len([item for item in summary.get("registryInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
         "textPreviewCount": len(summary.get("textPreviewsRedacted", [])),
         "summaryJson": artifacts.get("summaryJson"),

@@ -9,11 +9,14 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-100359-720165\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-100359-720165\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102105-176770\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102105-176770\summary.md`
 
 Offline Ghidra artifact:
 
+- Static JSON export from analyzed Ghidra project:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-101900\glyph-static-summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-101900\postscript.log`
 - Full dependency-bundle pass:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\summary.json`
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\analyzeHeadless-import.log`
@@ -98,6 +101,17 @@ Registry keys found:
 | `HKCU:\Software\Trion\Instances\C:-Program Files (x86)-Glyph-GlyphClientApp.exe` | `ProcessId=48284`, `MainWindow=5703490`, `ProcessName=GlyphClientApp.exe` |
 | `HKCU:\Software\Trion\Recovery\C:-Program Files (x86)-Glyph-GlyphClient.exe` | recovery URL `http://glyph.dyn.triongames.com/glyph/live/GlyphInstall.exe`, proxy fields empty |
 
+## Persistence, services, tasks, uninstall, and network
+
+| Surface | Finding |
+|---|---|
+| Glyph-owned active TCP connections | none reported by `Get-NetTCPConnection` during the latest helper run |
+| Services matching Glyph/Trion/RIFT/gamigo | none found |
+| Scheduled tasks matching Glyph/Trion/RIFT/gamigo | none found |
+| Startup autorun | `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`, name `Glyph Client`, value `C:\Program Files (x86)\Glyph\GlyphClient.exe -hidden` |
+| Uninstall entry `Glyph` | publisher `Trion Worlds, Inc.`, install location `C:\Program Files (x86)\Glyph\`, uninstall command `C:\Program Files (x86)\Glyph\glyphuninstall.exe` |
+| Uninstall entry `RIFT` | publisher `gamigo US Inc.`, install location `C:\Program Files (x86)\Glyph\Games\RIFT\Live`, uninstall command `GlyphClientApp.exe -uninstall -game 1` |
+
 ## Network/service endpoints observed
 
 | Source | Endpoint / domain | Use inferred from context |
@@ -167,6 +181,20 @@ Full dependency-bundle pass:
 - PDB: not found
 - Library search count: `29`
 - Missing dependency count in the bundle pass: `0`
+
+Static Ghidra JSON export:
+
+- Program: `GlyphClientApp.exe`
+- Language/compiler: `x86:LE:32:default` / `windows`
+- Memory blocks captured: `8`
+- External libraries captured: `29`
+- Functions discovered: `19072`
+- Instructions discovered: `592558`
+- Interesting symbols captured: `600` capped sample
+- Interesting strings captured: `800` capped sample plus scan marker
+- Example exported strings/functions cluster around auth/login, HTTP, manifests,
+  patching, store/commerce, crash handling, support URLs, registry, Steam, and
+  Glyph/RIFT naming.
 
 Initial single-binary pass:
 
