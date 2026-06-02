@@ -704,6 +704,27 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="navigation-consumer-refresh",
+            label="Navigation consumer refresh",
+            kind="navigation-readback",
+            rel_path="scripts/riftreader-navigation-consumer-refresh.cmd",
+            risk="safe-read-only",
+            default_use="refresh consumer pose and rerun downstream consumer demo without sending input or authorizing live execution",
+            allowed=True,
+            approval=False,
+            command=[
+                "scripts\\riftreader-navigation-consumer-refresh.cmd",
+                "--waypoint-readiness-json",
+                "<readiness-summary.json>",
+                "--json",
+            ],
+            notes=[
+                "performs read-only target memory read through navigation-consumer-state; no input, movement, debugger attach, provider write, or promotion",
+                "live route execution remains gated even when canQueueGatedLiveRunRequest is true",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -1108,6 +1129,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "navigation-consumer-demo-for-downstream",
             "command": "scripts\\riftreader-navigation-consumer-demo.cmd --waypoint-readiness-json <readiness-summary.json> --json",
         },
+        {
+            "step": "navigation-consumer-refresh-for-downstream",
+            "command": "scripts\\riftreader-navigation-consumer-refresh.cmd --waypoint-readiness-json <readiness-summary.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -1185,6 +1210,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "navigation-waypoint-readiness",
             "navigation-schema-validate",
             "navigation-consumer-demo",
+            "navigation-consumer-refresh",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,
@@ -1437,6 +1463,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-navigation-waypoint-readiness.cmd",
             "scripts/riftreader-navigation-schema-validate.cmd",
             "scripts/riftreader-navigation-consumer-demo.cmd",
+            "scripts/riftreader-navigation-consumer-refresh.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
             "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
@@ -1497,6 +1524,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "navigation-consumer-demo-canonical",
                     "pass": "navigation-consumer-demo" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "navigation-consumer-refresh-canonical",
+                    "pass": "navigation-consumer-refresh" in compact["canonicalToolKeys"],
                 },
                 {"name": "safety-no-input", "pass": catalog["safety"]["inputSent"] is False},
             ]

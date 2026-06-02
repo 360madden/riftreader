@@ -108,6 +108,18 @@ external-consumer decision: render route, use dry-run contract, queue a gated
 live-run request, or refresh stale pose/proof first. It never authorizes live
 execution by itself.
 
+### Refresh consumer pose and rerun downstream readiness
+```powershell
+scripts\riftreader-navigation-consumer-refresh.cmd `
+  --waypoint-readiness-json <readiness-summary.json> `
+  --json
+```
+
+This no-input workflow refreshes the read-only consumer pose, then reruns the
+downstream consumer demo against that fresh pose. It may read target memory via
+the consumer-state helper, but it sends no input/movement and still never
+authorizes live route execution.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

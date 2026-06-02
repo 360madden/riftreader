@@ -2,6 +2,32 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation consumer refresh — 2026-06-02 08:01 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0801-navigation-consumer-refresh-handoff.md`.
+
+RiftReader now has a no-input consumer refresh workflow that regenerates the
+consumer pose and reruns the downstream consumer demo in one command.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_consumer_refresh.py`; launcher `scripts\riftreader-navigation-consumer-refresh.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-consumer-refresh.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Tool catalog | `navigation-consumer-refresh` is canonical, safe-read-only, and in the recommended workflow; tool count is now `47`. |
+| Read-only refresh smoke | `scripts\riftreader-navigation-consumer-refresh.cmd --waypoint-readiness-json scripts\captures\navigation-waypoint-readiness-20260602-071111-256714\summary.json --json` passed with `canRenderRoute=true`, `canUseDryRunContract=true`, `canQueueGatedLiveRunRequest=true`, and `canExecuteLiveNavigation=false`. |
+| Schema smoke | `scripts\captures\navigation-consumer-refresh-20260602-080549-511814\summary.json` passed `navigation-consumer-refresh` schema validation with `validationErrorCount=0`. |
+
+Safety: the refresh workflow may read live target memory through
+`navigation_consumer_state.py`, but it sends no input or movement, performs no
+`/reloadui`, no screenshot key, no debugger/CE attach, no provider write, no
+target memory write, no proof/actor/facing/turn-rate promotion, and no route
+control. Live execution remains explicitly gated.
+
+Current next action: add a route preview artifact that derives per-leg distance,
+bearing, initial yaw delta, and arrival radius from the refreshed consumer state
+plus normalized waypoints for downstream map/UI consumers.
+
 ## Latest compact handoff — navigation consumer demo — 2026-06-02 07:48 UTC
 
 A new compact handoff exists at

@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-consumer-refresh.schema.json",
+  "title": "RiftReader navigation consumer refresh",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "consumerState",
+    "consumerDemo",
+    "childCommands",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-consumer-refresh" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": [
+        "currentTruthJson",
+        "consumerStateOutputDir",
+        "waypointReadinessJson",
+        "requireFreshPose",
+        "maxConsumerStateAgeSeconds"
+      ],
+      "properties": {
+        "currentTruthJson": { "type": ["string", "null"] },
+        "consumerStateOutputDir": { "type": "string" },
+        "waypointReadinessJson": { "type": ["string", "null"] },
+        "requireFreshPose": { "type": "boolean" },
+        "maxConsumerStateAgeSeconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "consumerState": {
+      "type": "object",
+      "required": ["status", "summaryJson", "exitCode"],
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] },
+        "exitCode": { "type": ["number", "null"] }
+      }
+    },
+    "consumerDemo": {
+      "type": "object",
+      "required": ["status", "summaryJson", "capabilities", "exitCode"],
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] },
+        "exitCode": { "type": ["number", "null"] },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "recommendedMode": { "type": ["string", "null"] },
+            "nextRecommendedAction": { "type": ["string", "null"] },
+            "canRenderRoute": { "type": ["boolean", "null"] },
+            "canUseDryRunContract": { "type": ["boolean", "null"] },
+            "canQueueGatedLiveRunRequest": { "type": ["boolean", "null"] },
+            "canExecuteLiveNavigation": { "const": false }
+          }
+        }
+      }
+    },
+    "childCommands": { "type": "array" },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "type": "boolean" },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "readOnlyConsumerRefresh": { "const": true },
+        "routeControlAuthorized": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}
