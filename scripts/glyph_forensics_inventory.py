@@ -1394,7 +1394,104 @@ def log_timeline(paths: Sequence[Path], *, max_events: int) -> dict[str, Any]:
         "scannedLines": scanned_lines,
         "eventCount": len(events),
         "categoryCounts": counts,
+        "networkSummary": log_network_summary(events),
         "latestEvents": events[-max_events:],
+    }
+
+
+def log_network_summary(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    status_counts: dict[str, int] = {}
+    task_type_counts: dict[str, int] = {}
+    host_counts: dict[str, int] = {}
+    latest_http: list[dict[str, Any]] = []
+    latest_version: list[dict[str, Any]] = []
+    latest_maintenance: list[dict[str, Any]] = []
+    latest_selection: list[dict[str, Any]] = []
+    http_event_count = 0
+    version_event_count = 0
+    maintenance_event_count = 0
+    selection_event_count = 0
+    ip_port_re = re.compile(r"\b(?P<host>\d{1,3}(?:\.\d{1,3}){3}):(?P<port>\d{1,5})\b")
+    task_type_re = re.compile(r"\btype\s+(?P<type>[A-Za-z][A-Za-z0-9_:-]+)\b")
+    http_status_patterns = (
+        re.compile(r"(?i)\bHTTP(?:/\d(?:\.\d)?)?\s+(?P<code>[1-5]\d{2})\b"),
+        re.compile(r"(?i)\b(?:status(?:\s+code)?|response(?:\s+code)?|returned)\D{0,20}(?P<code>[1-5]\d{2})\b"),
+        re.compile(r"(?i)\bReceived\s+https?://\S+\s+\((?P<code>[1-5]\d{2})\)"),
+    )
+    for event in events:
+        message = str(event.get("message") or "")
+        lower = message.lower()
+        urls = [match.group(0) for match in URL_RE.finditer(message)]
+        status_codes: list[str] = []
+        for pattern in http_status_patterns:
+            status_codes.extend(match.group("code") for match in pattern.finditer(message))
+        for code in status_codes:
+            status_counts[code] = status_counts.get(code, 0) + 1
+        for url in urls:
+            host_match = re.match(r"(?i)^https?://([^/\\s?#]+)", url)
+            if host_match:
+                host = host_match.group(1).lower()
+                host_counts[host] = host_counts.get(host, 0) + 1
+        task_match = task_type_re.search(message)
+        if task_match:
+            task_type = task_match.group("type")
+            task_type_counts[task_type] = task_type_counts.get(task_type, 0) + 1
+        is_http = bool(urls or status_codes or any(marker in lower for marker in ("download", "received header", "manifest")))
+        if is_http:
+            http_event_count += 1
+            latest_http.append(
+                {
+                    "timestamp": event.get("timestamp"),
+                    "category": event.get("category"),
+                    "source": event.get("source"),
+                    "statusCodes": status_codes,
+                    "urls": urls[:5],
+                    "message": message[:350],
+                }
+            )
+        if "version" in lower or "getversions" in lower:
+            version_event_count += 1
+            latest_version.append(
+                {
+                    "timestamp": event.get("timestamp"),
+                    "category": event.get("category"),
+                    "source": event.get("source"),
+                    "message": message[:350],
+                }
+            )
+        if "maintenance" in lower:
+            maintenance_event_count += 1
+            latest_maintenance.append(
+                {
+                    "timestamp": event.get("timestamp"),
+                    "category": event.get("category"),
+                    "source": event.get("source"),
+                    "message": message[:350],
+                }
+            )
+        if "selection server" in lower or "character selection" in lower:
+            selection_event_count += 1
+            latest_selection.append(
+                {
+                    "timestamp": event.get("timestamp"),
+                    "category": event.get("category"),
+                    "source": event.get("source"),
+                    "endpoints": [f"{match.group('host')}:{match.group('port')}" for match in ip_port_re.finditer(message)],
+                    "message": message[:350],
+                }
+            )
+    return {
+        "httpEventCount": http_event_count,
+        "versionEventCount": version_event_count,
+        "maintenanceEventCount": maintenance_event_count,
+        "selectionEventCount": selection_event_count,
+        "httpStatusCodeCounts": status_counts,
+        "httpHostCounts": dict(sorted(host_counts.items(), key=lambda item: (-item[1], item[0]))[:40]),
+        "taskTypeCounts": dict(sorted(task_type_counts.items(), key=lambda item: (-item[1], item[0]))[:40]),
+        "latestHttpEvents": latest_http[-40:],
+        "latestVersionEvents": latest_version[-20:],
+        "latestMaintenanceEvents": latest_maintenance[-20:],
+        "latestSelectionEvents": latest_selection[-20:],
     }
 
 
@@ -1852,6 +1949,11 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     lines.extend(["", "## Log timeline", ""])
     lines.append(f"- events: `{timeline.get('eventCount')}`")
     lines.append(f"- categories: `{timeline.get('categoryCounts')}`")
+    log_network = safe_mapping(timeline.get("networkSummary"))
+    lines.append(f"- HTTP/download-related events: `{log_network.get('httpEventCount')}`")
+    lines.append(f"- HTTP status codes: `{log_network.get('httpStatusCodeCounts')}`")
+    lines.append(f"- version-related events: `{log_network.get('versionEventCount')}`")
+    lines.append(f"- maintenance-related events: `{log_network.get('maintenanceEventCount')}`")
     selection = safe_mapping(summary.get("selectionServerSummary"))
     lines.append(f"- selection server status: `{selection.get('status')}` failures=`{selection.get('failureCount')}`")
     registry_rows = summary.get("registryInventory") if isinstance(summary.get("registryInventory"), list) else []

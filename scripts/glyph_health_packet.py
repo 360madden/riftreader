@@ -146,6 +146,7 @@ def build_health_packet(
     loaded_module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
     module_inventory_rows = summary.get("moduleInventory") if isinstance(summary.get("moduleInventory"), list) else []
     timeline = safe_mapping(summary.get("logTimeline"))
+    log_network = safe_mapping(timeline.get("networkSummary"))
     safety = base_safety()
     safety.update(
         {
@@ -177,6 +178,21 @@ def build_health_packet(
             "selectionServerFailureCount": selection.get("failureCount"),
             "selectionServerEndpoints": selection.get("endpoints", []),
             "topEndpoints": top_endpoints(summary, limit=endpoint_limit),
+        },
+        "logs": {
+            "eventCount": timeline.get("eventCount"),
+            "categoryCounts": timeline.get("categoryCounts", {}),
+            "httpEventCount": log_network.get("httpEventCount"),
+            "versionEventCount": log_network.get("versionEventCount"),
+            "maintenanceEventCount": log_network.get("maintenanceEventCount"),
+            "selectionEventCount": log_network.get("selectionEventCount"),
+            "httpStatusCodeCounts": log_network.get("httpStatusCodeCounts", {}),
+            "httpHostCounts": log_network.get("httpHostCounts", {}),
+            "taskTypeCounts": log_network.get("taskTypeCounts", {}),
+            "latestHttpEvents": log_network.get("latestHttpEvents", [])[-10:] if isinstance(log_network.get("latestHttpEvents"), list) else [],
+            "latestVersionEvents": log_network.get("latestVersionEvents", [])[-8:] if isinstance(log_network.get("latestVersionEvents"), list) else [],
+            "latestMaintenanceEvents": log_network.get("latestMaintenanceEvents", [])[-8:] if isinstance(log_network.get("latestMaintenanceEvents"), list) else [],
+            "latestSelectionEvents": log_network.get("latestSelectionEvents", [])[-8:] if isinstance(log_network.get("latestSelectionEvents"), list) else [],
         },
         "manifests": manifest_versions(summary),
         "install": {

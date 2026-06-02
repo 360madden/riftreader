@@ -120,6 +120,33 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertEqual(summary["failureCount"], 2)
         self.assertEqual(summary["endpoints"][0]["endpoint"], "144.217.46.224:6527")
 
+    def test_log_timeline_summarizes_http_version_and_selection_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "GlyphClient.0.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        "[2026-06-02T00:00:01Z] Starting task 1 of type GetVersions",
+                        "[2026-06-02T00:00:02Z] Received header HTTP 200 from http://patch.example.test/live.txt",
+                        "[2026-06-02T00:00:03Z] Successfully downloaded version",
+                        "[INF] [ENG] Failed to connect to selection server at [144.217.46.224:6527]",
+                        "[WRN] [ENG] Failed to connect to selection server using any address",
+                        "[2026-06-02T00:00:04Z] maintenance RSS returned 404 from http://news.example.test/rss.xml",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            timeline = glyph.log_timeline([log_path], max_events=10)
+
+        network = timeline["networkSummary"]
+        self.assertEqual(network["httpStatusCodeCounts"]["200"], 1)
+        self.assertEqual(network["httpStatusCodeCounts"]["404"], 1)
+        self.assertEqual(network["taskTypeCounts"]["GetVersions"], 1)
+        self.assertGreaterEqual(network["versionEventCount"], 2)
+        self.assertEqual(network["selectionEventCount"], 2)
+        self.assertEqual(network["maintenanceEventCount"], 1)
+
     def test_signature_trust_summary_counts_non_valid(self) -> None:
         summary = glyph.signature_trust_summary(
             [
@@ -194,7 +221,23 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
             "endpointInventory": [{"value": "glyph.example", "count": 3, "sources": ["a", "b"]}],
             "targetedFileInventory": [{"exists": True}],
             "dependencyMetadata": [{}],
-            "logTimeline": {"eventCount": 5},
+            "logTimeline": {
+                "eventCount": 5,
+                "categoryCounts": {"download": 1},
+                "networkSummary": {
+                    "httpEventCount": 1,
+                    "versionEventCount": 1,
+                    "maintenanceEventCount": 0,
+                    "selectionEventCount": 1,
+                    "httpStatusCodeCounts": {"200": 1},
+                    "httpHostCounts": {"patch.example": 1},
+                    "taskTypeCounts": {"GetVersions": 1},
+                    "latestHttpEvents": [],
+                    "latestVersionEvents": [],
+                    "latestMaintenanceEvents": [],
+                    "latestSelectionEvents": [],
+                },
+            },
             "moduleOriginSummary": {"processCount": 1, "totalModuleCount": 3, "categoryCounts": {"windows": 2}, "nonWindowsNonGlyphCount": 0},
             "loadedModuleTrustSummary": {
                 "signatureCheckedCount": 3,
@@ -232,6 +275,8 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         )
 
         self.assertEqual(packet["network"]["selectionServerStatus"], "failed-all-addresses")
+        self.assertEqual(packet["logs"]["httpStatusCodeCounts"]["200"], 1)
+        self.assertEqual(packet["logs"]["taskTypeCounts"]["GetVersions"], 1)
         self.assertEqual(packet["trust"]["dependencyNonValidSignatureCount"], 1)
         self.assertEqual(packet["config"]["fileCount"], 2)
         self.assertEqual(packet["config"]["parserCounts"]["xml"], 1)

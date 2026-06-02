@@ -4,7 +4,7 @@
   "blockers": [],
   "checkedFiles": 4,
   "command": "validate-repo",
-  "createdUtc": "2026-06-02T11:15:05.754663Z",
+  "createdUtc": "2026-06-02T11:23:00.071584Z",
   "ok": true,
   "rules": {
     "forbiddenPaths": "enforced",

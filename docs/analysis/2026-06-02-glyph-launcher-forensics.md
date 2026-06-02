@@ -9,12 +9,12 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-111349-341490\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-111349-341490\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112122-862149\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112122-862149\summary.md`
 
 Compact health packet:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-111428-327162\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-112204-164871\summary.json`
 
 Offline Ghidra artifact:
 
@@ -182,6 +182,10 @@ Registry keys found:
 | Parsed manifests | `2` |
 | Consolidated endpoints/domains | `115` |
 | Log timeline events | `4070` |
+| HTTP/download-related log events | `632` |
+| Version-related log events | `141` |
+| Maintenance-related log events | `17` |
+| Selection-server log events | `9` |
 
 Parsed manifests:
 
@@ -208,6 +212,22 @@ The RIFT-side log timeline included a latest character-selection failure:
 - attempted `144.217.46.224:6527`
 - failed, then attempted alternate `144.217.46.224:80`
 - failed again with `Failed to connect to selection server using any address`
+
+Structured log summary:
+
+| Log signal | Result |
+|---|---:|
+| HTTP status codes | `200=40`, `404=6` |
+| Glyph task type counts | `GetVersions=51` |
+| HTTP/download-related events | `632` |
+| Version-related events | `141` |
+| Maintenance-related events | `17` |
+| Selection-server events | `9` |
+
+Interpretation: Glyph repeatedly completed patch/version checks and also saw
+maintenance RSS requests return `404`; the world-entry failure is isolated in
+RIFT-side selection-server connection attempts rather than in Glyph login or
+patch-version acquisition.
 
 ## Network/service endpoints observed
 
