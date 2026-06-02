@@ -55,6 +55,16 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
 
         self.assertEqual(metadata["status"], "not-pe")
 
+    def test_endpoint_inventory_skips_email_domains(self) -> None:
+        endpoints = glyph.endpoint_inventory(
+            [{"path": "x.cfg", "preview": "support https://support.gamigo.com user person@gmail.com encoded 40gmail.com"}]
+        )
+        values = {item["value"] for item in endpoints}
+
+        self.assertIn("https://support.gamigo.com", values)
+        self.assertNotIn("gmail.com", values)
+        self.assertNotIn("40gmail.com", values)
+
 
 if __name__ == "__main__":
     unittest.main()

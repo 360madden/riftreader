@@ -1,9 +1,9 @@
 # RiftReader Policy Lint Summary
 
-Created UTC: 2026-06-02T10:22:08.868759Z
+Created UTC: 2026-06-02T10:31:14.620956Z
 Status: passed
 Scope: changed
-Checked files: 2
+Checked files: 3
 Blockers: 0
 Warnings: 0
 

@@ -66,7 +66,9 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 		result.add("externalLibraries", externalLibrariesJson());
 		result.add("functionSummary", functionSummaryJson());
 		result.add("interestingSymbols", interestingSymbolsJson());
-		result.add("interestingStrings", interestingStringsJson());
+		JsonObject strings = interestingStringsJson();
+		result.add("interestingStrings", strings.get("strings"));
+		result.add("interestingStringSummary", strings.get("summary"));
 
 		try (FileWriter writer = new FileWriter(args[0])) {
 			Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -161,8 +163,9 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 		return items;
 	}
 
-	private JsonArray interestingStringsJson() {
+	private JsonObject interestingStringsJson() {
 		JsonArray items = new JsonArray();
+		JsonObject categoryCounts = new JsonObject();
 		int scanned = 0;
 		for (Data data : DefinedStringIterator.forProgram(currentProgram, currentSelection)) {
 			if (monitor.isCancelled()) {
@@ -175,8 +178,15 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 				continue;
 			}
 			JsonObject item = new JsonObject();
+			JsonArray categories = categoriesFor(value);
+			for (int i = 0; i < categories.size(); i++) {
+				String category = categories.get(i).getAsString();
+				categoryCounts.addProperty(category,
+					(categoryCounts.has(category) ? categoryCounts.get(category).getAsInt() : 0) + 1);
+			}
 			item.addProperty("address", data.getAddress().toString());
 			item.addProperty("length", value.length());
+			item.add("categories", categories);
 			item.addProperty("value", sanitize(truncate(value, 500)));
 			item.add("references", referencesToJson(data));
 			items.add(item);
@@ -184,11 +194,14 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 				break;
 			}
 		}
-		JsonObject countMarker = new JsonObject();
-		countMarker.addProperty("scannedStringDataCount", scanned);
-		countMarker.addProperty("capturedMarker", true);
-		items.add(countMarker);
-		return items;
+		JsonObject summary = new JsonObject();
+		summary.addProperty("scannedStringDataCount", scanned);
+		summary.addProperty("capturedStringCount", items.size());
+		summary.add("categoryCounts", categoryCounts);
+		JsonObject result = new JsonObject();
+		result.add("strings", items);
+		result.add("summary", summary);
+		return result;
 	}
 
 	private JsonArray referencesToJson(Data data) {
@@ -219,6 +232,43 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 			}
 		}
 		return false;
+	}
+
+	private JsonArray categoriesFor(String value) {
+		String lower = value.toLowerCase(Locale.ROOT);
+		JsonArray categories = new JsonArray();
+		addCategoryIf(categories, "endpoint", lower.contains("http") || lower.contains(".com") ||
+			lower.contains(".net") || lower.contains(".org"));
+		addCategoryIf(categories, "auth", lower.contains("auth") || lower.contains("login") ||
+			lower.contains("ticket") || lower.contains("token") || lower.contains("cookie"));
+		addCategoryIf(categories, "patch", lower.contains("patch") || lower.contains("manifest") ||
+			lower.contains("download") || lower.contains("version"));
+		addCategoryIf(categories, "crash", lower.contains("crash") || lower.contains("dump") ||
+			lower.contains("errorhandler"));
+		addCategoryIf(categories, "store", lower.contains("store") || lower.contains("commerce") ||
+			lower.contains("support"));
+		addCategoryIf(categories, "registry", lower.contains("software\\trion") ||
+			lower.contains("hkey") || lower.contains("registry"));
+		addCategoryIf(categories, "steam", lower.contains("steam"));
+		addCategoryIf(categories, "rift", lower.contains("rift"));
+		addCategoryIf(categories, "glyph", lower.contains("glyph") || lower.contains("trion") ||
+			lower.contains("gamigo"));
+		if (categories.size() == 0) {
+			categories.add("other");
+		}
+		return categories;
+	}
+
+	private void addCategoryIf(JsonArray categories, String category, boolean condition) {
+		if (!condition) {
+			return;
+		}
+		for (int i = 0; i < categories.size(); i++) {
+			if (categories.get(i).getAsString().equals(category)) {
+				return;
+			}
+		}
+		categories.add(category);
 	}
 
 	private String sanitize(String value) {

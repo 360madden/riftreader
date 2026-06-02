@@ -9,14 +9,14 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102105-176770\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102105-176770\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102823-872293\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102823-872293\summary.md`
 
 Offline Ghidra artifact:
 
 - Static JSON export from analyzed Ghidra project:
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-101900\glyph-static-summary.json`
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-101900\postscript.log`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-102932\glyph-static-summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-102932\postscript.log`
 - Full dependency-bundle pass:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\summary.json`
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\analyzeHeadless-import.log`
@@ -92,6 +92,8 @@ directly while the client was logged in and live.
 | `C:\Program Files (x86)\Glyph\library_manifest.txt` | Glyph library manifest |
 | `C:\Program Files (x86)\Glyph\Library\GlyphLibrary.xml` | Installed library metadata |
 | `C:\Program Files (x86)\Glyph\Notification.log` | Notification TCP connect/disconnect history |
+| `C:\Program Files (x86)\Glyph\Games\RIFT\Live\manifest64.txt` | RIFT Live manifest, version `STABLE-1-1152-a-1256395` |
+| `C:\Program Files (x86)\Glyph\Games\RIFT\Live\assets64*.manifest` | Large RIFT asset manifests; metadata captured, contents not dumped |
 | `C:\Users\mrkoo\AppData\Roaming\RIFT\*.cfg` / `rift.log` | RIFT-side config/log files found adjacent to Glyph/RIFT usage |
 
 Registry keys found:
@@ -111,6 +113,40 @@ Registry keys found:
 | Startup autorun | `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`, name `Glyph Client`, value `C:\Program Files (x86)\Glyph\GlyphClient.exe -hidden` |
 | Uninstall entry `Glyph` | publisher `Trion Worlds, Inc.`, install location `C:\Program Files (x86)\Glyph\`, uninstall command `C:\Program Files (x86)\Glyph\glyphuninstall.exe` |
 | Uninstall entry `RIFT` | publisher `gamigo US Inc.`, install location `C:\Program Files (x86)\Glyph\Games\RIFT\Live`, uninstall command `GlyphClientApp.exe -uninstall -game 1` |
+
+## Manifest, dependency, endpoint, and log aggregation
+
+| Surface | Result |
+|---|---:|
+| Targeted config/install files found | `21` |
+| Launcher/game dependency DLLs hashed | `38` |
+| Parsed manifests | `2` |
+| Consolidated endpoints/domains | `96` |
+| Log timeline events | `3875` |
+
+Parsed manifests:
+
+| Manifest | Version | Entries | Parsed total size |
+|---|---|---:|---:|
+| `C:\Program Files (x86)\Glyph\library_manifest.txt` | `stable-251-1-a-335833` | `280` | `31050568` bytes |
+| `C:\Program Files (x86)\Glyph\Games\RIFT\Live\manifest64.txt` | `STABLE-1-1152-a-1256395` | `27` | `142548742` bytes |
+
+Top endpoint/domain clusters in the consolidated inventory included:
+
+- `www.glyph.net`
+- `glyph.dyn.triongames.com`
+- `client.downloader.gamigo.com`
+- `store.trionworlds.com`
+- `auth.trionworlds.com`
+- `webcdn.triongames.com`
+- `debug.triongames.com`
+- `rift-update.dyn.triongames.com`
+
+The RIFT-side log timeline included a latest character-selection failure:
+
+- attempted `144.217.46.224:6527`
+- failed, then attempted alternate `144.217.46.224:80`
+- failed again with `Failed to connect to selection server using any address`
 
 ## Network/service endpoints observed
 
@@ -191,7 +227,11 @@ Static Ghidra JSON export:
 - Functions discovered: `19072`
 - Instructions discovered: `592558`
 - Interesting symbols captured: `600` capped sample
-- Interesting strings captured: `800` capped sample plus scan marker
+- Interesting strings captured: `800` capped sample
+- Defined string records scanned by Ghidra: `3909`
+- Categorized string counts: `patch=242`, `auth=214`, `glyph=149`,
+  `store=69`, `endpoint=61`, `steam=44`, `crash=11`, `registry=9`,
+  `rift=4`, `other=97`
 - Example exported strings/functions cluster around auth/login, HTTP, manifests,
   patching, store/commerce, crash handling, support URLs, registry, Steam, and
   Glyph/RIFT naming.

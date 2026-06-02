@@ -26,6 +26,8 @@ DEFAULT_TEXT_PREVIEW_BYTES = 4096
 DEFAULT_MAX_FILES_PER_ROOT = 500
 DEFAULT_MAX_STRING_HITS = 250
 DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL = 250
+DEFAULT_LOG_TIMELINE_EVENTS = 120
+DEFAULT_MANIFEST_ENTRY_LIMIT = 40
 SKIP_DIRECTORY_NAMES = {
     "$recycle.bin",
     ".git",
@@ -233,6 +235,87 @@ def file_metadata(path: Path, *, hash_file: bool = False) -> dict[str, Any]:
     if hash_file and path.is_file():
         payload["sha256"] = sha256_file(path)
     return payload
+
+
+def install_root_from_processes(processes: Sequence[Mapping[str, Any]]) -> Path | None:
+    for proc in processes:
+        path_value = proc.get("ExecutablePath")
+        if not isinstance(path_value, str) or not path_value:
+            continue
+        path = Path(path_value)
+        if path.name.lower() == "glyphclientapp.exe" and path.parent.name.lower() == "glyph":
+            return path.parent
+        if path.parent.name.lower() in {"x64", "x86"} and path.parent.parent.name.lower() == "glyph":
+            return path.parent.parent
+    return None
+
+
+def targeted_glyph_paths(glyph_processes: Sequence[Mapping[str, Any]]) -> list[Path]:
+    roots = likely_roots(glyph_processes)
+    install_root = install_root_from_processes(glyph_processes)
+    if install_root is not None and install_root not in roots:
+        roots.append(install_root)
+    paths: list[Path] = []
+    for root in roots:
+        for rel in (
+            "GlyphClient.xml",
+            "GlyphClient.cfg",
+            "library_manifest.txt",
+            "Library/GlyphLibrary.xml",
+            "Notification.log",
+            "Games/RIFT/Live/manifest64.txt",
+            "Games/RIFT/Live/assets64.manifest",
+            "Games/RIFT/Live/assets64_dev.manifest",
+            "Games/RIFT/Live/assets64_debug.manifest",
+            "Games/RIFT/Live/rift_x64.exe",
+            "Games/RIFT/Live/rifterrorhandler_x64.exe",
+            "Games/RIFT/Live/GlyphClientApp.exe",
+        ):
+            paths.append(root / rel)
+    for env_key, rels in (
+        (
+            "LOCALAPPDATA",
+            (
+                "Glyph/GlyphClient.cfg",
+                "Glyph/Logs/GlyphClient.0.log",
+                "Glyph/Logs/GlyphClient.1.log",
+                "Glyph/Logs/GlyphClient.2.log",
+                "Glyph/Logs/GlyphClient.9.log",
+            ),
+        ),
+        (
+            "APPDATA",
+            (
+                "RIFT/recents.cfg",
+                "RIFT/rift.cfg",
+                "RIFT/rift.log",
+                "RIFT/riftconnect.cfg",
+                "RIFT/rifterrorhandler.cfg",
+            ),
+        ),
+        ("ProgramData", ("Glyph/GlyphLibrary.cfg",)),
+    ):
+        base = os.environ.get(env_key)
+        if base:
+            for rel in rels:
+                paths.append(Path(base) / rel)
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def targeted_file_inventory(paths: Sequence[Path]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for path in paths:
+        suffix = path.suffix.lower()
+        hash_file = suffix in {".exe", ".dll"} and path.exists()
+        items.append(file_metadata(path, hash_file=hash_file))
+    return items
 
 
 def unpack_from(fmt: str, data: bytes, offset: int) -> tuple[Any, ...]:
@@ -987,6 +1070,165 @@ def collect_previews(inventories: Sequence[Mapping[str, Any]], *, limit_bytes: i
     return previews
 
 
+def collect_targeted_previews(file_infos: Sequence[Mapping[str, Any]], *, limit_bytes: int) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    for file_info in file_infos:
+        if not file_info.get("exists") or not file_info.get("isFile"):
+            continue
+        path_value = file_info.get("path")
+        if not isinstance(path_value, str):
+            continue
+        preview = text_preview(Path(path_value), limit_bytes=limit_bytes)
+        if preview is not None:
+            previews.append(preview)
+    return previews
+
+
+def endpoint_inventory(*sources: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    found: dict[str, dict[str, Any]] = {}
+
+    def add(value: str, source: str) -> None:
+        value = redact_text(value.strip().rstrip(".,;)'>]\""))
+        if not value or len(value) < 4:
+            return
+        lower_value = value.lower()
+        if "gmail.com" in lower_value or "outlook.com" in lower_value or "hotmail.com" in lower_value:
+            return
+        bucket = found.setdefault(value, {"value": value, "count": 0, "sources": []})
+        bucket["count"] = int(bucket["count"]) + 1
+        if source not in bucket["sources"]:
+            bucket["sources"].append(source)
+
+    def scan_text(text: str, source: str) -> None:
+        for match in URL_RE.finditer(text):
+            add(match.group(0), source)
+        for match in HOST_RE.finditer(text):
+            add(match.group(0), source)
+
+    def scan_item(item: Any, source_hint: str = "") -> None:
+        if isinstance(item, str):
+            scan_text(item, source_hint)
+        elif isinstance(item, Mapping):
+            source = str(item.get("path") or item.get("source") or source_hint or "unknown")
+            for value in item.values():
+                scan_item(value, source)
+        elif isinstance(item, Sequence) and not isinstance(item, (bytes, bytearray)):
+            for child in item:
+                scan_item(child, source_hint)
+
+    for source in sources:
+        scan_item(source)
+    return sorted(found.values(), key=lambda item: (-int(item["count"]), str(item["value"]).lower()))
+
+
+def parse_manifest_file(path: Path, *, entry_limit: int) -> dict[str, Any]:
+    if not path.exists() or not path.is_file():
+        return {"path": str(path), "status": "missing"}
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {"path": str(path), "status": "failed", "error": f"{type(exc).__name__}:{exc}"}
+    version = None
+    entries: list[dict[str, Any]] = []
+    total_size = 0
+    malformed = 0
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.lower().startswith("version "):
+            version = stripped.split(" ", 1)[1]
+            continue
+        parts = stripped.rsplit(":", 2)
+        if len(parts) != 3:
+            malformed += 1
+            continue
+        name, digest, size_text = parts
+        try:
+            size = int(size_text)
+        except ValueError:
+            malformed += 1
+            continue
+        total_size += size
+        if len(entries) < entry_limit:
+            entries.append({"name": name, "digest": digest, "sizeBytes": size})
+    largest = sorted(entries, key=lambda item: int(item["sizeBytes"]), reverse=True)[:10]
+    return {
+        "path": str(path),
+        "status": "passed",
+        "version": version,
+        "lineCount": len(lines),
+        "entryCount": sum(1 for line in lines if ":" in line),
+        "malformedLineCount": malformed,
+        "totalSizeBytesFromParsedEntries": total_size,
+        "entriesCaptured": entries,
+        "largestCapturedEntries": largest,
+        "truncated": len([line for line in lines if ":" in line]) > len(entries),
+    }
+
+
+def manifest_inventory(paths: Sequence[Path], *, entry_limit: int) -> list[dict[str, Any]]:
+    manifests: list[dict[str, Any]] = []
+    for path in paths:
+        name = path.name.lower()
+        if name == "manifest64.txt" or name == "library_manifest.txt":
+            manifests.append(parse_manifest_file(path, entry_limit=entry_limit))
+    return manifests
+
+
+def log_timeline(paths: Sequence[Path], *, max_events: int) -> dict[str, Any]:
+    event_re = re.compile(r"^\[(?P<timestamp>[^\]]+)\]\s*(?P<message>.*)$")
+    events: list[dict[str, Any]] = []
+    counts: dict[str, int] = {}
+    scanned_lines = 0
+    for path in paths:
+        if not path.exists() or not path.is_file() or path.suffix.lower() != ".log":
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines[-2000:]:
+            scanned_lines += 1
+            match = event_re.match(line)
+            if not match:
+                continue
+            message = redact_text(match.group("message"))
+            lower = message.lower()
+            if "error" in lower or "failed" in lower:
+                category = "error"
+            elif "warning" in lower:
+                category = "warning"
+            elif "manifest" in lower:
+                category = "manifest"
+            elif "version" in lower:
+                category = "version"
+            elif "download" in lower or "received header" in lower:
+                category = "download"
+            elif "auth" in lower or "cookie" in lower or "login" in lower:
+                category = "auth"
+            elif "maintenance" in lower:
+                category = "maintenance"
+            else:
+                category = "other"
+            counts[category] = counts.get(category, 0) + 1
+            events.append(
+                {
+                    "source": str(path),
+                    "timestamp": match.group("timestamp"),
+                    "category": category,
+                    "message": message[:500],
+                }
+            )
+    return {
+        "status": "passed",
+        "scannedLines": scanned_lines,
+        "eventCount": len(events),
+        "categoryCounts": counts,
+        "latestEvents": events[-max_events:],
+    }
+
+
 def signature_and_version(paths: Iterable[Path]) -> list[dict[str, Any]]:
     path_list = [str(path) for path in paths if path.exists() and path.is_file()]
     if not path_list:
@@ -1164,6 +1406,31 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                 f"- `{item.get('path')}` format=`{item.get('format')}` machine=`{item.get('machineName')}` "
                 f"subsystem=`{item.get('subsystemName')}` imports=`{item.get('importDllCount')}` tls=`{safe_mapping(item.get('tls')).get('status')}`"
             )
+    lines.extend(["", "## Dependencies and targeted files", ""])
+    lines.append(f"- dependencyMetadata count: `{len(summary.get('dependencyMetadata', []))}`")
+    lines.append(
+        f"- targetedFileInventory existing count: "
+        f"`{len([item for item in summary.get('targetedFileInventory', []) if isinstance(item, Mapping) and item.get('exists')])}`"
+    )
+    lines.extend(["", "## Manifest summaries", ""])
+    manifests = summary.get("manifestInventory") if isinstance(summary.get("manifestInventory"), list) else []
+    if manifests:
+        for item in manifests:
+            if isinstance(item, Mapping):
+                lines.append(f"- `{item.get('path')}` version=`{item.get('version')}` entries=`{item.get('entryCount')}`")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Endpoint inventory", ""])
+    endpoints = summary.get("endpointInventory") if isinstance(summary.get("endpointInventory"), list) else []
+    for item in endpoints[:25]:
+        if isinstance(item, Mapping):
+            lines.append(f"- `{item.get('value')}` count=`{item.get('count')}`")
+    if not endpoints:
+        lines.append("- none")
+    timeline = safe_mapping(summary.get("logTimeline"))
+    lines.extend(["", "## Log timeline", ""])
+    lines.append(f"- events: `{timeline.get('eventCount')}`")
+    lines.append(f"- categories: `{timeline.get('categoryCounts')}`")
     registry_rows = summary.get("registryInventory") if isinstance(summary.get("registryInventory"), list) else []
     existing_registry = [item for item in registry_rows if isinstance(item, Mapping) and item.get("exists")]
     lines.extend(["", "## Registry keys", ""])
@@ -1204,6 +1471,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     processes = process_inventory()
     debugger_processes = debugger_process_scan()
     glyph_processes = [proc for proc in processes if str(proc.get("Name", "")).lower().startswith("glyph")]
+    targeted_paths = targeted_glyph_paths(glyph_processes)
+    targeted_files = targeted_file_inventory(targeted_paths)
     network_connections = active_network_connections(glyph_processes)
     services = service_inventory()
     scheduled_tasks = scheduled_task_inventory()
@@ -1233,6 +1502,27 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         parse_pe_metadata(path, max_import_functions_per_dll=int(args.max_import_functions_per_dll))
         for path in unique_exes
     ]
+    dependency_paths: list[Path] = []
+    for inventory in inventories:
+        for file_info in inventory.get("files", []):
+            if isinstance(file_info, Mapping) and str(file_info.get("suffix", "")).lower() == ".dll" and file_info.get("exists"):
+                dependency_paths.append(Path(str(file_info.get("path"))))
+    for file_info in targeted_files:
+        if str(file_info.get("suffix", "")).lower() == ".dll" and file_info.get("exists"):
+            dependency_paths.append(Path(str(file_info.get("path"))))
+    unique_dependency_paths: list[Path] = []
+    seen_dependencies: set[str] = set()
+    for path in dependency_paths:
+        key = str(path).lower()
+        if key not in seen_dependencies:
+            seen_dependencies.add(key)
+            unique_dependency_paths.append(path)
+    dependency_metadata = [file_metadata(path, hash_file=True) for path in unique_dependency_paths]
+    dependency_signatures = signature_and_version(unique_dependency_paths)
+    dependency_pe_summaries = [
+        parse_pe_metadata(path, max_import_functions_per_dll=min(80, int(args.max_import_functions_per_dll)))
+        for path in unique_dependency_paths[:80]
+    ]
     registry = registry_inventory()
     debug_checks = []
     modules = []
@@ -1245,6 +1535,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         modules.append(module_inventory(pid))
     string_summaries = [extract_ascii_strings(path, max_hits=int(args.max_string_hits)) for path in unique_exes[:20]]
     previews = collect_previews(inventories, limit_bytes=int(args.text_preview_bytes))
+    targeted_previews = collect_targeted_previews(targeted_files, limit_bytes=int(args.text_preview_bytes))
+    manifests = manifest_inventory(targeted_paths, entry_limit=int(args.manifest_entry_limit))
+    timeline = log_timeline(targeted_paths, max_events=int(args.log_timeline_events))
+    endpoints = endpoint_inventory(previews, targeted_previews, string_summaries, registry, uninstall_entries, autoruns)
     safety = base_safety()
     safety.update(
         {
@@ -1273,6 +1567,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "maxFilesPerRoot": int(args.max_files_per_root),
             "textPreviewBytes": int(args.text_preview_bytes),
             "maxStringHits": int(args.max_string_hits),
+            "maxImportFunctionsPerDll": int(args.max_import_functions_per_dll),
+            "logTimelineEvents": int(args.log_timeline_events),
+            "manifestEntryLimit": int(args.manifest_entry_limit),
         },
         "processes": processes,
         "debuggerProcessScan": debugger_processes,
@@ -1285,12 +1582,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "moduleInventory": modules,
         "candidateRoots": [str(item) for item in roots],
         "fileInventories": inventories,
+        "targetedFileInventory": targeted_files,
         "executableMetadata": executable_metadata,
         "signaturesAndVersions": signatures,
         "peSummaries": pe_summaries,
+        "dependencyMetadata": dependency_metadata,
+        "dependencySignaturesAndVersions": dependency_signatures,
+        "dependencyPeSummaries": dependency_pe_summaries,
         "registryInventory": registry,
         "textPreviewsRedacted": previews,
+        "targetedTextPreviewsRedacted": targeted_previews,
         "staticStringSummaries": string_summaries,
+        "manifestInventory": manifests,
+        "logTimeline": timeline,
+        "endpointInventory": endpoints,
         "warnings": warnings,
         "errors": [],
         "safety": safety,
@@ -1310,6 +1615,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--text-preview-bytes", type=int, default=DEFAULT_TEXT_PREVIEW_BYTES)
     parser.add_argument("--max-string-hits", type=int, default=DEFAULT_MAX_STRING_HITS)
     parser.add_argument("--max-import-functions-per-dll", type=int, default=DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL)
+    parser.add_argument("--log-timeline-events", type=int, default=DEFAULT_LOG_TIMELINE_EVENTS)
+    parser.add_argument("--manifest-entry-limit", type=int, default=DEFAULT_MANIFEST_ENTRY_LIMIT)
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -1325,6 +1632,10 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "candidateRootCount": len(summary.get("candidateRoots", [])),
         "executableCount": len(summary.get("executableMetadata", [])),
         "peSummaryCount": len(summary.get("peSummaries", [])),
+        "dependencyCount": len(summary.get("dependencyMetadata", [])),
+        "targetedFileCount": len([item for item in summary.get("targetedFileInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
+        "manifestCount": len([item for item in summary.get("manifestInventory", []) if isinstance(item, Mapping) and item.get("status") == "passed"]),
+        "endpointCount": len(summary.get("endpointInventory", [])),
         "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
         "activeNetworkConnectionCount": len(summary.get("activeNetworkConnections", [])),
         "serviceCount": len(summary.get("serviceInventory", [])),
