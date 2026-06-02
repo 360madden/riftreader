@@ -58,6 +58,7 @@ DEFAULT_MAX_HITS_PER_OFFSET = 300
 DEFAULT_MAX_ROOT_REFS = 300
 DEFAULT_CONTEXT_BYTES = 24
 DEFAULT_CHUNK_BYTES = 0x40000
+DEFAULT_MAX_INSTRUCTIONS = 200_000
 
 
 @dataclass(frozen=True)
@@ -663,6 +664,24 @@ def build_summary(
         }
 
     ranked_offsets = summarize_offsets(scan.get("offsetHits") if isinstance(scan.get("offsetHits"), dict) else {})
+    scan_limits = scan.get("scanLimits") if isinstance(scan.get("scanLimits"), dict) else {}
+    warnings = [
+        "fast-linear-disassembly-function-boundaries-are-heuristic",
+        "candidate-only-no-proof-or-current-truth-promotion",
+    ]
+    recommended_actions = [
+        "Use this matrix before live offset probes.",
+        "Generate masked signatures for top clustered functions.",
+        "Keep unpromoted offsets candidate-only until read/write semantics and runtime gates pass.",
+    ]
+    if scan_limits.get("maxInstructionLimitReached"):
+        limit = scan_limits.get("maxInstructions")
+        warnings.append(f"scan-instruction-limit-reached:{limit}")
+        recommended_actions.insert(
+            1,
+            "Rerun with --full-scan or tighter --rva-window before treating absent hits as blockers.",
+        )
+
     summary = {
         **scan,
         "schemaVersion": SCHEMA_VERSION,
@@ -672,18 +691,11 @@ def build_summary(
         "repoRoot": str(repo_root),
         "status": "passed",
         "blockers": [],
-        "warnings": [
-            "fast-linear-disassembly-function-boundaries-are-heuristic",
-            "candidate-only-no-proof-or-current-truth-promotion",
-        ],
+        "warnings": warnings,
         "rankedOffsets": ranked_offsets,
         "next": {
             "recommendedAction": "Inspect top unpromoted same-promoted-cluster functions in Ghidra/decompiler, then require runtime proof gates before promotion.",
-            "recommendedActions": [
-                "Use this matrix before live offset probes.",
-                "Generate masked signatures for top clustered functions.",
-                "Keep unpromoted offsets candidate-only until read/write semantics and runtime gates pass.",
-            ],
+            "recommendedActions": recommended_actions,
         },
         "performance": {
             "durationSeconds": round(time.monotonic() - started, 3),
@@ -736,6 +748,7 @@ def build_self_test() -> dict[str, Any]:
             "name": "same-promoted-cluster-counts-candidate",
             "pass": by_offset["0x300"]["samePromotedClusterFunctionCount"] == 1,
         },
+        {"name": "default-max-instructions-bounded", "pass": DEFAULT_MAX_INSTRUCTIONS == 200_000},
     ]
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -793,7 +806,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-all-sections", action="store_true")
     parser.add_argument("--include-stack-base", action="store_true", help="Include RSP/ESP-based frame references; default excludes stack noise.")
     parser.add_argument("--rva-window", action="append", help="Restrict scan to RVA center:radius, e.g. 0x57A453:0x800. May be repeated.")
-    parser.add_argument("--max-instructions", type=int)
+    parser.add_argument(
+        "--max-instructions",
+        type=int,
+        default=DEFAULT_MAX_INSTRUCTIONS,
+        help=(
+            "Bound the quick default scan. Use --full-scan for complete coverage, "
+            "or combine this with --rva-window for focused inspection."
+        ),
+    )
+    parser.add_argument("--full-scan", action="store_true", help="Disable the default quick instruction limit.")
     parser.add_argument("--chunk-bytes", type=lambda value: int(str(value), 0), default=DEFAULT_CHUNK_BYTES)
     parser.add_argument("--max-hits-per-offset", type=int, default=DEFAULT_MAX_HITS_PER_OFFSET)
     parser.add_argument("--max-root-refs", type=int, default=DEFAULT_MAX_ROOT_REFS)
@@ -821,7 +843,7 @@ def main(argv: list[str] | None = None) -> int:
             context_bytes=max(0, int(args.context_bytes)),
             rva_windows=parse_rva_windows(args.rva_window),
             include_stack_base=bool(args.include_stack_base),
-            max_instructions=max(1, int(args.max_instructions)) if args.max_instructions else None,
+            max_instructions=None if args.full_scan else (max(1, int(args.max_instructions)) if args.max_instructions else None),
             chunk_bytes=max(0x1000, int(args.chunk_bytes)),
             output_root=args.output_root.resolve() if args.output_root else None,
         )

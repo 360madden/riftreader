@@ -719,6 +719,7 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_text(root / "scripts" / "riftreader-actor-chain-no-debug-status.cmd", "@echo off\n")
+            write_text(root / "scripts" / "riftreader-static-field-access-matrix.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-coordinate-chain-readback.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-nav-now.cmd", "@echo off\n")
             write_text(root / "scripts" / "static-owner-turn-aware-route-plan.cmd", "@echo off\n")
@@ -759,6 +760,8 @@ class StatusPacketProofFreshnessTests(unittest.TestCase):
         commands = {item["key"]: item for item in compact["bridgeCommands"]}
         self.assertTrue(commands["actor-chain-no-debug-status"]["exists"])
         self.assertIn("no promotion", commands["actor-chain-no-debug-status"]["safety"])
+        self.assertTrue(commands["static-field-access-matrix"]["exists"])
+        self.assertIn("offline installed-binary scan only", commands["static-field-access-matrix"]["safety"])
         self.assertTrue(commands["static-owner-coordinate-chain-readback"]["exists"])
         self.assertIn("live target memory readback only", commands["static-owner-coordinate-chain-readback"]["safety"])
         self.assertTrue(commands["static-owner-nav-now"]["exists"])

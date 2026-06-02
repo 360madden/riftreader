@@ -186,6 +186,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "read-only actor/stat chain status; no input/movement/debugger/provider writes and no promotion",
     ),
     (
+        "static-field-access-matrix",
+        "Static field access matrix",
+        "scripts\\riftreader-static-field-access-matrix.cmd --json",
+        "offline installed-binary scan only; no live process access/input/movement/debugger/provider writes or promotion",
+    ),
+    (
         "static-owner-coordinate-chain-readback",
         "Static-owner coordinate-chain readback",
         "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",
