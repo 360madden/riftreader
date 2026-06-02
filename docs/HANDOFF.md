@@ -2,6 +2,35 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — post-update recovery/reacquisition — 2026-06-02 20:22 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-2022-postupdate-recovery-reacquisition-handoff.md`.
+
+The repo is clean and aligned with `origin/main` at commit
+`918595b Add post-update global container coordinate readback`. The current
+blocked-safe state is unchanged: the 2026-06-02 RIFT update invalidated the old
+promoted static owner root, and the latest decision packet still reports the
+post-update gate `latest-static-owner-readback-root-pointer-null`.
+
+The strongest recovery evidence remains the **candidate-only** global-container
+coordinate chain:
+
+`[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30`
+
+| Evidence | Result |
+|---|---|
+| Old promoted root | `[rift_x64+0x32EBC80] == 0x0`; stale 2026-06-01 promoted truth must not be used for navigation. |
+| Candidate readback | `scripts\captures\postupdate-global-container-coordinate-readback-20260602-200619-457973\summary.json` passed no-input current readback; best max abs delta vs reference `0.004628906250218279`; 5/5 stationary polling samples matched. |
+| Rollup | `scripts\captures\postupdate-owner-root-rediscovery-20260602-201119-651369\summary.json` surfaces the candidate while preserving the blocked recovery verdict. |
+| Decision packet refresh | `cmd /c scripts\riftreader-decision-packet.cmd --compact-json --write` returned expected `LAST=2`, `status=blocked`, `lane=proof-recovery`. |
+| Next code slice | Wire the candidate-vs-promoted bridge into `navigation_consumer_state.py`, `decision_packet.py`, schemas, and tests so downstream consumers can see candidate evidence while route control stays blocked. |
+
+Safety: no input, movement, route control, debugger/CE attach, target memory
+write, provider write, current-truth apply, ProofOnly, proof promotion,
+actor-chain promotion, or navigation execution was performed. The `0x32DD7E8`
+chain is not promoted and is not consumer-ready navigation truth.
+
 ## Latest compact handoff — post-update global-container coordinate readback — 2026-06-02 20:06 UTC
 
 A new compact handoff exists at
