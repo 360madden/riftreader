@@ -53,7 +53,10 @@ candidate-only and not movement proof.
 | Root-signature batch sweep | Negative: three module-RVA sweeps reconfirmed heap/ref-storage evidence but found no high-signal parent/root candidate | `scripts/captures/root-signature-batch-sweep-currentpid-77152-20260602-183920-580940/summary.json` |
 | Root-family classifiers | Negative/weak: priority parent leads are low-score heap-like or string/asset-heavy; no promotion candidates | `scripts/captures/root-signature-family-classifier-20260602-185009-448441/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-419098/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-432017/summary.json` |
 | Priority lead pointer-family follow-ups | Negative: bounded scans over exported classifier leads found `0` module/RIFT-module hits; largest scan hit the 32-target cap | `scripts/captures/pointer-family-scan-20260602-185045-917536/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-954296/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-985913/summary.json` |
-| Static access-chain packet | Positive for updated constructor/global evidence, negative for position root: constructor `0x3F8B0` writes the same owner-layout field cluster and stores `rdi` to `rift_x64+0x335F508`; current readback points to `0x1D4BA2A6230`, but `+0x320` is unit/matrix-like and no world-coordinate triple matches the API coordinate | `scripts/postupdate_static_access_chain.py`; `scripts/captures/postupdate-static-access-chain-20260602-194135-824662/summary.json` |
+| Static access-chain packet | Positive for updated constructor/global evidence, negative for direct position root: constructor `0x3F8B0` writes the same owner-layout field cluster and stores `rdi` to `rift_x64+0x335F508`; current readback points to `0x1D4BA2A6230`, but `+0x320` is unit/matrix-like and no world-coordinate triple matches the API coordinate | `scripts/postupdate_static_access_chain.py`; `scripts/captures/postupdate-static-access-chain-20260602-195804-076419/summary.json` |
+| Static/container coordinate lead | Positive candidate-only current readback: function `0xC38390` reads `rift_x64+0x32DD7E8`; `[rift_x64+0x32DD7E8]+0x80 -> child`, and `child+0x28/+0x2C/+0x30` matches the current reference with max abs delta `0.004628906250218279` | `scripts/postupdate_global_container_coordinate_readback.py`; `scripts/captures/postupdate-global-container-coordinate-readback-20260602-200436-764789/summary.json` |
+| No-input polling baseline | Positive candidate-only stability sample: 5/5 exact-target no-input samples matched reference and stationary planar drift was `0.0` | `scripts/captures/postupdate-global-container-coordinate-readback-20260602-200619-457973/summary.json` |
+| Rediscovery status refresh | Updated status now surfaces the global-container readback while keeping overall recovery blocked on stale root/proof gates | `scripts/captures/postupdate-owner-root-rediscovery-20260602-201119-651369/summary.json` |
 
 ## Recovery methods examined
 
@@ -67,6 +70,7 @@ candidate-only and not movement proof.
 | `riftreader_postupdate_proof_reacquire_stage1.py` | Medium legacy post-update control plane | Safe unless `--allow-movement-stimulus` | **Fallback/reference only** | Older path uses less optimal family scan; useful if fast helper regresses. |
 | `pointer_family_scan.py` / owner neighborhood scans | High for rediscovering owner-root edges once an owner candidate is known | Live memory read, no input | **Use after owner candidate identified** | Previous promotion relied on exactly one module hit to owner. Need this again for a new root. |
 | Structural/root-signature helpers | Medium if module-hint sweep/type artifacts exist | Read-only artifacts/live memory depending helper | **Fallback after static clusters** | `root_signature_family_classifier.py`, `owner_type_instance_inspector.py`, and parent-graph helpers can classify candidates, but they need upstream type/module-hint artifacts. |
+| `postupdate_global_container_coordinate_readback.py` | High for current readback of the new static/container chain candidate | Exact-target live memory reads only; no input | **Primary candidate readback loop** | Re-reads `rift_x64+0x32DD7E8` container/child paths and can run no-input polling without promotion. |
 | `current_pid_family_snapshot_sequence.py` | Medium/high for comparing same-process families over time | Live memory reads; stimulus may be gated depending sequence | **Use no-stimulus first** | Good for copying/duplicate detection; movement variant requires approval. |
 | `riftreader-current-truth-refresh-plan/apply` | High for publishing truth | Apply writes tracked truth and is gated | **Plan only until proof gates pass** | Current truth still references PID `12664`; never apply candidate-only evidence. |
 | Navigation consumer/live-run tools | Downstream validation | Live-run/input gated | **Blocked** | Navigation must wait for current proof/current truth. |
@@ -106,19 +110,32 @@ Preferred sequence:
 
 Current post-update result: the candidate-only owner-batch/root-signature path is now exhausted for the three available module-RVA hints. The sweeps and classifier follow-ups stayed heap-only/no-module-root. Do not repeat the same `0x26E5E80`, `0x26E5278`, or `0x26E3200` sweeps unless a fresh owner batch produces new evidence.
 
-Static/access-chain tracing has now produced one durable new anchor:
+Static/access-chain tracing has now produced one durable non-position anchor and
+one stronger candidate-only coordinate chain:
 
 | Anchor | Current readback | Classification | Use |
 |---|---|---|---|
 | `[rift_x64+0x335F508]` | `0x1D4BA2A6230` | `orientation-matrix-root-not-position-root` | Candidate orientation/facing/static layout anchor only; **not** a world-position resolver |
+| `[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30` | `7256.38916015625, 821.4478149414062, 2990.00537109375` | `candidate-coordinate-chain-current-readback` | Best current coordinate-chain candidate; **not promoted**, needs movement/restart proof |
 
 The direct call breadcrumbs from that constructor are:
 
 `0x3F8B0 <- 0x39CD0 <- 0x13D2D80 <- 0x13CA1F0 <- 0x13B7DE0 <- 0x13A37D0 <- {0x13AFAD0, 0x13B5E00} <- 0x1392E10 <- 0x6A7890 <- {0xC38390, 0xF75D90}`
 
-The packet now also records breadcrumb-function RIP-relative globals and field accesses. The `0xC38390` function touches `rift_x64+0x32DD7E8`, making it a follow-up static/container scan target. This is not a promoted root and is not yet position proof.
+The packet now also records breadcrumb-function RIP-relative globals and field accesses. The `0xC38390` function touches `rift_x64+0x32DD7E8`; readback of that container found child offsets `0x80`, `0x88`, and `0x90` with coordinate-like triples. The best candidate chain is:
 
-The next safe lane is no longer another repeat root-signature sweep. Continue offline caller-chain/static container tracing above `0x1392E10`, `0x6A7890`, `0xC38390`, and `0xF75D90`, plus a fresh non-repeating current-PID family/container scan to find the higher-level object that owns the current world-coordinate copy.
+`[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30`
+
+The no-input five-sample polling baseline passed, but this is still not proof:
+there has been no displacement test, no restart/relog survival, no ProofOnly,
+and no current-truth promotion.
+
+The next safe lane is no longer another repeat root-signature sweep. Continue
+candidate-vs-promoted integration and no-input readback/polling around
+`rift_x64+0x32DD7E8`, then request explicit approval before any movement /
+restart proof. Keep offline caller-chain/static container tracing above
+`0x1392E10`, `0x6A7890`, `0xC38390`, and `0xF75D90` as the next source of
+restart-survivability evidence.
 
 Success criteria:
 
@@ -148,13 +165,14 @@ Do not run until movement approval is explicit.
 | Rank | Method | Why |
 |---:|---|---|
 | 1 | Fast current-PID reacquire + candidate readback | Already produced current coordinate truth seed with low risk. |
-| 2 | Fresh offline Ghidra/static matrix/access-chain packet | Needed because binary changed and old static root is null; already found `rift_x64+0x335F508` as an orientation/static-layout anchor, not position. |
-| 3 | Higher-level owner/container tracing above `0x1392E10` / `0x6A7890` and fresh non-repeating current-PID scans | Direct candidate is useful as a coordinate seed, but initial owner-layout hypothesis failed and `0x335F508` is not a position root. |
-| 4 | Controlled displacement proof | Required for promotion but gated by movement approval. |
-| 5 | Truth refresh/navigation consumer rebuild | Only after proof, otherwise it spreads stale/candidate truth. |
-| 6 | ChromaLink repair | Useful for speed/freshness, but not required because RRAPICOORD fallback works. |
-| 7 | Post-update legacy stage1 helper | Keep as fallback; not optimal primary path. |
-| 8 | x64dbg/CE/process dump | Last resort only; currently unnecessary and gated. |
+| 2 | Fresh offline Ghidra/static matrix/access-chain packet | Needed because binary changed and old static root is null; already found `rift_x64+0x335F508` as an orientation/static-layout anchor and `rift_x64+0x32DD7E8` as a coordinate-container lead. |
+| 3 | Global-container coordinate readback/polling | Current best no-input candidate: `[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30`, with 5/5 stationary polling samples and max readback delta `0.004628906250218279`. |
+| 4 | Higher-level owner/container tracing above `0x1392E10` / `0x6A7890` / `0xC38390` | Needed to understand survivability and ownership before promotion; direct candidate is useful, but restart proof has not happened. |
+| 5 | Controlled displacement proof | Required for promotion but gated by movement approval. |
+| 6 | Truth refresh/navigation consumer rebuild | Only after proof, otherwise it spreads stale/candidate truth. |
+| 7 | ChromaLink repair | Useful for speed/freshness, but not required because RRAPICOORD fallback works. |
+| 8 | Post-update legacy stage1 helper | Keep as fallback; not optimal primary path. |
+| 9 | x64dbg/CE/process dump | Last resort only; currently unnecessary and gated. |
 
 ## Do not do
 
@@ -174,9 +192,16 @@ scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path "C:\Program Fi
 scripts\riftreader-static-field-access-matrix.cmd --binary-path "C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe" --root-rva 0x32EBC80 --offset 0x300,0x304,0x30C,0x310,0x314,0x320,0x324,0x328,0x438,0x43C,0x440 --json
 python scripts\current_pid_candidate_readback.py --pid 77152 --hwnd 0x17A0DB2 --candidate-jsonl "C:\RIFT MODDING\RiftReader\scripts\captures\family-scan-currentpid-77152-20260602-162409-918002\api-family-vec3-candidates.jsonl" --reference-timeout-seconds 180 --json
 python scripts\postupdate_static_access_chain.py --json
+scripts\riftreader-postupdate-global-container-coordinate-readback.cmd --samples 5 --interval-seconds 0.2 --json
 ```
 
-Next safe no-input implementation work is higher-level static container tracing above `0x1392E10` / `0x6A7890` / `0xC38390` / `0xF75D90`, plus any fresh non-repeating current-PID family/container scan. The candidate-neighborhood module-RVA sweep lane has current negative evidence and should not be repeated blindly. Keep `rift_x64+0x335F508` available as an orientation/facing anchor candidate, but do not treat it as position or current truth.
+Next safe no-input implementation work is a downstream/candidate bridge that
+surfaces the `rift_x64+0x32DD7E8` candidate separately from promoted truth so
+consumers stay blocked instead of using stale 2026-06-01 current truth. The
+candidate-neighborhood module-RVA sweep lane has current negative evidence and
+should not be repeated blindly. Keep `rift_x64+0x335F508` available as an
+orientation/facing anchor candidate, but do not treat it as position or current
+truth.
 
 Gated sequence after explicit approval:
 

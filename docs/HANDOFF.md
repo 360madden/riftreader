@@ -2,6 +2,37 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — post-update global-container coordinate readback — 2026-06-02 20:06 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-2006-postupdate-global-container-coordinate-readback-handoff.md`.
+
+The 2026-06-02 RIFT update invalidated the old promoted static owner root for
+the current epoch: `[rift_x64+0x32EBC80]` is readable but currently null. The
+safe post-update recovery lane now has a stronger **candidate-only** static /
+container coordinate readback:
+
+`[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30`
+
+| Evidence | Result |
+|---|---|
+| Static access-chain packet | `scripts\captures\postupdate-static-access-chain-20260602-195804-076419\summary.json` found function `0xC38390` reading `rift_x64+0x32DD7E8`. |
+| Orientation-only root | `[rift_x64+0x335F508]` remains a non-position orientation/static-layout anchor; do not use it as world position. |
+| New readback helper | `scripts\postupdate_global_container_coordinate_readback.py`; wrapper `scripts\riftreader-postupdate-global-container-coordinate-readback.cmd`. |
+| Best readback | `[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30` matched the current reference coordinate with max abs delta `0.004628906250218279`. |
+| Polling baseline | `scripts\captures\postupdate-global-container-coordinate-readback-20260602-200619-457973\summary.json` passed 5/5 no-input samples with stationary planar drift `0.0`. |
+| Rediscovery status | `scripts\captures\postupdate-owner-root-rediscovery-20260602-201119-651369\summary.json` now surfaces this candidate while keeping overall recovery blocked on proof/root gates. |
+
+Safety: no input, movement, debugger/CE attach, target memory write, provider
+write, `current-truth` apply, ProofOnly, proof promotion, actor-chain promotion,
+or navigation control was performed. The new chain is not promoted and still
+requires explicit movement/restart proof before any consumer can treat it as
+working navigation truth.
+
+Current next safe action: wire a candidate-vs-promoted bridge for downstream
+navigation consumers so the repo can expose this post-update readback as
+candidate evidence while continuing to block stale promoted-current navigation.
+
 ## Latest compact handoff — navigation live-run command plan — 2026-06-02 09:19 UTC
 
 A new compact handoff exists at

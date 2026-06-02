@@ -189,6 +189,13 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
                     "classification": "orientation-matrix-root-not-position-root",
                 }
             ],
+            "breadcrumbGlobalSamples": [
+                {
+                    "globalRva": "0x32DD7E8",
+                    "classification": "module-vtable-global-container-no-coordinate",
+                }
+            ],
+            "safety": {"targetMemoryBytesRead": True},
             "callBreadcrumbs": [{"depth": 0}],
         }
 
@@ -196,7 +203,55 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
 
         self.assertEqual(summary["verdict"], "static-access-chain-found-orientation-root-only")
         self.assertIn("orientation-matrix-root-not-position-root", summary["liveRootClassifications"])
+        self.assertIn("module-vtable-global-container-no-coordinate", summary["breadcrumbGlobalClassifications"])
+        self.assertTrue(summary["targetMemoryBytesRead"])
         self.assertEqual(summary["candidateGlobalRoots"][0]["globalRva"], "0x335F508")
+
+    def test_latest_static_access_chain_path_prefers_live_packet_over_newer_artifact_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            older_live = root / "postupdate-static-access-chain-20260602T010000Z"
+            newer_artifact_only = root / "postupdate-static-access-chain-20260602T020000Z"
+            older_live.mkdir()
+            newer_artifact_only.mkdir()
+            live_path = older_live / "summary.json"
+            artifact_only_path = newer_artifact_only / "summary.json"
+            live_path.write_text(
+                '{"safety":{"targetMemoryBytesRead":true},"liveRootSamples":[{"classification":"orientation-matrix-root-not-position-root"}]}',
+                encoding="utf-8",
+            )
+            artifact_only_path.write_text('{"safety":{"targetMemoryBytesRead":false}}', encoding="utf-8")
+
+            selected = helper.latest_static_access_chain_path(root)
+
+        self.assertEqual(selected, live_path)
+
+    def test_global_container_readback_summary_surfaces_best_chain_and_polling(self) -> None:
+        packet = {
+            "status": "candidate",
+            "verdict": "global-container-coordinate-chain-current-readback-passed",
+            "artifacts": {"summaryJson": "summary.json"},
+            "bestReadback": {
+                "chain": "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30",
+                "classification": "candidate-coordinate-chain-current-readback",
+                "coordinate": {"x": 1.0, "y": 2.0, "z": 3.0},
+                "deltaVsReference": {"maxAbsDelta": 0.004},
+            },
+            "polling": {
+                "sampleCount": 5,
+                "bestMatchingSampleCount": 5,
+                "allSamplesMatchedReference": True,
+                "stationaryDriftWithinLimit": True,
+            },
+            "safety": {"targetMemoryBytesRead": True},
+        }
+
+        summary = helper.summarize_global_container_readback(packet)
+
+        self.assertEqual(summary["bestChain"], "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30")
+        self.assertEqual(summary["bestMaxAbsDelta"], 0.004)
+        self.assertEqual(summary["polling"]["bestMatchingSampleCount"], 5)
+        self.assertTrue(summary["targetMemoryBytesRead"])
 
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")

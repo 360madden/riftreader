@@ -1,4 +1,32 @@
-# Current RIFT live truth — static coordinate + facing/yaw resolvers PROMOTED
+# Current RIFT live truth — POST-UPDATE RECOVERY IN PROGRESS
+
+Updated UTC: `2026-06-02T20:06:19Z`
+
+# **⚠️ BLOCKER**
+
+The 2026-06-02 RIFT update (`STABLE-1-1152-a-1256395`) invalidated the
+previous promoted current resolver for the active post-update target. For PID
+`77152` / HWND `0x17A0DB2`, `[rift_x64+0x32EBC80]` is readable but its qword is
+currently `0x0`.
+
+Do **not** use the 2026-06-01 promoted resolver below as current navigation
+truth for this post-update epoch.
+
+Candidate-only recovery evidence now exists:
+
+| Purpose | Candidate / status | Evidence |
+|---|---|---|
+| Position candidate | `[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30` matched current reference with max abs delta `0.004628906250218279`; 5/5 no-input polling samples matched with stationary drift `0.0`. | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-global-container-coordinate-readback-20260602-200619-457973\summary.json` |
+| Orientation/static-layout anchor | `[rift_x64+0x335F508]` points at an orientation/matrix-like object, **not** world position. | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-static-access-chain-20260602-195804-076419\summary.json` |
+
+This is **not** a promotion. No movement/displacement proof, restart/relog
+survival, ProofOnly, current-truth apply, actor-chain promotion, or navigation
+control has been performed. Historical promoted truth remains archived below for
+audit only until new proof gates pass.
+
+---
+
+# Historical RIFT live truth — static coordinate + facing/yaw resolvers PROMOTED
 
 Updated UTC: `2026-06-01T17:34:24Z`
 

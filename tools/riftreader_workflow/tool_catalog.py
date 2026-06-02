@@ -281,6 +281,22 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="postupdate-global-container-coordinate-readback",
+            label="Post-update global-container coordinate readback",
+            kind="live-readback",
+            rel_path="scripts/riftreader-postupdate-global-container-coordinate-readback.cmd",
+            risk="safe-read-only",
+            default_use="candidate-only exact-target no-input readback of breadcrumb global/container coordinate leads",
+            allowed=True,
+            approval=False,
+            command=["scripts\\riftreader-postupdate-global-container-coordinate-readback.cmd", "--json"],
+            notes=[
+                "reads target memory only after exact PID/HWND/process-start checks; sends no input and performs no debugger attach",
+                "validates current readback of global/container/child coordinate paths but never promotes current truth",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="phase1-target-entity-snapshot",
             label="Phase 1 target entity snapshot",
             kind="phase1-target-discovery",
@@ -1185,6 +1201,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "command": "scripts\\riftreader-postupdate-static-access-chain.cmd --json",
         },
         {
+            "step": "postupdate-global-container-coordinate-readback",
+            "command": "scripts\\riftreader-postupdate-global-container-coordinate-readback.cmd --json",
+        },
+        {
             "step": "phase1-target-entity-snapshot",
             "command": "scripts\\riftreader-phase1-target-entity-snapshot.cmd --pid <current-pid> --hwnd <current-hwnd> --json",
         },
@@ -1345,6 +1365,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "ghidra-static-evidence",
             "static-field-access-matrix",
             "postupdate-static-access-chain",
+            "postupdate-global-container-coordinate-readback",
             "phase1-target-entity-snapshot",
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
@@ -1589,6 +1610,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-ghidra-static-evidence.cmd",
             "scripts/riftreader-static-field-access-matrix.cmd",
             "scripts/riftreader-postupdate-static-access-chain.cmd",
+            "scripts/riftreader-postupdate-global-container-coordinate-readback.cmd",
             "scripts/riftreader-phase1-target-entity-snapshot.cmd",
             "scripts/riftreader-policy-lint.cmd",
             "scripts/riftreader-validation-ledger.cmd",
@@ -1657,6 +1679,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "postupdate-static-access-chain-canonical",
                     "pass": "postupdate-static-access-chain" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "postupdate-global-container-coordinate-readback-canonical",
+                    "pass": "postupdate-global-container-coordinate-readback" in compact["canonicalToolKeys"],
                 },
                 {
                     "name": "phase1-target-entity-snapshot-canonical",

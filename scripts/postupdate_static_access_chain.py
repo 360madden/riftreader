@@ -46,8 +46,16 @@ DEFAULT_FUNCTION_RVA = 0x3F8B0
 DEFAULT_FUNCTION_BYTES = 0x700
 DEFAULT_BREADCRUMB_FUNCTION_BYTES = 0x180
 DEFAULT_ROOT_SAMPLE_BYTES = 0x930
+DEFAULT_GLOBAL_SAMPLE_BYTES = 0x1000
+DEFAULT_CHILD_SAMPLE_BYTES = 0x800
 DEFAULT_MODULE_SIZE = rediscovery.DEFAULT_MODULE_SIZE
 WORLD_SCAN_STRIDE = 4
+GLOBAL_COORDINATE_LEAD_CLASSIFICATIONS = {
+    "direct-coordinate-pointer-global-needs-proof",
+    "global-object-world-coordinate-hit-needs-proof",
+    "global-object-points-to-coordinate-candidate",
+    "global-container-child-coordinate-lead",
+}
 
 
 @dataclass(frozen=True)
@@ -505,6 +513,69 @@ def near_world_triples(data: bytes, reference: Mapping[str, float] | None, *, to
     return hits
 
 
+def qword_hits(data: bytes, target_value: int, *, limit: int = 16) -> list[dict[str, Any]]:
+    hits: list[dict[str, Any]] = []
+    for offset in range(0, max(0, len(data) - 8 + 1), 8):
+        value = int.from_bytes(data[offset : offset + 8], "little", signed=False)
+        if value == target_value:
+            hits.append({"offset": hex_int(offset), "value": hex_int(value)})
+            if len(hits) >= limit:
+                break
+    return hits
+
+
+def plausible_pointer(value: int, module_base: int, module_size: int) -> bool:
+    if value < 0x10000:
+        return False
+    if module_base <= value < module_base + module_size:
+        return False
+    # User-mode canonical x64 pointers normally have high bits either clear or
+    # sign-extended.  Reject obvious packed/text/scalar noise without assuming a
+    # specific heap range.
+    return value < 0x0000800000000000
+
+
+def child_pointer_samples(
+    *,
+    handle: int,
+    data: bytes,
+    module_base: int,
+    module_size: int,
+    reference: Mapping[str, float] | None,
+    coordinate_candidate: int | None,
+    child_sample_bytes: int,
+    tolerance: float,
+    max_child_pointers: int,
+) -> list[dict[str, Any]]:
+    from scan_current_pid_coordinate_family import read_memory  # noqa: E402
+
+    samples: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for offset in range(0, max(0, len(data) - 8 + 1), 8):
+        value = int.from_bytes(data[offset : offset + 8], "little", signed=False)
+        if value in seen or not plausible_pointer(value, module_base, module_size):
+            continue
+        seen.add(value)
+        child_data = read_memory(handle, value, child_sample_bytes)
+        if child_data is None:
+            continue
+        world_hits = near_world_triples(child_data, reference, tolerance=tolerance, limit=4)
+        coordinate_pointer_hits = qword_hits(child_data, coordinate_candidate, limit=4) if coordinate_candidate is not None else []
+        if not world_hits and not coordinate_pointer_hits:
+            continue
+        samples.append(
+            {
+                "parentOffset": hex_int(offset),
+                "childPointer": hex_int(value),
+                "nearWorldTriples": world_hits,
+                "coordinatePointerHits": coordinate_pointer_hits,
+            }
+        )
+        if len(samples) >= max_child_pointers:
+            break
+    return samples
+
+
 def classify_root_sample(
     *,
     root_rva: int,
@@ -567,6 +638,232 @@ def classify_root_sample(
         result["classification"] = "heap-root-nonposition-unclassified"
         result["reasons"].append("root-readable-but-no-module-vtable-or-world-coordinate")
     return result
+
+
+def is_rip_relative_global_slot_access(access: Mapping[str, Any]) -> bool:
+    instruction = str(access.get("instruction") or "").strip().lower()
+    if not instruction:
+        return False
+    # ``lea reg, [rip+...]`` computes a module address constant.  It is not a
+    # qword global slot; reading the pointed-to module bytes as a heap pointer
+    # just creates noisy string/code interpretations.
+    if instruction.startswith("lea "):
+        return False
+    return "ptr [rip" in instruction
+
+
+def collect_breadcrumb_global_rvas(
+    constructor: Mapping[str, Any],
+    function_summaries: Sequence[Mapping[str, Any]],
+    *,
+    max_globals: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[int] = set()
+
+    for root in safe_list(safe_mapping(constructor).get("candidateGlobalRoots")):
+        item = safe_mapping(root)
+        global_rva = parse_int(item.get("globalRva"))
+        if global_rva is None or global_rva in seen:
+            continue
+        seen.add(global_rva)
+        rows.append(
+            {
+                "globalRva": hex_int(global_rva),
+                "source": "constructor-candidate-global-root",
+                "sourceFunctionRva": safe_mapping(constructor).get("functionRva"),
+                "sourceInstructionRva": item.get("rva"),
+                "instruction": item.get("instruction"),
+                "access": item.get("access"),
+            }
+        )
+
+    for function in function_summaries:
+        function_map = safe_mapping(function)
+        for access in safe_list(function_map.get("ripRelativeAccesses")):
+            item = safe_mapping(access)
+            if not is_rip_relative_global_slot_access(item):
+                continue
+            global_rva = parse_int(item.get("globalRva"))
+            if global_rva is None or global_rva in seen:
+                continue
+            seen.add(global_rva)
+            rows.append(
+                {
+                    "globalRva": hex_int(global_rva),
+                    "source": "breadcrumb-rip-relative-access",
+                    "sourceFunctionRva": function_map.get("functionRva"),
+                    "sourceInstructionRva": item.get("rva"),
+                    "instruction": item.get("instruction"),
+                    "access": item.get("access"),
+                }
+            )
+            if len(rows) >= max_globals:
+                return rows
+    return rows[:max_globals]
+
+
+def classify_global_container_sample(
+    *,
+    global_rva: int,
+    global_value: int | None,
+    data: bytes | None,
+    module_base: int,
+    module_size: int,
+    reference: Mapping[str, float] | None,
+    coordinate_candidate: int | None,
+    child_samples: Sequence[Mapping[str, Any]],
+    tolerance: float,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "globalRva": hex_int(global_rva),
+        "globalValue": hex_int(global_value),
+        "readable": data is not None,
+        "classification": "global-null-or-scalar",
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "reasons": [],
+    }
+    if not global_value:
+        result["reasons"].append("global-qword-null-or-unreadable")
+        return result
+    if coordinate_candidate is not None and global_value == coordinate_candidate:
+        result["classification"] = "direct-coordinate-pointer-global-needs-proof"
+        result["reasons"].append("global-qword-equals-coordinate-candidate")
+        return result
+    if data is None:
+        result["classification"] = "global-pointer-unreadable"
+        result["reasons"].append("global-qword-target-unreadable")
+        return result
+
+    vtable = int.from_bytes(data[0:8], "little", signed=False) if len(data) >= 8 else None
+    vtable_rva = vtable - module_base if vtable is not None and module_base <= vtable < module_base + module_size else None
+    world_hits = near_world_triples(data, reference, tolerance=tolerance)
+    coordinate_pointer_hits = qword_hits(data, coordinate_candidate) if coordinate_candidate is not None else []
+    result.update(
+        {
+            "vtable": hex_int(vtable),
+            "vtableRva": hex_int(vtable_rva),
+            "nearWorldTriples": world_hits,
+            "coordinatePointerHits": coordinate_pointer_hits,
+            "childPointerSamples": [dict(item) for item in child_samples],
+        }
+    )
+    if world_hits:
+        result["classification"] = "global-object-world-coordinate-hit-needs-proof"
+        result["reasons"].append("world-coordinate-like-triple-found-in-global-object")
+    elif coordinate_pointer_hits:
+        result["classification"] = "global-object-points-to-coordinate-candidate"
+        result["reasons"].append("coordinate-candidate-pointer-found-in-global-object")
+    elif child_samples:
+        result["classification"] = "global-container-child-coordinate-lead"
+        result["reasons"].append("child-pointer-near-coordinate-or-coordinate-pointer-hit")
+    elif vtable_rva is not None:
+        result["classification"] = "module-vtable-global-container-no-coordinate"
+        result["reasons"].append("module-vtable-readable-no-coordinate-lead")
+    else:
+        result["classification"] = "heap-global-container-no-coordinate"
+        result["reasons"].append("heap-readable-no-coordinate-lead")
+    return result
+
+
+def live_breadcrumb_global_samples(
+    *,
+    target: Mapping[str, Any],
+    globals_to_sample: Sequence[Mapping[str, Any]],
+    reference: Mapping[str, float] | None,
+    coordinate_candidate: int | None,
+    sample_bytes: int,
+    child_sample_bytes: int,
+    tolerance: float,
+    module_size: int,
+    max_child_pointers: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str], list[str]]:
+    from scan_current_pid_coordinate_family import close_handle, open_process, read_memory, verify_hwnd_owner  # noqa: E402
+
+    blockers: list[str] = []
+    warnings: list[str] = []
+    pid = parse_int(target.get("pid") or target.get("processId"))
+    hwnd = target.get("hwnd") or target.get("targetWindowHandle")
+    module_base = parse_int(target.get("moduleBase") or target.get("moduleBaseAddressHex"))
+    expected_start = target.get("expectedProcessStartUtc") or target.get("processStartUtc") or target.get("startTimeUtc")
+    live_target: dict[str, Any] = {
+        "pid": pid,
+        "hwnd": hwnd,
+        "moduleBase": hex_int(module_base),
+        "expectedProcessStartUtc": expected_start,
+        "liveBreadcrumbGlobalRead": False,
+    }
+    if pid is None or not hwnd or module_base is None:
+        blockers.append("target-fields-missing-for-live-breadcrumb-global-read")
+        return live_target, [], blockers, warnings
+
+    hwnd_check = verify_hwnd_owner(str(hwnd), int(pid))
+    live_target["hwndCheck"] = hwnd_check
+    if not bool(hwnd_check.get("ownerMatchesExpectedPid")):
+        blockers.append("pid-hwnd-mismatch")
+        return live_target, [], blockers, warnings
+
+    handle = open_process(int(pid))
+    try:
+        actual_start = rediscovery.get_process_start_utc(handle)
+        live_target["actualProcessStartUtc"] = actual_start
+        if expected_start and actual_start:
+            expected_prefix = str(expected_start).replace("Z", "+00:00")[:19]
+            if not actual_start.startswith(expected_prefix):
+                blockers.append("process-start-mismatch")
+                return live_target, [], blockers, warnings
+        samples: list[dict[str, Any]] = []
+        for item in globals_to_sample:
+            row = safe_mapping(item)
+            global_rva = parse_int(row.get("globalRva"))
+            if global_rva is None:
+                continue
+            slot = int(module_base) + global_rva
+            slot_bytes = read_memory(handle, slot, 8)
+            global_value = int.from_bytes(slot_bytes, "little", signed=False) if slot_bytes else None
+            data = read_memory(handle, global_value, sample_bytes) if global_value and plausible_pointer(global_value, int(module_base), module_size) else None
+            children = (
+                child_pointer_samples(
+                    handle=handle,
+                    data=data,
+                    module_base=int(module_base),
+                    module_size=module_size,
+                    reference=reference,
+                    coordinate_candidate=coordinate_candidate,
+                    child_sample_bytes=child_sample_bytes,
+                    tolerance=tolerance,
+                    max_child_pointers=max_child_pointers,
+                )
+                if data is not None and max_child_pointers > 0
+                else []
+            )
+            sample = classify_global_container_sample(
+                global_rva=global_rva,
+                global_value=global_value,
+                data=data,
+                module_base=int(module_base),
+                module_size=module_size,
+                reference=reference,
+                coordinate_candidate=coordinate_candidate,
+                child_samples=children,
+                tolerance=tolerance,
+            )
+            sample.update(
+                {
+                    "globalSlotAddress": hex_int(slot),
+                    "source": row.get("source"),
+                    "sourceFunctionRva": row.get("sourceFunctionRva"),
+                    "sourceInstructionRva": row.get("sourceInstructionRva"),
+                    "sourceInstruction": row.get("instruction"),
+                    "sourceAccess": row.get("access"),
+                }
+            )
+            samples.append(sample)
+        live_target["liveBreadcrumbGlobalRead"] = True
+        return live_target, samples, blockers, warnings
+    finally:
+        close_handle(handle)
 
 
 def live_root_samples(
@@ -654,6 +951,7 @@ def target_from_artifacts(static_readback: Mapping[str, Any], candidate_readback
 def build_markdown(summary: Mapping[str, Any]) -> str:
     constructor = safe_mapping(summary.get("constructorEvidence"))
     live_samples = [safe_mapping(item) for item in safe_list(summary.get("liveRootSamples"))]
+    breadcrumb_global_samples = [safe_mapping(item) for item in safe_list(summary.get("breadcrumbGlobalSamples"))]
     lines = [
         "# Post-update static access-chain packet",
         "",
@@ -712,6 +1010,22 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                     break
             if row_count >= 20:
                 break
+    if breadcrumb_global_samples:
+        lines.extend(
+            [
+                "",
+                "## Breadcrumb global live samples",
+                "",
+                "| Global RVA | Source function | Live pointer | Classification | Reasons |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for sample in breadcrumb_global_samples[:20]:
+            reasons = "; ".join(str(reason) for reason in safe_list(sample.get("reasons")))
+            lines.append(
+                f"| `{sample.get('globalRva')}` | `{sample.get('sourceFunctionRva')}` | `{sample.get('globalValue')}` | "
+                f"`{sample.get('classification')}` | {reasons} |"
+            )
     lines.extend(["", "## Blockers"])
     for blocker in safe_list(summary.get("blockers")):
         lines.append(f"- `{blocker}`")
@@ -789,10 +1103,20 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             )
             for function_rva in unique_breadcrumb_function_rvas(call_breadcrumbs, limit=int(args.max_function_summaries))
         ]
+    breadcrumb_globals_to_sample = (
+        collect_breadcrumb_global_rvas(
+            constructor,
+            breadcrumb_function_summaries,
+            max_globals=int(args.max_breadcrumb_globals),
+        )
+        if not blockers
+        else []
+    )
 
     candidate_readback = load_json_object(candidate_path)
     static_readback = load_json_object(static_readback_path)
     reference = reference_from_candidate(candidate_readback)
+    coordinate_candidate = parse_int(args.coordinate_candidate_address) or rediscovery.candidate_address_from_readback(candidate_readback)
     target = target_from_artifacts(static_readback, candidate_readback)
 
     candidate_global_roots = [safe_mapping(item) for item in safe_list(constructor.get("candidateGlobalRoots"))]
@@ -800,6 +1124,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root_rvas = [value for value in root_rvas if value is not None]
     live_target: dict[str, Any] = {"liveRootRead": False}
     live_samples: list[dict[str, Any]] = []
+    breadcrumb_global_target: dict[str, Any] = {"liveBreadcrumbGlobalRead": False}
+    breadcrumb_global_samples: list[dict[str, Any]] = []
     if args.artifact_only:
         warnings.append("artifact-only-live-root-read-skipped")
     elif root_rvas and not blockers:
@@ -816,12 +1142,44 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     elif not root_rvas and not blockers:
         blockers.append("constructor-global-root-store-missing")
 
+    if args.artifact_only:
+        warnings.append("artifact-only-breadcrumb-global-read-skipped")
+    elif breadcrumb_globals_to_sample and not any(blocker in blockers for blocker in ("pid-hwnd-mismatch", "process-start-mismatch")):
+        (
+            breadcrumb_global_target,
+            breadcrumb_global_samples,
+            breadcrumb_blockers,
+            breadcrumb_warnings,
+        ) = live_breadcrumb_global_samples(
+            target=target,
+            globals_to_sample=breadcrumb_globals_to_sample,
+            reference=reference,
+            coordinate_candidate=coordinate_candidate,
+            sample_bytes=int(args.global_sample_bytes, 0),
+            child_sample_bytes=int(args.child_sample_bytes, 0),
+            tolerance=float(args.world_tolerance),
+            module_size=int(args.module_size, 0),
+            max_child_pointers=int(args.max_child_pointers),
+        )
+        blockers.extend(breadcrumb_blockers)
+        warnings.extend(breadcrumb_warnings)
+    elif not breadcrumb_globals_to_sample and not blockers:
+        warnings.append("breadcrumb-rip-relative-globals-missing")
+
     classifications = {str(item.get("classification")) for item in live_samples}
+    breadcrumb_classifications = {str(item.get("classification")) for item in breadcrumb_global_samples}
     if "candidate-position-root-needs-proof" in classifications:
         verdict = "static-access-chain-found-position-root-candidate-needs-proof"
         status = "candidate"
         recommended = (
             "Run no-input candidate readback against the static root candidate, then request explicit approval for movement/restart proof before any promotion."
+        )
+    elif breadcrumb_classifications & GLOBAL_COORDINATE_LEAD_CLASSIFICATIONS:
+        verdict = "static-global-container-coordinate-lead-needs-proof"
+        status = "candidate"
+        recommended = (
+            "Treat the breadcrumb global/container hit as candidate-only. Run exact-target no-input readback against the listed global/child pointer lead, "
+            "then request explicit approval for movement/restart proof before promotion."
         )
     elif "orientation-matrix-root-not-position-root" in classifications:
         verdict = "static-access-chain-found-orientation-root-only"
@@ -841,10 +1199,11 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         recommended = "Review candidate global roots and run exact-target no-input readback before any movement/proof gate."
 
     safety = base_safety()
+    target_memory_read = bool(live_target.get("liveRootRead")) or bool(breadcrumb_global_target.get("liveBreadcrumbGlobalRead"))
     safety.update(
         {
             "offlineOnly": True,
-            "targetMemoryBytesRead": bool(live_target.get("liveRootRead")),
+            "targetMemoryBytesRead": target_memory_read,
             "targetMemoryBytesWritten": False,
             "proofPromotion": False,
             "actorChainPromotion": False,
@@ -852,6 +1211,11 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "candidateOnly": True,
         }
     )
+    target_summary = dict(target)
+    if live_target.get("liveRootRead"):
+        target_summary.update(live_target)
+    if breadcrumb_global_target.get("liveBreadcrumbGlobalRead"):
+        target_summary.update(breadcrumb_global_target)
     summary: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-postupdate-static-access-chain",
@@ -869,11 +1233,14 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "staticFieldMatrix": str(static_matrix_path) if static_matrix_path else None,
         },
         "referenceCoordinate": reference,
-        "target": live_target if live_target.get("liveRootRead") else target,
+        "coordinateCandidateAddress": hex_int(coordinate_candidate),
+        "target": target_summary,
         "constructorEvidence": constructor,
         "callBreadcrumbs": call_breadcrumbs,
         "breadcrumbFunctionSummaries": breadcrumb_function_summaries,
+        "breadcrumbGlobalsToSample": breadcrumb_globals_to_sample,
         "liveRootSamples": live_samples,
+        "breadcrumbGlobalSamples": breadcrumb_global_samples,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "safety": safety,
@@ -929,6 +1296,25 @@ def self_test() -> dict[str, Any]:
         tolerance=0.25,
     )
 
+    child_coordinate_hit = classify_global_container_sample(
+        global_rva=0x32DD7E8,
+        global_value=0x40000000,
+        data=b"\x00" * 64,
+        module_base=module_base,
+        module_size=0x500000,
+        reference=reference,
+        coordinate_candidate=0x50000000,
+        child_samples=[
+            {
+                "parentOffset": "0x20",
+                "childPointer": "0x50000000",
+                "nearWorldTriples": [{"offset": "0x0"}],
+                "coordinatePointerHits": [],
+            }
+        ],
+        tolerance=0.25,
+    )
+
     checks = [
         {
             "name": "direct-call-target-rva",
@@ -942,6 +1328,10 @@ def self_test() -> dict[str, Any]:
             "name": "orientation-root-classification",
             "pass": orientation_result["classification"] == "orientation-matrix-root-not-position-root",
         },
+        {
+            "name": "global-container-child-coordinate-lead",
+            "pass": child_coordinate_hit["classification"] == "global-container-child-coordinate-lead",
+        },
     ]
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -951,6 +1341,7 @@ def self_test() -> dict[str, Any]:
         "checks": checks,
         "positionClassification": position_result["classification"],
         "orientationClassification": orientation_result["classification"],
+        "globalContainerClassification": child_coordinate_hit["classification"],
         "safety": {**base_safety(), "offlineOnly": True, "targetMemoryBytesRead": False},
     }
 
@@ -972,11 +1363,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--static-field-matrix-json")
     parser.add_argument("--module-size", default=hex(DEFAULT_MODULE_SIZE))
     parser.add_argument("--root-sample-bytes", default=hex(DEFAULT_ROOT_SAMPLE_BYTES))
+    parser.add_argument("--global-sample-bytes", default=hex(DEFAULT_GLOBAL_SAMPLE_BYTES))
+    parser.add_argument("--child-sample-bytes", default=hex(DEFAULT_CHILD_SAMPLE_BYTES))
     parser.add_argument("--world-tolerance", type=float, default=1.0)
+    parser.add_argument("--coordinate-candidate-address")
     parser.add_argument("--max-call-depth", type=int, default=5)
     parser.add_argument("--max-callers-per-target", type=int, default=8)
     parser.add_argument("--breadcrumb-function-bytes", default=hex(DEFAULT_BREADCRUMB_FUNCTION_BYTES))
     parser.add_argument("--max-function-summaries", type=int, default=20)
+    parser.add_argument("--max-breadcrumb-globals", type=int, default=48)
+    parser.add_argument("--max-child-pointers", type=int, default=24)
     parser.add_argument("--no-function-summaries", action="store_true")
     parser.add_argument("--output-root")
     parser.add_argument("--artifact-only", action="store_true")
@@ -1004,9 +1400,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "verdict": summary.get("verdict"),
                     "summaryJson": safe_mapping(summary.get("artifacts")).get("summaryJson"),
                     "gameEpoch": summary.get("gameEpoch"),
+                    "coordinateCandidateAddress": summary.get("coordinateCandidateAddress"),
                     "candidateGlobalRoots": safe_list(safe_mapping(summary.get("constructorEvidence")).get("candidateGlobalRoots")),
                     "breadcrumbFunctionSummaries": safe_list(summary.get("breadcrumbFunctionSummaries"))[:8],
+                    "breadcrumbGlobalsToSample": safe_list(summary.get("breadcrumbGlobalsToSample"))[:12],
                     "liveRootSamples": summary.get("liveRootSamples"),
+                    "breadcrumbGlobalSamples": safe_list(summary.get("breadcrumbGlobalSamples"))[:12],
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),
                     "next": summary.get("next"),

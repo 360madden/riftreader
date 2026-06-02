@@ -85,6 +85,67 @@ class PostUpdateStaticAccessChainTests(unittest.TestCase):
         self.assertEqual(result["classification"], "orientation-matrix-root-not-position-root")
         self.assertIn("unit-or-matrix-vector-at-promoted-coordinate-offset", result["reasons"])
 
+    def test_collect_breadcrumb_global_rvas_keeps_constructor_then_breadcrumbs(self) -> None:
+        constructor = {
+            "functionRva": "0x3F8B0",
+            "candidateGlobalRoots": [
+                {
+                    "globalRva": "0x335F508",
+                    "rva": "0x3FCFD",
+                    "instruction": "mov qword ptr [rip + 0x331f804], rdi",
+                    "access": "write",
+                }
+            ],
+        }
+        function_summaries = [
+            {
+                "functionRva": "0xC38390",
+                "ripRelativeAccesses": [
+                    {
+                        "globalRva": "0x271E1D0",
+                        "rva": "0xC38391",
+                        "instruction": "lea rax, [rip + 0x26de8f2]",
+                        "access": "read",
+                    },
+                    {
+                        "globalRva": "0x32DD7E8",
+                        "rva": "0xC383AA",
+                        "instruction": "mov rax, qword ptr [rip + 0x2699441]",
+                        "access": "read",
+                    }
+                ],
+            }
+        ]
+
+        rows = helper.collect_breadcrumb_global_rvas(constructor, function_summaries, max_globals=8)
+
+        self.assertEqual([row["globalRva"] for row in rows], ["0x335F508", "0x32DD7E8"])
+        self.assertEqual(rows[0]["source"], "constructor-candidate-global-root")
+        self.assertEqual(rows[1]["source"], "breadcrumb-rip-relative-access")
+
+    def test_global_container_classifier_surfaces_child_coordinate_lead(self) -> None:
+        result = helper.classify_global_container_sample(
+            global_rva=0x32DD7E8,
+            global_value=0x1D4D0BFC020,
+            data=b"\x00" * 128,
+            module_base=0x7FF700000000,
+            module_size=0x4000000,
+            reference={"x": 7256.0, "y": 821.0, "z": 2990.0},
+            coordinate_candidate=0x1D4BA11BE00,
+            child_samples=[
+                {
+                    "parentOffset": "0x48",
+                    "childPointer": "0x1D4BA11BE00",
+                    "nearWorldTriples": [{"offset": "0x0"}],
+                    "coordinatePointerHits": [],
+                }
+            ],
+            tolerance=1.0,
+        )
+
+        self.assertEqual(result["classification"], "global-container-child-coordinate-lead")
+        self.assertFalse(result["promotionEligible"])
+
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")
 

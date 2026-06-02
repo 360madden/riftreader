@@ -87,6 +87,25 @@ def latest_path(capture_root: Path, pattern: str) -> Path | None:
     return max(matches, key=lambda path: path.stat().st_mtime)
 
 
+def latest_static_access_chain_path(capture_root: Path) -> Path | None:
+    matches = [path for path in capture_root.glob("postupdate-static-access-chain-*/summary.json") if path.is_file()]
+    if not matches:
+        return None
+
+    def score(path: Path) -> tuple[int, float]:
+        try:
+            packet = load_json_object(path) or {}
+        except (OSError, ValueError, json.JSONDecodeError):
+            packet = {}
+        safety = safe_mapping(packet.get("safety"))
+        has_live_evidence = bool(safety.get("targetMemoryBytesRead")) or bool(safe_list(packet.get("liveRootSamples"))) or bool(
+            safe_list(packet.get("breadcrumbGlobalSamples"))
+        )
+        return (1 if has_live_evidence else 0, path.stat().st_mtime)
+
+    return max(matches, key=score)
+
+
 def latest_artifact_paths(repo_root: Path) -> dict[str, str | None]:
     capture_root = repo_root / "scripts" / "captures"
     patterns = {
@@ -98,12 +117,15 @@ def latest_artifact_paths(repo_root: Path) -> dict[str, str | None]:
         "ownerBatch": "pointer-owner-batch-currentpid-*/summary.json",
         "rootSignatureSeed": "postupdate-root-signature-seed-currentpid-*/root-signature-seed.json",
         "rootSignatureBatch": "root-signature-batch-sweep-currentpid-*/summary.json",
-        "staticAccessChain": "postupdate-static-access-chain-*/summary.json",
+        "globalContainerReadback": "postupdate-global-container-coordinate-readback-*/summary.json",
     }
-    return {
+    latest = {
         key: str(path.resolve()) if (path := latest_path(capture_root, pattern)) else None
         for key, pattern in patterns.items()
     }
+    static_access_chain = latest_static_access_chain_path(capture_root)
+    latest["staticAccessChain"] = str(static_access_chain.resolve()) if static_access_chain else None
+    return latest
 
 
 def file_mtime_utc(path: Path) -> str | None:
@@ -558,8 +580,13 @@ def summarize_static_access_chain(packet: Mapping[str, Any]) -> dict[str, Any]:
     constructor = safe_mapping(packet.get("constructorEvidence"))
     roots = [safe_mapping(item) for item in safe_list(constructor.get("candidateGlobalRoots"))]
     samples = [safe_mapping(item) for item in safe_list(packet.get("liveRootSamples"))]
+    breadcrumb_globals = [safe_mapping(item) for item in safe_list(packet.get("breadcrumbGlobalSamples"))]
     breadcrumbs = [safe_mapping(item) for item in safe_list(packet.get("callBreadcrumbs"))]
     classifications = sorted({str(item.get("classification")) for item in samples if item.get("classification")})
+    breadcrumb_classifications = sorted(
+        {str(item.get("classification")) for item in breadcrumb_globals if item.get("classification")}
+    )
+    safety = safe_mapping(packet.get("safety"))
     return {
         "status": packet.get("status"),
         "verdict": packet.get("verdict"),
@@ -571,8 +598,39 @@ def summarize_static_access_chain(packet: Mapping[str, Any]) -> dict[str, Any]:
         "candidateGlobalRoots": roots[:8],
         "liveRootClassifications": classifications,
         "liveRootSamples": samples[:8],
+        "breadcrumbGlobalClassifications": breadcrumb_classifications,
+        "breadcrumbGlobalSampleCount": len(breadcrumb_globals),
+        "breadcrumbGlobalSamples": breadcrumb_globals[:8],
+        "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
         "callBreadcrumbDepth": len(breadcrumbs),
         "topCallBreadcrumbs": breadcrumbs[:6],
+        "candidateOnly": True,
+        "promotionEligible": False,
+    }
+
+
+def summarize_global_container_readback(packet: Mapping[str, Any]) -> dict[str, Any]:
+    best = safe_mapping(packet.get("bestReadback"))
+    polling = safe_mapping(packet.get("polling"))
+    safety = safe_mapping(packet.get("safety"))
+    return {
+        "status": packet.get("status"),
+        "verdict": packet.get("verdict"),
+        "path": safe_mapping(packet.get("artifacts")).get("summaryJson"),
+        "generatedAtUtc": packet.get("generatedAtUtc"),
+        "bestChain": best.get("chain"),
+        "bestClassification": best.get("classification"),
+        "bestCoordinate": best.get("coordinate"),
+        "bestMaxAbsDelta": safe_mapping(best.get("deltaVsReference")).get("maxAbsDelta"),
+        "polling": {
+            "requestedSampleCount": polling.get("requestedSampleCount"),
+            "sampleCount": polling.get("sampleCount"),
+            "bestMatchingSampleCount": polling.get("bestMatchingSampleCount"),
+            "allSamplesMatchedReference": polling.get("allSamplesMatchedReference"),
+            "stationaryDriftWithinLimit": polling.get("stationaryDriftWithinLimit"),
+            "bestCoordinateDrift": polling.get("bestCoordinateDrift"),
+        },
+        "targetMemoryBytesRead": bool(safety.get("targetMemoryBytesRead")),
         "candidateOnly": True,
         "promotionEligible": False,
     }
@@ -765,7 +823,9 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                 f"- Verdict: `{static_chain.get('verdict')}`",
                 f"- Function RVA: `{static_chain.get('functionRva')}`",
                 f"- Field writes: `{static_chain.get('fieldWriteCount')}`",
+                f"- Target memory read: `{str(bool(static_chain.get('targetMemoryBytesRead'))).lower()}`",
                 f"- Live root classifications: `{', '.join(safe_list(static_chain.get('liveRootClassifications')))}`",
+                f"- Breadcrumb global classifications: `{', '.join(safe_list(static_chain.get('breadcrumbGlobalClassifications')))}`",
                 "",
                 "| Root RVA | Instruction | Classification |",
                 "|---|---|---|",
@@ -779,6 +839,29 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             item = safe_mapping(row)
             sample = samples_by_root.get(str(item.get("globalRva")), {})
             lines.append(f"| `{item.get('globalRva')}` | `{item.get('instruction')}` | `{sample.get('classification')}` |")
+        breadcrumb_global_samples = [safe_mapping(item) for item in safe_list(static_chain.get("breadcrumbGlobalSamples"))]
+        if breadcrumb_global_samples:
+            lines.extend(["", "| Breadcrumb global RVA | Source function | Classification |", "|---|---|---|"])
+            for row in breadcrumb_global_samples[:8]:
+                lines.append(
+                    f"| `{row.get('globalRva')}` | `{row.get('sourceFunctionRva')}` | `{row.get('classification')}` |"
+                )
+    global_container = safe_mapping(summary.get("globalContainerReadback"))
+    if global_container:
+        polling = safe_mapping(global_container.get("polling"))
+        lines.extend(
+            [
+                "",
+                "## Global-container coordinate readback",
+                "",
+                f"- Verdict: `{global_container.get('verdict')}`",
+                f"- Best chain: `{global_container.get('bestChain')}`",
+                f"- Best classification: `{global_container.get('bestClassification')}`",
+                f"- Best max abs delta: `{global_container.get('bestMaxAbsDelta')}`",
+                f"- Polling samples: `{polling.get('bestMatchingSampleCount')}/{polling.get('sampleCount')}`",
+                f"- Stationary drift within limit: `{polling.get('stationaryDriftWithinLimit')}`",
+            ]
+        )
     lines.extend(["", "## Blockers"])
     for blocker in safe_list(summary.get("blockers")):
         lines.append(f"- `{blocker}`")
@@ -806,6 +889,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     static_access_chain_path = resolve_path(repo_root, args.static_access_chain_json) or (
         Path(latest["staticAccessChain"]) if latest["staticAccessChain"] else None
     )
+    global_container_readback_path = Path(latest["globalContainerReadback"]) if latest["globalContainerReadback"] else None
 
     candidate_readback = load_json_object(candidate_path) or {}
     static_readback = load_json_object(static_readback_path) or {}
@@ -822,6 +906,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root_signature_seed = load_json_object(root_signature_seed_path) or {}
     root_signature_batch = load_json_object(root_signature_batch_path) or {}
     static_access_chain = load_json_object(static_access_chain_path) or {}
+    global_container_readback = load_json_object(global_container_readback_path) or {}
 
     candidate_address = parse_int(args.candidate_address) or candidate_address_from_readback(candidate_readback)
     reference = reference_from_readback(candidate_readback)
@@ -918,11 +1003,16 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root_signature_seed_summary = summarize_root_signature_seed(root_signature_seed)
     root_signature_batch_summary = summarize_root_signature_batch(root_signature_batch)
     static_access_chain_summary = summarize_static_access_chain(static_access_chain)
+    global_container_readback_summary = summarize_global_container_readback(global_container_readback)
     ghidra_summary = safe_mapping(ghidra_static.get("evidenceSummary"))
     if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
         blockers.append("root-signature-sweeps-found-no-parent-root-candidate")
     if "orientation-matrix-root-not-position-root" in safe_list(static_access_chain_summary.get("liveRootClassifications")):
         warnings.append("static-access-chain-root-orientation-only-not-position")
+    if not static_access_chain_summary.get("targetMemoryBytesRead") and static_access_chain_summary.get("path"):
+        warnings.append("static-access-chain-packet-has-no-live-memory-evidence")
+    if global_container_readback_summary.get("status") == "candidate":
+        warnings.append("global-container-coordinate-readback-candidate-only-not-promoted")
 
     status = "blocked" if blockers else "candidate"
     verdict = (
@@ -989,6 +1079,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "rootSignatureSeed": str(root_signature_seed_path.resolve()) if root_signature_seed_path else None,
             "rootSignatureBatch": str(root_signature_batch_path.resolve()) if root_signature_batch_path else None,
             "staticAccessChain": str(static_access_chain_path.resolve()) if static_access_chain_path else None,
+            "globalContainerReadback": str(global_container_readback_path.resolve()) if global_container_readback_path else None,
         },
         "coordinateCandidate": {
             "addressHex": hex_int(candidate_address),
@@ -1012,6 +1103,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "rootSignatureSeed": root_signature_seed_summary,
         "rootSignatureBatch": root_signature_batch_summary,
         "staticAccessChain": static_access_chain_summary,
+        "globalContainerReadback": global_container_readback_summary,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "safety": safety,
@@ -1184,6 +1276,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "ownerBatchModuleRvaHints": safe_list(safe_mapping(summary.get("ownerBatch")).get("moduleRvaHints"))[:5],
                     "rootSignatureBatch": summary.get("rootSignatureBatch"),
                     "staticAccessChain": summary.get("staticAccessChain"),
+                    "globalContainerReadback": summary.get("globalContainerReadback"),
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),
                 },
