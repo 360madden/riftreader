@@ -44,6 +44,7 @@ DEFAULT_BINARY_CANDIDATES = (
 )
 DEFAULT_FUNCTION_RVA = 0x3F8B0
 DEFAULT_FUNCTION_BYTES = 0x700
+DEFAULT_BREADCRUMB_FUNCTION_BYTES = 0x180
 DEFAULT_ROOT_SAMPLE_BYTES = 0x930
 DEFAULT_MODULE_SIZE = rediscovery.DEFAULT_MODULE_SIZE
 WORLD_SCAN_STRIDE = 4
@@ -220,6 +221,20 @@ def build_call_breadcrumbs(
     return breadcrumbs
 
 
+def capstone_memory_access_label(access_bits: int) -> str:
+    try:
+        from capstone import CS_AC_READ, CS_AC_WRITE
+    except ImportError:  # pragma: no cover - caller imports capstone first.
+        return "unknown"
+    if access_bits & CS_AC_WRITE and access_bits & CS_AC_READ:
+        return "read-write"
+    if access_bits & CS_AC_WRITE:
+        return "write"
+    if access_bits & CS_AC_READ:
+        return "read"
+    return "unknown"
+
+
 def disassemble_constructor(
     *,
     image_base: int,
@@ -230,7 +245,6 @@ def disassemble_constructor(
 ) -> dict[str, Any]:
     try:
         import capstone
-        from capstone import CS_AC_READ, CS_AC_WRITE
         from capstone.x86_const import X86_OP_IMM, X86_OP_MEM, X86_OP_REG, X86_REG_RIP
     except ImportError as exc:  # pragma: no cover - environment-specific.
         return {"status": "blocked", "blockers": [f"dependency-missing:{exc.name}"]}
@@ -283,14 +297,8 @@ def disassemble_constructor(
                 )
             if mem.base == X86_REG_RIP:
                 global_rva = rva + int(insn.size) + displacement
-                access_bits = int(getattr(operands[0], "access", 0) or 0)
-                if access_bits & CS_AC_WRITE and access_bits & CS_AC_READ:
-                    access = "read-write"
-                elif access_bits & CS_AC_WRITE:
-                    access = "write"
-                elif access_bits & CS_AC_READ:
-                    access = "read"
-                else:
+                access = capstone_memory_access_label(int(getattr(operands[0], "access", 0) or 0))
+                if access == "unknown":
                     # Capstone does not always mark destination access for all
                     # encodings.  Keep this explicit instead of guessing read.
                     access = "unknown-destination"
@@ -342,6 +350,110 @@ def disassemble_constructor(
         "vtableStores": vtable_stores,
         "candidateOnly": True,
         "promotionEligible": False,
+    }
+
+
+def unique_breadcrumb_function_rvas(call_breadcrumbs: Sequence[Mapping[str, Any]], *, limit: int) -> list[int]:
+    values: list[int] = []
+    seen: set[int] = set()
+    for crumb in call_breadcrumbs:
+        target = parse_int(safe_mapping(crumb).get("targetRva"))
+        if target is not None and target not in seen:
+            seen.add(target)
+            values.append(target)
+        for caller in safe_list(safe_mapping(crumb).get("directCallSites")):
+            function_rva = parse_int(safe_mapping(caller).get("containingFunctionStartRva"))
+            if function_rva is not None and function_rva not in seen:
+                seen.add(function_rva)
+                values.append(function_rva)
+        if len(values) >= limit:
+            break
+    return values[:limit]
+
+
+def summarize_function_window(
+    *,
+    image_base: int,
+    sections: Sequence[SectionBlob],
+    function_rva: int,
+    function_bytes: int,
+    max_rows: int = 48,
+) -> dict[str, Any]:
+    """Summarize one breadcrumb function without requiring Ghidra."""
+
+    try:
+        import capstone
+        from capstone.x86_const import X86_OP_IMM, X86_OP_MEM, X86_OP_REG, X86_REG_RIP
+    except ImportError as exc:  # pragma: no cover - environment-specific.
+        return {"status": "blocked", "functionRva": hex_int(function_rva), "blockers": [f"dependency-missing:{exc.name}"]}
+
+    data = read_section_bytes(sections, function_rva, function_bytes)
+    if not data:
+        return {"status": "blocked", "functionRva": hex_int(function_rva), "blockers": ["function-rva-not-in-executable-section"]}
+
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+    md.detail = True
+    this_registers = {"rcx"}
+    rip_accesses: list[dict[str, Any]] = []
+    this_field_accesses: list[dict[str, Any]] = []
+    direct_calls: list[dict[str, Any]] = []
+    instruction_count = 0
+
+    for insn in md.disasm(data, image_base + function_rva):
+        rva = int(insn.address) - image_base
+        if rva != function_rva and str(insn.mnemonic).lower() == "int3":
+            break
+        instruction_count += 1
+        mnemonic = str(insn.mnemonic).lower()
+        operands = list(insn.operands)
+        instruction = f"{insn.mnemonic} {insn.op_str}".strip()
+
+        if mnemonic == "mov" and len(operands) == 2 and operands[0].type == X86_OP_REG and operands[1].type == X86_OP_REG:
+            dst = insn.reg_name(operands[0].reg).lower()
+            src = insn.reg_name(operands[1].reg).lower()
+            if src in this_registers:
+                this_registers.add(dst)
+
+        if mnemonic == "call" and operands and operands[0].type == X86_OP_IMM and len(direct_calls) < max_rows:
+            direct_calls.append({"rva": hex_int(rva), "targetRva": hex_int(int(operands[0].imm) - image_base), "instruction": instruction})
+
+        for index, operand in enumerate(operands):
+            if operand.type != X86_OP_MEM:
+                continue
+            access = capstone_memory_access_label(int(getattr(operand, "access", 0) or 0))
+            mem = operand.mem
+            base_reg = insn.reg_name(mem.base).lower() if mem.base else ""
+            displacement = int(mem.disp)
+            if mem.base == X86_REG_RIP and len(rip_accesses) < max_rows:
+                rip_accesses.append(
+                    {
+                        "rva": hex_int(rva),
+                        "globalRva": hex_int(rva + int(insn.size) + displacement),
+                        "access": access,
+                        "operandIndex": index,
+                        "instruction": instruction,
+                    }
+                )
+            elif base_reg in this_registers and displacement and len(this_field_accesses) < max_rows:
+                this_field_accesses.append(
+                    {
+                        "rva": hex_int(rva),
+                        "offset": hex_int(displacement),
+                        "baseReg": base_reg,
+                        "access": access,
+                        "instruction": instruction,
+                    }
+                )
+
+    return {
+        "status": "passed",
+        "functionRva": hex_int(function_rva),
+        "instructionCount": instruction_count,
+        "thisRegisters": sorted(this_registers),
+        "ripRelativeAccesses": rip_accesses,
+        "thisFieldAccesses": this_field_accesses,
+        "directCalls": direct_calls,
+        "candidateOnly": True,
     }
 
 
@@ -577,6 +689,29 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             for caller in safe_list(item.get("directCallSites"))
         )
         lines.append(f"| `{item.get('depth')}` | `{item.get('targetRva')}` | `{callers}` |")
+    function_summaries = [safe_mapping(item) for item in safe_list(summary.get("breadcrumbFunctionSummaries"))]
+    if function_summaries:
+        lines.extend(
+            [
+                "",
+                "## Breadcrumb function RIP-relative globals",
+                "",
+                "| Function RVA | Global RVA | Access | Instruction |",
+                "|---|---|---|---|",
+            ]
+        )
+        row_count = 0
+        for function in function_summaries:
+            for access in safe_list(function.get("ripRelativeAccesses")):
+                item = safe_mapping(access)
+                lines.append(
+                    f"| `{function.get('functionRva')}` | `{item.get('globalRva')}` | `{item.get('access')}` | `{item.get('instruction')}` |"
+                )
+                row_count += 1
+                if row_count >= 20:
+                    break
+            if row_count >= 20:
+                break
     lines.extend(["", "## Blockers"])
     for blocker in safe_list(summary.get("blockers")):
         lines.append(f"- `{blocker}`")
@@ -643,6 +778,17 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         if not blockers
         else []
     )
+    breadcrumb_function_summaries = []
+    if not args.no_function_summaries and call_breadcrumbs and not blockers:
+        breadcrumb_function_summaries = [
+            summarize_function_window(
+                image_base=image_base,
+                sections=sections,
+                function_rva=function_rva,
+                function_bytes=int(args.breadcrumb_function_bytes, 0),
+            )
+            for function_rva in unique_breadcrumb_function_rvas(call_breadcrumbs, limit=int(args.max_function_summaries))
+        ]
 
     candidate_readback = load_json_object(candidate_path)
     static_readback = load_json_object(static_readback_path)
@@ -726,6 +872,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "target": live_target if live_target.get("liveRootRead") else target,
         "constructorEvidence": constructor,
         "callBreadcrumbs": call_breadcrumbs,
+        "breadcrumbFunctionSummaries": breadcrumb_function_summaries,
         "liveRootSamples": live_samples,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
@@ -828,6 +975,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-tolerance", type=float, default=1.0)
     parser.add_argument("--max-call-depth", type=int, default=5)
     parser.add_argument("--max-callers-per-target", type=int, default=8)
+    parser.add_argument("--breadcrumb-function-bytes", default=hex(DEFAULT_BREADCRUMB_FUNCTION_BYTES))
+    parser.add_argument("--max-function-summaries", type=int, default=20)
+    parser.add_argument("--no-function-summaries", action="store_true")
     parser.add_argument("--output-root")
     parser.add_argument("--artifact-only", action="store_true")
     parser.add_argument("--self-test", action="store_true")
@@ -855,6 +1005,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "summaryJson": safe_mapping(summary.get("artifacts")).get("summaryJson"),
                     "gameEpoch": summary.get("gameEpoch"),
                     "candidateGlobalRoots": safe_list(safe_mapping(summary.get("constructorEvidence")).get("candidateGlobalRoots")),
+                    "breadcrumbFunctionSummaries": safe_list(summary.get("breadcrumbFunctionSummaries"))[:8],
                     "liveRootSamples": summary.get("liveRootSamples"),
                     "blockers": summary.get("blockers"),
                     "warnings": summary.get("warnings"),

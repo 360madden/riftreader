@@ -53,7 +53,7 @@ candidate-only and not movement proof.
 | Root-signature batch sweep | Negative: three module-RVA sweeps reconfirmed heap/ref-storage evidence but found no high-signal parent/root candidate | `scripts/captures/root-signature-batch-sweep-currentpid-77152-20260602-183920-580940/summary.json` |
 | Root-family classifiers | Negative/weak: priority parent leads are low-score heap-like or string/asset-heavy; no promotion candidates | `scripts/captures/root-signature-family-classifier-20260602-185009-448441/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-419098/summary.json`, `scripts/captures/root-signature-family-classifier-20260602-185009-432017/summary.json` |
 | Priority lead pointer-family follow-ups | Negative: bounded scans over exported classifier leads found `0` module/RIFT-module hits; largest scan hit the 32-target cap | `scripts/captures/pointer-family-scan-20260602-185045-917536/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-954296/summary.json`, `scripts/captures/pointer-family-scan-20260602-185045-985913/summary.json` |
-| Static access-chain packet | Positive for updated constructor/global evidence, negative for position root: constructor `0x3F8B0` writes the same owner-layout field cluster and stores `rdi` to `rift_x64+0x335F508`; current readback points to `0x1D4BA2A6230`, but `+0x320` is unit/matrix-like and no world-coordinate triple matches the API coordinate | `scripts/postupdate_static_access_chain.py`; `scripts/captures/postupdate-static-access-chain-20260602-192813-246844/summary.json` |
+| Static access-chain packet | Positive for updated constructor/global evidence, negative for position root: constructor `0x3F8B0` writes the same owner-layout field cluster and stores `rdi` to `rift_x64+0x335F508`; current readback points to `0x1D4BA2A6230`, but `+0x320` is unit/matrix-like and no world-coordinate triple matches the API coordinate | `scripts/postupdate_static_access_chain.py`; `scripts/captures/postupdate-static-access-chain-20260602-194135-824662/summary.json` |
 
 ## Recovery methods examined
 
@@ -114,9 +114,11 @@ Static/access-chain tracing has now produced one durable new anchor:
 
 The direct call breadcrumbs from that constructor are:
 
-`0x3F8B0 <- 0x39CD0 <- 0x13D2D80 <- 0x13CA1F0 <- 0x13B7DE0 <- 0x13A37D0 <- {0x13AFAD0, 0x13B5E00}`
+`0x3F8B0 <- 0x39CD0 <- 0x13D2D80 <- 0x13CA1F0 <- 0x13B7DE0 <- 0x13A37D0 <- {0x13AFAD0, 0x13B5E00} <- 0x1392E10 <- 0x6A7890 <- {0xC38390, 0xF75D90}`
 
-The next safe lane is no longer another repeat root-signature sweep. Continue offline caller-chain/static container tracing above `0x13A37D0`, `0x13AFAD0`, and `0x13B5E00`, plus a fresh non-repeating current-PID family/container scan to find the higher-level object that owns the current world-coordinate copy.
+The packet now also records breadcrumb-function RIP-relative globals and field accesses. The `0xC38390` function touches `rift_x64+0x32DD7E8`, making it a follow-up static/container scan target. This is not a promoted root and is not yet position proof.
+
+The next safe lane is no longer another repeat root-signature sweep. Continue offline caller-chain/static container tracing above `0x1392E10`, `0x6A7890`, `0xC38390`, and `0xF75D90`, plus a fresh non-repeating current-PID family/container scan to find the higher-level object that owns the current world-coordinate copy.
 
 Success criteria:
 
@@ -147,7 +149,7 @@ Do not run until movement approval is explicit.
 |---:|---|---|
 | 1 | Fast current-PID reacquire + candidate readback | Already produced current coordinate truth seed with low risk. |
 | 2 | Fresh offline Ghidra/static matrix/access-chain packet | Needed because binary changed and old static root is null; already found `rift_x64+0x335F508` as an orientation/static-layout anchor, not position. |
-| 3 | Higher-level owner/container tracing above `0x13A37D0` and fresh non-repeating current-PID scans | Direct candidate is useful as a coordinate seed, but initial owner-layout hypothesis failed and `0x335F508` is not a position root. |
+| 3 | Higher-level owner/container tracing above `0x1392E10` / `0x6A7890` and fresh non-repeating current-PID scans | Direct candidate is useful as a coordinate seed, but initial owner-layout hypothesis failed and `0x335F508` is not a position root. |
 | 4 | Controlled displacement proof | Required for promotion but gated by movement approval. |
 | 5 | Truth refresh/navigation consumer rebuild | Only after proof, otherwise it spreads stale/candidate truth. |
 | 6 | ChromaLink repair | Useful for speed/freshness, but not required because RRAPICOORD fallback works. |
@@ -174,7 +176,7 @@ python scripts\current_pid_candidate_readback.py --pid 77152 --hwnd 0x17A0DB2 --
 python scripts\postupdate_static_access_chain.py --json
 ```
 
-Next safe no-input implementation work is higher-level static container tracing above `0x13A37D0` / `0x13AFAD0` / `0x13B5E00`, plus any fresh non-repeating current-PID family/container scan. The candidate-neighborhood module-RVA sweep lane has current negative evidence and should not be repeated blindly. Keep `rift_x64+0x335F508` available as an orientation/facing anchor candidate, but do not treat it as position or current truth.
+Next safe no-input implementation work is higher-level static container tracing above `0x1392E10` / `0x6A7890` / `0xC38390` / `0xF75D90`, plus any fresh non-repeating current-PID family/container scan. The candidate-neighborhood module-RVA sweep lane has current negative evidence and should not be repeated blindly. Keep `rift_x64+0x335F508` available as an orientation/facing anchor candidate, but do not treat it as position or current truth.
 
 Gated sequence after explicit approval:
 

@@ -30,6 +30,22 @@ class PostUpdateStaticAccessChainTests(unittest.TestCase):
 
         self.assertEqual(start, 0x1000 + 10)
 
+    def test_unique_breadcrumb_function_rvas_keeps_targets_and_callers(self) -> None:
+        breadcrumbs = [
+            {
+                "targetRva": "0x3F8B0",
+                "directCallSites": [{"containingFunctionStartRva": "0x39CD0"}],
+            },
+            {
+                "targetRva": "0x39CD0",
+                "directCallSites": [{"containingFunctionStartRva": "0x13D2D80"}],
+            },
+        ]
+
+        values = helper.unique_breadcrumb_function_rvas(breadcrumbs, limit=8)
+
+        self.assertEqual(values, [0x3F8B0, 0x39CD0, 0x13D2D80])
+
     def test_root_sample_classifier_detects_position_candidate(self) -> None:
         module_base = 0x700000000000
         data = bytearray(helper.DEFAULT_ROOT_SAMPLE_BYTES)
