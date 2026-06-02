@@ -13,6 +13,7 @@ consume RiftReader navigation artifacts.
 | `navigation-consumer-demo.schema.json` | `riftreader-navigation-consumer-demo` | Downstream consumer readiness report over saved navigation artifacts. |
 | `navigation-consumer-refresh.schema.json` | `riftreader-navigation-consumer-refresh` | No-input pose refresh plus downstream consumer demo rerun. |
 | `navigation-route-preview.schema.json` | `riftreader-navigation-route-preview` | Saved-artifact route preview for map/UI consumers. |
+| `navigation-downstream-package.schema.json` | `riftreader-navigation-downstream-package` | One-command refresh + preview + schema-validation bundle. |
 
 Use the repo validator:
 

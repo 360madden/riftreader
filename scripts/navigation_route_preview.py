@@ -504,6 +504,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "activeLegInitialYawDeltaDegrees": active_leg.get("initialYawDeltaDegrees"),
         "activeLegSuggestedInitialTurnDirection": active_leg.get("suggestedInitialTurnDirection"),
         "canRenderRoutePreview": caps.get("canRenderRoutePreview"),
+        "canUseRoutePreview": caps.get("canUseRoutePreview"),
         "canQueueGatedLiveRunRequest": caps.get("canQueueGatedLiveRunRequest"),
         "canExecuteLiveNavigation": caps.get("canExecuteLiveNavigation"),
         "summaryJson": artifacts.get("summaryJson"),

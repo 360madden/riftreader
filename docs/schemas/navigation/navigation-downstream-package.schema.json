@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-downstream-package.schema.json",
+  "title": "RiftReader navigation downstream package",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "consumerRefresh",
+    "routePreview",
+    "schemaValidations",
+    "capabilities",
+    "childCommands",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-downstream-package" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": [
+        "currentTruthJson",
+        "consumerStateOutputDir",
+        "waypointReadinessJson",
+        "normalizedWaypointsJson",
+        "maxConsumerStateAgeSeconds",
+        "alignmentThresholdDegrees",
+        "requireFreshPose"
+      ],
+      "properties": {
+        "currentTruthJson": { "type": ["string", "null"] },
+        "consumerStateOutputDir": { "type": ["string", "null"] },
+        "waypointReadinessJson": { "type": ["string", "null"] },
+        "normalizedWaypointsJson": { "type": ["string", "null"] },
+        "maxConsumerStateAgeSeconds": { "type": "number", "minimum": 0 },
+        "alignmentThresholdDegrees": { "type": "number", "minimum": 0, "maximum": 180 },
+        "requireFreshPose": { "type": "boolean" }
+      }
+    },
+    "consumerRefresh": {
+      "type": "object",
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] },
+        "consumerStateSummaryJson": { "type": ["string", "null"] },
+        "consumerDemoSummaryJson": { "type": ["string", "null"] },
+        "canRenderRoute": { "type": ["boolean", "null"] },
+        "canUseDryRunContract": { "type": ["boolean", "null"] },
+        "canQueueGatedLiveRunRequest": { "type": ["boolean", "null"] },
+        "canExecuteLiveNavigation": { "const": false },
+        "exitCode": { "type": ["number", "null"] }
+      }
+    },
+    "routePreview": {
+      "type": "object",
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] },
+        "waypointCount": { "type": ["number", "null"], "minimum": 0 },
+        "legCount": { "type": ["number", "null"], "minimum": 0 },
+        "routeComplete": { "type": ["boolean", "null"] },
+        "nextWaypointId": { "type": ["string", "null"] },
+        "activeLegPlanarDistance": { "type": ["number", "null"], "minimum": 0 },
+        "activeLegBearingDegrees": { "type": ["number", "null"] },
+        "activeLegInitialYawDeltaDegrees": { "type": ["number", "null"] },
+        "activeLegSuggestedInitialTurnDirection": {
+          "type": ["string", "null"],
+          "enum": ["arrived", "aligned", "left", "right", null]
+        },
+        "canRenderRoutePreview": { "type": ["boolean", "null"] },
+        "canUseRoutePreview": { "type": ["boolean", "null"] },
+        "canQueueGatedLiveRunRequest": { "type": ["boolean", "null"] },
+        "canExecuteLiveNavigation": { "const": false },
+        "exitCode": { "type": ["number", "null"] }
+      }
+    },
+    "schemaValidations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "status", "inputJson", "schemaKey", "validationStatus", "validationErrorCount", "exitCode"],
+        "properties": {
+          "label": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "inputJson": { "type": ["string", "null"] },
+          "inputKind": { "type": ["string", "null"] },
+          "schemaKey": { "type": ["string", "null"] },
+          "validationStatus": { "type": ["string", "null"] },
+          "validationErrorCount": { "type": ["number", "null"], "minimum": 0 },
+          "summaryJson": { "type": ["string", "null"] },
+          "summaryMarkdown": { "type": ["string", "null"] },
+          "exitCode": { "type": ["number", "null"] },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "errors": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "canRenderRoute",
+        "canUseDryRunContract",
+        "canRenderRoutePreview",
+        "canUseRoutePreview",
+        "canQueueGatedLiveRunRequest",
+        "canExecuteLiveNavigation",
+        "liveExecutionRequiresExplicitApproval",
+        "recommendedMode",
+        "nextRecommendedAction"
+      ],
+      "properties": {
+        "canRenderRoute": { "type": "boolean" },
+        "canUseDryRunContract": { "type": "boolean" },
+        "canRenderRoutePreview": { "type": "boolean" },
+        "canUseRoutePreview": { "type": "boolean" },
+        "canQueueGatedLiveRunRequest": { "type": "boolean" },
+        "canExecuteLiveNavigation": { "const": false },
+        "liveExecutionRequiresExplicitApproval": { "const": true },
+        "recommendedMode": { "type": "string" },
+        "nextRecommendedAction": { "type": "string" }
+      }
+    },
+    "childCommands": { "type": "array" },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "type": "boolean" },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "downstreamPackageOnly": { "const": true },
+        "routeControlAuthorized": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

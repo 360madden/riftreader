@@ -2,6 +2,35 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation downstream package — 2026-06-02 08:35 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0835-navigation-downstream-package-handoff.md`.
+
+RiftReader now has a one-command downstream navigation package workflow. It
+refreshes consumer pose, reruns the downstream consumer demo, builds the route
+preview, and validates all package artifacts so another local project can fetch
+one durable machine-readable bundle.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_downstream_package.py`; launcher `scripts\riftreader-navigation-downstream-package.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-downstream-package.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Tool catalog | `navigation-downstream-package` is canonical, safe-read-only, and in the recommended workflow; tool count is now `49`. |
+| Package smoke | `scripts\riftreader-navigation-downstream-package.cmd --waypoint-readiness-json scripts\captures\navigation-waypoint-readiness-20260602-071111-256714\summary.json --json` passed with `canRenderRoute=true`, `canUseDryRunContract=true`, `canRenderRoutePreview=true`, `canQueueGatedLiveRunRequest=true`, and `canExecuteLiveNavigation=false`. |
+| Schema smoke | `scripts\captures\navigation-downstream-package-20260602-083424-354068\summary.json` passed `navigation-downstream-package` schema validation with `validationErrorCount=0`. |
+
+Safety: the package may read live target memory through the consumer refresh
+step, but it sends no input or movement, performs no target memory write, no
+`/reloadui`, no screenshot key, no debugger/CE attach, no provider write, no
+proof/actor/facing/turn-rate promotion, and no route control. Live execution
+remains explicitly gated.
+
+Current next action: add a gated live-run request schema and saved request
+artifact so downstream consumers can express an intended route execution request
+without invoking live movement. The actual route runner should continue to
+require explicit live approval before execution.
+
 ## Latest compact handoff — navigation route preview — 2026-06-02 08:22 UTC
 
 A new compact handoff exists at

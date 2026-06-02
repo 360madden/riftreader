@@ -135,6 +135,20 @@ needed before queueing a gated live-run request. For map/UI preview only, pass
 `--max-consumer-state-age-seconds <seconds>` when a wider freshness budget is
 acceptable; live execution remains separately gated either way.
 
+### Build one-command downstream navigation package
+```powershell
+scripts\riftreader-navigation-downstream-package.cmd `
+  --waypoint-readiness-json <readiness-summary.json> `
+  --json
+```
+
+This safe bundle runs consumer pose refresh, downstream consumer demo, route
+preview, and schema validation for the package artifacts. It is the preferred
+entry point for another local project that wants one machine-readable package
+instead of coordinating multiple summaries. It may read target memory through
+the consumer refresh step, but it sends no input/movement and still does not
+authorize live route execution.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `
