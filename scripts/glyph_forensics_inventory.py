@@ -1229,6 +1229,84 @@ def log_timeline(paths: Sequence[Path], *, max_events: int) -> dict[str, Any]:
     }
 
 
+def selection_server_summary(timeline: Mapping[str, Any]) -> dict[str, Any]:
+    events = timeline.get("latestEvents") if isinstance(timeline.get("latestEvents"), list) else []
+    endpoint_re = re.compile(r"\b(?P<host>\d{1,3}(?:\.\d{1,3}){3}):(?P<port>\d{1,5})\b")
+    selection_events: list[dict[str, Any]] = []
+    endpoints: dict[str, dict[str, Any]] = {}
+    failures = 0
+    successes = 0
+    for event in events:
+        if not isinstance(event, Mapping):
+            continue
+        message = str(event.get("message") or "")
+        lower = message.lower()
+        if "selection server" not in lower and "character selection" not in lower:
+            continue
+        matches = [f"{match.group('host')}:{match.group('port')}" for match in endpoint_re.finditer(message)]
+        failed = "failed" in lower
+        success = "connected" in lower and not failed
+        failures += 1 if failed else 0
+        successes += 1 if success else 0
+        for endpoint in matches:
+            bucket = endpoints.setdefault(endpoint, {"endpoint": endpoint, "count": 0, "failedCount": 0})
+            bucket["count"] = int(bucket["count"]) + 1
+            bucket["failedCount"] = int(bucket["failedCount"]) + (1 if failed else 0)
+        selection_events.append(
+            {
+                "timestamp": event.get("timestamp"),
+                "category": event.get("category"),
+                "failed": failed,
+                "success": success,
+                "endpoints": matches,
+                "message": message,
+                "source": event.get("source"),
+            }
+        )
+    status = "unknown"
+    if successes:
+        status = "connected"
+    if failures and not successes:
+        status = "failed"
+    if any("using any address" in str(event.get("message", "")).lower() for event in selection_events):
+        status = "failed-all-addresses"
+    return {
+        "status": status,
+        "eventCount": len(selection_events),
+        "failureCount": failures,
+        "successCount": successes,
+        "endpoints": list(endpoints.values()),
+        "latestEvents": selection_events[-20:],
+    }
+
+
+def signature_trust_summary(signatures: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    status_counts: dict[str, int] = {}
+    signer_counts: dict[str, int] = {}
+    unsigned_or_invalid: list[dict[str, Any]] = []
+    for item in signatures:
+        status = str(item.get("signatureStatus") or "Unknown")
+        signer = str(item.get("signerCertificateSubject") or "<none>")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        signer_counts[signer] = signer_counts.get(signer, 0) + 1
+        if status.lower() != "valid":
+            unsigned_or_invalid.append(
+                {
+                    "path": item.get("path"),
+                    "signatureStatus": status,
+                    "version": item.get("version"),
+                    "productName": item.get("productName"),
+                    "companyName": item.get("companyName"),
+                }
+            )
+    return {
+        "statusCounts": status_counts,
+        "signerCounts": signer_counts,
+        "nonValidCount": len(unsigned_or_invalid),
+        "nonValid": unsigned_or_invalid[:80],
+    }
+
+
 def signature_and_version(paths: Iterable[Path]) -> list[dict[str, Any]]:
     path_list = [str(path) for path in paths if path.exists() and path.is_file()]
     if not path_list:
@@ -1399,6 +1477,12 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     for item in summary.get("executableMetadata", []):
         if isinstance(item, Mapping):
             lines.append(f"- `{item.get('path')}` sha256=`{item.get('sha256')}`")
+    lines.extend(["", "## Signature trust", ""])
+    executable_trust = safe_mapping(summary.get("executableTrustSummary"))
+    dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
+    lines.append(f"- executable signature statuses: `{executable_trust.get('statusCounts')}`")
+    lines.append(f"- dependency signature statuses: `{dependency_trust.get('statusCounts')}`")
+    lines.append(f"- dependency non-valid signatures: `{dependency_trust.get('nonValidCount')}`")
     lines.extend(["", "## PE summaries", ""])
     for item in summary.get("peSummaries", []):
         if isinstance(item, Mapping):
@@ -1431,6 +1515,8 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     lines.extend(["", "## Log timeline", ""])
     lines.append(f"- events: `{timeline.get('eventCount')}`")
     lines.append(f"- categories: `{timeline.get('categoryCounts')}`")
+    selection = safe_mapping(summary.get("selectionServerSummary"))
+    lines.append(f"- selection server status: `{selection.get('status')}` failures=`{selection.get('failureCount')}`")
     registry_rows = summary.get("registryInventory") if isinstance(summary.get("registryInventory"), list) else []
     existing_registry = [item for item in registry_rows if isinstance(item, Mapping) and item.get("exists")]
     lines.extend(["", "## Registry keys", ""])
@@ -1519,6 +1605,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             unique_dependency_paths.append(path)
     dependency_metadata = [file_metadata(path, hash_file=True) for path in unique_dependency_paths]
     dependency_signatures = signature_and_version(unique_dependency_paths)
+    executable_trust = signature_trust_summary(signatures)
+    dependency_trust = signature_trust_summary(dependency_signatures)
     dependency_pe_summaries = [
         parse_pe_metadata(path, max_import_functions_per_dll=min(80, int(args.max_import_functions_per_dll)))
         for path in unique_dependency_paths[:80]
@@ -1538,6 +1626,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     targeted_previews = collect_targeted_previews(targeted_files, limit_bytes=int(args.text_preview_bytes))
     manifests = manifest_inventory(targeted_paths, entry_limit=int(args.manifest_entry_limit))
     timeline = log_timeline(targeted_paths, max_events=int(args.log_timeline_events))
+    selection_summary = selection_server_summary(timeline)
     endpoints = endpoint_inventory(previews, targeted_previews, string_summaries, registry, uninstall_entries, autoruns)
     safety = base_safety()
     safety.update(
@@ -1585,9 +1674,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "targetedFileInventory": targeted_files,
         "executableMetadata": executable_metadata,
         "signaturesAndVersions": signatures,
+        "executableTrustSummary": executable_trust,
         "peSummaries": pe_summaries,
         "dependencyMetadata": dependency_metadata,
         "dependencySignaturesAndVersions": dependency_signatures,
+        "dependencyTrustSummary": dependency_trust,
         "dependencyPeSummaries": dependency_pe_summaries,
         "registryInventory": registry,
         "textPreviewsRedacted": previews,
@@ -1595,6 +1686,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "staticStringSummaries": string_summaries,
         "manifestInventory": manifests,
         "logTimeline": timeline,
+        "selectionServerSummary": selection_summary,
         "endpointInventory": endpoints,
         "warnings": warnings,
         "errors": [],
@@ -1624,6 +1716,9 @@ def build_parser() -> argparse.ArgumentParser:
 def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     glyph_processes = [proc for proc in summary.get("processes", []) if isinstance(proc, Mapping) and str(proc.get("Name", "")).lower().startswith("glyph")]
+    selection = safe_mapping(summary.get("selectionServerSummary"))
+    executable_trust = safe_mapping(summary.get("executableTrustSummary"))
+    dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
     return {
         "status": summary.get("status"),
         "kind": summary.get("kind"),
@@ -1636,6 +1731,11 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "targetedFileCount": len([item for item in summary.get("targetedFileInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
         "manifestCount": len([item for item in summary.get("manifestInventory", []) if isinstance(item, Mapping) and item.get("status") == "passed"]),
         "endpointCount": len(summary.get("endpointInventory", [])),
+        "selectionServerStatus": selection.get("status"),
+        "selectionServerFailureCount": selection.get("failureCount"),
+        "executableSignatureStatusCounts": executable_trust.get("statusCounts"),
+        "dependencySignatureStatusCounts": dependency_trust.get("statusCounts"),
+        "dependencyNonValidSignatureCount": dependency_trust.get("nonValidCount"),
         "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
         "activeNetworkConnectionCount": len(summary.get("activeNetworkConnections", [])),
         "serviceCount": len(summary.get("serviceInventory", [])),

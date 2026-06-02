@@ -2,7 +2,12 @@
 //@category RiftReader
 
 import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.google.gson.Gson;
@@ -166,7 +171,11 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 	private JsonObject interestingStringsJson() {
 		JsonArray items = new JsonArray();
 		JsonObject categoryCounts = new JsonObject();
+		JsonObject categoryReferenceCounts = new JsonObject();
+		Map<String, LinkedHashMap<String, Integer>> functionsByCategory =
+			new LinkedHashMap<String, LinkedHashMap<String, Integer>>();
 		int scanned = 0;
+		int totalReferencesCaptured = 0;
 		for (Data data : DefinedStringIterator.forProgram(currentProgram, currentSelection)) {
 			if (monitor.isCancelled()) {
 				break;
@@ -188,7 +197,10 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 			item.addProperty("length", value.length());
 			item.add("categories", categories);
 			item.addProperty("value", sanitize(truncate(value, 500)));
-			item.add("references", referencesToJson(data));
+			JsonArray references = referencesToJson(data);
+			totalReferencesCaptured += references.size();
+			item.add("references", references);
+			recordReferenceFunctionHits(categories, references, categoryReferenceCounts, functionsByCategory);
 			items.add(item);
 			if (items.size() >= MAX_STRINGS) {
 				break;
@@ -197,10 +209,68 @@ public class GlyphStaticSummaryExport extends GhidraScript {
 		JsonObject summary = new JsonObject();
 		summary.addProperty("scannedStringDataCount", scanned);
 		summary.addProperty("capturedStringCount", items.size());
+		summary.addProperty("totalReferencesCaptured", totalReferencesCaptured);
 		summary.add("categoryCounts", categoryCounts);
+		summary.add("categoryReferenceCounts", categoryReferenceCounts);
+		summary.add("topReferencedFunctionsByCategory", topReferencedFunctionsByCategory(functionsByCategory));
 		JsonObject result = new JsonObject();
 		result.add("strings", items);
 		result.add("summary", summary);
+		return result;
+	}
+
+	private void recordReferenceFunctionHits(JsonArray categories, JsonArray references,
+			JsonObject categoryReferenceCounts,
+			Map<String, LinkedHashMap<String, Integer>> functionsByCategory) {
+		for (int i = 0; i < categories.size(); i++) {
+			String category = categories.get(i).getAsString();
+			categoryReferenceCounts.addProperty(category,
+				(categoryReferenceCounts.has(category) ? categoryReferenceCounts.get(category).getAsInt() : 0) +
+					references.size());
+			LinkedHashMap<String, Integer> functionHits = functionsByCategory.get(category);
+			if (functionHits == null) {
+				functionHits = new LinkedHashMap<String, Integer>();
+				functionsByCategory.put(category, functionHits);
+			}
+			for (int j = 0; j < references.size(); j++) {
+				JsonObject ref = references.get(j).getAsJsonObject();
+				if (!ref.has("functionName")) {
+					continue;
+				}
+				String key = ref.get("functionName").getAsString() + "@" +
+					(ref.has("functionEntry") ? ref.get("functionEntry").getAsString() : "");
+				functionHits.put(key, functionHits.containsKey(key) ? functionHits.get(key) + 1 : 1);
+			}
+		}
+	}
+
+	private JsonObject topReferencedFunctionsByCategory(
+			Map<String, LinkedHashMap<String, Integer>> functionsByCategory) {
+		JsonObject result = new JsonObject();
+		for (Map.Entry<String, LinkedHashMap<String, Integer>> entry : functionsByCategory.entrySet()) {
+			JsonArray rows = new JsonArray();
+			List<Map.Entry<String, Integer>> sortedEntries =
+				new ArrayList<Map.Entry<String, Integer>>(entry.getValue().entrySet());
+			sortedEntries.sort(new Comparator<Map.Entry<String, Integer>>() {
+				@Override
+				public int compare(Map.Entry<String, Integer> left, Map.Entry<String, Integer> right) {
+					return Integer.compare(right.getValue(), left.getValue());
+				}
+			});
+			for (Map.Entry<String, Integer> functionEntry : sortedEntries) {
+				JsonObject row = new JsonObject();
+				String key = functionEntry.getKey();
+				int at = key.lastIndexOf('@');
+				row.addProperty("functionName", at >= 0 ? key.substring(0, at) : key);
+				row.addProperty("functionEntry", at >= 0 ? key.substring(at + 1) : "");
+				row.addProperty("count", functionEntry.getValue());
+				rows.add(row);
+				if (rows.size() >= 25) {
+					break;
+				}
+			}
+			result.add(entry.getKey(), rows);
+		}
 		return result;
 	}
 

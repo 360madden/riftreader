@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from scripts import glyph_forensics_inventory as glyph
+from scripts import glyph_health_packet as health
 
 
 class GlyphForensicsInventoryTests(unittest.TestCase):
@@ -64,6 +65,61 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertIn("https://support.gamigo.com", values)
         self.assertNotIn("gmail.com", values)
         self.assertNotIn("40gmail.com", values)
+
+    def test_selection_server_summary_detects_failed_all_addresses(self) -> None:
+        timeline = {
+            "latestEvents": [
+                {
+                    "timestamp": "INF",
+                    "category": "error",
+                    "message": "[ENG] Failed to connect to selection server at [144.217.46.224:6527]",
+                },
+                {
+                    "timestamp": "WRN",
+                    "category": "error",
+                    "message": "[ENG] Failed to connect to selection server using any address",
+                },
+            ]
+        }
+
+        summary = glyph.selection_server_summary(timeline)
+
+        self.assertEqual(summary["status"], "failed-all-addresses")
+        self.assertEqual(summary["failureCount"], 2)
+        self.assertEqual(summary["endpoints"][0]["endpoint"], "144.217.46.224:6527")
+
+    def test_signature_trust_summary_counts_non_valid(self) -> None:
+        summary = glyph.signature_trust_summary(
+            [
+                {"path": "a.exe", "signatureStatus": "Valid", "signerCertificateSubject": "CN=A"},
+                {"path": "b.exe", "signatureStatus": "NotSigned", "signerCertificateSubject": None},
+            ]
+        )
+
+        self.assertEqual(summary["statusCounts"]["Valid"], 1)
+        self.assertEqual(summary["statusCounts"]["NotSigned"], 1)
+        self.assertEqual(summary["nonValidCount"], 1)
+
+    def test_health_packet_summarizes_key_fields(self) -> None:
+        summary = {
+            "generatedAtUtc": "2026-06-02T00:00:00Z",
+            "artifacts": {"summaryMarkdown": "summary.md"},
+            "processes": [{"Name": "GlyphClientApp.exe", "ProcessId": 1, "ParentProcessId": 2, "ExecutablePath": "GlyphClientApp.exe"}],
+            "selectionServerSummary": {"status": "failed-all-addresses", "failureCount": 2, "endpoints": []},
+            "executableTrustSummary": {"statusCounts": {"Valid": 1}},
+            "dependencyTrustSummary": {"statusCounts": {"NotSigned": 1}, "nonValidCount": 1},
+            "manifestInventory": [{"status": "passed", "path": "manifest64.txt", "version": "v1", "entryCount": 1}],
+            "endpointInventory": [{"value": "glyph.example", "count": 3, "sources": ["a", "b"]}],
+            "targetedFileInventory": [{"exists": True}],
+            "dependencyMetadata": [{}],
+            "logTimeline": {"eventCount": 5},
+        }
+
+        packet = health.build_health_packet(summary, summary_path=Path("summary.json"), endpoint_limit=1)
+
+        self.assertEqual(packet["network"]["selectionServerStatus"], "failed-all-addresses")
+        self.assertEqual(packet["trust"]["dependencyNonValidSignatureCount"], 1)
+        self.assertEqual(packet["manifests"][0]["version"], "v1")
 
 
 if __name__ == "__main__":

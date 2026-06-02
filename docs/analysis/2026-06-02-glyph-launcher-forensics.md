@@ -9,14 +9,18 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102823-872293\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-102823-872293\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-103728-352798\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-103728-352798\summary.md`
+
+Compact health packet:
+
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-103810-077059\summary.json`
 
 Offline Ghidra artifact:
 
 - Static JSON export from analyzed Ghidra project:
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-102932\glyph-static-summary.json`
-  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-102932\postscript.log`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-104218\glyph-static-summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-104218\postscript.log`
 - Full dependency-bundle pass:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\summary.json`
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\analyzeHeadless-import.log`
@@ -78,6 +82,13 @@ directly while the client was logged in and live.
 
 `GlyphClientApp.exe` product/version string observed in static strings:
 `Glyph (stable-251-1-a-335833)`.
+
+Signature trust rollup:
+
+| Surface | Status counts | Non-valid count |
+|---|---|---:|
+| Glyph executables | `NotSigned=3`, `Valid=3` | `3` |
+| Launcher/game dependency DLLs | `Valid=7`, `NotSigned=31` | `31` |
 
 ## Config and log locations found
 
@@ -144,6 +155,8 @@ Top endpoint/domain clusters in the consolidated inventory included:
 
 The RIFT-side log timeline included a latest character-selection failure:
 
+- selection server status: `failed-all-addresses`
+- selection failure event count: `3`
 - attempted `144.217.46.224:6527`
 - failed, then attempted alternate `144.217.46.224:80`
 - failed again with `Failed to connect to selection server using any address`
@@ -229,9 +242,19 @@ Static Ghidra JSON export:
 - Interesting symbols captured: `600` capped sample
 - Interesting strings captured: `800` capped sample
 - Defined string records scanned by Ghidra: `3909`
+- Total string references captured: `1040`
 - Categorized string counts: `patch=242`, `auth=214`, `glyph=149`,
   `store=69`, `endpoint=61`, `steam=44`, `crash=11`, `registry=9`,
   `rift=4`, `other=97`
+- Category reference counts: `patch=298`, `auth=277`, `glyph=221`,
+  `other=117`, `store=87`, `endpoint=73`, `steam=35`, `registry=16`,
+  `crash=10`, `rift=0`
+- Top referenced functions by category are exported in
+  `interestingStringSummary.topReferencedFunctionsByCategory`; examples:
+  `auth` starts with `FUN_004ba7b0` (`32` string references),
+  `FUN_00523fe0` (`23`), `FUN_00522de0` (`19`), and
+  `FUN_00523bb0` (`16`), while `endpoint` starts with `FUN_00415080`
+  (`8`), `FUN_0041d950` (`5`), and `FUN_004b5d10` (`5`).
 - Example exported strings/functions cluster around auth/login, HTTP, manifests,
   patching, store/commerce, crash handling, support URLs, registry, Steam, and
   Glyph/RIFT naming.
