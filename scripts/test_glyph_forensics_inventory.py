@@ -46,6 +46,15 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertTrue(metadata["exists"])
         self.assertEqual(metadata["sha256"], "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
 
+    def test_parse_pe_metadata_marks_non_pe_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "not-pe.exe"
+            path.write_bytes(b"not a portable executable")
+
+            metadata = glyph.parse_pe_metadata(path)
+
+        self.assertEqual(metadata["status"], "not-pe")
+
 
 if __name__ == "__main__":
     unittest.main()

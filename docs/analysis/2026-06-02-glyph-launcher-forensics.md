@@ -9,15 +9,21 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-095053-584299\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-095053-584299\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-100359-720165\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-100359-720165\summary.md`
 
 Offline Ghidra artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-20260602-094338\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-20260602-094338\analyzeHeadless-import.log`
-- Project: `C:\RIFT MODDING\RiftReader\scripts\captures\ghidra-static-projects\glyph-project-20260602-094338`
-- Imported copy: `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-static-binaries\GlyphClientApp-0fdc197aa714.exe`
+- Full dependency-bundle pass:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\analyzeHeadless-import.log`
+  - Project: `C:\RIFT MODDING\RiftReader\scripts\captures\ghidra-static-projects\glyph-bundle-project-20260602-100440`
+  - Bundle: `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-static-bundle-20260602-100440`
+- Initial single-binary pass:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-20260602-094338\summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-20260602-094338\analyzeHeadless-import.log`
+  - Project: `C:\RIFT MODDING\RiftReader\scripts\captures\ghidra-static-projects\glyph-project-20260602-094338`
+  - Imported copy: `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-static-binaries\GlyphClientApp-0fdc197aa714.exe`
 
 ## Safety posture
 
@@ -46,12 +52,15 @@ Interpretation: the active UI/client process is `GlyphClientApp.exe`; the
 | Probe | Result |
 |---|---|
 | Known debugger-like process names (`x64dbg`, `cheat`, `ida`, `ghidra`, `windbg`, etc.) | None found in the local process list during this run |
-| `CheckRemoteDebuggerPresent` on Glyph PIDs | Query attempted but returned `ok=false` |
-| `NtQueryInformationProcess` debug classes | Returned access-denied / invalid-info statuses, so status is inconclusive |
+| `CheckRemoteDebuggerPresent` on Glyph PIDs | `ok=true`, value `false` for both `GlyphCrashHandler64.exe` and `GlyphClientApp.exe` |
+| `NtQueryInformationProcess(ProcessDebugPort)` | `ntstatus=0`, value `0` for both Glyph PIDs |
+| `NtQueryInformationProcess(ProcessDebugObjectHandle / ProcessDebugFlags)` | Query returned status errors, so these two classes remain inconclusive |
 
-Conclusion: there was no obvious debugger process by name, but the query-only
-debugger checks were inconclusive. I did not use a debugger attach to resolve
-that ambiguity because the client was logged in and live.
+Conclusion: there was no obvious debugger process by name, and the two strongest
+query-only checks available without attaching (`CheckRemoteDebuggerPresent` and
+`ProcessDebugPort`) did not indicate an attached debugger. This is still not a
+kernel-grade proof because I did not attach a debugger or inspect debug objects
+directly while the client was logged in and live.
 
 ## Executable inventory
 
@@ -121,9 +130,45 @@ Static strings and Ghidra import indicate a Qt-based launcher/patcher with:
   `HKCU:\Software\Trion`.
 - Steam integration strings and `steam_api.dll` dependency references.
 
+## PE/import inventory
+
+The enhanced helper parsed local PE headers/imports without using a debugger.
+
+| File | Format | Machine | Subsystem | Import DLLs | TLS directory |
+|---|---|---|---|---:|---|
+| `GlyphClientApp.exe` | `PE32` | `I386` | `WINDOWS_GUI` | `29` | present |
+| `GlyphCrashHandler64.exe` | `PE32+` | `AMD64` | `WINDOWS_GUI` | `12` | present |
+| `GlyphClient.exe` | `PE32` | `I386` | `WINDOWS_GUI` | `9` | present |
+| `GlyphCrashHandler.exe` | `PE32` | `I386` | `WINDOWS_GUI` | `15` | present |
+| `GlyphDownloader.exe` | `PE32` | `I386` | `WINDOWS_GUI` | `9` | missing |
+| `GlyphUninstall.exe` | `PE32` | `I386` | `WINDOWS_GUI` | `11` | missing |
+
+`GlyphClientApp.exe` imports include Windows APIs plus:
+
+- `Qt5Core.dll`, `Qt5Network.dll`, `Qt5Gui.dll`, `Qt5Widgets.dll`,
+  `Qt5Xml.dll`, `Qt5Multimedia.dll`, `Qt5WinExtras.dll`
+- `SSLEAY32.dll`, `LIBEAY32.dll`
+- `libzmq-v120-mt-4_3_5.dll`
+- `steam_api.dll`
+- `xlpack.dll`
+
 ## Ghidra result
 
-Ghidra was run headless against a copied static binary only:
+Ghidra was run headless against copied static binaries only.
+
+Full dependency-bundle pass:
+
+- Binary copy: `glyph-static-bundle-20260602-100440\GlyphClientApp.exe`
+- Bundle included the launcher-adjacent Qt/OpenSSL/ZMQ/Steam/xlpack DLLs.
+- Language/compiler: `x86:LE:32:default:windows`
+- Import/save: succeeded
+- Analysis: succeeded; no timeout
+- Total Ghidra analysis time: about `206` seconds
+- PDB: not found
+- Library search count: `29`
+- Missing dependency count in the bundle pass: `0`
+
+Initial single-binary pass:
 
 - Binary copy: `GlyphClientApp-0fdc197aa714.exe`
 - Language/compiler: `x86:LE:32:default:windows`

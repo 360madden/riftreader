@@ -4,8 +4,10 @@ import argparse
 import ctypes
 import hashlib
 import json
+import math
 import os
 import re
+import struct
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -23,6 +25,7 @@ KIND = "riftreader-glyph-forensics-inventory"
 DEFAULT_TEXT_PREVIEW_BYTES = 4096
 DEFAULT_MAX_FILES_PER_ROOT = 500
 DEFAULT_MAX_STRING_HITS = 250
+DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL = 250
 SKIP_DIRECTORY_NAMES = {
     "$recycle.bin",
     ".git",
@@ -86,6 +89,92 @@ REGISTRY_CANDIDATE_PATHS = (
     r"HKLM:\SOFTWARE\WOW6432Node\Trion Worlds",
 )
 
+PE_MACHINE_NAMES = {
+    0x014C: "I386",
+    0x0200: "IA64",
+    0x8664: "AMD64",
+    0x01C0: "ARM",
+    0x01C4: "ARMv7",
+    0xAA64: "ARM64",
+}
+
+PE_SUBSYSTEM_NAMES = {
+    1: "NATIVE",
+    2: "WINDOWS_GUI",
+    3: "WINDOWS_CUI",
+    7: "POSIX_CUI",
+    9: "WINDOWS_CE_GUI",
+    10: "EFI_APPLICATION",
+    11: "EFI_BOOT_SERVICE_DRIVER",
+    12: "EFI_RUNTIME_DRIVER",
+    13: "EFI_ROM",
+    14: "XBOX",
+    16: "WINDOWS_BOOT_APPLICATION",
+}
+
+PE_CHARACTERISTIC_FLAGS = {
+    0x0001: "RELOCS_STRIPPED",
+    0x0002: "EXECUTABLE_IMAGE",
+    0x0004: "LINE_NUMS_STRIPPED",
+    0x0008: "LOCAL_SYMS_STRIPPED",
+    0x0020: "LARGE_ADDRESS_AWARE",
+    0x0080: "BYTES_REVERSED_LO",
+    0x0100: "32BIT_MACHINE",
+    0x0200: "DEBUG_STRIPPED",
+    0x0400: "REMOVABLE_RUN_FROM_SWAP",
+    0x0800: "NET_RUN_FROM_SWAP",
+    0x1000: "SYSTEM",
+    0x2000: "DLL",
+    0x4000: "UP_SYSTEM_ONLY",
+    0x8000: "BYTES_REVERSED_HI",
+}
+
+PE_DLL_CHARACTERISTIC_FLAGS = {
+    0x0020: "HIGH_ENTROPY_VA",
+    0x0040: "DYNAMIC_BASE",
+    0x0080: "FORCE_INTEGRITY",
+    0x0100: "NX_COMPAT",
+    0x0200: "NO_ISOLATION",
+    0x0400: "NO_SEH",
+    0x0800: "NO_BIND",
+    0x1000: "APPCONTAINER",
+    0x2000: "WDM_DRIVER",
+    0x4000: "GUARD_CF",
+    0x8000: "TERMINAL_SERVER_AWARE",
+}
+
+PE_SECTION_CHARACTERISTIC_FLAGS = {
+    0x00000020: "CNT_CODE",
+    0x00000040: "CNT_INITIALIZED_DATA",
+    0x00000080: "CNT_UNINITIALIZED_DATA",
+    0x02000000: "MEM_DISCARDABLE",
+    0x04000000: "MEM_NOT_CACHED",
+    0x08000000: "MEM_NOT_PAGED",
+    0x10000000: "MEM_SHARED",
+    0x20000000: "MEM_EXECUTE",
+    0x40000000: "MEM_READ",
+    0x80000000: "MEM_WRITE",
+}
+
+PE_DATA_DIRECTORY_NAMES = (
+    "export",
+    "import",
+    "resource",
+    "exception",
+    "certificate",
+    "baseRelocation",
+    "debug",
+    "architecture",
+    "globalPtr",
+    "tls",
+    "loadConfig",
+    "boundImport",
+    "iat",
+    "delayImport",
+    "clrRuntime",
+    "reserved",
+)
+
 
 def redact_text(text: str) -> str:
     redacted = BEARER_RE.sub("Bearer <redacted>", text)
@@ -146,6 +235,372 @@ def file_metadata(path: Path, *, hash_file: bool = False) -> dict[str, Any]:
     return payload
 
 
+def unpack_from(fmt: str, data: bytes, offset: int) -> tuple[Any, ...]:
+    size = struct.calcsize(fmt)
+    if offset < 0 or offset + size > len(data):
+        raise ValueError(f"offset-out-of-range:{offset}+{size}>{len(data)}")
+    return struct.unpack_from(fmt, data, offset)
+
+
+def u16(data: bytes, offset: int) -> int:
+    return int(unpack_from("<H", data, offset)[0])
+
+
+def u32(data: bytes, offset: int) -> int:
+    return int(unpack_from("<I", data, offset)[0])
+
+
+def u64(data: bytes, offset: int) -> int:
+    return int(unpack_from("<Q", data, offset)[0])
+
+
+def hex_value(value: int | None) -> str | None:
+    return None if value is None else f"0x{int(value):X}"
+
+
+def bit_flags(value: int, names: Mapping[int, str]) -> list[str]:
+    return [name for bit, name in names.items() if value & bit]
+
+
+def section_entropy(data: bytes) -> float:
+    if not data:
+        return 0.0
+    counts = [0] * 256
+    for item in data:
+        counts[item] += 1
+    total = float(len(data))
+    entropy = 0.0
+    for count in counts:
+        if count:
+            p = count / total
+            entropy -= p * math.log2(p)
+    return round(entropy, 4)
+
+
+def read_cstring(data: bytes, offset: int, *, max_bytes: int = 4096) -> str:
+    if offset < 0 or offset >= len(data):
+        return ""
+    end = min(len(data), offset + max_bytes)
+    nul = data.find(b"\x00", offset, end)
+    if nul == -1:
+        nul = end
+    return data[offset:nul].decode("utf-8", errors="replace")
+
+
+def rva_to_offset(sections: Sequence[Mapping[str, Any]], rva: int) -> int | None:
+    for section in sections:
+        try:
+            virtual_address = int(section.get("virtualAddress", 0))
+            virtual_size = int(section.get("virtualSize", 0))
+            raw_size = int(section.get("rawDataSize", 0))
+            raw_pointer = int(section.get("pointerToRawData", 0))
+        except (TypeError, ValueError):
+            continue
+        span = max(virtual_size, raw_size)
+        if virtual_address <= rva < virtual_address + span:
+            delta = rva - virtual_address
+            if delta < raw_size:
+                return raw_pointer + delta
+            return None
+    return None
+
+
+def parse_pe_imports(
+    data: bytes,
+    sections: Sequence[Mapping[str, Any]],
+    import_rva: int,
+    *,
+    is_pe32_plus: bool,
+    max_functions_per_dll: int,
+) -> list[dict[str, Any]]:
+    imports: list[dict[str, Any]] = []
+    import_offset = rva_to_offset(sections, import_rva)
+    if import_offset is None:
+        return imports
+    descriptor_offset = import_offset
+    thunk_size = 8 if is_pe32_plus else 4
+    ordinal_flag = 0x8000000000000000 if is_pe32_plus else 0x80000000
+    for _ in range(512):
+        if descriptor_offset + 20 > len(data):
+            break
+        original_first_thunk, timestamp, forwarder_chain, name_rva, first_thunk = unpack_from("<IIIII", data, descriptor_offset)
+        if not any((original_first_thunk, timestamp, forwarder_chain, name_rva, first_thunk)):
+            break
+        name_offset = rva_to_offset(sections, int(name_rva))
+        dll_name = read_cstring(data, name_offset) if name_offset is not None else f"<name-rva:{hex_value(int(name_rva))}>"
+        thunk_rva = int(original_first_thunk or first_thunk)
+        thunk_offset = rva_to_offset(sections, thunk_rva)
+        functions: list[str] = []
+        ordinal_count = 0
+        truncated = False
+        if thunk_offset is not None:
+            for index in range(4096):
+                entry_offset = thunk_offset + index * thunk_size
+                if entry_offset + thunk_size > len(data):
+                    break
+                thunk_value = u64(data, entry_offset) if is_pe32_plus else u32(data, entry_offset)
+                if thunk_value == 0:
+                    break
+                if thunk_value & ordinal_flag:
+                    ordinal_count += 1
+                    rendered = f"ordinal:{thunk_value & 0xFFFF}"
+                else:
+                    hint_name_offset = rva_to_offset(sections, int(thunk_value))
+                    rendered = (
+                        read_cstring(data, hint_name_offset + 2)
+                        if hint_name_offset is not None and hint_name_offset + 2 < len(data)
+                        else f"<hint-name-rva:{hex_value(int(thunk_value))}>"
+                    )
+                if len(functions) < max_functions_per_dll:
+                    functions.append(rendered)
+                else:
+                    truncated = True
+        imports.append(
+            {
+                "dll": dll_name,
+                "originalFirstThunkRva": hex_value(int(original_first_thunk)),
+                "firstThunkRva": hex_value(int(first_thunk)),
+                "functionCountCaptured": len(functions),
+                "ordinalCount": ordinal_count,
+                "truncated": truncated,
+                "functions": functions,
+            }
+        )
+        descriptor_offset += 20
+    return imports
+
+
+def parse_pe_exports(data: bytes, sections: Sequence[Mapping[str, Any]], export_rva: int, *, max_names: int = 300) -> dict[str, Any]:
+    export_offset = rva_to_offset(sections, export_rva)
+    if export_offset is None or export_offset + 40 > len(data):
+        return {"status": "missing"}
+    (
+        _characteristics,
+        timestamp,
+        major_version,
+        minor_version,
+        name_rva,
+        base,
+        number_of_functions,
+        number_of_names,
+        address_of_functions,
+        address_of_names,
+        address_of_name_ordinals,
+    ) = unpack_from("<IIHHIIIIIII", data, export_offset)
+    name_offset = rva_to_offset(sections, int(name_rva))
+    names_offset = rva_to_offset(sections, int(address_of_names))
+    names: list[str] = []
+    if names_offset is not None:
+        for index in range(min(int(number_of_names), max_names)):
+            entry_offset = names_offset + index * 4
+            if entry_offset + 4 > len(data):
+                break
+            export_name_rva = u32(data, entry_offset)
+            export_name_offset = rva_to_offset(sections, export_name_rva)
+            if export_name_offset is not None:
+                names.append(read_cstring(data, export_name_offset))
+    return {
+        "status": "present",
+        "dllName": read_cstring(data, name_offset) if name_offset is not None else None,
+        "timeDateStamp": int(timestamp),
+        "version": f"{int(major_version)}.{int(minor_version)}",
+        "ordinalBase": int(base),
+        "numberOfFunctions": int(number_of_functions),
+        "numberOfNames": int(number_of_names),
+        "addressOfFunctionsRva": hex_value(int(address_of_functions)),
+        "addressOfNamesRva": hex_value(int(address_of_names)),
+        "addressOfNameOrdinalsRva": hex_value(int(address_of_name_ordinals)),
+        "namesCaptured": names,
+        "truncated": int(number_of_names) > len(names),
+    }
+
+
+def parse_pe_tls_callbacks(
+    data: bytes,
+    sections: Sequence[Mapping[str, Any]],
+    tls_rva: int,
+    *,
+    image_base: int,
+    is_pe32_plus: bool,
+) -> dict[str, Any]:
+    tls_offset = rva_to_offset(sections, tls_rva)
+    if tls_offset is None:
+        return {"status": "missing"}
+    try:
+        if is_pe32_plus:
+            _start_raw, _end_raw, _address_of_index, address_of_callbacks, _zero_fill, _characteristics = unpack_from(
+                "<QQQQII", data, tls_offset
+            )
+            ptr_size = 8
+        else:
+            _start_raw, _end_raw, _address_of_index, address_of_callbacks, _zero_fill, _characteristics = unpack_from(
+                "<IIIIII", data, tls_offset
+            )
+            ptr_size = 4
+    except ValueError as exc:
+        return {"status": "failed", "error": str(exc)}
+    callbacks_rva = int(address_of_callbacks) - int(image_base)
+    callbacks_offset = rva_to_offset(sections, callbacks_rva)
+    callbacks: list[dict[str, str]] = []
+    if callbacks_offset is not None:
+        for index in range(64):
+            pointer_offset = callbacks_offset + index * ptr_size
+            if pointer_offset + ptr_size > len(data):
+                break
+            callback_va = u64(data, pointer_offset) if is_pe32_plus else u32(data, pointer_offset)
+            if callback_va == 0:
+                break
+            callbacks.append({"va": hex_value(int(callback_va)) or "", "rva": hex_value(int(callback_va - image_base)) or ""})
+    return {
+        "status": "present",
+        "addressOfCallbacksVa": hex_value(int(address_of_callbacks)),
+        "addressOfCallbacksRva": hex_value(callbacks_rva),
+        "callbacks": callbacks,
+    }
+
+
+def parse_pe_metadata(path: Path, *, max_import_functions_per_dll: int = DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL) -> dict[str, Any]:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return {"path": str(path), "status": "failed", "error": f"{type(exc).__name__}:{exc}"}
+    try:
+        if len(data) < 0x40 or data[:2] != b"MZ":
+            return {"path": str(path), "status": "not-pe"}
+        pe_offset = u32(data, 0x3C)
+        if pe_offset + 24 > len(data) or data[pe_offset : pe_offset + 4] != b"PE\x00\x00":
+            return {"path": str(path), "status": "not-pe", "error": "missing-pe-signature"}
+        (
+            machine,
+            number_of_sections,
+            timestamp,
+            _pointer_to_symbols,
+            _number_of_symbols,
+            size_of_optional_header,
+            characteristics,
+        ) = unpack_from("<HHIIIHH", data, pe_offset + 4)
+        optional_offset = pe_offset + 24
+        magic = u16(data, optional_offset)
+        if magic == 0x10B:
+            pe_kind = "PE32"
+            is_pe32_plus = False
+            image_base = u32(data, optional_offset + 28)
+            data_directory_offset = optional_offset + 96
+        elif magic == 0x20B:
+            pe_kind = "PE32+"
+            is_pe32_plus = True
+            image_base = u64(data, optional_offset + 24)
+            data_directory_offset = optional_offset + 112
+        else:
+            return {"path": str(path), "status": "not-pe", "error": f"unknown-optional-header-magic:{hex_value(magic)}"}
+        address_of_entry_point = u32(data, optional_offset + 16)
+        section_alignment = u32(data, optional_offset + 32)
+        file_alignment = u32(data, optional_offset + 36)
+        size_of_image = u32(data, optional_offset + 56)
+        size_of_headers = u32(data, optional_offset + 60)
+        checksum = u32(data, optional_offset + 64)
+        subsystem = u16(data, optional_offset + 68)
+        dll_characteristics = u16(data, optional_offset + 70)
+        number_of_rva_and_sizes = u32(data, optional_offset + (108 if is_pe32_plus else 92))
+
+        directories: dict[str, dict[str, Any]] = {}
+        for index, name in enumerate(PE_DATA_DIRECTORY_NAMES[: min(number_of_rva_and_sizes, len(PE_DATA_DIRECTORY_NAMES))]):
+            entry_offset = data_directory_offset + index * 8
+            if entry_offset + 8 > len(data):
+                break
+            rva, size = unpack_from("<II", data, entry_offset)
+            directories[name] = {"rva": hex_value(int(rva)), "size": int(size), "present": bool(rva and size)}
+
+        section_offset = optional_offset + int(size_of_optional_header)
+        sections: list[dict[str, Any]] = []
+        last_raw_end = 0
+        for index in range(int(number_of_sections)):
+            header_offset = section_offset + index * 40
+            if header_offset + 40 > len(data):
+                break
+            name_bytes = data[header_offset : header_offset + 8].split(b"\x00", 1)[0]
+            virtual_size, virtual_address, raw_data_size, pointer_to_raw_data = unpack_from("<IIII", data, header_offset + 8)
+            section_characteristics = u32(data, header_offset + 36)
+            raw_start = int(pointer_to_raw_data)
+            raw_end = min(len(data), raw_start + int(raw_data_size)) if raw_start < len(data) else raw_start
+            last_raw_end = max(last_raw_end, raw_start + int(raw_data_size))
+            sections.append(
+                {
+                    "name": name_bytes.decode("ascii", errors="replace"),
+                    "virtualSize": int(virtual_size),
+                    "virtualAddress": int(virtual_address),
+                    "virtualAddressHex": hex_value(int(virtual_address)),
+                    "rawDataSize": int(raw_data_size),
+                    "pointerToRawData": int(pointer_to_raw_data),
+                    "characteristics": hex_value(int(section_characteristics)),
+                    "characteristicFlags": bit_flags(int(section_characteristics), PE_SECTION_CHARACTERISTIC_FLAGS),
+                    "entropy": section_entropy(data[raw_start:raw_end]) if raw_start < len(data) else None,
+                }
+            )
+        import_directory = directories.get("import", {})
+        export_directory = directories.get("export", {})
+        tls_directory = directories.get("tls", {})
+        imports = (
+            parse_pe_imports(
+                data,
+                sections,
+                int(str(import_directory.get("rva", "0")).replace("0x", ""), 16),
+                is_pe32_plus=is_pe32_plus,
+                max_functions_per_dll=max_import_functions_per_dll,
+            )
+            if import_directory.get("present")
+            else []
+        )
+        exports = (
+            parse_pe_exports(data, sections, int(str(export_directory.get("rva", "0")).replace("0x", ""), 16))
+            if export_directory.get("present")
+            else {"status": "missing"}
+        )
+        tls = (
+            parse_pe_tls_callbacks(
+                data,
+                sections,
+                int(str(tls_directory.get("rva", "0")).replace("0x", ""), 16),
+                image_base=int(image_base),
+                is_pe32_plus=is_pe32_plus,
+            )
+            if tls_directory.get("present")
+            else {"status": "missing"}
+        )
+        return {
+            "path": str(path),
+            "status": "passed",
+            "format": pe_kind,
+            "machine": hex_value(int(machine)),
+            "machineName": PE_MACHINE_NAMES.get(int(machine), "UNKNOWN"),
+            "numberOfSections": int(number_of_sections),
+            "timeDateStamp": int(timestamp),
+            "characteristics": hex_value(int(characteristics)),
+            "characteristicFlags": bit_flags(int(characteristics), PE_CHARACTERISTIC_FLAGS),
+            "addressOfEntryPointRva": hex_value(int(address_of_entry_point)),
+            "imageBase": hex_value(int(image_base)),
+            "sectionAlignment": int(section_alignment),
+            "fileAlignment": int(file_alignment),
+            "sizeOfImage": int(size_of_image),
+            "sizeOfHeaders": int(size_of_headers),
+            "checksum": hex_value(int(checksum)),
+            "subsystem": int(subsystem),
+            "subsystemName": PE_SUBSYSTEM_NAMES.get(int(subsystem), "UNKNOWN"),
+            "dllCharacteristics": hex_value(int(dll_characteristics)),
+            "dllCharacteristicFlags": bit_flags(int(dll_characteristics), PE_DLL_CHARACTERISTIC_FLAGS),
+            "dataDirectories": directories,
+            "sections": sections,
+            "imports": imports,
+            "importDllCount": len(imports),
+            "importFunctionCountCaptured": sum(len(item.get("functions", [])) for item in imports),
+            "exports": exports,
+            "tls": tls,
+            "overlayBytes": max(0, len(data) - last_raw_end) if last_raw_end else 0,
+        }
+    except Exception as exc:  # noqa: BLE001 - metadata parser should fail closed per file.
+        return {"path": str(path), "status": "failed", "error": f"{type(exc).__name__}:{exc}"}
+
+
 def run_powershell_json(script: str, *, timeout_seconds: float = 20.0) -> Any:
     command = [
         "pwsh",
@@ -191,20 +646,48 @@ Get-CimInstance Win32_Process |
     return rows
 
 
+def debugger_process_scan() -> list[dict[str, Any]]:
+    script = r"""
+$pattern = '(?i)(x64dbg|cheatengine|cheat engine|ollydbg|ida64|idaq|ghidra|windbg|cdb|dnspy|scylla|frida|processhacker|procmon|procexp|dbgeng)'
+Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -match $pattern -or $_.ExecutablePath -match $pattern } |
+  Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine,CreationDate |
+  ConvertTo-Json -Depth 4
+"""
+    data = run_powershell_json(script)
+    if isinstance(data, Mapping):
+        rows = [dict(data)]
+    elif isinstance(data, list):
+        rows = [dict(item) for item in data if isinstance(item, Mapping)]
+    else:
+        rows = []
+    for row in rows:
+        if isinstance(row.get("CommandLine"), str):
+            row["CommandLine"] = redact_text(str(row["CommandLine"]))
+    return rows
+
+
 def debugger_indicators(pid: int) -> dict[str, Any]:
     if sys.platform != "win32":
         return {"status": "unsupported-non-windows"}
+    PROCESS_QUERY_INFORMATION = 0x0400
     PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
-    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, int(pid))
+    access = "PROCESS_QUERY_INFORMATION"
     if not handle:
-        return {"status": "open-process-failed", "lastError": ctypes.get_last_error()}
+        first_error = ctypes.get_last_error()
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        access = "PROCESS_QUERY_LIMITED_INFORMATION"
+        if not handle:
+            return {"status": "open-process-failed", "lastError": ctypes.get_last_error(), "firstOpenLastError": first_error}
     try:
         is_debugged = ctypes.c_bool(False)
         ok = kernel32.CheckRemoteDebuggerPresent(handle, ctypes.byref(is_debugged))
         result: dict[str, Any] = {
             "status": "checked",
+            "openProcessAccess": access,
             "checkRemoteDebuggerPresentOk": bool(ok),
             "checkRemoteDebuggerPresent": bool(is_debugged.value) if ok else None,
         }
@@ -482,10 +965,25 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
             lines.append(
                 f"- PID `{proc.get('ProcessId')}` `{proc.get('Name')}` path=`{proc.get('ExecutablePath')}` parent=`{proc.get('ParentProcessId')}`"
             )
+    lines.extend(["", "## Debugger-like process scan", ""])
+    debugger_processes = summary.get("debuggerProcessScan") if isinstance(summary.get("debuggerProcessScan"), list) else []
+    if debugger_processes:
+        for proc in debugger_processes:
+            if isinstance(proc, Mapping):
+                lines.append(f"- PID `{proc.get('ProcessId')}` `{proc.get('Name')}` path=`{proc.get('ExecutablePath')}`")
+    else:
+        lines.append("- no known debugger-like process names were found")
     lines.extend(["", "## Executables", ""])
     for item in summary.get("executableMetadata", []):
         if isinstance(item, Mapping):
             lines.append(f"- `{item.get('path')}` sha256=`{item.get('sha256')}`")
+    lines.extend(["", "## PE summaries", ""])
+    for item in summary.get("peSummaries", []):
+        if isinstance(item, Mapping):
+            lines.append(
+                f"- `{item.get('path')}` format=`{item.get('format')}` machine=`{item.get('machineName')}` "
+                f"subsystem=`{item.get('subsystemName')}` imports=`{item.get('importDllCount')}` tls=`{safe_mapping(item.get('tls')).get('status')}`"
+            )
     registry_rows = summary.get("registryInventory") if isinstance(summary.get("registryInventory"), list) else []
     existing_registry = [item for item in registry_rows if isinstance(item, Mapping) and item.get("exists")]
     lines.extend(["", "## Registry keys", ""])
@@ -515,6 +1013,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     run_dir = output_root / f"glyph-forensics-inventory-{utc_stamp()}"
     run_dir.mkdir(parents=True, exist_ok=True)
     processes = process_inventory()
+    debugger_processes = debugger_process_scan()
     glyph_processes = [proc for proc in processes if str(proc.get("Name", "")).lower().startswith("glyph")]
     roots = likely_roots(glyph_processes)
     inventories = [walk_interesting_files(root_path, max_files=int(args.max_files_per_root)) for root_path in roots]
@@ -536,6 +1035,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             unique_exes.append(path)
     executable_metadata = [file_metadata(path, hash_file=True) for path in unique_exes]
     signatures = signature_and_version(unique_exes)
+    pe_summaries = [
+        parse_pe_metadata(path, max_import_functions_per_dll=int(args.max_import_functions_per_dll))
+        for path in unique_exes
+    ]
     registry = registry_inventory()
     debug_checks = []
     modules = []
@@ -578,12 +1081,14 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "maxStringHits": int(args.max_string_hits),
         },
         "processes": processes,
+        "debuggerProcessScan": debugger_processes,
         "debuggerIndicators": debug_checks,
         "moduleInventory": modules,
         "candidateRoots": [str(item) for item in roots],
         "fileInventories": inventories,
         "executableMetadata": executable_metadata,
         "signaturesAndVersions": signatures,
+        "peSummaries": pe_summaries,
         "registryInventory": registry,
         "textPreviewsRedacted": previews,
         "staticStringSummaries": string_summaries,
@@ -605,6 +1110,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-files-per-root", type=int, default=DEFAULT_MAX_FILES_PER_ROOT)
     parser.add_argument("--text-preview-bytes", type=int, default=DEFAULT_TEXT_PREVIEW_BYTES)
     parser.add_argument("--max-string-hits", type=int, default=DEFAULT_MAX_STRING_HITS)
+    parser.add_argument("--max-import-functions-per-dll", type=int, default=DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL)
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -619,6 +1125,8 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "glyphPids": [proc.get("ProcessId") for proc in glyph_processes],
         "candidateRootCount": len(summary.get("candidateRoots", [])),
         "executableCount": len(summary.get("executableMetadata", [])),
+        "peSummaryCount": len(summary.get("peSummaries", [])),
+        "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
         "registryKeyCount": len([item for item in summary.get("registryInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
         "textPreviewCount": len(summary.get("textPreviewsRedacted", [])),
         "summaryJson": artifacts.get("summaryJson"),
