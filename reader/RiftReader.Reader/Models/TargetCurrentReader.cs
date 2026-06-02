@@ -76,7 +76,7 @@ public static class TargetCurrentReader
                 cachedSample,
                 expected);
 
-            if (IsAcceptableCurrentRead(cachedResult.Match, expected))
+            if (IsAcceptableCurrentRead(cachedResult.Memory, cachedResult.Match, expected))
             {
                 return cachedResult;
             }
@@ -95,7 +95,7 @@ public static class TargetCurrentReader
 
         var result = BuildResultFromCapture(processId, processName, snapshotDocument, cacheFile, capture, expected);
 
-        if (!IsAcceptableCurrentRead(result.Match, expected) &&
+        if (!IsAcceptableCurrentRead(result.Memory, result.Match, expected) &&
             capture.SelectionSource.StartsWith("ce-", StringComparison.Ordinal))
         {
             var heuristicCapture = TargetSignatureProbeCaptureBuilder.CaptureBestFamily(
@@ -110,7 +110,7 @@ public static class TargetCurrentReader
                 preferCeConfirmation: false);
 
             var heuristicResult = BuildResultFromCapture(processId, processName, snapshotDocument, cacheFile, heuristicCapture, expected);
-            if (IsAcceptableCurrentRead(heuristicResult.Match, expected))
+            if (IsAcceptableCurrentRead(heuristicResult.Memory, heuristicResult.Match, expected))
             {
                 result = heuristicResult with
                 {
@@ -121,7 +121,7 @@ public static class TargetCurrentReader
             }
         }
 
-        if (!IsAcceptableCurrentRead(result.Match, expected))
+        if (!IsAcceptableCurrentRead(result.Memory, result.Match, expected))
         {
             throw new InvalidOperationException($"Unable to resolve a full current-target snapshot from family '{capture.FamilyId}'.");
         }
@@ -165,8 +165,15 @@ public static class TargetCurrentReader
             CoordZ: target.Coord?.Z,
             Distance: target.Distance);
 
-    private static bool IsAcceptableCurrentRead(TargetCurrentReadMatch match, TargetCurrentReadExpected expected)
+    internal static bool IsAcceptableCurrentRead(
+        TargetCurrentReadSample memory,
+        TargetCurrentReadMatch match,
+        TargetCurrentReadExpected expected)
     {
+        ArgumentNullException.ThrowIfNull(memory);
+        ArgumentNullException.ThrowIfNull(match);
+        ArgumentNullException.ThrowIfNull(expected);
+
         if (!match.CoordMatchesWithinTolerance)
         {
             return false;
@@ -182,12 +189,16 @@ public static class TargetCurrentReader
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(expected.Name) && !match.NameMatches)
+        if (!string.IsNullOrWhiteSpace(expected.Name) &&
+            !string.IsNullOrWhiteSpace(memory.Name) &&
+            !match.NameMatches)
         {
             return false;
         }
 
-        if (expected.Distance.HasValue && !match.DistanceMatchesWithinTolerance)
+        if (expected.Distance.HasValue &&
+            memory.Distance.HasValue &&
+            !match.DistanceMatchesWithinTolerance)
         {
             return false;
         }

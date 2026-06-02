@@ -2,6 +2,34 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — target-current resolver repair — 2026-06-02 04:39 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0439-target-current-resolver-repair-handoff.md`.
+
+The Phase 1 C# `--read-target-current` blocker is repaired for the current
+selected-target packet. The previous blocker was
+`target-current-family-resolution-failed:fam-CEC3708F`.
+
+| Evidence | Result |
+|---|---|
+| Root cause | Target acceptance required optional name/distance fields that the memory sample did not read, and target-family ranking let high-volume coord-only `fam-CEC3708F` outrank the full coord+level+health object family. |
+| Code repair | `TargetCurrentReader` now treats name/distance as optional readback fields; `TargetSignatureProbeCaptureBuilder` prioritizes full coord+level+health matches over coord-only hit count. |
+| Live readback | `--read-target-current --json` passed against PID `12664` / process `rift_x64`. |
+| Phase 1 helper | `scripts\riftreader-phase1-target-entity-snapshot.cmd --json` passed. |
+| New helper output | `scripts\captures\phase1-target-entity-snapshot-20260602-043904-933361\summary.json`; verdict `phase1-target-current-reader-passed`. |
+| Resolved target family | `fam-6F81F26E` at `0x1E036430920`, level `45`, health `18208`, coords `(7251.04, 821.44, 2987.8699)`. |
+
+Safety: the repair validation used read-only process memory access only. No live
+input, movement, `/reloadui`, screenshot key, Cheat Engine/x64dbg, provider
+writes, target memory writes, proof promotion, actor-chain promotion, branch
+rewrite, or remote mutation was performed. `ReaderBridgeExport.lua` remains a
+post-flush SavedVariables snapshot, not live IPC truth.
+
+Current next action: repeat Phase 1 with a non-self selected target once target
+selection is reliable, then use the passing target reader output as the seed for
+selected-target memory/entity discovery.
+
 ## Latest compact handoff — Phase 1 target entity snapshot helper — 2026-06-02 04:04 UTC
 
 A new compact handoff exists at

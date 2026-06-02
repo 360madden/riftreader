@@ -198,7 +198,7 @@ public static class TargetSignatureProbeCaptureBuilder
         float expectedCoordY,
         float expectedCoordZ)
     {
-        var ranked = new List<(int VerificationScore, TargetSignatureFamilySummary Family, TargetSignatureScanHit RepresentativeHit, TargetSignatureSignal? LevelSignal, TargetSignatureSignal? HealthSignal, TargetSignatureSignal? NameSignal)>();
+        var ranked = new List<(int FullMatchCount, int CoordAndLevelMatchCount, int CoordMatchCount, int LevelMatchCount, int HealthMatchCount, TargetSignatureFamilySummary Family, TargetSignatureScanHit RepresentativeHit, TargetSignatureSignal? LevelSignal, TargetSignatureSignal? HealthSignal, TargetSignatureSignal? NameSignal)>();
 
         foreach (var family in scanResult.Families)
         {
@@ -211,7 +211,11 @@ public static class TargetSignatureProbeCaptureBuilder
             var levelSignal = FindSignal(representativeHit, "level");
             var healthSignal = FindSignal(representativeHit, "health");
             var nameSignal = FindSignal(representativeHit, "name");
-            var verificationScore = 0;
+            var fullMatchCount = 0;
+            var coordAndLevelMatchCount = 0;
+            var coordMatchCount = 0;
+            var levelMatchCount = 0;
+            var healthMatchCount = 0;
 
             foreach (var sampleAddressText in family.SampleAddresses)
             {
@@ -220,34 +224,51 @@ public static class TargetSignatureProbeCaptureBuilder
                 var sampleCoordY = TryReadFloat(reader, sampleAddress + 4);
                 var sampleCoordZ = TryReadFloat(reader, sampleAddress + 8);
 
-                if (sampleCoordX.HasValue && sampleCoordY.HasValue && sampleCoordZ.HasValue &&
+                var coordsMatch =
+                    sampleCoordX.HasValue && sampleCoordY.HasValue && sampleCoordZ.HasValue &&
                     NearlyEquals(sampleCoordX.Value, expectedCoordX, 0.25f) &&
                     NearlyEquals(sampleCoordY.Value, expectedCoordY, 0.25f) &&
-                    NearlyEquals(sampleCoordZ.Value, expectedCoordZ, 0.25f))
+                    NearlyEquals(sampleCoordZ.Value, expectedCoordZ, 0.25f);
+
+                if (coordsMatch)
                 {
-                    verificationScore += 4;
+                    coordMatchCount++;
                 }
 
+                var levelMatches = !expectedLevel.HasValue;
                 if (expectedLevel.HasValue && levelSignal is not null)
                 {
                     var level = TryReadInt32(reader, sampleAddress + levelSignal.RelativeOffset);
-                    if (level == expectedLevel)
+                    levelMatches = level == expectedLevel;
+                    if (levelMatches)
                     {
-                        verificationScore += 1;
+                        levelMatchCount++;
                     }
                 }
 
+                var healthMatches = !expectedHealth.HasValue;
                 if (expectedHealth.HasValue && healthSignal is not null)
                 {
                     var health = TryReadInt32(reader, sampleAddress + healthSignal.RelativeOffset);
-                    if (health == expectedHealth)
+                    healthMatches = health == expectedHealth;
+                    if (healthMatches)
                     {
-                        verificationScore += 1;
+                        healthMatchCount++;
                     }
+                }
+
+                if (coordsMatch && levelMatches)
+                {
+                    coordAndLevelMatchCount++;
+                }
+
+                if (coordsMatch && levelMatches && healthMatches)
+                {
+                    fullMatchCount++;
                 }
             }
 
-            ranked.Add((verificationScore, family, representativeHit, levelSignal, healthSignal, nameSignal));
+            ranked.Add((fullMatchCount, coordAndLevelMatchCount, coordMatchCount, levelMatchCount, healthMatchCount, family, representativeHit, levelSignal, healthSignal, nameSignal));
         }
 
         if (ranked.Count == 0)
@@ -256,7 +277,12 @@ public static class TargetSignatureProbeCaptureBuilder
         }
 
         var best = ranked
-            .OrderByDescending(static entry => entry.VerificationScore)
+            .OrderByDescending(static entry => entry.FullMatchCount)
+            .ThenByDescending(static entry => entry.CoordAndLevelMatchCount)
+            .ThenByDescending(static entry => entry.CoordMatchCount)
+            .ThenByDescending(static entry => entry.LevelMatchCount)
+            .ThenByDescending(static entry => entry.HealthMatchCount)
+            .ThenByDescending(static entry => entry.RepresentativeHit.Signals.Count)
             .ThenByDescending(static entry => entry.Family.BestScore)
             .ThenByDescending(static entry => entry.Family.HitCount)
             .ThenBy(static entry => entry.RepresentativeHit.Address)
