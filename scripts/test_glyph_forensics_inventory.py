@@ -100,6 +100,28 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertEqual(summary["statusCounts"]["NotSigned"], 1)
         self.assertEqual(summary["nonValidCount"], 1)
 
+    def test_module_origin_summary_flags_non_windows_non_glyph_modules(self) -> None:
+        summary = glyph.module_origin_summary(
+            [
+                {
+                    "pid": 10,
+                    "moduleCount": 3,
+                    "truncated": False,
+                    "modules": [
+                        {"ModuleName": "GlyphClientApp.exe", "FileName": r"C:\Program Files (x86)\Glyph\GlyphClientApp.exe"},
+                        {"ModuleName": "kernel32.dll", "FileName": r"C:\Windows\System32\kernel32.dll"},
+                        {"ModuleName": "odd.dll", "FileName": r"C:\Users\mrkoo\AppData\Local\Temp\odd.dll"},
+                    ],
+                }
+            ],
+            install_roots=[Path(r"C:\Program Files (x86)\Glyph")],
+        )
+
+        self.assertEqual(summary["categoryCounts"]["glyph-install"], 1)
+        self.assertEqual(summary["categoryCounts"]["windows"], 1)
+        self.assertEqual(summary["categoryCounts"]["temp"], 1)
+        self.assertEqual(summary["nonWindowsNonGlyphCount"], 1)
+
     def test_health_packet_summarizes_key_fields(self) -> None:
         summary = {
             "generatedAtUtc": "2026-06-02T00:00:00Z",
@@ -113,13 +135,39 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
             "targetedFileInventory": [{"exists": True}],
             "dependencyMetadata": [{}],
             "logTimeline": {"eventCount": 5},
+            "moduleOriginSummary": {"processCount": 1, "totalModuleCount": 3, "categoryCounts": {"windows": 2}, "nonWindowsNonGlyphCount": 0},
+        }
+        ghidra_summary = {
+            "programName": "GlyphClientApp.exe",
+            "languageId": "x86:LE:32:default",
+            "compilerSpecId": "windows",
+            "functionSummary": {"functionCount": 10, "instructionCount": 99},
+            "interestingStringSummary": {
+                "capturedStringCount": 4,
+                "scannedStringDataCount": 5,
+                "totalReferencesCaptured": 7,
+                "categoryCounts": {"auth": 2},
+                "categoryReferenceCounts": {"auth": 7},
+                "topReferencedFunctionsByCategory": {
+                    "auth": [{"functionName": "FUN_1", "functionEntry": "001", "count": 7}]
+                },
+            },
         }
 
-        packet = health.build_health_packet(summary, summary_path=Path("summary.json"), endpoint_limit=1)
+        packet = health.build_health_packet(
+            summary,
+            summary_path=Path("summary.json"),
+            endpoint_limit=1,
+            ghidra_summary=ghidra_summary,
+            ghidra_path=Path("ghidra.json"),
+        )
 
         self.assertEqual(packet["network"]["selectionServerStatus"], "failed-all-addresses")
         self.assertEqual(packet["trust"]["dependencyNonValidSignatureCount"], 1)
         self.assertEqual(packet["manifests"][0]["version"], "v1")
+        self.assertEqual(packet["modules"]["totalModuleCount"], 3)
+        self.assertEqual(packet["staticReverseEngineering"]["totalReferencesCaptured"], 7)
+        self.assertEqual(packet["staticReverseEngineering"]["topReferencedFunctionsByCategory"]["auth"][0]["functionEntry"], "001")
 
 
 if __name__ == "__main__":

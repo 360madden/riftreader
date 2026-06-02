@@ -1358,6 +1358,89 @@ $p.Modules |
     return {"pid": int(pid), "moduleCount": len(modules), "modules": modules[:300], "truncated": len(modules) > 300}
 
 
+def _normalized_path_text(value: Any) -> str:
+    return str(value or "").replace("/", "\\").rstrip("\\").lower()
+
+
+def _path_under_text(path_text: str, root: Path | str | None) -> bool:
+    root_text = _normalized_path_text(root)
+    if not path_text or not root_text:
+        return False
+    return path_text == root_text or path_text.startswith(root_text + "\\")
+
+
+def classify_module_origin(file_name: Any, *, install_roots: Sequence[Path]) -> str:
+    path_text = _normalized_path_text(file_name)
+    if not path_text:
+        return "unknown"
+    windows_root = Path(os.environ.get("WINDIR", r"C:\Windows"))
+    temp_roots = [
+        Path(value)
+        for value in (os.environ.get("TEMP"), os.environ.get("TMP"), str(Path.home() / "AppData" / "Local" / "Temp"), r"C:\Windows\Temp")
+        if value
+    ]
+    program_files_roots = [
+        Path(value)
+        for value in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), r"C:\Program Files", r"C:\Program Files (x86)")
+        if value
+    ]
+    if any(_path_under_text(path_text, root) for root in install_roots):
+        return "glyph-install"
+    if _path_under_text(path_text, windows_root):
+        return "windows"
+    if any(_path_under_text(path_text, root) for root in temp_roots):
+        return "temp"
+    if _path_under_text(path_text, Path.home()):
+        return "user-profile"
+    if any(_path_under_text(path_text, root) for root in program_files_roots):
+        return "program-files"
+    return "other"
+
+
+def module_origin_summary(module_inventories: Sequence[Mapping[str, Any]], *, install_roots: Sequence[Path]) -> dict[str, Any]:
+    category_counts: dict[str, int] = {}
+    process_rows: list[dict[str, Any]] = []
+    non_windows_non_glyph: list[dict[str, Any]] = []
+    for inventory in module_inventories:
+        modules = inventory.get("modules") if isinstance(inventory.get("modules"), list) else []
+        process_counts: dict[str, int] = {}
+        for module in modules:
+            if not isinstance(module, Mapping):
+                continue
+            category = classify_module_origin(module.get("FileName"), install_roots=install_roots)
+            category_counts[category] = category_counts.get(category, 0) + 1
+            process_counts[category] = process_counts.get(category, 0) + 1
+            if category not in {"windows", "glyph-install"}:
+                non_windows_non_glyph.append(
+                    {
+                        "pid": inventory.get("pid"),
+                        "moduleName": module.get("ModuleName"),
+                        "fileName": module.get("FileName"),
+                        "category": category,
+                        "moduleMemorySize": module.get("ModuleMemorySize"),
+                    }
+                )
+        process_rows.append(
+            {
+                "pid": inventory.get("pid"),
+                "moduleCount": inventory.get("moduleCount"),
+                "truncated": inventory.get("truncated"),
+                "categoryCounts": process_counts,
+                "nonWindowsNonGlyphCount": sum(
+                    count for category, count in process_counts.items() if category not in {"windows", "glyph-install"}
+                ),
+            }
+        )
+    return {
+        "processCount": len(process_rows),
+        "totalModuleCount": sum(int(item.get("moduleCount") or 0) for item in module_inventories),
+        "categoryCounts": category_counts,
+        "nonWindowsNonGlyphCount": len(non_windows_non_glyph),
+        "nonWindowsNonGlyphModules": non_windows_non_glyph[:100],
+        "processes": process_rows,
+    }
+
+
 def registry_inventory() -> list[dict[str, Any]]:
     encoded = json.dumps(list(REGISTRY_CANDIDATE_PATHS))
     script = rf"""
@@ -1483,6 +1566,11 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     lines.append(f"- executable signature statuses: `{executable_trust.get('statusCounts')}`")
     lines.append(f"- dependency signature statuses: `{dependency_trust.get('statusCounts')}`")
     lines.append(f"- dependency non-valid signatures: `{dependency_trust.get('nonValidCount')}`")
+    module_summary = safe_mapping(summary.get("moduleOriginSummary"))
+    lines.extend(["", "## Loaded module origin summary", ""])
+    lines.append(f"- total modules: `{module_summary.get('totalModuleCount')}`")
+    lines.append(f"- category counts: `{module_summary.get('categoryCounts')}`")
+    lines.append(f"- non-Windows/non-Glyph module count: `{module_summary.get('nonWindowsNonGlyphCount')}`")
     lines.extend(["", "## PE summaries", ""])
     for item in summary.get("peSummaries", []):
         if isinstance(item, Mapping):
@@ -1538,7 +1626,14 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         lines.append(f"- {label}: `{len(rows)}`")
     lines.extend(["", "## Safety", ""])
     safety = safe_mapping(summary.get("safety"))
-    for key in ("debuggerAttachedByThisHelper", "processMemoryDumped", "processMemoryRead", "debuggerAttach", "tokensRedacted"):
+    for key in (
+        "debuggerAttachedByThisHelper",
+        "processMemoryDumped",
+        "processMemoryRead",
+        "processModuleEnumeration",
+        "debuggerAttach",
+        "tokensRedacted",
+    ):
         lines.append(f"- {key}: `{safety.get(key)}`")
     if summary.get("warnings"):
         lines.extend(["", "## Warnings", ""])
@@ -1557,6 +1652,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     processes = process_inventory()
     debugger_processes = debugger_process_scan()
     glyph_processes = [proc for proc in processes if str(proc.get("Name", "")).lower().startswith("glyph")]
+    install_root = install_root_from_processes(glyph_processes)
     targeted_paths = targeted_glyph_paths(glyph_processes)
     targeted_files = targeted_file_inventory(targeted_paths)
     network_connections = active_network_connections(glyph_processes)
@@ -1621,6 +1717,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             continue
         debug_checks.append({"pid": pid, **debugger_indicators(pid)})
         modules.append(module_inventory(pid))
+    module_roots = [root for root in (install_root, Path(r"C:\Program Files (x86)\Glyph"), Path(r"C:\Program Files\Glyph")) if root]
+    module_summary = module_origin_summary(modules, install_roots=module_roots)
     string_summaries = [extract_ascii_strings(path, max_hits=int(args.max_string_hits)) for path in unique_exes[:20]]
     previews = collect_previews(inventories, limit_bytes=int(args.text_preview_bytes))
     targeted_previews = collect_targeted_previews(targeted_files, limit_bytes=int(args.text_preview_bytes))
@@ -1641,6 +1739,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "x64dbgAttach": False,
             "targetMemoryBytesRead": False,
             "targetMemoryBytesWritten": False,
+            "processModuleEnumeration": bool(modules),
         }
     )
     warnings: list[str] = []
@@ -1669,6 +1768,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "uninstallInventory": uninstall_entries,
         "debuggerIndicators": debug_checks,
         "moduleInventory": modules,
+        "moduleOriginSummary": module_summary,
         "candidateRoots": [str(item) for item in roots],
         "fileInventories": inventories,
         "targetedFileInventory": targeted_files,
@@ -1719,6 +1819,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     selection = safe_mapping(summary.get("selectionServerSummary"))
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
+    module_summary = safe_mapping(summary.get("moduleOriginSummary"))
     return {
         "status": summary.get("status"),
         "kind": summary.get("kind"),
@@ -1736,6 +1837,9 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "executableSignatureStatusCounts": executable_trust.get("statusCounts"),
         "dependencySignatureStatusCounts": dependency_trust.get("statusCounts"),
         "dependencyNonValidSignatureCount": dependency_trust.get("nonValidCount"),
+        "loadedModuleTotalCount": module_summary.get("totalModuleCount"),
+        "loadedModuleOriginCounts": module_summary.get("categoryCounts"),
+        "nonWindowsNonGlyphModuleCount": module_summary.get("nonWindowsNonGlyphCount"),
         "debuggerLikeProcessCount": len(summary.get("debuggerProcessScan", [])),
         "activeNetworkConnectionCount": len(summary.get("activeNetworkConnections", [])),
         "serviceCount": len(summary.get("serviceInventory", [])),
@@ -1754,6 +1858,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
                 "debuggerAttachedByThisHelper",
                 "processMemoryDumped",
                 "processMemoryRead",
+                "processModuleEnumeration",
                 "tokensRedacted",
             )
         },

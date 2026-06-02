@@ -22,6 +22,15 @@ def latest_inventory_summary(root: Path) -> Path | None:
     return candidates[-1] if candidates else None
 
 
+def latest_ghidra_summary(root: Path) -> Path | None:
+    capture_root = root / "scripts" / "captures"
+    candidates = sorted(
+        capture_root.glob("glyph-ghidra-static-export-*/glyph-static-summary.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    return candidates[-1] if candidates else None
+
+
 def load_summary(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -72,11 +81,68 @@ def top_endpoints(summary: Mapping[str, Any], *, limit: int) -> list[dict[str, A
     return rows
 
 
-def build_health_packet(summary: Mapping[str, Any], *, summary_path: Path, endpoint_limit: int) -> dict[str, Any]:
+def top_count_rows(counts: Mapping[str, Any], *, limit: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key, value in counts.items():
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        rows.append({"name": key, "count": count})
+    return sorted(rows, key=lambda item: item["count"], reverse=True)[:limit]
+
+
+def static_focus_packet(ghidra_summary: Mapping[str, Any], *, ghidra_path: Path, category_limit: int = 8, function_limit: int = 5) -> dict[str, Any]:
+    function_summary = safe_mapping(ghidra_summary.get("functionSummary"))
+    string_summary = safe_mapping(ghidra_summary.get("interestingStringSummary"))
+    category_reference_counts = safe_mapping(string_summary.get("categoryReferenceCounts"))
+    category_counts = safe_mapping(string_summary.get("categoryCounts"))
+    top_functions_by_category = safe_mapping(string_summary.get("topReferencedFunctionsByCategory"))
+    categories = [row["name"] for row in top_count_rows(category_reference_counts, limit=category_limit)]
+    functions: dict[str, list[dict[str, Any]]] = {}
+    for category in categories:
+        rows = top_functions_by_category.get(category)
+        if not isinstance(rows, list):
+            continue
+        functions[category] = [
+            {
+                "functionName": item.get("functionName"),
+                "functionEntry": item.get("functionEntry"),
+                "count": item.get("count"),
+            }
+            for item in rows[:function_limit]
+            if isinstance(item, Mapping)
+        ]
+    return {
+        "sourceGhidraJson": str(ghidra_path),
+        "programName": ghidra_summary.get("programName"),
+        "languageId": ghidra_summary.get("languageId"),
+        "compilerSpecId": ghidra_summary.get("compilerSpecId"),
+        "functionCount": function_summary.get("functionCount"),
+        "instructionCount": function_summary.get("instructionCount"),
+        "capturedStringCount": string_summary.get("capturedStringCount"),
+        "scannedStringDataCount": string_summary.get("scannedStringDataCount"),
+        "totalReferencesCaptured": string_summary.get("totalReferencesCaptured"),
+        "topCategoryCounts": top_count_rows(category_counts, limit=category_limit),
+        "topCategoryReferenceCounts": top_count_rows(category_reference_counts, limit=category_limit),
+        "topReferencedFunctionsByCategory": functions,
+    }
+
+
+def build_health_packet(
+    summary: Mapping[str, Any],
+    *,
+    summary_path: Path,
+    endpoint_limit: int,
+    ghidra_summary: Mapping[str, Any] | None = None,
+    ghidra_path: Path | None = None,
+) -> dict[str, Any]:
     artifacts = safe_mapping(summary.get("artifacts"))
     selection = safe_mapping(summary.get("selectionServerSummary"))
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
+    module_summary = safe_mapping(summary.get("moduleOriginSummary"))
+    module_inventory_rows = summary.get("moduleInventory") if isinstance(summary.get("moduleInventory"), list) else []
     timeline = safe_mapping(summary.get("logTimeline"))
     safety = base_safety()
     safety.update(
@@ -85,10 +151,12 @@ def build_health_packet(summary: Mapping[str, Any], *, summary_path: Path, endpo
             "debuggerAttach": False,
             "processMemoryDumped": False,
             "processMemoryRead": False,
+            "processModuleEnumeration": bool(module_summary) or bool(module_inventory_rows),
+            "staticGhidraOnly": ghidra_summary is not None,
             "tokensRedacted": True,
         }
     )
-    return {
+    packet = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": KIND,
         "generatedAtUtc": utc_iso(),
@@ -120,6 +188,13 @@ def build_health_packet(summary: Mapping[str, Any], *, summary_path: Path, endpo
             "dependencySignatureStatusCounts": dependency_trust.get("statusCounts", {}),
             "dependencyNonValidSignatureCount": dependency_trust.get("nonValidCount"),
         },
+        "modules": {
+            "processCount": module_summary.get("processCount"),
+            "totalModuleCount": module_summary.get("totalModuleCount"),
+            "originCounts": module_summary.get("categoryCounts", {}),
+            "nonWindowsNonGlyphCount": module_summary.get("nonWindowsNonGlyphCount"),
+            "nonWindowsNonGlyphModules": module_summary.get("nonWindowsNonGlyphModules", [])[:25],
+        },
         "counts": {
             "targetedFileCount": len([item for item in summary.get("targetedFileInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
             "dependencyCount": len(summary.get("dependencyMetadata", [])),
@@ -129,12 +204,17 @@ def build_health_packet(summary: Mapping[str, Any], *, summary_path: Path, endpo
         },
         "safety": safety,
     }
+    if ghidra_summary is not None and ghidra_path is not None:
+        packet["staticReverseEngineering"] = static_focus_packet(ghidra_summary, ghidra_path=ghidra_path)
+    return packet
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Emit a compact Glyph health packet from the latest Glyph forensics inventory")
     parser.add_argument("--repo-root")
     parser.add_argument("--summary-json", type=Path)
+    parser.add_argument("--ghidra-json", type=Path)
+    parser.add_argument("--no-ghidra", action="store_true")
     parser.add_argument("--endpoint-limit", type=int, default=12)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -149,7 +229,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"status": "failed", "error": "glyph-forensics-summary-not-found", "safety": base_safety()}, indent=2))
         return 1
     summary = load_summary(summary_path)
-    packet = build_health_packet(summary, summary_path=summary_path, endpoint_limit=int(args.endpoint_limit))
+    ghidra_path = None
+    ghidra_summary = None
+    if not args.no_ghidra:
+        ghidra_path = args.ghidra_json.resolve() if args.ghidra_json else latest_ghidra_summary(root)
+        if ghidra_path is not None:
+            ghidra_summary = load_summary(ghidra_path)
+    packet = build_health_packet(
+        summary,
+        summary_path=summary_path,
+        endpoint_limit=int(args.endpoint_limit),
+        ghidra_summary=ghidra_summary,
+        ghidra_path=ghidra_path,
+    )
     if args.write:
         run_dir = root / "scripts" / "captures" / f"glyph-health-packet-{utc_stamp()}"
         packet["artifacts"] = {"summaryJson": str(run_dir / "summary.json")}

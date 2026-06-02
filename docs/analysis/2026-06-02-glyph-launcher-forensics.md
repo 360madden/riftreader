@@ -9,12 +9,12 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-103728-352798\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-103728-352798\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-105421-945238\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-105421-945238\summary.md`
 
 Compact health packet:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-103810-077059\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-105458-357772\summary.json`
 
 Offline Ghidra artifact:
 
@@ -40,6 +40,7 @@ Offline Ghidra artifact:
 | x64dbg / Cheat Engine attach | `false` |
 | Process memory dumped | `false` |
 | Process memory read | `false` |
+| Process module enumeration query | `true` |
 | Target bytes written | `false` |
 | Credential/token extraction attempted | `false` |
 | Redaction enabled | `true` |
@@ -90,6 +91,21 @@ Signature trust rollup:
 | Glyph executables | `NotSigned=3`, `Valid=3` | `3` |
 | Launcher/game dependency DLLs | `Valid=7`, `NotSigned=31` | `31` |
 
+Loaded module origin rollup from the live Glyph processes:
+
+| Process/module surface | Result |
+|---|---:|
+| Glyph processes with module lists | `2` |
+| Total loaded modules classified | `187` |
+| Modules from Glyph install root | `26` |
+| Modules from Windows root | `161` |
+| Non-Windows/non-Glyph loaded modules | `0` |
+
+Interpretation: the query-only module inventory did not show obvious injected or
+third-party loaded DLLs outside Windows and the Glyph install root. This is not a
+kernel-grade anti-tamper proof, but it is a useful non-invasive signal for the
+"may already have something attached" concern.
+
 ## Config and log locations found
 
 | Path | Purpose / notable content |
@@ -133,7 +149,7 @@ Registry keys found:
 | Launcher/game dependency DLLs hashed | `38` |
 | Parsed manifests | `2` |
 | Consolidated endpoints/domains | `96` |
-| Log timeline events | `3875` |
+| Log timeline events | `4034` |
 
 Parsed manifests:
 
@@ -251,6 +267,8 @@ Static Ghidra JSON export:
   `crash=10`, `rift=0`
 - Top referenced functions by category are exported in
   `interestingStringSummary.topReferencedFunctionsByCategory`; examples:
+  `patch` starts with `FUN_00460680` (`19` string references),
+  `FUN_0049f900` (`19`), and `FUN_005126a0` (`13`);
   `auth` starts with `FUN_004ba7b0` (`32` string references),
   `FUN_00523fe0` (`23`), `FUN_00522de0` (`19`), and
   `FUN_00523bb0` (`16`), while `endpoint` starts with `FUN_00415080`
