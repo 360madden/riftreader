@@ -176,6 +176,21 @@ whether the request is ready for a separate live-approval decision. It still
 sets `executionReviewApproved=false`, `executionAuthorized=false`, and
 `routeRunnerInvoked=false`; it is not a movement approval artifact.
 
+### Build a non-executing live-run command plan
+```powershell
+scripts\riftreader-navigation-live-run-command-plan.cmd `
+  --live-run-review-json <review-summary.json> `
+  --json
+```
+
+This saved-JSON-only command plan consumes a passed review artifact and writes
+the dry-run and live execution command templates that would be used later. It
+does not run either template, does not read target memory, and keeps
+`executionAuthorized=false`, `executionAttempted=false`, and
+`routeRunnerInvoked=false`. During server maintenance or any world-entry
+outage, pass `--game-maintenance` so the artifact records
+`game-maintenance-world-entry-unavailable` as a pre-execution blocker.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

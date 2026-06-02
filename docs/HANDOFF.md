@@ -2,6 +2,37 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation live-run command plan — 2026-06-02 09:19 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0919-navigation-live-run-command-plan-handoff.md`.
+
+RiftReader now has a saved-JSON-only live-run command-plan artifact. During the
+current RIFT maintenance/world-entry outage, this advances practical automated
+navigation infrastructure without requiring game access: the helper consumes a
+passed live-run review and emits dry-run plus execution command templates while
+still refusing to authorize or invoke route execution.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_live_run_command_plan.py`; launcher `scripts\riftreader-navigation-live-run-command-plan.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-live-run-command-plan.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Tool catalog | `navigation-live-run-command-plan` is canonical, safe-read-only, and in the recommended workflow; tool count is now `52`. |
+| Command-plan smoke | `scripts\riftreader-navigation-live-run-command-plan.cmd --live-run-review-json scripts\captures\navigation-live-run-review-20260602-090328-266990\summary.json --game-maintenance --json` passed with `requestedMode=continuous-route-run`, `commandPlanOnly=true`, `executionAuthorized=false`, `executionAttempted=false`, `routeRunnerInvoked=false`, `movementSent=false`, `inputSent=false`, and `targetMemoryBytesRead=false`. |
+| Schema smoke | `scripts\captures\navigation-live-run-command-plan-20260602-091850-026491\summary.json` passed `navigation-live-run-command-plan` schema validation with `validationErrorCount=0`. |
+
+Safety: the command-plan helper reads saved JSON only. It sends no input or
+movement, performs no live target memory read/write, no `/reloadui`, no
+screenshot key, no debugger/CE attach, no provider write, no proof/actor/facing
+/turn-rate promotion, and no route control. It intentionally keeps
+`executionAuthorized=false`, `executionAttempted=false`, and
+`routeRunnerInvoked=false`.
+
+Current next action while game entry is down: add a downstream consumer replay
+fixture that validates the full saved chain: package → request → review →
+command-plan. When RIFT is available again, refresh target proof/current pose
+before considering any bounded live dry-run or movement approval.
+
 ## Latest compact handoff — navigation live-run review — 2026-06-02 09:03 UTC
 
 A new compact handoff exists at

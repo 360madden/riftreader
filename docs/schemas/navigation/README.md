@@ -16,6 +16,7 @@ consume RiftReader navigation artifacts.
 | `navigation-downstream-package.schema.json` | `riftreader-navigation-downstream-package` | One-command refresh + preview + schema-validation bundle. |
 | `navigation-live-run-request.schema.json` | `riftreader-navigation-live-run-request` | Saved gated live-run intent request; no execution. |
 | `navigation-live-run-review.schema.json` | `riftreader-navigation-live-run-review` | Saved request/package freshness review; no execution approval. |
+| `navigation-live-run-command-plan.schema.json` | `riftreader-navigation-live-run-command-plan` | Saved dry-run/execution command templates; no route-runner invocation. |
 
 Use the repo validator:
 

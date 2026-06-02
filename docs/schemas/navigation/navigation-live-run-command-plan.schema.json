@@ -1,0 +1,176 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-live-run-command-plan.schema.json",
+  "title": "RiftReader navigation live-run command plan",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "contractVersion",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "commandPlan",
+    "executionGate",
+    "schemaValidations",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-live-run-command-plan" },
+    "contractVersion": { "const": "navigation-live-run-command-plan/v1" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": [
+        "liveRunReviewJson",
+        "maxReviewAgeSeconds",
+        "planId",
+        "turnBackend",
+        "mousePixelsPerPulse",
+        "gameMaintenance"
+      ],
+      "properties": {
+        "liveRunReviewJson": { "type": ["string", "null"] },
+        "maxReviewAgeSeconds": { "type": "number", "minimum": 0 },
+        "planId": { "type": ["string", "null"] },
+        "turnBackend": { "enum": ["key", "mouse-look"] },
+        "mousePixelsPerPulse": { "type": "number", "minimum": 1 },
+        "gameMaintenance": { "type": "boolean" }
+      }
+    },
+    "commandPlan": {
+      "type": "object",
+      "required": [
+        "planId",
+        "reviewSummaryJson",
+        "sourcePackageSummaryJson",
+        "waypointReadinessSummaryJson",
+        "requestedMode",
+        "mode",
+        "repoRoot",
+        "normalizedWaypointsJson",
+        "nextWaypointId",
+        "dryRunCommandTemplate",
+        "executionCommandTemplate",
+        "templateOnly",
+        "approvalFlagsIncludedInTemplate",
+        "approvalFlagsRequired",
+        "preflightRequirements"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "reviewSummaryJson": { "type": ["string", "null"] },
+        "sourcePackageSummaryJson": { "type": ["string", "null"] },
+        "waypointReadinessSummaryJson": { "type": ["string", "null"] },
+        "requestedMode": { "type": "string" },
+        "mode": { "type": "string" },
+        "repoRoot": { "type": "string" },
+        "normalizedWaypointsJson": { "type": ["string", "null"] },
+        "nextWaypointId": { "type": ["string", "null"] },
+        "dryRunCommandTemplate": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "executionCommandTemplate": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "templateOnly": { "const": true },
+        "approvalFlagsIncludedInTemplate": { "type": "boolean" },
+        "approvalFlagsRequired": { "type": "array", "items": { "type": "string" } },
+        "preflightRequirements": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "executionGate": {
+      "type": "object",
+      "required": [
+        "commandPlanOnly",
+        "executionAuthorized",
+        "executionAttempted",
+        "routeRunnerInvoked",
+        "movementApproved",
+        "turnApproved",
+        "candidateTurnControlAllowed",
+        "requiresExplicitLiveMovementApproval",
+        "gameWorldEntryAvailable",
+        "blockersBeforeExecution"
+      ],
+      "properties": {
+        "commandPlanOnly": { "const": true },
+        "executionAuthorized": { "const": false },
+        "executionAttempted": { "const": false },
+        "routeRunnerInvoked": { "const": false },
+        "movementApproved": { "const": false },
+        "turnApproved": { "const": false },
+        "candidateTurnControlAllowed": { "const": false },
+        "requiresExplicitLiveMovementApproval": { "const": true },
+        "gameWorldEntryAvailable": { "type": ["boolean", "null"] },
+        "blockersBeforeExecution": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "schemaValidations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "status",
+          "inputJson",
+          "schemaJson",
+          "validationStatus",
+          "validationErrorCount",
+          "blockers",
+          "warnings",
+          "errors"
+        ],
+        "properties": {
+          "label": { "type": "string" },
+          "status": { "enum": ["passed", "blocked", "failed"] },
+          "inputJson": { "type": ["string", "null"] },
+          "schemaJson": { "type": "string" },
+          "validationStatus": { "type": ["string", "null"] },
+          "validationErrorCount": { "type": ["number", "null"], "minimum": 0 },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "errors": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "readOnlySavedJson": { "const": true },
+        "liveRunCommandPlanOnly": { "const": true },
+        "routeControlAuthorized": { "const": false },
+        "routeRunnerInvoked": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

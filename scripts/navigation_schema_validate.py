@@ -30,6 +30,7 @@ SCHEMA_FILES = {
     "navigation-downstream-package": "navigation-downstream-package.schema.json",
     "navigation-live-run-request": "navigation-live-run-request.schema.json",
     "navigation-live-run-review": "navigation-live-run-review.schema.json",
+    "navigation-live-run-command-plan": "navigation-live-run-command-plan.schema.json",
 }
 
 KIND_TO_SCHEMA_KEY = {
@@ -46,6 +47,7 @@ KIND_TO_SCHEMA_KEY = {
     "riftreader-navigation-downstream-package": "navigation-downstream-package",
     "riftreader-navigation-live-run-request": "navigation-live-run-request",
     "riftreader-navigation-live-run-review": "navigation-live-run-review",
+    "riftreader-navigation-live-run-command-plan": "navigation-live-run-command-plan",
 }
 
 
