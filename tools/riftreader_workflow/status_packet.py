@@ -192,6 +192,12 @@ BRIDGE_COMMAND_SPECS: tuple[tuple[str, str, str, str], ...] = (
         "offline installed-binary scan only; no live process access/input/movement/debugger/provider writes or promotion",
     ),
     (
+        "phase1-target-entity-snapshot",
+        "Phase 1 target entity snapshot",
+        "scripts\\riftreader-phase1-target-entity-snapshot.cmd --pid <current-pid> --hwnd <current-hwnd> --json",
+        "post-flush selected-target evidence and target-current reader blocker capture; no target selection/input/reload/debugger/provider writes or promotion",
+    ),
+    (
         "static-owner-coordinate-chain-readback",
         "Static-owner coordinate-chain readback",
         "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",
