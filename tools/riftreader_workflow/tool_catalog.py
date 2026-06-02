@@ -788,6 +788,27 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="navigation-live-run-review",
+            label="Navigation live-run review",
+            kind="navigation-report",
+            rel_path="scripts/riftreader-navigation-live-run-review.cmd",
+            risk="safe-read-only",
+            default_use="review a saved gated live-run request and source package freshness without approving movement",
+            allowed=True,
+            approval=False,
+            command=[
+                "scripts\\riftreader-navigation-live-run-review.cmd",
+                "--live-run-request-json",
+                "<request-summary.json>",
+                "--json",
+            ],
+            notes=[
+                "saved JSON only; validates request/package schemas and freshness without target reads or route-runner invocation",
+                "executionReviewApproved and executionAuthorized remain false; separate live movement approval is still required",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -1208,6 +1229,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "navigation-live-run-request-for-review",
             "command": "scripts\\riftreader-navigation-live-run-request.cmd --downstream-package-json <package-summary.json> --json",
         },
+        {
+            "step": "navigation-live-run-review-before-live",
+            "command": "scripts\\riftreader-navigation-live-run-review.cmd --live-run-request-json <request-summary.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -1289,6 +1314,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "navigation-route-preview",
             "navigation-downstream-package",
             "navigation-live-run-request",
+            "navigation-live-run-review",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,
@@ -1545,6 +1571,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-navigation-route-preview.cmd",
             "scripts/riftreader-navigation-downstream-package.cmd",
             "scripts/riftreader-navigation-live-run-request.cmd",
+            "scripts/riftreader-navigation-live-run-review.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
             "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
@@ -1621,6 +1648,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "navigation-live-run-request-canonical",
                     "pass": "navigation-live-run-request" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "navigation-live-run-review-canonical",
+                    "pass": "navigation-live-run-review" in compact["canonicalToolKeys"],
                 },
                 {"name": "safety-no-input", "pass": catalog["safety"]["inputSent"] is False},
             ]

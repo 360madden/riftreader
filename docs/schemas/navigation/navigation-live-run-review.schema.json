@@ -1,0 +1,173 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-live-run-review.schema.json",
+  "title": "RiftReader navigation live-run review",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "contractVersion",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "review",
+    "freshness",
+    "schemaValidations",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-live-run-review" },
+    "contractVersion": { "const": "navigation-live-run-review/v1" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": [
+        "liveRunRequestJson",
+        "maxRequestAgeSeconds",
+        "maxSourcePackageAgeSeconds",
+        "reviewId"
+      ],
+      "properties": {
+        "liveRunRequestJson": { "type": ["string", "null"] },
+        "maxRequestAgeSeconds": { "type": "number", "minimum": 0 },
+        "maxSourcePackageAgeSeconds": { "type": "number", "minimum": 0 },
+        "reviewId": { "type": ["string", "null"] }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "reviewId",
+        "requestId",
+        "requestSummaryJson",
+        "sourcePackageSummaryJson",
+        "reviewState",
+        "requestAcceptedForReview",
+        "requestFresh",
+        "sourcePackageFresh",
+        "readyForSeparateLiveApproval",
+        "executionReviewApproved",
+        "executionAuthorized",
+        "executionAttempted",
+        "routeRunnerInvoked",
+        "movementApproved",
+        "turnApproved",
+        "candidateTurnControlAllowed",
+        "requiresExplicitLiveMovementApproval",
+        "requiredBeforeExecution"
+      ],
+      "properties": {
+        "reviewId": { "type": "string" },
+        "requestId": { "type": ["string", "null"] },
+        "requestSummaryJson": { "type": ["string", "null"] },
+        "sourcePackageSummaryJson": { "type": ["string", "null"] },
+        "reviewState": {
+          "enum": ["ready-for-separate-live-approval", "blocked-review"]
+        },
+        "requestAcceptedForReview": { "type": "boolean" },
+        "requestFresh": { "type": "boolean" },
+        "sourcePackageFresh": { "type": "boolean" },
+        "readyForSeparateLiveApproval": { "type": "boolean" },
+        "executionReviewApproved": { "const": false },
+        "executionAuthorized": { "const": false },
+        "executionAttempted": { "const": false },
+        "routeRunnerInvoked": { "const": false },
+        "movementApproved": { "const": false },
+        "turnApproved": { "const": false },
+        "candidateTurnControlAllowed": { "const": false },
+        "requiresExplicitLiveMovementApproval": { "const": true },
+        "requiredBeforeExecution": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "required": ["request", "sourcePackage"],
+      "properties": {
+        "request": {
+          "type": ["object", "null"],
+          "properties": {
+            "status": { "enum": ["fresh", "stale", "unknown"] },
+            "observedAtUtc": { "type": ["string", "null"] },
+            "ageSeconds": { "type": ["number", "null"] },
+            "maxAgeSeconds": { "type": "number", "minimum": 0 },
+            "fresh": { "type": "boolean" }
+          }
+        },
+        "sourcePackage": {
+          "type": ["object", "null"],
+          "properties": {
+            "status": { "enum": ["fresh", "stale", "unknown"] },
+            "observedAtUtc": { "type": ["string", "null"] },
+            "ageSeconds": { "type": ["number", "null"] },
+            "maxAgeSeconds": { "type": "number", "minimum": 0 },
+            "fresh": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "schemaValidations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "status",
+          "inputJson",
+          "schemaJson",
+          "validationStatus",
+          "validationErrorCount",
+          "blockers",
+          "warnings",
+          "errors"
+        ],
+        "properties": {
+          "label": { "type": "string" },
+          "status": { "enum": ["passed", "blocked", "failed"] },
+          "inputJson": { "type": ["string", "null"] },
+          "schemaJson": { "type": "string" },
+          "validationStatus": { "type": ["string", "null"] },
+          "validationErrorCount": { "type": ["number", "null"], "minimum": 0 },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "errors": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "readOnlySavedJson": { "const": true },
+        "liveRunReviewOnly": { "const": true },
+        "routeControlAuthorized": { "const": false },
+        "routeRunnerInvoked": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

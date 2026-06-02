@@ -163,6 +163,19 @@ capabilities say `canQueueGatedLiveRunRequest=true` and
 invoke a route runner, or authorize movement. Live execution still requires a
 separate explicit live movement approval plus fresh target/proof/input gates.
 
+### Review a saved gated live-run request
+```powershell
+scripts\riftreader-navigation-live-run-review.cmd `
+  --live-run-request-json <request-summary.json> `
+  --json
+```
+
+This saved-JSON-only review validates the request artifact, validates its
+source downstream package, checks request/package age budgets, and reports
+whether the request is ready for a separate live-approval decision. It still
+sets `executionReviewApproved=false`, `executionAuthorized=false`, and
+`routeRunnerInvoked=false`; it is not a movement approval artifact.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

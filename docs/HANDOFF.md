@@ -2,6 +2,37 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation live-run review — 2026-06-02 09:03 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0903-navigation-live-run-review-handoff.md`.
+
+RiftReader now has a saved-JSON-only live-run request review gate. A downstream
+consumer can create a live-run request, then run a separate review artifact that
+validates the request schema, validates the source downstream package schema,
+checks request/package freshness budgets, and reports whether the request is
+ready for a later explicit live-approval decision.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_live_run_review.py`; launcher `scripts\riftreader-navigation-live-run-review.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-live-run-review.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Tool catalog | `navigation-live-run-review` is canonical, safe-read-only, and in the recommended workflow; tool count is now `51`. |
+| Review smoke | `scripts\riftreader-navigation-live-run-review.cmd --live-run-request-json scripts\captures\navigation-live-run-request-20260602-084748-577328\summary.json --json` passed with `readyForSeparateLiveApproval=true`, `executionReviewApproved=false`, `executionAuthorized=false`, `executionAttempted=false`, `routeRunnerInvoked=false`, `movementSent=false`, `inputSent=false`, and `targetMemoryBytesRead=false`. |
+| Schema smoke | `scripts\captures\navigation-live-run-review-20260602-090328-266990\summary.json` passed `navigation-live-run-review` schema validation with `validationErrorCount=0`. |
+
+Safety: the review helper reads saved JSON only. It sends no input or movement,
+performs no live target memory read/write, no `/reloadui`, no screenshot key, no
+debugger/CE attach, no provider write, no proof/actor/facing/turn-rate
+promotion, and no route control. It intentionally keeps
+`executionReviewApproved=false`, `executionAuthorized=false`, and
+`routeRunnerInvoked=false`.
+
+Current next action: add a non-executing live-run command-plan artifact that
+consumes the passed review summary and produces the exact route-runner command,
+target preflight requirements, and refusal reasons while still leaving execution
+authorization, route-runner invocation, input, and movement false.
+
 ## Latest compact handoff — navigation live-run request — 2026-06-02 08:48 UTC
 
 A new compact handoff exists at

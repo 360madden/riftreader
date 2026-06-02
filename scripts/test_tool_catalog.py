@@ -66,6 +66,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-navigation-route-preview.cmd",
         "scripts/riftreader-navigation-downstream-package.cmd",
         "scripts/riftreader-navigation-live-run-request.cmd",
+        "scripts/riftreader-navigation-live-run-review.cmd",
         "scripts/riftscan_milestone_review.py",
         "tools/riftreader_workflow/opencode_bridge.py",
         "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
@@ -157,6 +158,9 @@ class ToolCatalogTests(unittest.TestCase):
             any(item["step"] == "navigation-live-run-request-for-review" for item in compact["recommendedWorkflow"])
         )
         self.assertTrue(
+            any(item["step"] == "navigation-live-run-review-before-live" for item in compact["recommendedWorkflow"])
+        )
+        self.assertTrue(
             any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
         )
         self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
@@ -190,6 +194,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("navigation-route-preview", compact["canonicalToolKeys"])
         self.assertIn("navigation-downstream-package", compact["canonicalToolKeys"])
         self.assertIn("navigation-live-run-request", compact["canonicalToolKeys"])
+        self.assertIn("navigation-live-run-review", compact["canonicalToolKeys"])
         self.assertIn("restart-survival-failure", compact["ghidraStaticLane"]["recommendedTriggers"])
         self.assertIn("owner+0x30C", compact["ghidraStaticLane"]["targetOffsets"])
         self.assertIn("owner+0x438", compact["ghidraStaticLane"]["targetOffsets"])
