@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts import glyph_forensics_inventory as glyph
 from scripts import glyph_health_packet as health
+from scripts import glyph_static_focus as focus
 
 
 class GlyphForensicsInventoryTests(unittest.TestCase):
@@ -146,6 +147,51 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertGreaterEqual(network["versionEventCount"], 2)
         self.assertEqual(network["selectionEventCount"], 2)
         self.assertEqual(network["maintenanceEventCount"], 1)
+
+    def test_static_focus_groups_strings_by_category_and_function(self) -> None:
+        ghidra_summary = {
+            "programName": "GlyphClientApp.exe",
+            "languageId": "x86:LE:32:default",
+            "compilerSpecId": "windows",
+            "functionSummary": {"functionCount": 2, "instructionCount": 20},
+            "interestingStringSummary": {
+                "capturedStringCount": 2,
+                "totalReferencesCaptured": 2,
+                "categoryReferenceCounts": {"auth": 2},
+                "topReferencedFunctionsByCategory": {
+                    "auth": [{"functionName": "FUN_AUTH", "functionEntry": "00401000", "count": 2}]
+                },
+            },
+            "interestingStrings": [
+                {
+                    "address": "00500000",
+                    "categories": ["auth", "endpoint"],
+                    "value": "https://auth.example.test/login token=secret",
+                    "references": [{"from": "00401010", "type": "DATA", "functionEntry": "00401000"}],
+                },
+                {
+                    "address": "00500020",
+                    "categories": ["auth"],
+                    "value": "AuthCode=tinysecret",
+                    "references": [{"from": "00401020", "type": "DATA", "functionEntry": "00401000"}],
+                },
+            ],
+        }
+
+        report = focus.build_focus_report(
+            ghidra_summary,
+            ghidra_path=Path("ghidra.json"),
+            category_limit=1,
+            function_limit=1,
+            strings_per_function=5,
+        )
+
+        auth_function = report["categories"][0]["functions"][0]
+        rendered = json.dumps(report)
+        self.assertEqual(auth_function["observedReferenceCount"], 2)
+        self.assertIn("https://auth.example.test/login", rendered)
+        self.assertNotIn("secret", rendered)
+        self.assertEqual(report["endpointMentions"][0]["value"], "https://auth.example.test/login")
 
     def test_signature_trust_summary_counts_non_valid(self) -> None:
         summary = glyph.signature_trust_summary(

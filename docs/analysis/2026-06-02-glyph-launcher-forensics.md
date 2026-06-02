@@ -9,18 +9,21 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112122-862149\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112122-862149\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112842-347174\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-112842-347174\summary.md`
 
 Compact health packet:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-112204-164871\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-112922-577491\summary.json`
 
 Offline Ghidra artifact:
 
 - Static JSON export from analyzed Ghidra project:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-104218\glyph-static-summary.json`
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-static-export-20260602-104218\postscript.log`
+- Static focus post-processing report:
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-static-focus-20260602-112801-856658\summary.json`
+  - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-static-focus-20260602-112801-856658\summary.md`
 - Full dependency-bundle pass:
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\summary.json`
   - `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-ghidra-bundle-20260602-100440\analyzeHeadless-import.log`
@@ -181,9 +184,9 @@ Registry keys found:
 | Launcher/game dependency DLLs hashed | `38` |
 | Parsed manifests | `2` |
 | Consolidated endpoints/domains | `115` |
-| Log timeline events | `4070` |
-| HTTP/download-related log events | `632` |
-| Version-related log events | `141` |
+| Log timeline events | `4101` |
+| HTTP/download-related log events | `653` |
+| Version-related log events | `147` |
 | Maintenance-related log events | `17` |
 | Selection-server log events | `9` |
 
@@ -217,10 +220,10 @@ Structured log summary:
 
 | Log signal | Result |
 |---|---:|
-| HTTP status codes | `200=40`, `404=6` |
-| Glyph task type counts | `GetVersions=51` |
-| HTTP/download-related events | `632` |
-| Version-related events | `141` |
+| HTTP status codes | `200=41`, `404=6` |
+| Glyph task type counts | `GetVersions=54` |
+| HTTP/download-related events | `653` |
+| Version-related events | `147` |
 | Maintenance-related events | `17` |
 | Selection-server events | `9` |
 
@@ -328,6 +331,23 @@ Static Ghidra JSON export:
 - Example exported strings/functions cluster around auth/login, HTTP, manifests,
   patching, store/commerce, crash handling, support URLs, registry, Steam, and
   Glyph/RIFT naming.
+
+Static focus post-processing report:
+
+- Source: `glyph-ghidra-static-export-20260602-104218\glyph-static-summary.json`
+- Unique focus functions grouped from top category references: `29`
+- Top category references: `patch=298`, `auth=277`, `glyph=221`,
+  `other=117`, `store=87`, `endpoint=73`, `steam=35`, `registry=16`
+- Highest combined focus functions:
+  - `FUN_00460680` @ `00460680`: categories `patch`, `auth`, `other`,
+    `store`, `registry`; combined reported refs `50`
+  - `FUN_0049f900` @ `0049f900`: categories `patch`, `other`, `store`,
+    `registry`; combined reported refs `41`
+  - `FUN_004ba7b0` @ `004ba7b0`: categories `auth`, `steam`; combined
+    reported refs `35`
+- Endpoint mentions in the focused string set were Visual C++ redistributable
+  URLs: `https://aka.ms/vs/17/release/vc_redist.x64.exe` and
+  `https://aka.ms/vs/17/release/vc_redist.x86.exe`.
 
 Initial single-binary pass:
 
