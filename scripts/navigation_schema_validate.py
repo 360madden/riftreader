@@ -24,6 +24,7 @@ SCHEMA_FILES = {
         "static-owner-continuous-route-sequence-contract-report.schema.json"
     ),
     "navigation-waypoint-readiness": "navigation-waypoint-readiness.schema.json",
+    "navigation-consumer-demo": "navigation-consumer-demo.schema.json",
 }
 
 KIND_TO_SCHEMA_KEY = {
@@ -34,6 +35,7 @@ KIND_TO_SCHEMA_KEY = {
         "static-owner-continuous-route-sequence-contract-report"
     ),
     "riftreader-navigation-waypoint-readiness": "navigation-waypoint-readiness",
+    "riftreader-navigation-consumer-demo": "navigation-consumer-demo",
 }
 
 

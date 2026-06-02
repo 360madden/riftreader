@@ -33,7 +33,9 @@
         "targetWindowHandle": { "type": ["string", "null"] },
         "processStartUtc": { "type": ["string", "null"] },
         "moduleBase": { "type": ["string", "null"] },
-        "moduleBaseCheck": { "type": ["string", "null"] }
+        "moduleBaseCheck": { "type": ["string", "object", "null"] },
+        "processStartCheck": { "type": ["string", "object", "null"] },
+        "hwndCheck": { "type": ["string", "object", "null"] }
       }
     },
     "consumerContract": {

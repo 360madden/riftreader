@@ -2,6 +2,33 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation consumer demo — 2026-06-02 07:48 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0748-navigation-consumer-demo-handoff.md`.
+
+RiftReader now has a saved-artifact-only downstream consumer demo report that
+combines consumer pose, normalized waypoints, route sequence dry-run, contract
+report, and schema checks into one practical external-consumer decision.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_consumer_demo.py`; launcher `scripts\riftreader-navigation-consumer-demo.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-consumer-demo.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Consumer-state schema repair | Real `target.moduleBaseCheck` / `processStartCheck` / `hwndCheck` object payloads now validate. |
+| Tool catalog | `navigation-consumer-demo` is canonical, safe-read-only, and in the recommended workflow; tool count is now `46`. |
+| Saved-artifact smoke | `scripts\riftreader-navigation-consumer-demo.cmd --waypoint-readiness-json scripts\captures\navigation-waypoint-readiness-20260602-071111-256714\summary.json --json` passed with `canRenderRoute=true`, `canUseDryRunContract=true`, `canQueueGatedLiveRunRequest=false`, and `canExecuteLiveNavigation=false`. |
+| Schema smoke | The generated consumer-demo summary and latest consumer-state summary both passed `scripts\riftreader-navigation-schema-validate.cmd --input <summary.json> --json`. |
+
+Safety: the consumer demo reads saved JSON only. It sends no input or movement,
+performs no live target read/write, no `/reloadui`, no screenshot key, no
+debugger/CE attach, no provider write, no proof/actor/facing/turn-rate
+promotion, and no route control.
+
+Current next action: add an artifact freshness/refresh command that regenerates
+consumer-state pose and reruns the consumer demo in one safe no-input workflow.
+Keep live movement execution separately gated.
+
 ## Latest compact handoff — navigation consumer schema package — 2026-06-02 07:30 UTC
 
 A new compact handoff exists at

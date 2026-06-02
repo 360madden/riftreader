@@ -95,6 +95,19 @@ The validator checks saved JSON artifacts against tracked schemas in
 `provenance.kind` and reads saved JSON only; it performs no live target reads,
 input, movement, debugger/CE attach, provider writes, or promotion.
 
+### Build downstream consumer demo/readiness report
+```powershell
+scripts\riftreader-navigation-consumer-demo.cmd `
+  --waypoint-readiness-json <readiness-summary.json> `
+  --json
+```
+
+This saved-artifact-only report combines the latest consumer pose, normalized
+waypoints, sequence dry-run, contract report, and schema checks into one
+external-consumer decision: render route, use dry-run contract, queue a gated
+live-run request, or refresh stale pose/proof first. It never authorizes live
+execution by itself.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `
