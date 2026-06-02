@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,37 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
         self.assertIn("https://support.gamigo.com", values)
         self.assertNotIn("gmail.com", values)
         self.assertNotIn("40gmail.com", values)
+
+    def test_config_inventory_parses_xml_and_key_value_with_redaction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            xml_path = root / "GlyphClient.xml"
+            cfg_path = root / "GlyphClient.cfg"
+            xml_path.write_text(
+                '<Glyph><Auth url="https://auth.example.test" token="secret-token-value" />'
+                "<Token>tinyxmlsecret</Token><Patch>http://patch.example.test/live</Patch></Glyph>",
+                encoding="utf-8",
+            )
+            cfg_path.write_text("language=en\nemail=user@example.test\nAuthCode=tinycfgsecret\nlastGame=RIFT\n", encoding="utf-8")
+
+            inventory = glyph.config_inventory(
+                [
+                    {"path": str(xml_path), "exists": True, "isFile": True, "suffix": ".xml"},
+                    {"path": str(cfg_path), "exists": True, "isFile": True, "suffix": ".cfg"},
+                ],
+                limit_bytes=4096,
+                max_items=20,
+            )
+
+        self.assertEqual(inventory["fileCount"], 2)
+        self.assertEqual(inventory["parserCounts"]["xml"], 1)
+        self.assertEqual(inventory["parserCounts"]["line-key-value"], 1)
+        rendered = json.dumps(inventory)
+        self.assertIn("https://auth.example.test", rendered)
+        self.assertNotIn("secret-token-value", rendered)
+        self.assertNotIn("tinyxmlsecret", rendered)
+        self.assertNotIn("tinycfgsecret", rendered)
+        self.assertNotIn("user@example.test", rendered)
 
     def test_selection_server_summary_detects_failed_all_addresses(self) -> None:
         timeline = {
@@ -151,6 +183,13 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
             "selectionServerSummary": {"status": "failed-all-addresses", "failureCount": 2, "endpoints": []},
             "executableTrustSummary": {"statusCounts": {"Valid": 1}},
             "dependencyTrustSummary": {"statusCounts": {"NotSigned": 1}, "nonValidCount": 1},
+            "configInventory": {
+                "fileCount": 2,
+                "parserCounts": {"xml": 1, "line-key-value": 1},
+                "statusCounts": {"passed": 2},
+                "endpointReferenceCount": 3,
+                "files": [{"path": "GlyphClient.xml", "parser": "xml", "status": "passed", "rootTag": "Glyph", "endpoints": []}],
+            },
             "manifestInventory": [{"status": "passed", "path": "manifest64.txt", "version": "v1", "entryCount": 1}],
             "endpointInventory": [{"value": "glyph.example", "count": 3, "sources": ["a", "b"]}],
             "targetedFileInventory": [{"exists": True}],
@@ -194,6 +233,8 @@ class GlyphForensicsInventoryTests(unittest.TestCase):
 
         self.assertEqual(packet["network"]["selectionServerStatus"], "failed-all-addresses")
         self.assertEqual(packet["trust"]["dependencyNonValidSignatureCount"], 1)
+        self.assertEqual(packet["config"]["fileCount"], 2)
+        self.assertEqual(packet["config"]["parserCounts"]["xml"], 1)
         self.assertEqual(packet["manifests"][0]["version"], "v1")
         self.assertEqual(packet["modules"]["totalModuleCount"], 3)
         self.assertEqual(packet["modules"]["signatureStatusCounts"]["Valid"], 3)

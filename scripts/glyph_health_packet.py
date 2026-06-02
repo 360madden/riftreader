@@ -141,6 +141,7 @@ def build_health_packet(
     selection = safe_mapping(summary.get("selectionServerSummary"))
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
+    config = safe_mapping(summary.get("configInventory"))
     module_summary = safe_mapping(summary.get("moduleOriginSummary"))
     loaded_module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
     module_inventory_rows = summary.get("moduleInventory") if isinstance(summary.get("moduleInventory"), list) else []
@@ -188,6 +189,25 @@ def build_health_packet(
             "executableSignatureStatusCounts": executable_trust.get("statusCounts", {}),
             "dependencySignatureStatusCounts": dependency_trust.get("statusCounts", {}),
             "dependencyNonValidSignatureCount": dependency_trust.get("nonValidCount"),
+        },
+        "config": {
+            "fileCount": config.get("fileCount"),
+            "parserCounts": config.get("parserCounts", {}),
+            "statusCounts": config.get("statusCounts", {}),
+            "endpointReferenceCount": config.get("endpointReferenceCount"),
+            "files": [
+                {
+                    "path": item.get("path"),
+                    "parser": item.get("parser"),
+                    "status": item.get("status"),
+                    "rootTag": item.get("rootTag"),
+                    "keyCount": item.get("keyCount"),
+                    "elementCountCaptured": item.get("elementCountCaptured"),
+                    "endpointCount": len(item.get("endpoints", [])) if isinstance(item.get("endpoints"), list) else 0,
+                }
+                for item in (config.get("files") if isinstance(config.get("files"), list) else [])[:20]
+                if isinstance(item, Mapping)
+            ],
         },
         "modules": {
             "processCount": module_summary.get("processCount"),

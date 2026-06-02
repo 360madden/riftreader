@@ -9,12 +9,12 @@ game/client input.
 
 Primary artifact:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-110135-779413\summary.json`
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-110135-779413\summary.md`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-111349-341490\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-forensics-inventory-20260602-111349-341490\summary.md`
 
 Compact health packet:
 
-- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-110213-476865\summary.json`
+- `C:\RIFT MODDING\RiftReader\scripts\captures\glyph-health-packet-20260602-111428-327162\summary.json`
 
 Offline Ghidra artifact:
 
@@ -136,6 +136,23 @@ The loaded modules that were `NotSigned` were all inside the Glyph install root:
 | `C:\Program Files (x86)\Glyph\Games\RIFT\Live\assets64*.manifest` | Large RIFT asset manifests; metadata captured, contents not dumped |
 | `C:\Users\mrkoo\AppData\Roaming\RIFT\*.cfg` / `rift.log` | RIFT-side config/log files found adjacent to Glyph/RIFT usage |
 
+Structured config inventory:
+
+| Config surface | Parser | Status | Captured detail |
+|---|---|---|---|
+| `C:\Program Files (x86)\Glyph\GlyphClient.xml` | XML | passed | root `Config`, `34` elements captured, `25` endpoint references |
+| `C:\Program Files (x86)\Glyph\Library\GlyphLibrary.xml` | XML | passed | root `Config`, `120` capped elements captured, `25` endpoint references |
+| `C:\Users\mrkoo\AppData\Local\Glyph\GlyphClient.cfg` | key/value | passed | `34` keys |
+| `C:\Users\mrkoo\AppData\Roaming\RIFT\recents.cfg` | key/value | passed | `12` keys |
+| `C:\Users\mrkoo\AppData\Roaming\RIFT\rift.cfg` | key/value | passed | `79` keys |
+| `C:\Users\mrkoo\AppData\Roaming\RIFT\riftconnect.cfg` | key/value | passed | `1` key |
+| `C:\Users\mrkoo\AppData\Roaming\RIFT\rifterrorhandler.cfg` | key/value | passed | empty file / `0` keys |
+| `C:\ProgramData\Glyph\GlyphLibrary.cfg` | key/value | passed | `2` keys |
+
+The structured config parser stores redacted keys, element paths, endpoint
+references, and capped value previews only; sensitive account/auth/cookie/token
+values remain redacted.
+
 Registry keys found:
 
 | Key | Notable values |
@@ -159,10 +176,12 @@ Registry keys found:
 | Surface | Result |
 |---|---:|
 | Targeted config/install files found | `21` |
+| Structured config files parsed | `8` |
+| Structured config endpoint references | `50` |
 | Launcher/game dependency DLLs hashed | `38` |
 | Parsed manifests | `2` |
-| Consolidated endpoints/domains | `96` |
-| Log timeline events | `4034` |
+| Consolidated endpoints/domains | `115` |
+| Log timeline events | `4070` |
 
 Parsed manifests:
 

@@ -10,6 +10,7 @@ import re
 import struct
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -28,6 +29,8 @@ DEFAULT_MAX_STRING_HITS = 250
 DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL = 250
 DEFAULT_LOG_TIMELINE_EVENTS = 120
 DEFAULT_MANIFEST_ENTRY_LIMIT = 40
+DEFAULT_CONFIG_ITEM_LIMIT = 120
+DEFAULT_CONFIG_FILE_BYTES = 2 * 1024 * 1024
 SKIP_DIRECTORY_NAMES = {
     "$recycle.bin",
     ".git",
@@ -1084,6 +1087,172 @@ def collect_targeted_previews(file_infos: Sequence[Mapping[str, Any]], *, limit_
     return previews
 
 
+def decode_text_bytes(data: bytes) -> str:
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("utf-16", errors="replace") if data.startswith((b"\xff\xfe", b"\xfe\xff")) else data.decode("utf-8", errors="replace")
+
+
+def config_file_candidates(file_infos: Sequence[Mapping[str, Any]]) -> list[Path]:
+    candidates: list[Path] = []
+    seen: set[str] = set()
+    for file_info in file_infos:
+        if not file_info.get("exists") or not file_info.get("isFile"):
+            continue
+        suffix = str(file_info.get("suffix") or "").lower()
+        if suffix not in {".cfg", ".conf", ".config", ".ini", ".json", ".xml"}:
+            continue
+        path_value = file_info.get("path")
+        if not isinstance(path_value, str):
+            continue
+        key = path_value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(Path(path_value))
+    return candidates
+
+
+def _xml_node_path(stack: Sequence[str]) -> str:
+    return "/" + "/".join(stack)
+
+
+def parse_xml_config(path: Path, text: str, *, max_items: int) -> dict[str, Any]:
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        return {"parser": "xml", "status": "failed", "error": f"ParseError:{exc}"}
+    items: list[dict[str, Any]] = []
+    tag_counts: dict[str, int] = {}
+    attribute_counts: dict[str, int] = {}
+
+    def walk(element: ET.Element, stack: list[str]) -> None:
+        if len(items) >= max_items:
+            return
+        tag = str(element.tag).split("}", 1)[-1]
+        next_stack = [*stack, tag]
+        tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        attributes: dict[str, Any] = {}
+        for key, value in element.attrib.items():
+            clean_key = str(key).split("}", 1)[-1]
+            attribute_counts[clean_key] = attribute_counts.get(clean_key, 0) + 1
+            attributes[clean_key] = redact_text(str(value))
+        text_value = (element.text or "").strip()
+        row: dict[str, Any] = {
+            "path": _xml_node_path(next_stack),
+            "tag": tag,
+            "attributeCount": len(attributes),
+            "attributes": redact_jsonish(attributes),
+            "childCount": len(list(element)),
+            "sensitiveTag": bool(SENSITIVE_KEY_RE.search(tag)),
+        }
+        if text_value and len(list(element)) == 0:
+            row["valuePreview"] = "<redacted>" if SENSITIVE_KEY_RE.search(tag) else redact_text(text_value)[:300]
+        items.append(row)
+        for child in element:
+            walk(child, next_stack)
+
+    walk(root, [])
+    return {
+        "parser": "xml",
+        "status": "passed",
+        "rootTag": str(root.tag).split("}", 1)[-1],
+        "elementCountCaptured": len(items),
+        "tagCounts": tag_counts,
+        "attributeCounts": attribute_counts,
+        "items": items,
+        "truncated": len(items) >= max_items,
+    }
+
+
+def parse_line_config(path: Path, text: str, *, max_items: int) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    key_counts: dict[str, int] = {}
+    malformed = 0
+    assignment_re = re.compile(r"^\s*(?P<key>[A-Za-z0-9_.:\\/-]{1,120})\s*(?P<sep>=|:)\s*(?P<value>.*?)\s*$")
+    for index, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ";", "--")):
+            continue
+        match = assignment_re.match(line)
+        if not match:
+            malformed += 1
+            continue
+        key = match.group("key")
+        value = match.group("value").strip().strip("\"'")
+        key_counts[key] = key_counts.get(key, 0) + 1
+        rows.append(
+            {
+                "line": index,
+                "key": redact_text(key),
+                "separator": match.group("sep"),
+                "valuePreview": "<redacted>" if SENSITIVE_KEY_RE.search(key) else redact_text(value)[:300],
+                "sensitiveKey": bool(SENSITIVE_KEY_RE.search(key)),
+            }
+        )
+        if len(rows) >= max_items:
+            break
+    return {
+        "parser": "line-key-value",
+        "status": "passed",
+        "lineCount": len(text.splitlines()),
+        "keyCount": len(key_counts),
+        "keyCounts": key_counts,
+        "items": rows,
+        "malformedOrUnparsedLineCount": malformed,
+        "truncated": len(rows) >= max_items,
+    }
+
+
+def parse_config_file(path: Path, *, limit_bytes: int, max_items: int) -> dict[str, Any]:
+    if not path.exists() or not path.is_file():
+        return {"path": str(path), "status": "missing"}
+    try:
+        data = path.read_bytes()[:limit_bytes]
+    except OSError as exc:
+        return {"path": str(path), "status": "failed", "error": f"{type(exc).__name__}:{exc}"}
+    text = decode_text_bytes(data)
+    suffix = path.suffix.lower()
+    if suffix == ".xml" or text.lstrip().startswith("<"):
+        parsed = parse_xml_config(path, text, max_items=max_items)
+    else:
+        parsed = parse_line_config(path, text, max_items=max_items)
+    parsed.update(
+        {
+            "path": str(path),
+            "bytesRead": len(data),
+            "truncatedByBytes": path.stat().st_size > len(data) if path.exists() else None,
+            "endpoints": endpoint_inventory({"path": str(path), "preview": redact_text(text)})[:25],
+        }
+    )
+    return redact_jsonish(parsed)
+
+
+def config_inventory(file_infos: Sequence[Mapping[str, Any]], *, limit_bytes: int, max_items: int) -> dict[str, Any]:
+    candidates = config_file_candidates(file_infos)
+    files = [parse_config_file(path, limit_bytes=limit_bytes, max_items=max_items) for path in candidates]
+    parser_counts: dict[str, int] = {}
+    status_counts: dict[str, int] = {}
+    endpoint_count = 0
+    for item in files:
+        parser = str(item.get("parser") or "unknown")
+        status = str(item.get("status") or "unknown")
+        parser_counts[parser] = parser_counts.get(parser, 0) + 1
+        status_counts[status] = status_counts.get(status, 0) + 1
+        endpoints = item.get("endpoints") if isinstance(item.get("endpoints"), list) else []
+        endpoint_count += len(endpoints)
+    return {
+        "status": "passed",
+        "candidateCount": len(candidates),
+        "fileCount": len(files),
+        "parserCounts": parser_counts,
+        "statusCounts": status_counts,
+        "endpointReferenceCount": endpoint_count,
+        "files": files,
+    }
+
+
 def endpoint_inventory(*sources: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
 
@@ -1634,6 +1803,12 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     lines.append(f"- executable signature statuses: `{executable_trust.get('statusCounts')}`")
     lines.append(f"- dependency signature statuses: `{dependency_trust.get('statusCounts')}`")
     lines.append(f"- dependency non-valid signatures: `{dependency_trust.get('nonValidCount')}`")
+    config = safe_mapping(summary.get("configInventory"))
+    lines.extend(["", "## Structured config inventory", ""])
+    lines.append(f"- config files parsed: `{config.get('fileCount')}`")
+    lines.append(f"- parser counts: `{config.get('parserCounts')}`")
+    lines.append(f"- status counts: `{config.get('statusCounts')}`")
+    lines.append(f"- endpoint references captured from configs: `{config.get('endpointReferenceCount')}`")
     module_summary = safe_mapping(summary.get("moduleOriginSummary"))
     lines.extend(["", "## Loaded module origin summary", ""])
     lines.append(f"- total modules: `{module_summary.get('totalModuleCount')}`")
@@ -1806,10 +1981,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     string_summaries = [extract_ascii_strings(path, max_hits=int(args.max_string_hits)) for path in unique_exes[:20]]
     previews = collect_previews(inventories, limit_bytes=int(args.text_preview_bytes))
     targeted_previews = collect_targeted_previews(targeted_files, limit_bytes=int(args.text_preview_bytes))
+    configs = config_inventory(
+        targeted_files,
+        limit_bytes=int(args.config_file_bytes),
+        max_items=int(args.config_item_limit),
+    )
     manifests = manifest_inventory(targeted_paths, entry_limit=int(args.manifest_entry_limit))
     timeline = log_timeline(targeted_paths, max_events=int(args.log_timeline_events))
     selection_summary = selection_server_summary(timeline)
-    endpoints = endpoint_inventory(previews, targeted_previews, string_summaries, registry, uninstall_entries, autoruns)
+    endpoints = endpoint_inventory(previews, targeted_previews, configs, string_summaries, registry, uninstall_entries, autoruns)
     safety = base_safety()
     safety.update(
         {
@@ -1842,6 +2022,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "maxImportFunctionsPerDll": int(args.max_import_functions_per_dll),
             "logTimelineEvents": int(args.log_timeline_events),
             "manifestEntryLimit": int(args.manifest_entry_limit),
+            "configItemLimit": int(args.config_item_limit),
+            "configFileBytes": int(args.config_file_bytes),
         },
         "processes": processes,
         "debuggerProcessScan": debugger_processes,
@@ -1869,6 +2051,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "registryInventory": registry,
         "textPreviewsRedacted": previews,
         "targetedTextPreviewsRedacted": targeted_previews,
+        "configInventory": configs,
         "staticStringSummaries": string_summaries,
         "manifestInventory": manifests,
         "logTimeline": timeline,
@@ -1895,6 +2078,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-import-functions-per-dll", type=int, default=DEFAULT_MAX_IMPORT_FUNCTIONS_PER_DLL)
     parser.add_argument("--log-timeline-events", type=int, default=DEFAULT_LOG_TIMELINE_EVENTS)
     parser.add_argument("--manifest-entry-limit", type=int, default=DEFAULT_MANIFEST_ENTRY_LIMIT)
+    parser.add_argument("--config-item-limit", type=int, default=DEFAULT_CONFIG_ITEM_LIMIT)
+    parser.add_argument("--config-file-bytes", type=int, default=DEFAULT_CONFIG_FILE_BYTES)
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -1905,6 +2090,7 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
     selection = safe_mapping(summary.get("selectionServerSummary"))
     executable_trust = safe_mapping(summary.get("executableTrustSummary"))
     dependency_trust = safe_mapping(summary.get("dependencyTrustSummary"))
+    configs = safe_mapping(summary.get("configInventory"))
     module_summary = safe_mapping(summary.get("moduleOriginSummary"))
     loaded_module_trust = safe_mapping(summary.get("loadedModuleTrustSummary"))
     return {
@@ -1917,6 +2103,9 @@ def compact(summary: Mapping[str, Any]) -> dict[str, Any]:
         "peSummaryCount": len(summary.get("peSummaries", [])),
         "dependencyCount": len(summary.get("dependencyMetadata", [])),
         "targetedFileCount": len([item for item in summary.get("targetedFileInventory", []) if isinstance(item, Mapping) and item.get("exists")]),
+        "configFileCount": configs.get("fileCount"),
+        "configParserCounts": configs.get("parserCounts"),
+        "configEndpointReferenceCount": configs.get("endpointReferenceCount"),
         "manifestCount": len([item for item in summary.get("manifestInventory", []) if isinstance(item, Mapping) and item.get("status") == "passed"]),
         "endpointCount": len(summary.get("endpointInventory", [])),
         "selectionServerStatus": selection.get("status"),
