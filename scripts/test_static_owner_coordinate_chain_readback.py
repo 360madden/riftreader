@@ -3,6 +3,7 @@ import struct
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest import mock
 
 from scripts import static_owner_coordinate_chain_readback as readback
 
@@ -132,6 +133,27 @@ class StaticOwnerCoordinateChainReadbackTests(unittest.TestCase):
         self.assertTrue(passed["matchesExpected"])
         self.assertFalse(failed["matchesExpected"])
         self.assertEqual(failed["status"], "mismatch")
+
+    def test_read_chain_sample_reports_readable_static_root_that_points_to_null(self) -> None:
+        def fake_read_memory(handle: int, address: int, size: int) -> bytes:
+            self.assertEqual(handle, 123)
+            self.assertEqual(address, 0x1432EBC80)
+            self.assertEqual(size, 8)
+            return struct.pack("<Q", 0)
+
+        with mock.patch.object(readback, "read_memory", fake_read_memory):
+            with self.assertRaises(readback.RootPointerNullError) as raised:
+                readback.read_chain_sample(
+                    handle=123,
+                    module_base=0x140000000,
+                    root_address=0x1432EBC80,
+                    coord_offset=0x320,
+                    expected_anchor=None,
+                )
+
+        self.assertEqual(raised.exception.root_address, 0x1432EBC80)
+        self.assertEqual(raised.exception.root_rva, 0x32EBC80)
+        self.assertIn("root-pointer-null", str(raised.exception))
 
 
 if __name__ == "__main__":

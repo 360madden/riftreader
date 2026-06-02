@@ -41,6 +41,16 @@ def int_hex(value: int | None) -> str | None:
     return None if value is None else f"0x{int(value):X}"
 
 
+class RootPointerNullError(RuntimeError):
+    """Raised when the static root is readable but currently contains null."""
+
+    def __init__(self, *, root_address: int, root_rva: int | None = None) -> None:
+        self.root_address = int(root_address)
+        self.root_rva = root_rva
+        suffix = f":rootRva={int_hex(root_rva)}" if root_rva is not None else ""
+        super().__init__(f"root-pointer-null:rootAddress={int_hex(root_address)}{suffix}")
+
+
 def qword(data: bytes, offset: int = 0) -> int:
     return struct.unpack_from("<Q", data, offset)[0]
 
@@ -444,6 +454,8 @@ def read_chain_sample(
     include_nav_state: bool = False,
 ) -> dict[str, Any]:
     owner_address = qword(read_memory(handle, root_address, 8))
+    if owner_address == 0:
+        raise RootPointerNullError(root_address=root_address, root_rva=root_address - module_base)
     owner_window = read_memory(handle, owner_address, max(0x448, coord_offset + 12))
     coordinate = triplet(owner_window, coord_offset)
     owner_vtable = qword(owner_window, 0)
@@ -771,6 +783,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary["status"] = "blocked"
             summary["verdict"] = "coordinate-mismatch-vs-expected-proof-anchor"
             summary["blockers"].append("coordinate-mismatch-vs-expected-proof-anchor")
+    except RootPointerNullError as exc:
+        summary["status"] = "blocked"
+        summary["verdict"] = "root-pointer-null"
+        summary["blockers"].append("root-pointer-null")
+        summary["errors"].append(f"{type(exc).__name__}:{exc}")
+        summary["reads"]["rootAddress"] = int_hex(exc.root_address)
+        summary["reads"]["rootRva"] = int_hex(exc.root_rva)
+        summary["reads"]["rootPointer"] = int_hex(0)
+        summary["warnings"].append("static-root-readable-but-null-current-epoch")
     except Exception as exc:  # noqa: BLE001
         summary["status"] = "failed"
         summary["verdict"] = "readback-error"
