@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/static-owner-continuous-route-sequence-contract-report.schema.json",
+  "title": "RiftReader continuous route sequence contract report",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "sourceSummaryJson",
+    "source",
+    "contract",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "static-owner-continuous-route-sequence-contract-report" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+    "sourceSummaryJson": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "status", "verdict", "totalLegs", "legsPlanned", "legsArrived", "legsFailed"],
+      "properties": {
+        "kind": { "type": ["string", "null"] },
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "totalLegs": { "type": ["number", "null"] },
+        "legsPlanned": { "type": ["number", "null"] },
+        "legsArrived": { "type": ["number", "null"] },
+        "legsFailed": { "type": ["number", "null"] }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": [
+        "status",
+        "consumable",
+        "acceptedSequenceVerdicts",
+        "acceptedLegVerdicts",
+        "totalLegs",
+        "legsPlanned",
+        "legsArrived",
+        "legsFailed",
+        "recordedLegs",
+        "blockers",
+        "warnings"
+      ],
+      "properties": {
+        "status": { "enum": ["passed", "blocked"] },
+        "consumable": { "type": "boolean" },
+        "acceptedSequenceVerdicts": { "type": "array", "items": { "type": "string" } },
+        "acceptedLegVerdicts": { "type": "array", "items": { "type": "string" } },
+        "totalLegs": { "type": "number", "minimum": 0 },
+        "legsPlanned": { "type": "number", "minimum": 0 },
+        "legsArrived": { "type": "number", "minimum": 0 },
+        "legsFailed": { "type": "number", "minimum": 0 },
+        "recordedLegs": { "type": "number", "minimum": 0 },
+        "firstUnreachedLegIndex": { "type": ["number", "null"], "minimum": 1 },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -2,6 +2,34 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation consumer schema package — 2026-06-02 07:30 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0730-navigation-schema-package-handoff.md`.
+
+RiftReader now has a tracked JSON-schema package and a saved-JSON validator for
+the practical automated-navigation consumer artifacts built in the previous
+slices.
+
+| Evidence | Result |
+|---|---|
+| Schema package | `docs\schemas\navigation\` contains schemas for consumer state, normalized waypoints, continuous sequence dry-runs, sequence contract reports, and waypoint readiness summaries. |
+| Validator helper | `scripts\navigation_schema_validate.py`; launcher `scripts\riftreader-navigation-schema-validate.cmd`. |
+| Schema inference | Infers from `kind` or `provenance.kind`; `--schema-key` can override. |
+| Tool catalog | `navigation-schema-validate` is canonical, safe-read-only, and in the recommended workflow; tool count is now `45`. |
+| Saved-artifact smoke | `scripts\riftreader-navigation-schema-validate.cmd --input scripts\captures\navigation-waypoint-readiness-20260602-071111-256714\summary.json --json` passed with `schemaKey=navigation-waypoint-readiness`, `validationErrorCount=0`. |
+| Targeted tests | `python -m unittest scripts.test_navigation_schema_validate scripts.test_tool_catalog` passed: `Ran 11 tests in 0.772s OK`. |
+
+Safety: the schema validator reads saved JSON only. It sends no input or
+movement, performs no live target read/write, no `/reloadui`, no screenshot key,
+no debugger/CE attach, no provider write, no proof/actor/facing/turn-rate
+promotion, and no route control.
+
+Current next action: build a tiny downstream-consumer fixture/report that reads
+the consumer-state, normalized waypoint, dry-run contract, and schema-validation
+artifacts together and states whether an external project can render/queue a
+route or must block on stale target/proof.
+
 ## Latest compact handoff — navigation waypoint readiness infrastructure — 2026-06-02 07:08 UTC
 
 A new compact handoff exists at

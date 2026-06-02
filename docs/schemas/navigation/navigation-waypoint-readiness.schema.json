@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-waypoint-readiness.schema.json",
+  "title": "RiftReader navigation waypoint readiness",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "lint",
+    "dryRun",
+    "contract",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-waypoint-readiness" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+    "verdict": { "type": ["string", "null"] },
+    "input": {
+      "type": "object",
+      "required": ["waypointSequenceJson", "skipDryRun", "currentTruthJson"],
+      "properties": {
+        "waypointSequenceJson": { "type": "string" },
+        "waypointSequenceIds": { "type": ["string", "null"] },
+        "skipDryRun": { "type": "boolean" },
+        "currentTruthJson": { "type": "string" }
+      }
+    },
+    "lint": {
+      "type": "object",
+      "required": [
+        "status",
+        "inputJson",
+        "originalWaypointCount",
+        "selectedWaypointCount",
+        "defaultArrivalRadius",
+        "normalizedWaypoints",
+        "blockers",
+        "warnings"
+      ],
+      "properties": {
+        "status": { "enum": ["passed", "blocked"] },
+        "inputJson": { "type": "string" },
+        "originalWaypointCount": { "type": "number", "minimum": 0 },
+        "selectedWaypointCount": { "type": "number", "minimum": 0 },
+        "defaultArrivalRadius": { "type": "number", "minimum": 0 },
+        "requestedWaypointIds": { "type": ["array", "null"], "items": { "type": "string" } },
+        "normalizedWaypoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "x", "y", "z", "arrivalRadius"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "z": { "type": "number" },
+              "arrivalRadius": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "dryRun": {
+      "type": "object",
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "consumable": { "type": ["boolean", "null"] },
+        "summaryJson": { "type": ["string", "null"] },
+        "summaryMarkdown": { "type": ["string", "null"] },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown", "normalizedWaypointJson"],
+      "properties": {
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" },
+        "normalizedWaypointJson": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

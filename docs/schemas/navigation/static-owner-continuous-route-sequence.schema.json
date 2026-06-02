@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/static-owner-continuous-route-sequence.schema.json",
+  "title": "RiftReader static-owner continuous route sequence",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "operator",
+    "waypointSequence",
+    "legs",
+    "total",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "static-owner-continuous-route-sequence" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+    "verdict": {
+      "enum": [
+        "sequence-dry-run-plan-built",
+        "sequence-all-waypoints-reached",
+        "sequence-blocked",
+        "sequence-incomplete",
+        "sequence-error",
+        null
+      ]
+    },
+    "operator": {
+      "type": "object",
+      "required": ["dryRun", "movementApproved", "turnApproved", "allowCandidateTurnControl"],
+      "properties": {
+        "dryRun": { "type": "boolean" },
+        "movementApproved": { "type": "boolean" },
+        "turnApproved": { "type": "boolean" },
+        "allowCandidateTurnControl": { "type": "boolean" }
+      }
+    },
+    "waypointSequence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "x", "y", "z", "arrivalRadius"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number" },
+          "arrivalRadius": { "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "legs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["status", "verdict", "safety"],
+        "properties": {
+          "status": { "enum": ["passed", "blocked", "failed", "pending"] },
+          "verdict": { "type": ["string", "null"] },
+          "safety": {
+            "type": "object",
+            "properties": {
+              "movementSent": { "type": "boolean" },
+              "inputSent": { "type": "boolean" },
+              "navigationControl": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "total": {
+      "type": "object",
+      "required": ["totalLegs", "legsPlanned", "legsArrived", "legsFailed"],
+      "properties": {
+        "totalLegs": { "type": "number", "minimum": 0 },
+        "legsPlanned": { "type": "number", "minimum": 0 },
+        "legsArrived": { "type": "number", "minimum": 0 },
+        "legsFailed": { "type": "number", "minimum": 0 },
+        "totalTurnsExecuted": { "type": "number", "minimum": 0 },
+        "totalForwardSteps": { "type": "number", "minimum": 0 },
+        "totalProgressDistance": { "type": "number" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent"],
+      "properties": {
+        "movementSent": { "type": "boolean" },
+        "inputSent": { "type": "boolean" },
+        "navigationControl": { "type": "boolean" },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/normalized-waypoints.schema.json",
+  "title": "RiftReader normalized navigation waypoints",
+  "type": "object",
+  "required": ["schemaVersion", "provenance", "waypoints"],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "provenance": {
+      "type": "object",
+      "required": ["kind", "generatedAtUtc", "inputJson"],
+      "properties": {
+        "kind": { "const": "riftreader-normalized-navigation-waypoints" },
+        "generatedAtUtc": { "type": "string" },
+        "inputJson": { "type": ["string", "null"] },
+        "defaultArrivalRadius": { "type": ["number", "null"], "minimum": 0 },
+        "requestedWaypointIds": { "type": ["array", "null"], "items": { "type": "string" } }
+      }
+    },
+    "waypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "x", "y", "z", "arrivalRadius"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number" },
+          "arrivalRadius": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

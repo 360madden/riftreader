@@ -662,6 +662,27 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="navigation-schema-validate",
+            label="Navigation consumer schema validator",
+            kind="navigation-report",
+            rel_path="scripts/riftreader-navigation-schema-validate.cmd",
+            risk="safe-read-only",
+            default_use="validate saved navigation JSON artifacts against tracked consumer schemas",
+            allowed=True,
+            approval=False,
+            command=[
+                "scripts\\riftreader-navigation-schema-validate.cmd",
+                "--input",
+                "<summary.json>",
+                "--json",
+            ],
+            notes=[
+                "saved JSON only; no live target reads, input, movement, debugger attach, provider write, or promotion",
+                "infers schema from kind or provenance.kind unless --schema-key is supplied",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -1058,6 +1079,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "waypoint-readiness-for-consumer",
             "command": "scripts\\riftreader-navigation-waypoint-readiness.cmd --waypoint-sequence-json <waypoints.json> --json",
         },
+        {
+            "step": "navigation-schema-validate-for-consumer",
+            "command": "scripts\\riftreader-navigation-schema-validate.cmd --input <summary.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -1133,6 +1158,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "static-owner-route-run-report",
             "static-owner-route-sequence-contract",
             "navigation-waypoint-readiness",
+            "navigation-schema-validate",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,
@@ -1383,6 +1409,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/static-owner-nav-report-route-run.cmd",
             "scripts/static-owner-continuous-route-sequence-contract.cmd",
             "scripts/riftreader-navigation-waypoint-readiness.cmd",
+            "scripts/riftreader-navigation-schema-validate.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
             "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
@@ -1435,6 +1462,10 @@ def build_self_test() -> dict[str, Any]:
                 {
                     "name": "navigation-consumer-state-canonical",
                     "pass": "navigation-consumer-state" in compact["canonicalToolKeys"],
+                },
+                {
+                    "name": "navigation-schema-validate-canonical",
+                    "pass": "navigation-schema-validate" in compact["canonicalToolKeys"],
                 },
                 {"name": "safety-no-input", "pass": catalog["safety"]["inputSent"] is False},
             ]

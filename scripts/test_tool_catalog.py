@@ -60,6 +60,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/static-owner-nav-report-route-run.cmd",
         "scripts/static-owner-continuous-route-sequence-contract.cmd",
         "scripts/riftreader-navigation-waypoint-readiness.cmd",
+        "scripts/riftreader-navigation-schema-validate.cmd",
         "scripts/riftscan_milestone_review.py",
         "tools/riftreader_workflow/opencode_bridge.py",
         "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",
@@ -133,6 +134,9 @@ class ToolCatalogTests(unittest.TestCase):
             any(item["step"] == "waypoint-readiness-for-consumer" for item in compact["recommendedWorkflow"])
         )
         self.assertTrue(
+            any(item["step"] == "navigation-schema-validate-for-consumer" for item in compact["recommendedWorkflow"])
+        )
+        self.assertTrue(
             any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
         )
         self.assertTrue(any(item["step"] == "route-run-report-before-rerun" for item in compact["recommendedWorkflow"]))
@@ -160,6 +164,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-sequence-contract", compact["canonicalToolKeys"])
         self.assertIn("navigation-waypoint-readiness", compact["canonicalToolKeys"])
+        self.assertIn("navigation-schema-validate", compact["canonicalToolKeys"])
         self.assertIn("restart-survival-failure", compact["ghidraStaticLane"]["recommendedTriggers"])
         self.assertIn("owner+0x30C", compact["ghidraStaticLane"]["targetOffsets"])
         self.assertIn("owner+0x438", compact["ghidraStaticLane"]["targetOffsets"])

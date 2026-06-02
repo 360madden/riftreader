@@ -83,6 +83,18 @@ missing IDs, blocks duplicate IDs or bad coordinates, runs a no-input sequence
 dry-run, and validates the saved sequence contract report. Use `--skip-dry-run`
 for offline lint-only normalization when no RIFT target should be read.
 
+### Validate saved navigation JSON schema for consumers
+```powershell
+scripts\riftreader-navigation-schema-validate.cmd `
+  --input <summary.json> `
+  --json
+```
+
+The validator checks saved JSON artifacts against tracked schemas in
+`docs\schemas\navigation\`. It infers the schema from `kind` or
+`provenance.kind` and reads saved JSON only; it performs no live target reads,
+input, movement, debugger/CE attach, provider writes, or promotion.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `

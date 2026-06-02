@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-consumer-state.schema.json",
+  "title": "RiftReader navigation consumer state",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "target",
+    "consumerContract",
+    "navigation",
+    "safety",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-consumer-state" },
+    "toolVersion": { "type": "string" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "target": {
+      "type": "object",
+      "required": ["processName", "processId", "targetWindowHandle"],
+      "properties": {
+        "processName": { "type": ["string", "null"] },
+        "processId": { "type": ["number", "null"] },
+        "targetWindowHandle": { "type": ["string", "null"] },
+        "processStartUtc": { "type": ["string", "null"] },
+        "moduleBase": { "type": ["string", "null"] },
+        "moduleBaseCheck": { "type": ["string", "null"] }
+      }
+    },
+    "consumerContract": {
+      "type": "object",
+      "required": ["version", "readOnly", "maxConsumerAgeSeconds", "requiredConsumerChecks"],
+      "properties": {
+        "version": { "type": "string" },
+        "readOnly": { "const": true },
+        "maxConsumerAgeSeconds": { "type": "number", "minimum": 0 },
+        "usableFor": { "type": "array", "items": { "type": "string" } },
+        "notUsableFor": { "type": "array", "items": { "type": "string" } },
+        "requiredConsumerChecks": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "navigation": {
+      "type": "object",
+      "required": ["position", "orientation", "diagnostics", "routeControl"],
+      "properties": {
+        "position": {
+          "type": "object",
+          "required": ["state", "chain", "coordinate", "sourceOffset"],
+          "properties": {
+            "state": { "type": "string" },
+            "chain": { "type": "string" },
+            "coordinate": {
+              "type": ["object", "null"],
+              "required": ["x", "y", "z"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "z": { "type": "number" }
+              }
+            },
+            "sourceOffset": { "type": "string" },
+            "source": { "type": "string" }
+          }
+        },
+        "orientation": {
+          "type": "object",
+          "required": ["state", "chain", "yawDegrees", "sourceOffset"],
+          "properties": {
+            "state": { "type": "string" },
+            "chain": { "type": "string" },
+            "yawDegrees": { "type": ["number", "null"] },
+            "pitchDegrees": { "type": ["number", "null"] },
+            "facingTargetCoordinate": { "type": ["object", "null"] },
+            "planarLookaheadDistance": { "type": ["number", "null"] },
+            "sourceOffset": { "type": "string" },
+            "source": { "type": "string" }
+          }
+        },
+        "diagnostics": { "type": "object" },
+        "routeControl": {
+          "type": "object",
+          "required": ["authorized", "movementPermission", "turnPermission"],
+          "properties": {
+            "authorized": { "const": false },
+            "movementPermission": { "const": false },
+            "turnPermission": { "const": false }
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}
