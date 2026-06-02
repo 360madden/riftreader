@@ -640,6 +640,28 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="navigation-waypoint-readiness",
+            label="Navigation waypoint readiness",
+            kind="navigation-report",
+            rel_path="scripts/riftreader-navigation-waypoint-readiness.cmd",
+            risk="safe-read-only",
+            default_use="lint/normalize waypoint files, run a no-input sequence dry-run, and validate the saved contract report",
+            allowed=True,
+            approval=False,
+            command=[
+                "scripts\\riftreader-navigation-waypoint-readiness.cmd",
+                "--waypoint-sequence-json",
+                "<waypoints.json>",
+                "--json",
+            ],
+            notes=[
+                "no input/movement; dry-run may perform read-only current-target memory reads",
+                "use --skip-dry-run for offline lint-only normalization",
+                "writes normalized waypoints, sequence dry-run summary, and contract report artifacts",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="sendinput-primitive",
             label="Repo-owned C# SendInput primitive",
             kind="input-primitive",
@@ -1032,6 +1054,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "route-sequence-contract-for-consumer",
             "command": "scripts\\static-owner-continuous-route-sequence-contract.cmd <sequence-summary.json> --json",
         },
+        {
+            "step": "waypoint-readiness-for-consumer",
+            "command": "scripts\\riftreader-navigation-waypoint-readiness.cmd --waypoint-sequence-json <waypoints.json> --json",
+        },
         {"step": "route-run-after-fixtures", "command": "scripts\\static-owner-nav-route-run.cmd --json"},
     ]
 
@@ -1106,6 +1132,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "static-owner-camera-yaw-classification",
             "static-owner-route-run-report",
             "static-owner-route-sequence-contract",
+            "navigation-waypoint-readiness",
             "static-owner-turn-forward-experiment",
         ],
         "gatedToolKeys": gated,
@@ -1355,6 +1382,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/static-owner-nav-route-run.cmd",
             "scripts/static-owner-nav-report-route-run.cmd",
             "scripts/static-owner-continuous-route-sequence-contract.cmd",
+            "scripts/riftreader-navigation-waypoint-readiness.cmd",
             "scripts/riftscan_milestone_review.py",
             "tools/riftreader_workflow/opencode_bridge.py",
             "tools/riftreader_workflow/ghidra_scripts/RiftReaderPointerEvidence.java",

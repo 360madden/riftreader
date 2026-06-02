@@ -71,6 +71,18 @@ Use this before handing a sequence dry-run to another project. It accepts only
 saved summaries with `operator.dryRun=true`, no movement/input, no route-control
 promotion, and no simulated multi-waypoint arrival claims.
 
+### One-command waypoint readiness for consumers
+```powershell
+scripts\riftreader-navigation-waypoint-readiness.cmd `
+  --waypoint-sequence-json <waypoints.json> `
+  --json
+```
+
+This command normalizes waypoint files, canonicalizes `arrivalRadius`, generates
+missing IDs, blocks duplicate IDs or bad coordinates, runs a no-input sequence
+dry-run, and validates the saved sequence contract report. Use `--skip-dry-run`
+for offline lint-only normalization when no RIFT target should be read.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `
