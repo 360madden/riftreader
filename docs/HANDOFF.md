@@ -2,6 +2,34 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation route preview — 2026-06-02 08:22 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0822-navigation-route-preview-handoff.md`.
+
+RiftReader now has a saved-artifact route preview workflow for downstream
+map/UI consumers. It derives the active leg, remaining route legs, per-leg
+distance/bearing, active-leg yaw delta, suggested initial turn, and arrival
+radius from the latest consumer pose plus normalized waypoints.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_route_preview.py`; launcher `scripts\riftreader-navigation-route-preview.cmd`. |
+| Output schema | `docs\schemas\navigation\navigation-route-preview.schema.json`; registered in `scripts\navigation_schema_validate.py`. |
+| Tool catalog | `navigation-route-preview` is canonical, safe-read-only, and in the recommended workflow; tool count is now `48`. |
+| Route-preview smoke | `scripts\riftreader-navigation-route-preview.cmd --waypoint-readiness-json scripts\captures\navigation-waypoint-readiness-20260602-071111-256714\summary.json --max-consumer-state-age-seconds 60 --json` passed with `activeLegPlanarDistance=273.80771899466805`, `activeLegBearingDegrees=52.256314250788364`, `activeLegInitialYawDeltaDegrees=50.49110968572896`, `canQueueGatedLiveRunRequest=true`, and `canExecuteLiveNavigation=false`. |
+| Schema smoke | `scripts\captures\navigation-route-preview-20260602-082123-882214\summary.json` passed `navigation-route-preview` schema validation with `validationErrorCount=0`. |
+
+Safety: the route preview reads saved JSON only. It sends no input or movement,
+performs no live target read/write, no `/reloadui`, no screenshot key, no
+debugger/CE attach, no provider write, no proof/actor/facing/turn-rate
+promotion, and no route control. Live execution remains explicitly gated.
+
+Current next action: add a one-command downstream package helper that runs
+consumer refresh, route preview, schema validation, and consumer demo as one
+safe workflow so external projects can fetch a complete bundle without racing
+the 5-second pose freshness window.
+
 ## Latest compact handoff — navigation consumer refresh — 2026-06-02 08:01 UTC
 
 A new compact handoff exists at

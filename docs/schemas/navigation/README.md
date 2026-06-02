@@ -12,6 +12,7 @@ consume RiftReader navigation artifacts.
 | `navigation-waypoint-readiness.schema.json` | `riftreader-navigation-waypoint-readiness` | One-command waypoint lint + dry-run + contract bundle. |
 | `navigation-consumer-demo.schema.json` | `riftreader-navigation-consumer-demo` | Downstream consumer readiness report over saved navigation artifacts. |
 | `navigation-consumer-refresh.schema.json` | `riftreader-navigation-consumer-refresh` | No-input pose refresh plus downstream consumer demo rerun. |
+| `navigation-route-preview.schema.json` | `riftreader-navigation-route-preview` | Saved-artifact route preview for map/UI consumers. |
 
 Use the repo validator:
 

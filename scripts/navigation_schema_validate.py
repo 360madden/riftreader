@@ -26,6 +26,7 @@ SCHEMA_FILES = {
     "navigation-waypoint-readiness": "navigation-waypoint-readiness.schema.json",
     "navigation-consumer-demo": "navigation-consumer-demo.schema.json",
     "navigation-consumer-refresh": "navigation-consumer-refresh.schema.json",
+    "navigation-route-preview": "navigation-route-preview.schema.json",
 }
 
 KIND_TO_SCHEMA_KEY = {
@@ -38,6 +39,7 @@ KIND_TO_SCHEMA_KEY = {
     "riftreader-navigation-waypoint-readiness": "navigation-waypoint-readiness",
     "riftreader-navigation-consumer-demo": "navigation-consumer-demo",
     "riftreader-navigation-consumer-refresh": "navigation-consumer-refresh",
+    "riftreader-navigation-route-preview": "navigation-route-preview",
 }
 
 

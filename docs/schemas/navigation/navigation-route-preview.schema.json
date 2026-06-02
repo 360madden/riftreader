@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-route-preview.schema.json",
+  "title": "RiftReader navigation route preview",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "schemaChecks",
+    "consumerPose",
+    "route",
+    "capabilities",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "number", "minimum": 1 },
+    "kind": { "const": "riftreader-navigation-route-preview" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "input": {
+      "type": "object",
+      "required": [
+        "consumerStateJson",
+        "waypointReadinessJson",
+        "normalizedWaypointsJson",
+        "requireFreshPose",
+        "alignmentThresholdDegrees"
+      ],
+      "properties": {
+        "consumerStateJson": { "type": ["string", "null"] },
+        "waypointReadinessJson": { "type": ["string", "null"] },
+        "normalizedWaypointsJson": { "type": ["string", "null"] },
+        "requireFreshPose": { "type": "boolean" },
+        "maxConsumerStateAgeSeconds": { "type": ["number", "null"], "minimum": 0 },
+        "alignmentThresholdDegrees": { "type": "number", "minimum": 0, "maximum": 180 }
+      }
+    },
+    "schemaChecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "schemaKey", "status", "errorCount", "errors"],
+        "properties": {
+          "label": { "type": "string" },
+          "path": { "type": ["string", "null"] },
+          "schemaKey": { "type": ["string", "null"] },
+          "status": { "enum": ["passed", "blocked", "failed"] },
+          "errorCount": { "type": "number", "minimum": 0 },
+          "errors": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "consumerPose": {
+      "type": "object",
+      "required": ["status", "verdict", "fresh", "ageSeconds", "maxAgeSeconds", "position", "yawDegrees"],
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "generatedAtUtc": { "type": ["string", "null"] },
+        "ageSeconds": { "type": ["number", "null"], "minimum": 0 },
+        "maxAgeSeconds": { "type": "number", "minimum": 0 },
+        "fresh": { "type": "boolean" },
+        "target": { "type": ["object", "null"] },
+        "position": {
+          "type": ["object", "null"],
+          "required": ["x", "y", "z"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" }
+          }
+        },
+        "yawDegrees": { "type": ["number", "null"] },
+        "pitchDegrees": { "type": ["number", "null"] }
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": [
+        "waypointCount",
+        "legCount",
+        "routeComplete",
+        "firstUnreachedWaypointIndex",
+        "nextWaypointId",
+        "activeLeg",
+        "legs",
+        "totalPlanarDistance",
+        "totalDistance3d",
+        "routePolyline"
+      ],
+      "properties": {
+        "waypointCount": { "type": "number", "minimum": 0 },
+        "legCount": { "type": "number", "minimum": 0 },
+        "routeComplete": { "type": "boolean" },
+        "firstUnreachedWaypointIndex": { "type": ["number", "null"], "minimum": 0 },
+        "nextWaypointId": { "type": ["string", "null"] },
+        "activeLeg": { "type": ["object", "null"] },
+        "legs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "legIndex",
+              "from",
+              "to",
+              "delta",
+              "planarDistance",
+              "distance3d",
+              "heightDelta",
+              "arrivalRadius",
+              "withinArrivalRadius",
+              "distanceToArrivalBoundary",
+              "bearingDegrees",
+              "initialYawDeltaDegrees",
+              "absoluteInitialYawDeltaDegrees",
+              "alignmentThresholdDegrees",
+              "withinAlignmentThreshold",
+              "suggestedInitialTurnDirection"
+            ],
+            "properties": {
+              "legIndex": { "type": "number", "minimum": 1 },
+              "from": { "type": "object" },
+              "to": { "type": "object" },
+              "delta": { "type": "object" },
+              "planarDistance": { "type": "number", "minimum": 0 },
+              "distance3d": { "type": "number", "minimum": 0 },
+              "heightDelta": { "type": "number" },
+              "arrivalRadius": { "type": "number", "minimum": 0 },
+              "withinArrivalRadius": { "type": "boolean" },
+              "distanceToArrivalBoundary": { "type": "number", "minimum": 0 },
+              "bearingDegrees": { "type": "number" },
+              "initialYawDeltaDegrees": { "type": ["number", "null"] },
+              "absoluteInitialYawDeltaDegrees": { "type": ["number", "null"], "minimum": 0 },
+              "alignmentThresholdDegrees": { "type": "number", "minimum": 0 },
+              "withinAlignmentThreshold": { "type": ["boolean", "null"] },
+              "suggestedInitialTurnDirection": {
+                "type": ["string", "null"],
+                "enum": ["arrived", "aligned", "left", "right", null]
+              }
+            }
+          }
+        },
+        "totalPlanarDistance": { "type": "number", "minimum": 0 },
+        "totalDistance3d": { "type": "number", "minimum": 0 },
+        "routePolyline": { "type": "array" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "canRenderRoutePreview",
+        "canUseRoutePreview",
+        "canQueueGatedLiveRunRequest",
+        "canExecuteLiveNavigation",
+        "liveExecutionRequiresExplicitApproval",
+        "recommendedMode",
+        "nextRecommendedAction"
+      ],
+      "properties": {
+        "canRenderRoutePreview": { "type": "boolean" },
+        "canUseRoutePreview": { "type": "boolean" },
+        "canQueueGatedLiveRunRequest": { "type": "boolean" },
+        "canExecuteLiveNavigation": { "const": false },
+        "liveExecutionRequiresExplicitApproval": { "const": true },
+        "recommendedMode": { "type": "string" },
+        "nextRecommendedAction": { "type": "string" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["movementSent", "inputSent", "targetMemoryBytesRead", "targetMemoryBytesWritten"],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "readOnlySavedJson": { "const": true },
+        "routePreviewOnly": { "const": true },
+        "routeControlAuthorized": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

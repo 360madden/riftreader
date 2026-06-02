@@ -120,6 +120,21 @@ downstream consumer demo against that fresh pose. It may read target memory via
 the consumer-state helper, but it sends no input/movement and still never
 authorizes live route execution.
 
+### Build downstream route preview for map/UI consumers
+```powershell
+scripts\riftreader-navigation-route-preview.cmd `
+  --waypoint-readiness-json <readiness-summary.json> `
+  --json
+```
+
+This saved-artifact-only report combines the latest consumer pose and normalized
+waypoints into a route preview with the active leg, per-leg planar/3D distance,
+bearing, initial yaw delta, suggested initial turn, and arrival radius. It reads
+saved JSON only; run the consumer refresh command first when a fresh pose is
+needed before queueing a gated live-run request. For map/UI preview only, pass
+`--max-consumer-state-age-seconds <seconds>` when a wider freshness budget is
+acceptable; live execution remains separately gated either way.
+
 ### Execute single route step
 ```powershell
 python scripts/static_owner_nav_route_step.py `
