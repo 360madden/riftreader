@@ -2,6 +2,35 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — Phase 1 target entity snapshot helper — 2026-06-02 04:04 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0404-phase1-target-entity-snapshot-handoff.md`.
+
+Phase 1 target-entity discovery now has a durable Python-first evidence wrapper
+and a live post-flush selected-target packet. The selected target was
+deterministically bootstrapped as `Atank` with `/target Atank`, then `/reloadui`
+was intentionally sent to flush `ReaderBridgeExport.lua` as a post-save target
+snapshot.
+
+| Evidence | Result |
+|---|---|
+| Phase 1 helper | `scripts\phase1_target_entity_snapshot.py`; launcher `scripts\riftreader-phase1-target-entity-snapshot.cmd`. |
+| Helper output | `scripts\captures\phase1-target-entity-snapshot-20260602-035907-998714\summary.json`. |
+| Selected target export | `targetPresent=true`; target `Atank` / `u035400012FA2D207`; file updated `2026-06-02T03:54:15Z`. |
+| Target-current reader blocker | `target-current-family-resolution-failed:fam-CEC3708F`. |
+| Tooling commit | `ceeba06 Add Phase 1 target entity snapshot helper`. |
+
+Safety: exact PID/HWND live target acquisition sent Tab attempts, one click,
+`/target Atank`, and `/reloadui`; no movement was sent. No Cheat Engine/x64dbg,
+provider writes, target memory writes, proof promotion, actor-chain promotion,
+or branch rewrite were performed. The helper itself sends no input and treats
+SavedVariables only as a deliberate post-flush snapshot, not live IPC truth.
+
+Current next action: debug the C# `--read-target-current` target family resolver
+for `fam-CEC3708F`, then repeat Phase 1 with a non-self selected target once one
+can be selected reliably.
+
 ## Latest compact handoff — current proof anchor restored — 2026-06-01 21:50 UTC
 
 A new compact handoff exists at
