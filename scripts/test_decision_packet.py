@@ -360,6 +360,64 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertTrue(result["staticResolver"]["promoted"])
         self.assertEqual(result["staticResolver"]["rootRva"], "0x32EBC80")
 
+    def test_newer_root_null_readback_blocks_promoted_static_resolver(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 12664,
+                        "targetWindowHandle": "0x205146C",
+                        "processStartUtc": "2026-06-01T17:19:45Z",
+                        "moduleBase": "0x7FF6EE5D0000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "staticChainStatus": {
+                        "status": "promoted",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootModule": "rift_x64.exe",
+                            "rootRva": "0x32EBC80",
+                        },
+                        "latestApiNowValidation": {"status": "passed"},
+                    },
+                },
+            )
+            write_json(
+                root / "scripts" / "captures" / "static-owner-coordinate-chain-readback-20260602-175043-068641" / "summary.json",
+                {
+                    "mode": "static-owner-coordinate-resolver-readback",
+                    "generatedAtUtc": "2026-06-02T17:50:43Z",
+                    "status": "blocked",
+                    "verdict": "root-pointer-null",
+                    "target": {
+                        "processId": 77152,
+                        "targetWindowHandle": "0x17A0DB2",
+                        "expectedProcessStartUtc": "2026-06-02T15:45:29Z",
+                        "moduleBase": "0x7FF7211C0000",
+                    },
+                    "candidate": {"rootRva": "0x32EBC80", "rootAddress": "0x7FF7244ABC80"},
+                    "reads": {"rootRva": "0x32EBC80", "rootAddress": "0x7FF7244ABC80", "rootPointer": "0x0"},
+                    "safety": {"movementSent": False, "inputSent": False, "targetMemoryBytesWritten": False},
+                },
+            )
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["targetEpoch"]["status"], "post-update-static-root-blocked")
+        self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
+        self.assertTrue(packet["staticOwnerReadback"]["blocksCurrentStaticResolver"])
+        self.assertEqual(packet["safeNextAction"]["key"], "postupdate-owner-root-rediscovery")
+        self.assertFalse(packet["truth"]["movementGate"]["allowed"])
+        self.assertEqual(packet["truth"]["movementGate"]["status"], "blocked-post-update-static-root-null")
+        self.assertFalse(packet["truth"]["actorChain"]["staticResolver"]["usableForNavigation"])
+
     def test_unpromoted_static_resolver_does_not_supersede_stale_proof_epoch(self) -> None:
         truth = {
             "target": {
@@ -975,6 +1033,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "targetEpoch",
                 "truth",
                 "toolCatalog",
+                "staticOwnerReadback",
                 "navigationTerrain",
                 "navigationPointerChains",
                 "navigationPointerDiscovery",
@@ -1004,6 +1063,7 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("command", packet["safeNextAction"])
         self.assertIn("commands", packet["validationPlan"])
         self.assertIn("safeRefreshCommand", packet["toolCatalog"])
+        self.assertIn("blocksCurrentStaticResolver", packet["staticOwnerReadback"])
         self.assertIn("recommendedGhidraAction", packet["toolCatalog"])
         self.assertIn("recommendedTriggers", packet["toolCatalog"]["ghidraStaticLane"])
         self.assertIn("recommended", packet["commitPlan"])
@@ -1018,6 +1078,8 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(contract["kind"], "riftreader-decision-packet-schema-contract")
         self.assertIn("commitPlan", contract["requiredTopLevelFields"])
         self.assertIn("toolCatalog", contract["requiredTopLevelFields"])
+        self.assertIn("staticOwnerReadback", contract["requiredTopLevelFields"])
+        self.assertIn("blocksCurrentStaticResolver", contract["staticOwnerReadbackFields"])
         self.assertIn("stageCommand", contract["commitPlanFields"])
         self.assertIn("stageCommandPreview", contract["commitPlanFields"])
         self.assertIn("retiredSurfacePaths", contract["commitPlanFields"])
@@ -1447,6 +1509,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "commitPlan",
                 "agentPlan",
                 "toolCatalog",
+                "staticOwnerReadback",
                 "navigationTerrain",
                 "navigationPointerChains",
                 "navigationPointerDiscovery",

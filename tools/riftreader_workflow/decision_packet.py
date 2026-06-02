@@ -205,6 +205,20 @@ def parse_iso(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def parse_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(text, 0)
+    except ValueError:
+        return None
+
+
 def normalize_hwnd(value: Any) -> str | None:
     if value is None:
         return None
@@ -233,6 +247,19 @@ def target_from_document(document: dict[str, Any] | None) -> dict[str, Any]:
         "live": target.get("live"),
         "status": target.get("status"),
     }
+
+
+def truth_last_update_time(truth: dict[str, Any] | None) -> datetime | None:
+    truth_map = safe_mapping(truth)
+    target = safe_mapping(truth_map.get("target"))
+    times = [
+        parse_iso(truth_map.get("updatedAtUtc")),
+        parse_iso(truth_map.get("lastUpdatedUtc")),
+        parse_iso(truth_map.get("generatedAtUtc")),
+        parse_iso(target.get("lastVerifiedUtc")),
+    ]
+    parsed = [item for item in times if item is not None]
+    return max(parsed) if parsed else None
 
 
 def strip_command_output(envelope: dict[str, Any]) -> dict[str, Any]:
@@ -563,6 +590,72 @@ def promoted_static_resolver_summary(truth: dict[str, Any] | None) -> dict[str, 
     }
 
 
+def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any] | None) -> dict[str, Any]:
+    """Summarize the latest ignored static-owner readback artifact.
+
+    This is a read-only control-plane guard.  It prevents stale tracked current
+    truth from continuing to look green after a game update when a newer exact
+    target readback proves the old static root is readable but null.
+    """
+
+    capture_root = repo_root / "scripts" / "captures"
+    if not capture_root.exists():
+        return {"status": "missing", "reason": "captures-directory-missing", "blocksCurrentStaticResolver": False}
+
+    paths = [path for path in capture_root.glob("static-owner-coordinate-chain-readback-*/summary.json") if path.is_file()]
+    if not paths:
+        return {"status": "missing", "reason": "static-owner-readback-summary-missing", "blocksCurrentStaticResolver": False}
+
+    latest = max(paths, key=lambda path: path.stat().st_mtime)
+    data, error = try_load_json_object(latest)
+    if error or data is None:
+        return {
+            "status": "parse-error",
+            "path": repo_rel(repo_root, latest),
+            "error": error or "empty-summary",
+            "blocksCurrentStaticResolver": True,
+            "blocker": "latest-static-owner-readback-parse-error",
+        }
+
+    reads = safe_mapping(data.get("reads"))
+    candidate = safe_mapping(data.get("candidate"))
+    target = safe_mapping(data.get("target"))
+    static_resolver = promoted_static_resolver_summary(truth)
+    latest_generated = parse_iso(data.get("generatedAtUtc"))
+    truth_updated = truth_last_update_time(truth)
+    root_rva = reads.get("rootRva") or candidate.get("rootRva")
+    root_pointer = reads.get("rootPointer")
+    root_pointer_int = parse_int(root_pointer)
+    static_root_rva = static_resolver.get("rootRva")
+    same_root = same_text(root_rva, static_root_rva)
+    newer_than_truth = latest_generated is not None and (truth_updated is None or latest_generated > truth_updated)
+    root_null = data.get("verdict") == "root-pointer-null" or root_pointer_int == 0
+    blocks = bool(static_resolver.get("promoted") and same_root and newer_than_truth and root_null)
+
+    return {
+        "status": data.get("status"),
+        "verdict": data.get("verdict"),
+        "path": repo_rel(repo_root, latest),
+        "generatedAtUtc": data.get("generatedAtUtc"),
+        "truthLastUpdateUtc": truth_updated.isoformat() if truth_updated else None,
+        "newerThanCurrentTruth": newer_than_truth,
+        "rootRva": root_rva,
+        "rootAddress": reads.get("rootAddress") or candidate.get("rootAddress"),
+        "rootPointer": root_pointer,
+        "trackedStaticRootRva": static_root_rva,
+        "sameRootRvaAsTrackedStaticResolver": same_root,
+        "target": {
+            "processId": target.get("processId"),
+            "targetWindowHandle": target.get("targetWindowHandle"),
+            "expectedProcessStartUtc": target.get("expectedProcessStartUtc"),
+            "moduleBase": target.get("moduleBase"),
+        },
+        "blocksCurrentStaticResolver": blocks,
+        "blocker": "latest-static-owner-readback-root-pointer-null" if blocks else None,
+        "safety": safe_mapping(data.get("safety")),
+    }
+
+
 def first_nonempty(*values: Any) -> Any:
     for value in values:
         if value not in (None, ""):
@@ -690,7 +783,7 @@ def classify_lane(git_state: dict[str, Any], target_epoch: dict[str, Any], truth
         return "docs"
     if static_resolver.get("complete") and not static_resolver.get("promoted"):
         return "actor-chain"
-    if target_epoch.get("status") == "stale":
+    if target_epoch.get("status") in {"stale", "post-update-static-root-blocked"}:
         return "proof-recovery"
     if actor.get("status") in {"candidate-only", "blocked"}:
         return "actor-chain"
@@ -701,7 +794,7 @@ def classify_lane(git_state: dict[str, Any], target_epoch: dict[str, Any], truth
 
 def classify_risk(lane: str, git_state: dict[str, Any], target_epoch: dict[str, Any]) -> str:
     paths = [normalize_path(str(item.get("path") or "")).lower() for item in safe_list(git_state.get("changedFiles"))]
-    if target_epoch.get("status") == "stale":
+    if target_epoch.get("status") in {"stale", "post-update-static-root-blocked"}:
         return "high"
     if lane in {"actor-chain", "proof-recovery"}:
         return "high"
@@ -769,6 +862,21 @@ def build_validation_plan(git_state: dict[str, Any], lane: str) -> dict[str, Any
                 "decision-packet-self-test",
                 ["python", "tools/riftreader_workflow/decision_packet.py", "--self-test", "--json"],
                 "Run fixture-only decision packet self-test.",
+            )
+        )
+    if any("postupdate_owner_root_rediscovery" in path for path in lower_paths):
+        commands.append(
+            command_spec(
+                "postupdate-owner-root-rediscovery-tests",
+                ["python", "-m", "unittest", "scripts.test_postupdate_owner_root_rediscovery"],
+                "Validate no-input post-update owner/root rediscovery classification.",
+            )
+        )
+        commands.append(
+            command_spec(
+                "postupdate-owner-root-rediscovery-self-test",
+                ["python", "scripts\\postupdate_owner_root_rediscovery.py", "--self-test", "--json"],
+                "Run fixture-only post-update owner/root rediscovery self-test.",
             )
         )
     if any("tool_catalog" in path or "riftreader-tool-catalog" in path for path in lower_paths):
@@ -1021,6 +1129,15 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
         }
     actor = safe_mapping(truth.get("actorChain"))
     static_resolver = safe_mapping(actor.get("staticResolver"))
+    if target_epoch.get("status") == "post-update-static-root-blocked":
+        return {
+            "key": "postupdate-owner-root-rediscovery",
+            "command": ["python", ".\\scripts\\postupdate_owner_root_rediscovery.py", "--json"],
+            "why": (
+                "A newer exact-target static-owner readback found the promoted root pointer null after the game update; "
+                "continue no-input owner/root rediscovery instead of using stale navigation truth."
+            ),
+        }
     if static_resolver.get("complete") and not static_resolver.get("promoted"):
         return {
             "key": "static-chain-promotion-readiness",
@@ -1259,6 +1376,19 @@ def build_decision_packet(
         if not proof_error:
             warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
     target_epoch = classify_target_epoch(truth, proof)
+    static_owner_readback = summarize_latest_static_owner_readback(repo_root, truth)
+    if static_owner_readback.get("blocksCurrentStaticResolver"):
+        root_blocker = str(static_owner_readback.get("blocker") or "latest-static-owner-readback-root-pointer-null")
+        target_epoch = {
+            **target_epoch,
+            "status": "post-update-static-root-blocked",
+            "blockers": sorted(set(safe_list(target_epoch.get("blockers")) + [root_blocker])),
+            "warnings": safe_list(target_epoch.get("warnings")) + ["promoted-static-resolver-blocked-by-newer-root-null-readback"],
+            "latestStaticOwnerReadback": static_owner_readback,
+            "proofUseAllowed": False,
+            "staticResolverUsable": False,
+        }
+        warnings.append(f"{root_blocker}:{static_owner_readback.get('path')}")
     retired_guardrail = build_retired_surface_guardrail(git_state)
     retired_paths = [str(path) for path in retired_guardrail.get("paths") or []]
     warnings.extend(f"{retired_guardrail.get('policy')}:{path}" for path in retired_paths)
@@ -1270,6 +1400,25 @@ def build_decision_packet(
             "proofUseAllowed": False,
         }
     truth_summary = summarize_truth(truth, proof, now=now)
+    if static_owner_readback.get("blocksCurrentStaticResolver"):
+        movement_gate = safe_mapping(truth_summary.get("movementGate"))
+        movement_gate["allowed"] = False
+        movement_gate["status"] = "blocked-post-update-static-root-null"
+        movement_gate["reason"] = (
+            "A newer exact-target static-owner readback found the promoted root pointer null after the game update. "
+            "Navigation/movement must stay blocked until owner/root rediscovery and proof gates pass."
+        )
+        movement_gate["blockers"] = sorted(set(safe_list(movement_gate.get("blockers")) + ["latest-static-owner-readback-root-pointer-null"]))
+        truth_summary["movementGate"] = movement_gate
+        actor_chain = safe_mapping(truth_summary.get("actorChain"))
+        static_resolver = safe_mapping(actor_chain.get("staticResolver"))
+        static_resolver["runtimeReadbackStatus"] = "blocked-root-pointer-null"
+        static_resolver["runtimeReadbackSummary"] = static_owner_readback
+        static_resolver["usableForNavigation"] = False
+        actor_chain["staticResolver"] = static_resolver
+        actor_chain["status"] = "blocked"
+        actor_chain["blockers"] = sorted(set(safe_list(actor_chain.get("blockers")) + ["latest-static-owner-readback-root-pointer-null"]))
+        truth_summary["actorChain"] = actor_chain
     navigation_terrain = _summarize_latest_route_run_report_terrain(repo_root)
     try:
         navigation_pointer_discovery = build_navigation_pointer_discovery(repo_root, now=now)
@@ -1343,6 +1492,7 @@ def build_decision_packet(
         "targetEpoch": target_epoch,
         "truth": truth_summary,
         "toolCatalog": tool_catalog_summary,
+        "staticOwnerReadback": static_owner_readback,
         "navigationTerrain": navigation_terrain,
         "navigationPointerChains": nav_state_data,
         "navigationPointerDiscovery": navigation_pointer_discovery,
@@ -1502,6 +1652,14 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "status": safe_mapping(packet.get("navigationTerrain")).get("status"),
             "terrainBlockerPresent": safe_mapping(packet.get("navigationTerrain")).get("terrainBlockerPresent"),
             "noProgressStepCount": safe_mapping(packet.get("navigationTerrain")).get("noProgressStepCount"),
+        },
+        "staticOwnerReadback": {
+            "status": safe_mapping(packet.get("staticOwnerReadback")).get("status"),
+            "verdict": safe_mapping(packet.get("staticOwnerReadback")).get("verdict"),
+            "rootPointer": safe_mapping(packet.get("staticOwnerReadback")).get("rootPointer"),
+            "newerThanCurrentTruth": safe_mapping(packet.get("staticOwnerReadback")).get("newerThanCurrentTruth"),
+            "blocksCurrentStaticResolver": safe_mapping(packet.get("staticOwnerReadback")).get("blocksCurrentStaticResolver"),
+            "path": safe_mapping(packet.get("staticOwnerReadback")).get("path"),
         },
         "navigationPointerChains": _compact_nav_state(packet.get("navigationPointerChains")),
         "navigationPointerDiscovery": _compact_nav_pointer_discovery(packet.get("navigationPointerDiscovery")),
@@ -1819,6 +1977,7 @@ def build_schema_contract() -> dict[str, Any]:
             "truth",
             "retiredSurfaces",
             "toolCatalog",
+            "staticOwnerReadback",
             "navigationTerrain",
             "navigationPointerChains",
             "navigationPointerDiscovery",
@@ -1844,6 +2003,19 @@ def build_schema_contract() -> dict[str, Any]:
         "statusValues": ["passed", "blocked", "failed"],
         "milestoneStates": sorted(MILESTONE_STATES),
         "repoChangedFileFields": ["status", "path", "generated", "liveTruth", "retiredSurface", "retiredSurfacePolicy"],
+        "staticOwnerReadbackFields": [
+            "status",
+            "verdict",
+            "path",
+            "generatedAtUtc",
+            "newerThanCurrentTruth",
+            "rootRva",
+            "rootAddress",
+            "rootPointer",
+            "blocksCurrentStaticResolver",
+            "blocker",
+            "safety",
+        ],
         "navigationPointerChainsFields": [
             "status",
             "generatedAtUtc",
