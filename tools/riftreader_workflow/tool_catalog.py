@@ -511,6 +511,22 @@ def build_repo_entries(repo_root: Path) -> list[ToolEntry]:
         ),
         repo_tool(
             repo_root,
+            key="navigation-consumer-state",
+            label="Navigation consumer state",
+            kind="navigation-readback",
+            rel_path="scripts/riftreader-navigation-consumer-state.cmd",
+            risk="safe-read-only",
+            default_use="emit stable read-only current position/yaw JSON for external navigation consumers",
+            allowed=True,
+            approval=False,
+            command=["scripts\\riftreader-navigation-consumer-state.cmd", "--json", "--write"],
+            notes=[
+                "reads promoted coordinate + facing/yaw state only; sends no input and performs no debugger attach",
+                "turn-rate/support fields are diagnostic-only and do not authorize route control",
+            ],
+        ),
+        repo_tool(
+            repo_root,
             key="static-owner-nav-now",
             label="Static-owner current readback",
             kind="navigation-readback",
@@ -977,6 +993,10 @@ def build_recommended_workflow() -> list[dict[str, str]]:
             "step": "static-chain-readback-before-nav",
             "command": "scripts\\static-owner-coordinate-chain-readback.cmd --use-current-truth --samples 3 --interval-seconds 0.20 --expect-stationary --json",
         },
+        {
+            "step": "navigation-consumer-state",
+            "command": "scripts\\riftreader-navigation-consumer-state.cmd --json --write",
+        },
         {"step": "live-input-audit-before-live", "command": "scripts\\riftreader-live-input-surface-audit.cmd --json"},
         {"step": "turn-plan-before-input", "command": "scripts\\static-owner-turn-aware-route-plan.cmd --json"},
         {
@@ -1057,6 +1077,7 @@ def build_tool_catalog(repo_root: Path, external_tools_root: Path = DEFAULT_EXTE
             "phase1-target-entity-snapshot",
             "actor-chain-no-debug-status",
             "static-owner-coordinate-chain-readback",
+            "navigation-consumer-state",
             "static-owner-turn-aware-plan",
             "static-owner-camera-yaw-classification",
             "static-owner-route-run-report",
@@ -1300,6 +1321,7 @@ def build_self_test() -> dict[str, Any]:
             "scripts/riftreader-live-input-surface-audit.cmd",
             "scripts/riftreader-actor-chain-no-debug-status.cmd",
             "scripts/static-owner-coordinate-chain-readback.cmd",
+            "scripts/riftreader-navigation-consumer-state.cmd",
             "scripts/static-owner-nav-now.cmd",
             "scripts/static-owner-turn-aware-route-plan.cmd",
             "scripts/static-owner-camera-yaw-classification.cmd",
@@ -1356,6 +1378,10 @@ def build_self_test() -> dict[str, Any]:
                 },
                 {"name": "x64dbg-gated", "pass": "x64dbg-gui" in catalog["gatedToolKeys"]},
                 {"name": "tool-catalog-canonical", "pass": "tool-catalog" in compact["canonicalToolKeys"]},
+                {
+                    "name": "navigation-consumer-state-canonical",
+                    "pass": "navigation-consumer-state" in compact["canonicalToolKeys"],
+                },
                 {"name": "safety-no-input", "pass": catalog["safety"]["inputSent"] is False},
             ]
         )

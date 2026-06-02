@@ -50,6 +50,7 @@ def make_fake_repo(root: Path) -> tuple[Path, Path]:
         "scripts/riftreader-live-input-surface-audit.cmd",
         "scripts/riftreader-actor-chain-no-debug-status.cmd",
         "scripts/static-owner-coordinate-chain-readback.cmd",
+        "scripts/riftreader-navigation-consumer-state.cmd",
         "scripts/static-owner-nav-now.cmd",
         "scripts/static-owner-turn-aware-route-plan.cmd",
         "scripts/static-owner-camera-yaw-classification.cmd",
@@ -122,6 +123,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertTrue(any(item["step"] == "owner-0x304-semantics-review" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "turn-rate-promotion-apply-dry-run" for item in compact["recommendedWorkflow"]))
         self.assertTrue(any(item["step"] == "static-chain-readback-before-nav" for item in compact["recommendedWorkflow"]))
+        self.assertTrue(any(item["step"] == "navigation-consumer-state" for item in compact["recommendedWorkflow"]))
         self.assertTrue(
             any(item["step"] == "camera-yaw-classification-before-turn-route" for item in compact["recommendedWorkflow"])
         )
@@ -145,6 +147,7 @@ class ToolCatalogTests(unittest.TestCase):
         self.assertIn("turn-rate-promotion-apply", compact["canonicalToolKeys"])
         self.assertIn("turn-rate-promotion-apply", compact["gatedToolKeys"])
         self.assertIn("static-owner-coordinate-chain-readback", compact["canonicalToolKeys"])
+        self.assertIn("navigation-consumer-state", compact["canonicalToolKeys"])
         self.assertIn("static-owner-camera-yaw-classification", compact["canonicalToolKeys"])
         self.assertIn("static-owner-route-run-report", compact["canonicalToolKeys"])
         self.assertIn("restart-survival-failure", compact["ghidraStaticLane"]["recommendedTriggers"])

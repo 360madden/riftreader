@@ -30,6 +30,11 @@ _chain_readback.py          aware_route_plan.py          (ScanCode keys)
 python scripts/static_owner_coordinate_chain_readback.py --use-current-truth --nav-state --json
 ```
 
+### Emit consumer-safe position + yaw contract
+```powershell
+scripts\riftreader-navigation-consumer-state.cmd --json --write
+```
+
 ### Dry-run route plan (no movement)
 ```powershell
 python scripts/static_owner_turn_aware_route_plan.py `
@@ -165,3 +170,4 @@ All live movement requires:
 - Turn-aware route contract: `docs/workflow/static-owner-turn-aware-route-contract.md`
 - Route step contract: `docs/workflow/static-owner-nav-route-contract.md`
 - Turn stimulus contract: `docs/workflow/static-owner-turn-stimulus-contract.md`
+- Consumer state contract: `docs/workflows/navigation-consumer-contract.md`

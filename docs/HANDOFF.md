@@ -2,6 +2,33 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — navigation consumer state contract — 2026-06-02 06:22 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-0622-navigation-consumer-state-handoff.md`.
+
+RiftReader now has a read-only consumer-facing navigation state contract for
+external projects that need current player position and yaw without inheriting
+route-control or candidate-field ambiguity.
+
+| Evidence | Result |
+|---|---|
+| Helper | `scripts\navigation_consumer_state.py`; launcher `scripts\riftreader-navigation-consumer-state.cmd`. |
+| Contract doc | `docs\workflows\navigation-consumer-contract.md`. |
+| Tool catalog | `navigation-consumer-state` is canonical and safe-read-only. |
+| Live read-only verification | `scripts\riftreader-navigation-consumer-state.cmd --json --write` passed. |
+| Latest output | `.riftreader-local\navigation-consumer-state\latest\summary.json`; verdict `consumer-navigation-state-ready`. |
+| Position/yaw | Uses promoted position `[rift_x64+0x32EBC80]+0x320/+0x324/+0x328` and promoted yaw `[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314`. |
+
+Safety: the helper sends no input or movement, performs no `/reloadui`, no
+debugger/CE attach, no target memory writes, no provider writes, no current-truth
+apply, no proof/actor/facing/turn-rate promotion, and no route control.
+`owner+0x304` and support fields remain diagnostics only.
+
+Current next action: use the consumer-state helper as the stable pose feed for
+other projects, then advance waypoint-sequence dry-run reliability before any
+explicitly approved live multi-waypoint run.
+
 ## Latest compact handoff — target-current resolver repair — 2026-06-02 04:39 UTC
 
 A new compact handoff exists at
