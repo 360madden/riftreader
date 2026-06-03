@@ -1635,6 +1635,18 @@ def _path_under_text(path_text: str, root: Path | str | None) -> bool:
     return path_text == root_text or path_text.startswith(root_text + "\\")
 
 
+def _is_windows_user_temp_path(path_text: str) -> bool:
+    parts = path_text.split("\\")
+    return (
+        len(parts) >= 6
+        and len(parts[0]) == 2
+        and parts[0][1] == ":"
+        and parts[1] == "users"
+        and bool(parts[2])
+        and parts[3:6] == ["appdata", "local", "temp"]
+    )
+
+
 def classify_module_origin(file_name: Any, *, install_roots: Sequence[Path]) -> str:
     path_text = _normalized_path_text(file_name)
     if not path_text:
@@ -1654,7 +1666,7 @@ def classify_module_origin(file_name: Any, *, install_roots: Sequence[Path]) -> 
         return "glyph-install"
     if _path_under_text(path_text, windows_root):
         return "windows"
-    if any(_path_under_text(path_text, root) for root in temp_roots):
+    if any(_path_under_text(path_text, root) for root in temp_roots) or _is_windows_user_temp_path(path_text):
         return "temp"
     if _path_under_text(path_text, Path.home()):
         return "user-profile"
