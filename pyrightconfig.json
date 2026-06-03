@@ -1,8 +1,14 @@
 {
   "include": [
     "scripts/install_precommit_hook.py",
+    "scripts/actionlint_check.py",
+    "scripts/editorconfig_verify.py",
     "scripts/gitleaks_history_scan.py",
-    "scripts/pyright_manual_gate.py"
+    "scripts/markdownlint_manual.py",
+    "scripts/osv_scanner_manual_scan.py",
+    "scripts/pyright_manual_gate.py",
+    "scripts/renovate_config_validate.py",
+    "scripts/semgrep_manual_scan.py"
   ],
   "exclude": [
     "**/__pycache__",

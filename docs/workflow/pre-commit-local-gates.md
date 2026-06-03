@@ -43,6 +43,32 @@ C:\RIFT MODDING\tools\pyright\
   pyright.cmd
 ```
 
+Additional optional workflow tools are installed in their own folders under the
+same shared tools root:
+
+```text
+C:\RIFT MODDING\tools\actionlint\
+  actionlint.exe
+  actionlint.cmd
+C:\RIFT MODDING\tools\markdownlint-cli2\
+  node_modules\
+  package.json
+  markdownlint-cli2.cmd
+C:\RIFT MODDING\tools\osv-scanner\
+  osv-scanner.exe
+  osv-scanner.cmd
+C:\RIFT MODDING\tools\renovate\
+  node_modules\
+  package.json
+  renovate.cmd
+  renovate-config-validator.cmd
+C:\RIFT MODDING\tools\semgrep\
+  .venv\
+  semgrep.cmd
+```
+
+PSScriptAnalyzer is intentionally not installed or configured.
+
 Use the bare command in a new terminal after User PATH refresh:
 
 ```powershell
@@ -99,6 +125,15 @@ Run these from `C:\RIFT MODDING\RiftReader`.
 | Run Gitleaks directly | `python scripts\gitleaks_history_scan.py` |
 | Run the manual Pyright type check | `pre-commit run riftreader-pyright-manual --hook-stage manual` |
 | Run Pyright directly | `python scripts\pyright_manual_gate.py` |
+| Run actionlint directly | `python scripts\actionlint_check.py` |
+| Verify EditorConfig directly | `python scripts\editorconfig_verify.py` |
+| Run the manual Semgrep safety scan | `pre-commit run riftreader-semgrep-manual --hook-stage manual` |
+| Run Semgrep directly | `python scripts\semgrep_manual_scan.py` |
+| Run the manual OSV source scan | `pre-commit run riftreader-osv-scanner-manual --hook-stage manual` |
+| Run OSV-Scanner directly | `python scripts\osv_scanner_manual_scan.py` |
+| Validate Renovate config manually | `pre-commit run riftreader-renovate-config-validate --hook-stage manual --all-files` |
+| Validate Renovate config directly | `python scripts\renovate_config_validate.py` |
+| Run markdownlint on explicit docs | `python scripts\markdownlint_manual.py docs\workflow\pre-commit-local-gates.md` |
 | Refresh hook environments | `pre-commit install-hooks` |
 | Remove unused hook caches | `pre-commit gc` |
 
@@ -112,6 +147,8 @@ The default commit hook should stay fast and non-live:
 | `ruff critical Python lint` | `scripts/` and `tools/riftreader_workflow/` Python files | Critical parse/pyflakes checks only, including undefined-name checks; no auto-fix by default. |
 | `RiftReader Python compile` | Python files | `python -m py_compile` for staged Python paths. |
 | `RiftReader agent definitions validate` | `.agents/*.ts` and validator changes | Runs `scripts/agent-validate.py --verbose --json`. |
+| `RiftReader actionlint GitHub workflows` | `.github/workflows/*.yml` / `.yaml` | Static-checks GitHub Actions workflows with local actionlint. |
+| `RiftReader EditorConfig verify` | `.editorconfig` | Confirms the repo root EditorConfig baseline exists and keeps final-newline behavior enabled. |
 
 Manual hooks are intentionally not automatic:
 
@@ -121,6 +158,10 @@ Manual hooks are intentionally not automatic:
 | `riftreader-validation-ledger-smoke` | Writes `.riftreader-local` validation artifacts and can take longer than a normal commit gate. |
 | `riftreader-gitleaks-history-scan` | Scans Git history for secrets; useful before publish/PR, but slower than the default commit gate and depends on the local Gitleaks install. |
 | `riftreader-pyright-manual` | Type checks the current Pyright bootstrap scope in `pyrightconfig.json`; keep it manual until the broad repo baseline is small enough for default gating. |
+| `riftreader-semgrep-manual` | Runs repo safety rules over workflow Python; keep manual while the rule set is small and intentional. |
+| `riftreader-osv-scanner-manual` | Performs dependency vulnerability discovery; useful before publish/PR, but it can touch network and can surface advisory triage work. |
+| `riftreader-renovate-config-validate` | Validates Renovate config when dependency automation config changes. |
+| `riftreader-markdownlint-manual` | Checks explicit Markdown paths; keep manual until existing docs have a known clean baseline. |
 
 The current repo has four known historical/default-rule Gitleaks findings
 recorded in `.gitleaksignore` by fingerprint. Keep that file narrow: add only
@@ -132,7 +173,13 @@ The current Pyright config intentionally starts narrow:
 ```text
 scripts/gitleaks_history_scan.py
 scripts/install_precommit_hook.py
+scripts/actionlint_check.py
+scripts/editorconfig_verify.py
+scripts/markdownlint_manual.py
+scripts/osv_scanner_manual_scan.py
 scripts/pyright_manual_gate.py
+scripts/renovate_config_validate.py
+scripts/semgrep_manual_scan.py
 ```
 
 A broad first pass across `scripts/` and `tools/riftreader_workflow/` produced
@@ -147,8 +194,10 @@ The GitHub `RiftReader Policy` workflow runs the pre-commit config with:
 python -m pre_commit run --all-files --show-diff-on-failure
 ```
 
-Keep CI and local hooks aligned. If a hook is too slow or too broad for CI,
-move it to the `manual` stage instead of weakening safety-critical local rules.
+The workflow installs pinned actionlint `1.7.12` before running pre-commit so the
+default GitHub Actions hook has the same checker available in CI and locally.
+Keep CI and local hooks aligned. If a hook is too slow or too broad for CI, move
+it to the `manual` stage instead of weakening safety-critical local rules.
 
 ## Safety boundaries
 

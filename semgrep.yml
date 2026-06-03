@@ -1,0 +1,15 @@
+rules:
+  - id: riftreader.python.no-subprocess-shell-true
+    languages:
+      - python
+    severity: ERROR
+    message: Use subprocess argument lists without shell=True in RiftReader workflow helpers.
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+
+  - id: riftreader.python.no-os-system
+    languages:
+      - python
+    severity: ERROR
+    message: Use subprocess.run([...]) instead of os.system in RiftReader workflow helpers.
+    pattern: os.system(...)

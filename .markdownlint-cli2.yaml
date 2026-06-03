@@ -1,0 +1,27 @@
+config:
+  default: true
+  MD013: false
+  MD024:
+    siblings_only: true
+  MD033:
+    allowed_elements:
+      - br
+      - details
+      - summary
+      - sup
+      - sub
+      - kbd
+  MD060: false
+
+gitignore: true
+noBanner: true
+noProgress: true
+
+globs:
+  - "*.md"
+  - "docs/workflow/**/*.md"
+  - "docs/workflows/**/*.md"
+
+ignores:
+  - "scripts/captures/**"
+  - ".riftreader-local/**"
