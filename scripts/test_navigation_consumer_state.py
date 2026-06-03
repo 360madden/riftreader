@@ -67,6 +67,20 @@ def nav_result() -> dict:
     }
 
 
+def post_update_recovery() -> dict:
+    return {
+        "status": "candidate",
+        "verdict": "global-container-coordinate-chain-current-readback-passed",
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "routeControlAuthorized": False,
+        "actionableForNavigation": False,
+        "chain": "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30",
+        "coordinate": {"x": 7256.38916015625, "y": 821.4478149414062, "z": 2990.00537109375},
+        "sourceArtifacts": {"summaryJson": "scripts/captures/postupdate/summary.json"},
+    }
+
+
 class NavigationConsumerStateTests(unittest.TestCase):
     def test_build_consumer_state_passes_with_promoted_position_and_yaw(self) -> None:
         summary = consumer.build_consumer_state(
@@ -85,6 +99,27 @@ class NavigationConsumerStateTests(unittest.TestCase):
         self.assertIn("reject-status-other-than-passed", summary["consumerContract"]["requiredConsumerChecks"])
         self.assertFalse(summary["safety"]["movementSent"])
         self.assertFalse(summary["safety"]["targetMemoryBytesWritten"])
+
+    def test_build_consumer_state_surfaces_post_update_candidate_only(self) -> None:
+        summary = consumer.build_consumer_state(
+            nav_result=nav_result(),
+            current_truth=promoted_truth(),
+            post_update_recovery=post_update_recovery(),
+            generated_at_utc="2026-06-02T21:40:00Z",
+        )
+
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(
+            summary["postUpdateRecovery"]["chain"],
+            "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30",
+        )
+        self.assertTrue(summary["postUpdateRecovery"]["candidateOnly"])
+        self.assertFalse(summary["postUpdateRecovery"]["promotionEligible"])
+        self.assertFalse(summary["postUpdateRecovery"]["routeControlAuthorized"])
+        self.assertFalse(summary["postUpdateRecovery"]["actionableForNavigation"])
+        self.assertIn("post-update-coordinate-candidate-visible-not-promoted", summary["warnings"])
+        self.assertIn("treat-postUpdateRecovery-as-candidate-only", summary["consumerContract"]["requiredConsumerChecks"])
+        self.assertIn("post-update-candidate-as-promoted-truth", summary["consumerContract"]["notUsableFor"])
 
     def test_build_consumer_state_blocks_when_yaw_missing(self) -> None:
         result = nav_result()

@@ -146,6 +146,31 @@ class PostUpdateStaticAccessChainTests(unittest.TestCase):
         self.assertEqual(result["classification"], "global-container-child-coordinate-lead")
         self.assertFalse(result["promotionEligible"])
 
+    def test_target_from_artifacts_prefers_current_candidate_over_stale_static_target(self) -> None:
+        static_readback = {
+            "target": {
+                "pid": 12664,
+                "hwnd": "0x205146C",
+                "moduleBase": "0x7FF6EE5D0000",
+                "expectedProcessStartUtc": "2026-06-01T17:19:45.159353Z",
+            }
+        }
+        candidate_readback = {
+            "target": {
+                "pid": 77152,
+                "hwnd": "0x17A0DB2",
+                "moduleBase": "0x7FF7211C0000",
+                "expectedProcessStartUtc": "2026-06-02T15:45:29.2617327Z",
+            }
+        }
+
+        target = helper.target_from_artifacts(static_readback, candidate_readback)
+
+        self.assertEqual(target["pid"], 77152)
+        self.assertEqual(target["hwnd"], "0x17A0DB2")
+        self.assertEqual(target["moduleBase"], "0x7FF7211C0000")
+        self.assertEqual(target["expectedProcessStartUtc"], "2026-06-02T15:45:29.2617327Z")
+
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")
 

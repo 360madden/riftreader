@@ -938,11 +938,8 @@ def reference_from_candidate(candidate_readback: Mapping[str, Any]) -> dict[str,
 
 def target_from_artifacts(static_readback: Mapping[str, Any], candidate_readback: Mapping[str, Any]) -> dict[str, Any]:
     static_target = safe_mapping(static_readback.get("target"))
-    candidate_target = {
-        "pid": candidate_readback.get("processId") or candidate_readback.get("pid"),
-        "hwnd": candidate_readback.get("targetWindowHandle") or candidate_readback.get("hwnd"),
-    }
-    merged = {**candidate_target, **static_target}
+    candidate_target = rediscovery.target_fields_from_readback(candidate_readback)
+    merged = {**static_target, **candidate_target}
     if not merged.get("moduleBase"):
         merged["moduleBase"] = safe_mapping(safe_mapping(candidate_readback.get("target")).get("processDetails")).get("moduleBaseAddressHex")
     return merged

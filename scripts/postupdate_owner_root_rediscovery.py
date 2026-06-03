@@ -207,7 +207,12 @@ def best_candidate_from_readback(candidate_readback: Mapping[str, Any]) -> dict[
 
 def candidate_address_from_readback(candidate_readback: Mapping[str, Any]) -> int | None:
     best = best_candidate_from_readback(candidate_readback)
-    return parse_int(best.get("addressHex") or best.get("address"))
+    return parse_int(
+        best.get("addressHex")
+        or best.get("address")
+        or best.get("coordinateAddress")
+        or best.get("coordinateAddressHex")
+    )
 
 
 def reference_from_readback(candidate_readback: Mapping[str, Any]) -> dict[str, float] | None:
@@ -216,7 +221,38 @@ def reference_from_readback(candidate_readback: Mapping[str, Any]) -> dict[str, 
         coordinate_from_mapping(best.get("reference"))
         or coordinate_from_mapping(candidate_readback.get("reference"))
         or coordinate_from_mapping(best.get("memoryValue"))
+        or coordinate_from_mapping(best.get("coordinate"))
     )
+
+
+def target_fields_from_readback(candidate_readback: Mapping[str, Any]) -> dict[str, Any]:
+    """Return current target fields from both legacy and nested readback schemas."""
+    target = safe_mapping(candidate_readback.get("target"))
+    process_details = safe_mapping(target.get("processDetails"))
+    fields = {
+        "pid": candidate_readback.get("processId")
+        or candidate_readback.get("ProcessId")
+        or candidate_readback.get("pid")
+        or target.get("processId")
+        or target.get("pid"),
+        "hwnd": candidate_readback.get("targetWindowHandle")
+        or candidate_readback.get("TargetWindowHandle")
+        or candidate_readback.get("hwnd")
+        or target.get("targetWindowHandle")
+        or target.get("TargetWindowHandle")
+        or target.get("hwnd"),
+        "moduleBase": candidate_readback.get("moduleBase")
+        or candidate_readback.get("moduleBaseAddressHex")
+        or target.get("moduleBase")
+        or target.get("moduleBaseAddressHex")
+        or process_details.get("moduleBaseAddressHex"),
+        "expectedProcessStartUtc": candidate_readback.get("expectedProcessStartUtc")
+        or candidate_readback.get("processStartTimeUtc")
+        or target.get("expectedProcessStartUtc")
+        or target.get("processStartTimeUtc")
+        or target.get("startTimeUtc"),
+    }
+    return {key: value for key, value in fields.items() if value not in (None, "")}
 
 
 def read_vec3_from_bytes(data: bytes, offset: int) -> dict[str, float] | None:
@@ -910,16 +946,22 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
     candidate_address = parse_int(args.candidate_address) or candidate_address_from_readback(candidate_readback)
     reference = reference_from_readback(candidate_readback)
+    candidate_target = target_fields_from_readback(candidate_readback)
     module_base = (
         parse_int(args.module_base)
+        or parse_int(candidate_target.get("moduleBase"))
         or parse_int(safe_mapping(static_readback.get("target")).get("moduleBase"))
         or parse_int(safe_mapping(safe_mapping(pointer_family.get("target")).get("processDetails")).get("moduleBaseAddressHex"))
         or parse_int(safe_mapping(pointer_family.get("target")).get("moduleBaseAddressHex"))
     )
     module_size = parse_int(args.module_size) or DEFAULT_MODULE_SIZE
-    pid = args.pid or parse_int(candidate_readback.get("processId") or candidate_readback.get("ProcessId"))
-    hwnd = args.hwnd or candidate_readback.get("targetWindowHandle") or candidate_readback.get("TargetWindowHandle")
-    expected_start = args.expected_process_start_utc or safe_mapping(static_readback.get("target")).get("expectedProcessStartUtc")
+    pid = args.pid or parse_int(candidate_target.get("pid"))
+    hwnd = args.hwnd or candidate_target.get("hwnd")
+    expected_start = (
+        args.expected_process_start_utc
+        or candidate_target.get("expectedProcessStartUtc")
+        or safe_mapping(static_readback.get("target")).get("expectedProcessStartUtc")
+    )
 
     blockers: list[str] = []
     warnings: list[str] = []

@@ -2,6 +2,33 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+
+## Latest compact handoff — post-update coordinate candidate movement proof — 2026-06-02 23:05 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-02-2305-postupdate-coordinate-candidate-movement-proof-handoff.md`.
+
+The old promoted coordinate resolver remains blocked after the 2026-06-02 game update:
+`[rift_x64+0x32EBC80] == 0x0` on the current post-update epoch. The strongest
+replacement evidence is now the **candidate-only** global-container chain:
+
+`[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30`
+
+| Evidence | Result |
+|---|---|
+| Stationary polling | 5/5 candidate samples matched with drift `0.0`. |
+| Pointer-family backtrace | Container pointer backtraced to module global `rift_x64+0x32DD7E8`. |
+| Movement proof | One bounded `W` pulse for `800 ms`; post-move memory matched fresh API coordinate with max abs delta `0.003950195312540927`. |
+| Movement proof packet | `scripts\captures\postupdate-global-container-movement-proof-20260602-230020-479116\summary.json`. |
+| Candidate readback | `scripts\captures\postupdate-global-container-coordinate-readback-20260602-225839-858745\summary.json`. |
+| Consumer state | `postUpdateRecovery` is visible but `candidateOnly=true`, `promotionEligible=false`, `routeControlAuthorized=false`, `actionableForNavigation=false`. |
+
+Safety: one approved movement pulse was sent for displacement proof. No client/game
+restart, x64dbg/CE attach, target memory write, provider write, current-truth
+update, ProofOnly, proof promotion, actor-chain promotion, or route/navigation
+execution was performed. Restart/relog survival remains the next required proof
+gate before any promotion.
+
 ## Latest compact handoff — post-update recovery/reacquisition — 2026-06-02 20:22 UTC
 
 A new compact handoff exists at

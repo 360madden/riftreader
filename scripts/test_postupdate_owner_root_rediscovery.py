@@ -92,6 +92,35 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
         self.assertEqual(helper.candidate_address_from_readback(readback), 0x1234)
         self.assertEqual(helper.reference_from_readback(readback), {"x": 1.0, "y": 2.0, "z": 3.0})
 
+    def test_current_global_container_readback_schema_extracts_candidate_fields(self) -> None:
+        readback = {
+            "bestReadback": {
+                "coordinateAddress": "0x1D4D7D4FDD8",
+                "coordinate": {"x": 7256.38916015625, "y": 821.4478149414062, "z": 2990.00537109375},
+            },
+            "target": {
+                "pid": 77152,
+                "hwnd": "0x17A0DB2",
+                "moduleBase": "0x7FF7211C0000",
+                "expectedProcessStartUtc": "2026-06-02T15:45:29.2617327Z",
+            },
+        }
+
+        self.assertEqual(helper.candidate_address_from_readback(readback), 0x1D4D7D4FDD8)
+        self.assertEqual(
+            helper.reference_from_readback(readback),
+            {"x": 7256.38916015625, "y": 821.4478149414062, "z": 2990.00537109375},
+        )
+        self.assertEqual(
+            helper.target_fields_from_readback(readback),
+            {
+                "pid": 77152,
+                "hwnd": "0x17A0DB2",
+                "moduleBase": "0x7FF7211C0000",
+                "expectedProcessStartUtc": "2026-06-02T15:45:29.2617327Z",
+            },
+        )
+
     def test_read_game_epoch_extracts_manifest_version_and_exe_entry(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -37,7 +37,7 @@ import postupdate_owner_root_rediscovery as rediscovery  # noqa: E402
 
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "riftreader-postupdate-global-container-coordinate-readback-v0.1.0"
+TOOL_VERSION = "riftreader-postupdate-global-container-coordinate-readback-v0.1.1"
 DEFAULT_TOLERANCE = 1.0
 DEFAULT_CHILD_WINDOW_BYTES = 0x80
 DEFAULT_INTERVAL_SECONDS = 0.2
@@ -68,6 +68,17 @@ def load_json_object(path: Path | None) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"JSON root is not an object: {path}")
     return data
+
+
+def reference_coordinate_from_packet(packet: Mapping[str, Any]) -> dict[str, float] | None:
+    """Extract an API/reference coordinate from common RiftReader JSON packets."""
+    return (
+        rediscovery.coordinate_from_mapping(packet.get("Coordinate"))
+        or rediscovery.coordinate_from_mapping(packet.get("coordinate"))
+        or rediscovery.coordinate_from_mapping(packet.get("referenceCoordinate"))
+        or rediscovery.coordinate_from_mapping(packet.get("reference"))
+        or rediscovery.coordinate_from_mapping(safe_mapping(packet.get("bestReadback")).get("coordinate"))
+    )
 
 
 def qword(data: bytes | None, offset: int = 0) -> int | None:
@@ -343,7 +354,9 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         if args.static_access_chain_json
         else (Path(latest["staticAccessChain"]) if latest["staticAccessChain"] else None)
     )
+    reference_path = Path(args.reference_json).resolve() if args.reference_json else None
     packet = load_json_object(static_access_chain_path)
+    reference_packet = load_json_object(reference_path)
     if not packet:
         blockers.append("static-access-chain-packet-missing")
 
@@ -352,7 +365,9 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         blockers.append("global-container-coordinate-leads-missing")
 
     target = packet_target(packet)
-    reference = safe_mapping(packet.get("referenceCoordinate")) or None
+    reference = reference_coordinate_from_packet(reference_packet) or safe_mapping(packet.get("referenceCoordinate")) or None
+    if reference_path and not reference_coordinate_from_packet(reference_packet):
+        warnings.append("reference-json-coordinate-missing")
     live_target: dict[str, Any] = {"liveGlobalContainerCoordinateRead": False}
     readbacks: list[dict[str, Any]] = []
     polling: dict[str, Any] = {
@@ -430,6 +445,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "repoRoot": str(repo_root),
         "inputs": {
             "staticAccessChain": str(static_access_chain_path.resolve()) if static_access_chain_path else None,
+            "referenceJson": str(reference_path.resolve()) if reference_path else None,
         },
         "referenceCoordinate": reference,
         "target": live_target if live_target.get("liveGlobalContainerCoordinateRead") else target,
@@ -508,6 +524,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Read post-update global-container coordinate chain candidates.")
     parser.add_argument("--repo-root")
     parser.add_argument("--static-access-chain-json")
+    parser.add_argument("--reference-json")
     parser.add_argument("--child-window-bytes", default=hex(DEFAULT_CHILD_WINDOW_BYTES))
     parser.add_argument("--tolerance", type=float, default=DEFAULT_TOLERANCE)
     parser.add_argument("--samples", type=int, default=1)

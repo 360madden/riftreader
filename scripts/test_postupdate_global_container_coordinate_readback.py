@@ -69,6 +69,21 @@ class PostUpdateGlobalContainerCoordinateReadbackTests(unittest.TestCase):
 
         self.assertEqual(best["chain"], "good")
 
+    def test_reference_coordinate_from_api_capture_packet(self) -> None:
+        packet = {
+            "Status": "captured",
+            "Coordinate": {
+                "X": 7261.1797,
+                "Y": 821.42,
+                "Z": 2990.3,
+            },
+        }
+
+        self.assertEqual(
+            helper.reference_coordinate_from_packet(packet),
+            {"x": 7261.1797, "y": 821.42, "z": 2990.3},
+        )
+
     def test_polling_analysis_detects_stationary_candidate(self) -> None:
         analysis = helper.polling_analysis(
             [

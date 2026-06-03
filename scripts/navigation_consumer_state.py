@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 SCHEMA_VERSION = 1
 TOOL_VERSION = "riftreader-navigation-consumer-state-v0.1.0"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "navigation-consumer-state" / "latest"
+POSTUPDATE_RECOVERY_GLOB = "postupdate-global-container-coordinate-readback-*/summary.json"
 
 
 def chain_state(current_truth: Mapping[str, Any], key: str) -> str:
@@ -63,6 +64,87 @@ def chain_expression(current_truth: Mapping[str, Any], key: str, fallback: str) 
     return fallback
 
 
+def latest_summary_path(root: Path, pattern: str) -> Path | None:
+    capture_root = root / "scripts" / "captures"
+    if not capture_root.exists():
+        return None
+    matches = [path for path in capture_root.glob(pattern) if path.is_file()]
+    return max(matches, key=lambda path: path.stat().st_mtime) if matches else None
+
+
+def build_post_update_recovery(summary: Mapping[str, Any], *, summary_path: Path | None = None, root: Path | None = None) -> dict[str, Any]:
+    best = safe_mapping(summary.get("bestReadback"))
+    polling = safe_mapping(summary.get("polling"))
+    target = safe_mapping(summary.get("target"))
+    artifacts = safe_mapping(summary.get("artifacts"))
+    summary_json = artifacts.get("summaryJson")
+    if summary_path is not None:
+        summary_json = str(summary_path if root is None else summary_path.resolve())
+
+    return {
+        "status": summary.get("status"),
+        "verdict": summary.get("verdict"),
+        "generatedAtUtc": summary.get("generatedAtUtc"),
+        "candidateOnly": True,
+        "promotionEligible": bool(summary.get("promotionEligible")),
+        "routeControlAuthorized": False,
+        "actionableForNavigation": False,
+        "chain": best.get("chain"),
+        "coordinate": dict(best.get("coordinate")) if isinstance(best.get("coordinate"), Mapping) else None,
+        "deltaVsReference": best.get("deltaVsReference"),
+        "globalRva": best.get("globalRva"),
+        "parentOffset": best.get("parentOffset"),
+        "coordinateOffset": best.get("coordinateOffset"),
+        "sourceFunctionRva": best.get("sourceFunctionRva"),
+        "sourceInstructionRva": best.get("sourceInstructionRva"),
+        "target": {
+            "processId": target.get("pid") or target.get("processId"),
+            "targetWindowHandle": target.get("hwnd") or target.get("targetWindowHandle"),
+            "processStartUtc": target.get("expectedProcessStartUtc") or target.get("actualProcessStartUtc"),
+            "moduleBase": target.get("moduleBase"),
+        },
+        "polling": {
+            "sampleCount": polling.get("sampleCount"),
+            "bestMatchingSampleCount": polling.get("bestMatchingSampleCount"),
+            "allSamplesMatchedReference": polling.get("allSamplesMatchedReference"),
+            "stationaryDriftWithinLimit": polling.get("stationaryDriftWithinLimit"),
+            "bestCoordinateDrift": polling.get("bestCoordinateDrift"),
+        },
+        "sourceArtifacts": {
+            "summaryJson": summary_json,
+            "summaryMarkdown": artifacts.get("summaryMarkdown"),
+            "readbackStatus": summary.get("status"),
+            "readbackVerdict": summary.get("verdict"),
+        },
+        "blockers": [str(item) for item in summary.get("blockers", []) if item]
+        if isinstance(summary.get("blockers"), list)
+        else [],
+        "warnings": [str(item) for item in summary.get("warnings", []) if item]
+        if isinstance(summary.get("warnings"), list)
+        else [],
+        "safety": {
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesWritten": False,
+            "currentTruthUpdate": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "candidateOnly": True,
+        },
+    }
+
+
+def load_latest_post_update_recovery(root: Path) -> dict[str, Any] | None:
+    latest = latest_summary_path(root, POSTUPDATE_RECOVERY_GLOB)
+    if latest is None:
+        return None
+    try:
+        data = load_json_object(latest)
+    except Exception:
+        return None
+    return build_post_update_recovery(data, summary_path=latest, root=root)
+
+
 def compact_target(raw_summary: Mapping[str, Any], current_truth: Mapping[str, Any]) -> dict[str, Any]:
     raw_target = safe_mapping(raw_summary.get("target"))
     truth_target = safe_mapping(current_truth.get("target"))
@@ -84,6 +166,7 @@ def build_consumer_state(
     *,
     nav_result: Mapping[str, Any],
     current_truth: Mapping[str, Any],
+    post_update_recovery: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
     max_age_seconds: float = 5.0,
     current_truth_json: str = "docs/recovery/current-truth.json",
@@ -118,6 +201,14 @@ def build_consumer_state(
         blockers.append("position-chain-not-promoted")
     if chain_state(current_truth, "facingYaw") != "promoted":
         blockers.append("facing-yaw-chain-not-promoted")
+
+    post_update_recovery = safe_mapping(post_update_recovery)
+    if post_update_recovery:
+        warnings.append("post-update-coordinate-candidate-visible-not-promoted")
+        if post_update_recovery.get("candidateOnly") is not True:
+            blockers.append("post-update-recovery-candidate-flag-missing")
+        if post_update_recovery.get("routeControlAuthorized") is not False:
+            blockers.append("post-update-recovery-route-control-not-blocked")
 
     for item in raw_summary.get("warnings", []) if isinstance(raw_summary.get("warnings"), list) else []:
         warnings.append(str(item))
@@ -165,6 +256,7 @@ def build_consumer_state(
                 "unattended-route-control",
                 "movement-authorization",
                 "turn-rate-control",
+                "post-update-candidate-as-promoted-truth",
                 "proof-promotion",
                 "actor-chain-promotion",
                 "target-memory-write",
@@ -175,8 +267,10 @@ def build_consumer_state(
                 "verify-processId-targetWindowHandle-processStartUtc-moduleBase-before-live-input",
                 "consume-only-navigation.position-and-navigation.orientation-as-promoted-fields",
                 "treat-navigation.diagnostics-as-non-control-evidence",
+                "treat-postUpdateRecovery-as-candidate-only",
             ],
         },
+        "postUpdateRecovery": dict(post_update_recovery) if post_update_recovery else None,
         "navigation": {
             "position": {
                 "state": chain_state(current_truth, "position"),
@@ -241,6 +335,7 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
     position = safe_mapping(navigation.get("position"))
     orientation = safe_mapping(navigation.get("orientation"))
     contract = safe_mapping(summary.get("consumerContract"))
+    post_update = safe_mapping(summary.get("postUpdateRecovery"))
     target = safe_mapping(summary.get("target"))
     lines = [
         "# RiftReader navigation consumer state",
@@ -267,6 +362,18 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
         "- This payload is read-only and does not authorize movement or turn control.",
         "- `owner+0x304` and support fields are diagnostics only.",
     ]
+    if post_update:
+        lines.extend(
+            [
+                "",
+                "## Post-update recovery candidate",
+                "",
+                f"- Status: `{post_update.get('status')}`",
+                f"- Chain: `{post_update.get('chain')}`",
+                f"- Coordinate: `{post_update.get('coordinate')}`",
+                "- Candidate-only: `true`; route control remains unauthorized.",
+            ]
+        )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers", []))
@@ -306,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current_truth = load_json_object(truth_path)
+        post_update_recovery = load_latest_post_update_recovery(root)
         nav_result = read_nav_state(
             root=root,
             pid=args.pid,
@@ -319,6 +427,7 @@ def main(argv: list[str] | None = None) -> int:
         summary = build_consumer_state(
             nav_result=nav_result,
             current_truth=current_truth,
+            post_update_recovery=post_update_recovery,
             max_age_seconds=float(args.max_consumer_age_seconds),
             current_truth_json=str(truth_path),
         )

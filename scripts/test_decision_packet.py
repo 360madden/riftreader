@@ -91,6 +91,76 @@ def init_empty_repo(root: Path) -> None:
     subprocess.run(["git", "commit", "-m", "baseline"], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+def write_postupdate_global_container_summary(root: Path) -> Path:
+    path = root / "scripts" / "captures" / "postupdate-global-container-coordinate-readback-fixture" / "summary.json"
+    write_json(
+        path,
+        {
+            "status": "candidate",
+            "verdict": "global-container-coordinate-chain-current-readback-passed",
+            "generatedAtUtc": "2026-06-02T21:35:11Z",
+            "target": {
+                "pid": 77152,
+                "hwnd": "0x17A0DB2",
+                "expectedProcessStartUtc": "2026-06-02T15:45:29.2617327Z",
+                "moduleBase": "0x7FF7211C0000",
+            },
+            "bestReadback": {
+                "chain": "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30",
+                "coordinate": {"x": 7256.38916015625, "y": 821.4478149414062, "z": 2990.00537109375},
+                "deltaVsReference": {"maxAbsDelta": 0.004628906250218279, "planarDelta": 0.004649756509549748},
+                "globalRva": "0x32DD7E8",
+                "parentOffset": "0x80",
+                "coordinateOffset": "0x28",
+                "sourceFunctionRva": "0xC38390",
+                "sourceInstructionRva": "0xC3843B",
+            },
+            "polling": {
+                "sampleCount": 5,
+                "bestMatchingSampleCount": 5,
+                "allSamplesMatchedReference": True,
+                "stationaryDriftWithinLimit": True,
+                "bestCoordinateDrift": {"maxAbsDelta": 0.0, "planarDelta": 0.0},
+            },
+            "blockers": [],
+            "warnings": [],
+            "safety": {"targetMemoryBytesRead": True, "targetMemoryBytesWritten": False},
+        },
+    )
+    return path
+
+
+def write_blocked_static_owner_summary(root: Path) -> Path:
+    path = root / "scripts" / "captures" / "static-owner-coordinate-chain-readback-fixture" / "summary.json"
+    write_json(
+        path,
+        {
+            "generatedAtUtc": "2026-06-02T17:50:43Z",
+            "status": "blocked",
+            "verdict": "root-pointer-null",
+            "target": {
+                "processId": 77152,
+                "targetWindowHandle": "0x17A0DB2",
+                "expectedProcessStartUtc": "2026-06-02T15:45:29.2617327Z",
+                "moduleBase": "0x7FF7211C0000",
+            },
+            "candidate": {
+                "rootModule": "rift_x64.exe",
+                "rootRva": "0x32EBC80",
+                "rootAddress": "0x7FF7244ABC80",
+                "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+            },
+            "reads": {
+                "rootAddress": "0x7FF7244ABC80",
+                "rootRva": "0x32EBC80",
+                "rootPointer": "0x0",
+            },
+            "safety": {"targetMemoryBytesRead": True, "targetMemoryBytesWritten": False},
+        },
+    )
+    return path
+
+
 class DecisionPacketTests(unittest.TestCase):
     def test_clean_repo_without_live_target_blocks_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -103,6 +173,109 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(packet["targetEpoch"]["status"], "absent")
         self.assertIn("target-epoch-absent", packet["blockers"])
         self.assertEqual(packet["milestoneStatus"]["state"], "blocked-safe")
+
+    def test_latest_postupdate_global_container_readback_is_candidate_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_empty_repo(root)
+            write_postupdate_global_container_summary(root)
+
+            summary = decision_packet.summarize_latest_postupdate_global_container_readback(root)
+
+        self.assertEqual(summary["status"], "candidate")
+        self.assertEqual(summary["verdict"], "global-container-coordinate-chain-current-readback-passed")
+        self.assertEqual(summary["chain"], "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30")
+        self.assertTrue(summary["candidateOnly"])
+        self.assertFalse(summary["promotionEligible"])
+        self.assertFalse(summary["routeControlAuthorized"])
+        self.assertEqual(summary["maxAbsDelta"], 0.004628906250218279)
+
+    def test_postupdate_candidate_changes_safe_next_action_when_old_root_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 77152,
+                        "targetWindowHandle": "0x17A0DB2",
+                        "processStartUtc": "2026-06-02T15:45:29.2617327Z",
+                        "moduleBase": "0x7FF7211C0000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "staticChainStatus": {
+                        "status": "promoted-static-player-coordinate-resolver-current-pid-readback-and-api-now-passed",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootModule": "rift_x64.exe",
+                            "rootRva": "0x32EBC80",
+                        },
+                    },
+                    "movementGate": {"allowed": True, "status": "historically-allowed"},
+                },
+            )
+            write_blocked_static_owner_summary(root)
+            write_postupdate_global_container_summary(root)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["targetEpoch"]["status"], "post-update-static-root-blocked")
+        self.assertEqual(packet["safeNextAction"]["key"], "postupdate-global-container-coordinate-readback-refresh")
+        self.assertEqual(packet["postUpdateRecovery"]["status"], "candidate")
+        self.assertTrue(packet["postUpdateRecovery"]["candidateOnly"])
+        self.assertFalse(packet["postUpdateRecovery"]["promotionEligible"])
+        self.assertFalse(packet["postUpdateRecovery"]["routeControlAuthorized"])
+        self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
+        self.assertTrue(
+            any(str(item).startswith("postupdate-coordinate-candidate-visible-not-promoted:") for item in packet["warnings"])
+        )
+
+    def test_later_target_mismatch_readback_does_not_hide_postupdate_root_null(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {"processId": 12664, "targetWindowHandle": "0x205146C", "inWorld": True, "live": True},
+                    "staticChainStatus": {
+                        "status": "promoted",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootRva": "0x32EBC80",
+                        },
+                    },
+                },
+            )
+            write_blocked_static_owner_summary(root)
+            write_json(
+                root / "scripts" / "captures" / "static-owner-coordinate-chain-readback-newer-target-mismatch" / "summary.json",
+                {
+                    "generatedAtUtc": "2026-06-02T22:32:24Z",
+                    "status": "blocked",
+                    "verdict": "target-hwnd-pid-mismatch",
+                    "target": {"processId": 12664, "targetWindowHandle": "0x205146C"},
+                    "safety": {"targetMemoryBytesRead": False},
+                },
+            )
+            write_postupdate_global_container_summary(root)
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["targetEpoch"]["status"], "post-update-static-root-blocked")
+        self.assertEqual(packet["staticOwnerReadback"]["verdict"], "root-pointer-null")
+        self.assertEqual(
+            packet["staticOwnerReadback"]["latestAttempt"]["verdict"],
+            "target-hwnd-pid-mismatch",
+        )
+        self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
 
     def test_target_epoch_classifies_current_match(self) -> None:
         truth = {"target": {"processId": 1, "targetWindowHandle": "0x1", "inWorld": True}}
@@ -1045,6 +1218,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "truth",
                 "toolCatalog",
                 "staticOwnerReadback",
+                "postUpdateRecovery",
                 "navigationTerrain",
                 "navigationPointerChains",
                 "navigationPointerDiscovery",
@@ -1521,6 +1695,7 @@ class DecisionPacketTests(unittest.TestCase):
                 "agentPlan",
                 "toolCatalog",
                 "staticOwnerReadback",
+                "postUpdateRecovery",
                 "navigationTerrain",
                 "navigationPointerChains",
                 "navigationPointerDiscovery",

@@ -50,6 +50,45 @@
         "requiredConsumerChecks": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "postUpdateRecovery": {
+      "type": ["object", "null"],
+      "required": [
+        "candidateOnly",
+        "promotionEligible",
+        "routeControlAuthorized",
+        "actionableForNavigation"
+      ],
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "generatedAtUtc": { "type": ["string", "null"] },
+        "candidateOnly": { "const": true },
+        "promotionEligible": { "const": false },
+        "routeControlAuthorized": { "const": false },
+        "actionableForNavigation": { "const": false },
+        "chain": { "type": ["string", "null"] },
+        "coordinate": {
+          "type": ["object", "null"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" }
+          }
+        },
+        "deltaVsReference": { "type": ["object", "null"] },
+        "globalRva": { "type": ["string", "null"] },
+        "parentOffset": { "type": ["string", "null"] },
+        "coordinateOffset": { "type": ["string", "null"] },
+        "sourceFunctionRva": { "type": ["string", "null"] },
+        "sourceInstructionRva": { "type": ["string", "null"] },
+        "target": { "type": "object" },
+        "polling": { "type": "object" },
+        "sourceArtifacts": { "type": "object" },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "safety": { "type": "object" }
+      }
+    },
     "navigation": {
       "type": "object",
       "required": ["position", "orientation", "diagnostics", "routeControl"],

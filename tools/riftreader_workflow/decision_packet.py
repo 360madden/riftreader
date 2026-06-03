@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-HELPER_VERSION = "0.1.5"
+HELPER_VERSION = "0.1.6"
 DEFAULT_CURRENT_TRUTH_JSON = Path("docs") / "recovery" / "current-truth.json"
 DEFAULT_CURRENT_PROOF_JSON = Path("docs") / "recovery" / "current-proof-anchor-readback.json"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "decision-packet" / "latest"
@@ -606,6 +606,90 @@ def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any
     if not paths:
         return {"status": "missing", "reason": "static-owner-readback-summary-missing", "blocksCurrentStaticResolver": False}
 
+    static_resolver = promoted_static_resolver_summary(truth)
+    truth_updated = truth_last_update_time(truth)
+
+    def summarize_path(path: Path) -> dict[str, Any]:
+        data, error = try_load_json_object(path)
+        if error or data is None:
+            return {
+                "status": "parse-error",
+                "path": repo_rel(repo_root, path),
+                "error": error or "empty-summary",
+                "generatedAtUtc": None,
+                "generatedAtTimestamp": path.stat().st_mtime,
+                "blocksCurrentStaticResolver": True,
+                "blocker": "latest-static-owner-readback-parse-error",
+            }
+
+        reads = safe_mapping(data.get("reads"))
+        candidate = safe_mapping(data.get("candidate"))
+        target = safe_mapping(data.get("target"))
+        latest_generated = parse_iso(data.get("generatedAtUtc"))
+        root_rva = reads.get("rootRva") or candidate.get("rootRva")
+        root_pointer = reads.get("rootPointer")
+        root_pointer_int = parse_int(root_pointer)
+        static_root_rva = static_resolver.get("rootRva")
+        same_root = same_text(root_rva, static_root_rva)
+        newer_than_truth = latest_generated is not None and (truth_updated is None or latest_generated > truth_updated)
+        root_null = data.get("verdict") == "root-pointer-null" or root_pointer_int == 0
+        blocks = bool(static_resolver.get("promoted") and same_root and newer_than_truth and root_null)
+
+        return {
+            "status": data.get("status"),
+            "verdict": data.get("verdict"),
+            "path": repo_rel(repo_root, path),
+            "generatedAtUtc": data.get("generatedAtUtc"),
+            "generatedAtTimestamp": latest_generated.timestamp() if latest_generated else path.stat().st_mtime,
+            "truthLastUpdateUtc": truth_updated.isoformat() if truth_updated else None,
+            "newerThanCurrentTruth": newer_than_truth,
+            "rootRva": root_rva,
+            "rootAddress": reads.get("rootAddress") or candidate.get("rootAddress"),
+            "rootPointer": root_pointer,
+            "trackedStaticRootRva": static_root_rva,
+            "sameRootRvaAsTrackedStaticResolver": same_root,
+            "target": {
+                "processId": target.get("processId"),
+                "targetWindowHandle": target.get("targetWindowHandle"),
+                "expectedProcessStartUtc": target.get("expectedProcessStartUtc"),
+                "moduleBase": target.get("moduleBase"),
+            },
+            "blocksCurrentStaticResolver": blocks,
+            "blocker": "latest-static-owner-readback-root-pointer-null" if blocks else None,
+            "safety": safe_mapping(data.get("safety")),
+        }
+
+    summaries = [summarize_path(path) for path in paths]
+    latest_summary = max(summaries, key=lambda item: float(item.get("generatedAtTimestamp") or 0.0))
+    blocking_summaries = [item for item in summaries if item.get("blocksCurrentStaticResolver")]
+    if blocking_summaries:
+        selected = max(blocking_summaries, key=lambda item: float(item.get("generatedAtTimestamp") or 0.0))
+        selected["latestAttempt"] = {
+            "status": latest_summary.get("status"),
+            "verdict": latest_summary.get("verdict"),
+            "path": latest_summary.get("path"),
+            "generatedAtUtc": latest_summary.get("generatedAtUtc"),
+        }
+        return selected
+    return latest_summary
+
+
+def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> dict[str, Any]:
+    """Summarize the latest post-update global-container coordinate candidate.
+
+    This candidate is intentionally not promotion evidence by itself.  It gives
+    status/consumer surfaces a safe way to show the strongest post-update
+    coordinate readback while route control stays blocked.
+    """
+
+    capture_root = repo_root / "scripts" / "captures"
+    if not capture_root.exists():
+        return {"status": "missing", "reason": "captures-directory-missing", "candidateOnly": True, "promotionEligible": False}
+
+    paths = [path for path in capture_root.glob("postupdate-global-container-coordinate-readback-*/summary.json") if path.is_file()]
+    if not paths:
+        return {"status": "missing", "reason": "postupdate-global-container-readback-summary-missing", "candidateOnly": True, "promotionEligible": False}
+
     latest = max(paths, key=lambda path: path.stat().st_mtime)
     data, error = try_load_json_object(latest)
     if error or data is None:
@@ -613,46 +697,60 @@ def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any
             "status": "parse-error",
             "path": repo_rel(repo_root, latest),
             "error": error or "empty-summary",
-            "blocksCurrentStaticResolver": True,
-            "blocker": "latest-static-owner-readback-parse-error",
+            "candidateOnly": True,
+            "promotionEligible": False,
+            "routeControlAuthorized": False,
+            "blockers": ["postupdate-global-container-readback-parse-error"],
         }
 
-    reads = safe_mapping(data.get("reads"))
-    candidate = safe_mapping(data.get("candidate"))
+    best = safe_mapping(data.get("bestReadback"))
+    polling = safe_mapping(data.get("polling"))
     target = safe_mapping(data.get("target"))
-    static_resolver = promoted_static_resolver_summary(truth)
-    latest_generated = parse_iso(data.get("generatedAtUtc"))
-    truth_updated = truth_last_update_time(truth)
-    root_rva = reads.get("rootRva") or candidate.get("rootRva")
-    root_pointer = reads.get("rootPointer")
-    root_pointer_int = parse_int(root_pointer)
-    static_root_rva = static_resolver.get("rootRva")
-    same_root = same_text(root_rva, static_root_rva)
-    newer_than_truth = latest_generated is not None and (truth_updated is None or latest_generated > truth_updated)
-    root_null = data.get("verdict") == "root-pointer-null" or root_pointer_int == 0
-    blocks = bool(static_resolver.get("promoted") and same_root and newer_than_truth and root_null)
-
+    safety = safe_mapping(data.get("safety"))
     return {
         "status": data.get("status"),
         "verdict": data.get("verdict"),
         "path": repo_rel(repo_root, latest),
         "generatedAtUtc": data.get("generatedAtUtc"),
-        "truthLastUpdateUtc": truth_updated.isoformat() if truth_updated else None,
-        "newerThanCurrentTruth": newer_than_truth,
-        "rootRva": root_rva,
-        "rootAddress": reads.get("rootAddress") or candidate.get("rootAddress"),
-        "rootPointer": root_pointer,
-        "trackedStaticRootRva": static_root_rva,
-        "sameRootRvaAsTrackedStaticResolver": same_root,
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "routeControlAuthorized": False,
+        "actionableForNavigation": False,
+        "chain": best.get("chain"),
+        "coordinate": best.get("coordinate"),
+        "maxAbsDelta": safe_mapping(best.get("deltaVsReference")).get("maxAbsDelta"),
+        "planarDelta": safe_mapping(best.get("deltaVsReference")).get("planarDelta"),
+        "globalRva": best.get("globalRva"),
+        "parentOffset": best.get("parentOffset"),
+        "coordinateOffset": best.get("coordinateOffset"),
+        "sourceFunctionRva": best.get("sourceFunctionRva"),
+        "sourceInstructionRva": best.get("sourceInstructionRva"),
         "target": {
-            "processId": target.get("processId"),
-            "targetWindowHandle": target.get("targetWindowHandle"),
+            "processId": target.get("pid") or target.get("processId"),
+            "targetWindowHandle": target.get("hwnd") or target.get("targetWindowHandle"),
             "expectedProcessStartUtc": target.get("expectedProcessStartUtc"),
+            "actualProcessStartUtc": target.get("actualProcessStartUtc"),
             "moduleBase": target.get("moduleBase"),
         },
-        "blocksCurrentStaticResolver": blocks,
-        "blocker": "latest-static-owner-readback-root-pointer-null" if blocks else None,
-        "safety": safe_mapping(data.get("safety")),
+        "polling": {
+            "sampleCount": polling.get("sampleCount"),
+            "bestMatchingSampleCount": polling.get("bestMatchingSampleCount"),
+            "allSamplesMatchedReference": polling.get("allSamplesMatchedReference"),
+            "stationaryDriftWithinLimit": polling.get("stationaryDriftWithinLimit"),
+            "bestCoordinateDrift": polling.get("bestCoordinateDrift"),
+        },
+        "blockers": [str(item) for item in safe_list(data.get("blockers"))],
+        "warnings": [str(item) for item in safe_list(data.get("warnings"))],
+        "safety": {
+            **safety,
+            "movementSent": False,
+            "inputSent": False,
+            "targetMemoryBytesWritten": False,
+            "currentTruthUpdate": False,
+            "proofPromotion": False,
+            "actorChainPromotion": False,
+            "candidateOnly": True,
+        },
     }
 
 
@@ -1134,7 +1232,13 @@ def validate_agent_plan(agent_plan: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
-def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: dict[str, Any], truth: dict[str, Any]) -> dict[str, Any]:
+def build_safe_next_action(
+    lane: str,
+    target_epoch: dict[str, Any],
+    git_state: dict[str, Any],
+    truth: dict[str, Any],
+    post_update_recovery: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     retired_paths = retired_surface_paths(git_state)
     if retired_paths:
         return {
@@ -1144,7 +1248,17 @@ def build_safe_next_action(lane: str, target_epoch: dict[str, Any], git_state: d
         }
     actor = safe_mapping(truth.get("actorChain"))
     static_resolver = safe_mapping(actor.get("staticResolver"))
+    post_update_recovery = safe_mapping(post_update_recovery)
     if target_epoch.get("status") == "post-update-static-root-blocked":
+        if post_update_recovery.get("status") == "candidate" and post_update_recovery.get("chain"):
+            return {
+                "key": "postupdate-global-container-coordinate-readback-refresh",
+                "command": ["scripts\\riftreader-postupdate-global-container-coordinate-readback.cmd", "--samples", "5", "--interval-seconds", "0.2", "--json"],
+                "why": (
+                    "The old promoted root is null, but a post-update global-container coordinate candidate exists. "
+                    "Refresh the no-input candidate readback before any movement/restart/proof planning."
+                ),
+            }
         return {
             "key": "postupdate-owner-root-rediscovery",
             "command": ["python", ".\\scripts\\postupdate_owner_root_rediscovery.py", "--json"],
@@ -1392,6 +1506,7 @@ def build_decision_packet(
             warnings.append(f"current-proof-missing:{repo_rel(repo_root, proof_path)}")
     target_epoch = classify_target_epoch(truth, proof)
     static_owner_readback = summarize_latest_static_owner_readback(repo_root, truth)
+    post_update_recovery = summarize_latest_postupdate_global_container_readback(repo_root)
     if static_owner_readback.get("blocksCurrentStaticResolver"):
         root_blocker = str(static_owner_readback.get("blocker") or "latest-static-owner-readback-root-pointer-null")
         target_epoch = {
@@ -1402,8 +1517,11 @@ def build_decision_packet(
             "latestStaticOwnerReadback": static_owner_readback,
             "proofUseAllowed": False,
             "staticResolverUsable": False,
+            "postUpdateRecovery": post_update_recovery,
         }
         warnings.append(f"{root_blocker}:{static_owner_readback.get('path')}")
+        if post_update_recovery.get("status") == "candidate":
+            warnings.append(f"postupdate-coordinate-candidate-visible-not-promoted:{post_update_recovery.get('path')}")
     retired_guardrail = build_retired_surface_guardrail(git_state)
     retired_paths = [str(path) for path in retired_guardrail.get("paths") or []]
     warnings.extend(f"{retired_guardrail.get('policy')}:{path}" for path in retired_paths)
@@ -1491,7 +1609,7 @@ def build_decision_packet(
     state = milestone_state(sorted(set(blockers)), validation_results)
     commit_plan = build_commit_plan(git_state, validation_results if run_safe_checks else None)
     safe_next_action = build_post_validation_next_action(run_safe_checks, commit_plan) or build_safe_next_action(
-        lane, target_epoch, git_state, truth_summary
+        lane, target_epoch, git_state, truth_summary, post_update_recovery
     )
     status = "failed" if errors or state == "failed" else ("blocked" if blockers else "passed")
     packet = {
@@ -1508,6 +1626,7 @@ def build_decision_packet(
         "truth": truth_summary,
         "toolCatalog": tool_catalog_summary,
         "staticOwnerReadback": static_owner_readback,
+        "postUpdateRecovery": post_update_recovery,
         "navigationTerrain": navigation_terrain,
         "navigationPointerChains": nav_state_data,
         "navigationPointerDiscovery": navigation_pointer_discovery,
@@ -1675,6 +1794,17 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "newerThanCurrentTruth": safe_mapping(packet.get("staticOwnerReadback")).get("newerThanCurrentTruth"),
             "blocksCurrentStaticResolver": safe_mapping(packet.get("staticOwnerReadback")).get("blocksCurrentStaticResolver"),
             "path": safe_mapping(packet.get("staticOwnerReadback")).get("path"),
+        },
+        "postUpdateRecovery": {
+            "status": safe_mapping(packet.get("postUpdateRecovery")).get("status"),
+            "verdict": safe_mapping(packet.get("postUpdateRecovery")).get("verdict"),
+            "chain": safe_mapping(packet.get("postUpdateRecovery")).get("chain"),
+            "coordinate": safe_mapping(packet.get("postUpdateRecovery")).get("coordinate"),
+            "maxAbsDelta": safe_mapping(packet.get("postUpdateRecovery")).get("maxAbsDelta"),
+            "candidateOnly": safe_mapping(packet.get("postUpdateRecovery")).get("candidateOnly"),
+            "promotionEligible": safe_mapping(packet.get("postUpdateRecovery")).get("promotionEligible"),
+            "routeControlAuthorized": safe_mapping(packet.get("postUpdateRecovery")).get("routeControlAuthorized"),
+            "path": safe_mapping(packet.get("postUpdateRecovery")).get("path"),
         },
         "navigationPointerChains": _compact_nav_state(packet.get("navigationPointerChains")),
         "navigationPointerDiscovery": _compact_nav_pointer_discovery(packet.get("navigationPointerDiscovery")),
@@ -1896,6 +2026,22 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Next: {safe_mapping(nav_discovery.get('next')).get('recommendedAction')}",
             ]
         )
+    post_update = safe_mapping(packet.get("postUpdateRecovery"))
+    if post_update.get("status") not in {None, "missing"}:
+        lines.extend(
+            [
+                "",
+                "## Post-update coordinate recovery candidate",
+                "",
+                f"- Status: `{post_update.get('status')}`",
+                f"- Verdict: `{post_update.get('verdict')}`",
+                f"- Chain: `{post_update.get('chain')}`",
+                f"- Candidate-only: `{post_update.get('candidateOnly')}`",
+                f"- Promotion eligible: `{post_update.get('promotionEligible')}`",
+                f"- Route control authorized: `{post_update.get('routeControlAuthorized')}`",
+                f"- Artifact: `{post_update.get('path')}`",
+            ]
+        )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
@@ -1993,6 +2139,7 @@ def build_schema_contract() -> dict[str, Any]:
             "retiredSurfaces",
             "toolCatalog",
             "staticOwnerReadback",
+            "postUpdateRecovery",
             "navigationTerrain",
             "navigationPointerChains",
             "navigationPointerDiscovery",
@@ -2029,6 +2176,28 @@ def build_schema_contract() -> dict[str, Any]:
             "rootPointer",
             "blocksCurrentStaticResolver",
             "blocker",
+            "safety",
+        ],
+        "postUpdateRecoveryFields": [
+            "status",
+            "verdict",
+            "path",
+            "generatedAtUtc",
+            "candidateOnly",
+            "promotionEligible",
+            "routeControlAuthorized",
+            "actionableForNavigation",
+            "chain",
+            "coordinate",
+            "maxAbsDelta",
+            "globalRva",
+            "parentOffset",
+            "coordinateOffset",
+            "sourceFunctionRva",
+            "sourceInstructionRva",
+            "polling",
+            "blockers",
+            "warnings",
             "safety",
         ],
         "navigationPointerChainsFields": [
