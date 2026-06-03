@@ -392,6 +392,13 @@ output for CI integration; omit `--skip-ts-check` when TypeScript is available.
   checks before local commits. See `docs/workflow/pre-commit-local-gates.md`.
   Run `pre-commit run --all-files --show-diff-on-failure` after changing
   `.pre-commit-config.yaml`.
+- Preserve the third-party workflow tools cataloged in
+  `docs/workflow/third-party-workflow-tools.md`. Do not remove, bypass, or
+  silently downgrade pre-commit, pre-commit-hooks, Ruff, actionlint,
+  EditorConfig, Gitleaks, Pyright, Semgrep CE, OSV-Scanner, Renovate, or
+  markdownlint-cli2 integration to make a check pass. Repair the setup or
+  document an equal-or-stronger replacement instead. PSScriptAnalyzer is
+  intentionally excluded unless the user explicitly asks for it.
 - Include the latest ledger `summary.md` path and timing summary in handoffs
   after substantial validation runs.
 - Say exactly what was not validated.

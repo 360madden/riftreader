@@ -4,6 +4,8 @@
 
 `pre-commit` is the fast local commit gate for RiftReader. It catches basic
 file, Python, and agent-definition problems before a local commit is created.
+The full third-party workflow tool inventory and preservation policy lives in
+`docs/workflow/third-party-workflow-tools.md`.
 
 It does **not** replace the timestamped validation ledger, live RIFT proof
 gates, current-truth refresh rules, promotion gates, or Git push approval.
