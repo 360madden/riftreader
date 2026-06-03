@@ -21,7 +21,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from rift_live_test.current_pid_family_neighborhood_inspector import close_handle, open_process_for_read, read_memory, verify_hwnd_owner
 from workflow_common import load_json_object, repo_root, safe_mapping, utc_iso, utc_stamp

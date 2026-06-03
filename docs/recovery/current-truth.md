@@ -12,12 +12,20 @@ currently `0x0`.
 Do **not** use the 2026-06-01 promoted resolver below as current navigation
 truth for this post-update epoch.
 
+PID/HWND identity is a targeting preflight only; it is not freshness proof.
+Do not present any latest recorded coordinate snapshot as current-now unless a
+fresh same-target API-now vs memory-now comparison exists for that exact epoch.
+
 Candidate-only recovery evidence now exists:
 
 | Purpose | Candidate / status | Evidence |
 |---|---|---|
 | Position candidate | `[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30` matched current reference with max abs delta `0.004628906250218279`; 5/5 no-input polling samples matched with stationary drift `0.0`. | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-global-container-coordinate-readback-20260602-200619-457973\summary.json` |
 | Orientation/static-layout anchor | `[rift_x64+0x335F508]` points at an orientation/matrix-like object, **not** world position. | `C:\RIFT MODDING\RiftReader\scripts\captures\postupdate-static-access-chain-20260602-195804-076419\summary.json` |
+
+Latest recorded coordinate snapshot: candidate readback
+`7256.38916015625, 821.4478149414062, 2990.00537109375` at
+`2026-06-02T20:06:19.917073+00:00`; do not present this value as current-now.
 
 This is **not** a promotion. No movement/displacement proof, restart/relog
 survival, ProofOnly, current-truth apply, actor-chain promotion, or navigation

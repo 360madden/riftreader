@@ -388,6 +388,10 @@ output for CI integration; omit `--skip-ts-check` when TypeScript is available.
   - targeted: `python tools\riftreader_workflow\validation_ledger.py --tier targeted --command "<command>"`
   - full local: `python tools\riftreader_workflow\validation_ledger.py --tier full-local`
   - CI parity: `python tools\riftreader_workflow\validation_ledger.py --tier ci-parity --commit HEAD`
+- Use `pre-commit` as the fast local commit gate for deterministic, non-live
+  checks before local commits. See `docs/workflow/pre-commit-local-gates.md`.
+  Run `pre-commit run --all-files --show-diff-on-failure` after changing
+  `.pre-commit-config.yaml`.
 - Include the latest ledger `summary.md` path and timing summary in handoffs
   after substantial validation runs.
 - Say exactly what was not validated.

@@ -21,6 +21,13 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
     def load_markdown(self) -> str:
         return TRUTH_MD.read_text(encoding="utf-8")
 
+    def markdown_is_post_update_recovery_blocker(self, markdown: str) -> bool:
+        return (
+            "POST-UPDATE RECOVERY IN PROGRESS" in markdown
+            and "previous promoted current resolver" in markdown
+            and "current-truth apply" in markdown
+        )
+
     def test_json_current_target_identity_is_not_historical_pid(self) -> None:
         truth = self.load_truth()
         target = truth["target"]
@@ -95,6 +102,15 @@ class CurrentTruthConsistencyTests(unittest.TestCase):
     def test_markdown_current_target_matches_json_target(self) -> None:
         truth = self.load_truth()
         markdown = self.load_markdown()
+
+        if self.markdown_is_post_update_recovery_blocker(markdown):
+            self.assertIn("Historical promoted truth remains archived below", markdown)
+            self.assertIn("Candidate-only recovery evidence", markdown)
+            self.assertIn("Do **not** use the 2026-06-01 promoted resolver", markdown)
+            self.assertIn("This is **not** a promotion", markdown)
+            self.assertIn("current-truth apply", markdown)
+            return
+
         target = truth["target"]
         pid = str(target["processId"])
         hwnd = str(target["targetWindowHandle"])

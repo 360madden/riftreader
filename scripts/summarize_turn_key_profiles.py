@@ -199,12 +199,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    repo_root = repo_root()
-    captures_root = args.captures_root or (repo_root / "scripts" / "captures")
+    root = repo_root()
+    captures_root = args.captures_root or (root / "scripts" / "captures")
     if not captures_root.exists():
         raise SystemExit(f"captures root not found: {captures_root}")
 
-    rows = [summarize_file(path, repo_root) for path in find_summaries(captures_root)]
+    rows = [summarize_file(path, root) for path in find_summaries(captures_root)]
     if args.process_id is not None:
         rows = [row for row in rows if row.get("processId") == args.process_id]
     rows.sort(key=lambda row: str(row.get("generatedAtUtc") or ""))
@@ -214,7 +214,7 @@ def main() -> int:
     nav_state: dict[str, Any] = {}
     if args.nav_state:
         nav_state = _read_nav_state(
-            root=repo_root,
+            root=root,
             current_truth_json="docs/recovery/current-truth.json",
             timeout_seconds=30.0,
         )
@@ -225,7 +225,7 @@ def main() -> int:
     if args.output_json:
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
         args.output_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    markdown = format_markdown(rows, repo_root)
+    markdown = format_markdown(rows, root)
     if args.output_markdown:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(markdown, encoding="utf-8")

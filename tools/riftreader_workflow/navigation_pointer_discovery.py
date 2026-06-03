@@ -17,7 +17,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 try:
     from .common import find_repo_root, preview_text, repo_rel, safety_flags, utc_iso

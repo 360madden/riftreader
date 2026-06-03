@@ -1,0 +1,69 @@
+minimum_pre_commit_version: "4.0.0"
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.15
+    hooks:
+      - id: ruff-check
+        name: ruff critical Python lint
+        args: ["--select=E9,F63,F7,F82"]
+        files: ^(scripts|tools/riftreader_workflow)/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: riftreader-py-compile
+        name: RiftReader Python compile
+        entry: python -m py_compile
+        language: system
+        types: [python]
+
+      - id: riftreader-agent-validate
+        name: RiftReader agent definitions validate
+        entry: python scripts/agent-validate.py --verbose --json
+        language: system
+        pass_filenames: false
+        files: ^(\.agents/.*\.ts|scripts/agent-validate\.py)$
+
+      - id: riftreader-policy-lint-paths
+        name: RiftReader policy lint explicit paths
+        entry: python tools/riftreader_workflow/policy_lint.py --json validate-paths --no-write-summary --paths
+        language: system
+        files: ^(AGENTS\.md|docs/|scripts/|tools/riftreader_workflow/|\.github/workflows/|\.pre-commit-config\.yaml)
+        stages: [manual]
+
+      - id: riftreader-validation-ledger-smoke
+        name: RiftReader validation ledger smoke
+        entry: python tools/riftreader_workflow/validation_ledger.py --tier smoke --json
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [manual]
+
+      - id: riftreader-gitleaks-history-scan
+        name: RiftReader Gitleaks history secret scan
+        entry: python scripts/gitleaks_history_scan.py
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [manual]
+
+      - id: riftreader-pyright-manual
+        name: RiftReader Pyright manual type check
+        entry: python scripts/pyright_manual_gate.py
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [manual]

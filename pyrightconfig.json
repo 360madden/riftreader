@@ -1,0 +1,31 @@
+{
+  "include": [
+    "scripts/install_precommit_hook.py",
+    "scripts/gitleaks_history_scan.py",
+    "scripts/pyright_manual_gate.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    ".riftreader-local",
+    "scripts/captures"
+  ],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Windows",
+  "reportMissingTypeStubs": false,
+  "executionEnvironments": [
+    {
+      "root": "scripts",
+      "extraPaths": [
+        "scripts"
+      ]
+    },
+    {
+      "root": "tools/riftreader_workflow",
+      "extraPaths": [
+        "tools"
+      ]
+    }
+  ]
+}
