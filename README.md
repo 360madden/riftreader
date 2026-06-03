@@ -116,7 +116,12 @@ Repo-level assistant workflow rules live in:
 - `C:\RIFT MODDING\RiftReader\docs\assistant-operating-policy.md`
 - `C:\RIFT MODDING\RiftReader\docs\model-routing-template.md`
 - `C:\RIFT MODDING\RiftReader\docs\workflow\codex-agent-routing-policy.md`
+- `C:\RIFT MODDING\RiftReader\docs\workflow\third-party-workflow-tools.md`
 - `C:\RIFT MODDING\RiftReader\docs\agentic-workflow.md`
+
+Use `docs\workflow\third-party-workflow-tools.md` as the protected inventory
+for pre-commit, Ruff, actionlint, EditorConfig, Gitleaks, Pyright, Semgrep,
+OSV-Scanner, Renovate, markdownlint-cli2, and related local tool setup.
 
 ## Repository Layout
 
