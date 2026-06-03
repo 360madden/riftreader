@@ -66,6 +66,7 @@
         "promotionEligible": { "const": false },
         "routeControlAuthorized": { "const": false },
         "actionableForNavigation": { "const": false },
+        "canExecuteLiveNavigation": { "const": false },
         "chain": { "type": ["string", "null"] },
         "coordinate": {
           "type": ["object", "null"],
@@ -84,6 +85,19 @@
         "target": { "type": "object" },
         "polling": { "type": "object" },
         "sourceArtifacts": { "type": "object" },
+        "yawFacingCandidates": {
+          "type": ["object", "null"],
+          "properties": {
+            "candidateOnly": { "const": true },
+            "promotionEligible": { "const": false },
+            "routeControlAuthorized": { "const": false },
+            "actionableForNavigation": { "const": false },
+            "candidateRoots": { "type": "array" },
+            "fieldCandidates": { "type": "array" },
+            "blockers": { "type": "array", "items": { "type": "string" } },
+            "warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "blockers": { "type": "array", "items": { "type": "string" } },
         "warnings": { "type": "array", "items": { "type": "string" } },
         "safety": { "type": "object" }

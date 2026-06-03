@@ -75,8 +75,20 @@ def post_update_recovery() -> dict:
         "promotionEligible": False,
         "routeControlAuthorized": False,
         "actionableForNavigation": False,
+        "canExecuteLiveNavigation": False,
         "chain": "[[rift_x64+0x32DD7E8]+0x80]+0x28/+0x2C/+0x30",
         "coordinate": {"x": 7256.38916015625, "y": 821.4478149414062, "z": 2990.00537109375},
+        "yawFacingCandidates": {
+            "status": "candidate",
+            "candidateOnly": True,
+            "promotionEligible": False,
+            "routeControlAuthorized": False,
+            "actionableForNavigation": False,
+            "candidateRoots": [{"globalRva": "0x335F508", "status": "orientation-matrix-root-not-position-root"}],
+            "fieldCandidates": [{"offset": "0x30C", "role": "facing-target-vector-x-candidate-historical-layout"}],
+            "blockers": ["postupdate-yaw-facing-requires-current-readback-and-live-proof"],
+            "warnings": ["postupdate-yaw-facing-inventory-candidate-only-not-route-actionable"],
+        },
         "sourceArtifacts": {"summaryJson": "scripts/captures/postupdate/summary.json"},
     }
 
@@ -117,7 +129,10 @@ class NavigationConsumerStateTests(unittest.TestCase):
         self.assertFalse(summary["postUpdateRecovery"]["promotionEligible"])
         self.assertFalse(summary["postUpdateRecovery"]["routeControlAuthorized"])
         self.assertFalse(summary["postUpdateRecovery"]["actionableForNavigation"])
+        self.assertFalse(summary["postUpdateRecovery"]["canExecuteLiveNavigation"])
+        self.assertEqual(summary["postUpdateRecovery"]["yawFacingCandidates"]["candidateRoots"][0]["globalRva"], "0x335F508")
         self.assertIn("post-update-coordinate-candidate-visible-not-promoted", summary["warnings"])
+        self.assertIn("post-update-yaw-facing-candidates-visible-not-promoted", summary["warnings"])
         self.assertIn("treat-postUpdateRecovery-as-candidate-only", summary["consumerContract"]["requiredConsumerChecks"])
         self.assertIn("post-update-candidate-as-promoted-truth", summary["consumerContract"]["notUsableFor"])
 

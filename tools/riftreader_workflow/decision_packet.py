@@ -674,6 +674,177 @@ def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any
     return latest_summary
 
 
+def latest_capture_summary_path(repo_root: Path, directory_prefix: str) -> Path | None:
+    capture_root = repo_root / "scripts" / "captures"
+    if not capture_root.exists():
+        return None
+    paths = [path for path in capture_root.glob(f"{directory_prefix}*/summary.json") if path.is_file()]
+    return max(paths, key=lambda path: path.stat().st_mtime) if paths else None
+
+
+def resolve_artifact_path(repo_root: Path, value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    return path if path.is_absolute() else repo_root / path
+
+
+def postupdate_field_role(offset: str) -> str:
+    normalized = str(offset).upper().replace("0X", "0x")
+    roles = {
+        "0x300": "orientation-basis-or-yaw-support-candidate",
+        "0x304": "yaw-adjacent-scalar-candidate-not-active-turn-rate",
+        "0x308": "orientation-basis-or-rotation-support-candidate",
+        "0x30C": "facing-target-vector-x-candidate-historical-layout",
+        "0x310": "facing-target-vector-y-candidate-historical-layout",
+        "0x314": "facing-target-vector-z-candidate-historical-layout",
+        "0x320": "orientation-vector-component-under-0x335F508-not-position",
+        "0x324": "orientation-vector-component-under-0x335F508-not-position",
+        "0x328": "orientation-vector-component-under-0x335F508-not-position",
+    }
+    return roles.get(normalized, "post-update-static-layout-candidate")
+
+
+def summarize_latest_postupdate_yaw_facing_inventory(repo_root: Path) -> dict[str, Any]:
+    """Expose post-update orientation/facing seeds without authorizing navigation.
+
+    The old promoted facing/yaw chain shared the now-null 0x32EBC80 root, so
+    these entries are inventory only.  They are deliberately separate from
+    current truth and from navigation authorization fields.
+    """
+
+    owner_path = latest_capture_summary_path(repo_root, "postupdate-owner-root-rediscovery-")
+    static_path = latest_capture_summary_path(repo_root, "postupdate-static-access-chain-")
+    owner_data: dict[str, Any] | None = None
+    static_data: dict[str, Any] | None = None
+    owner_error: str | None = None
+    static_error: str | None = None
+    if owner_path:
+        owner_data, owner_error = try_load_json_object(owner_path)
+    if static_path:
+        static_data, static_error = try_load_json_object(static_path)
+
+    owner_static = safe_mapping(safe_mapping(owner_data).get("staticAccessChain"))
+    owner_static_path = resolve_artifact_path(repo_root, owner_static.get("path"))
+    owner_static_data: dict[str, Any] | None = None
+    owner_static_error: str | None = None
+    if owner_static_path and owner_static_path.exists():
+        owner_static_data, owner_static_error = try_load_json_object(owner_static_path)
+
+    live_static_source = owner_static_data if safe_list(safe_mapping(owner_static_data).get("liveRootSamples")) else static_data
+    if live_static_source is None and owner_static:
+        live_static_source = owner_static
+    constructor = safe_mapping(safe_mapping(live_static_source).get("constructorEvidence"))
+    candidate_roots_raw = safe_list(constructor.get("candidateGlobalRoots")) or safe_list(owner_static.get("candidateGlobalRoots"))
+    live_root_samples = safe_list(safe_mapping(live_static_source).get("liveRootSamples")) or safe_list(owner_static.get("liveRootSamples"))
+    live_samples_by_root = {str(sample.get("rootRva")): safe_mapping(sample) for sample in live_root_samples if isinstance(sample, dict)}
+
+    candidate_roots: list[dict[str, Any]] = []
+    for root in candidate_roots_raw:
+        root_map = safe_mapping(root)
+        global_rva = root_map.get("globalRva")
+        sample = live_samples_by_root.get(str(global_rva))
+        candidate_roots.append(
+            {
+                "state": "candidate",
+                "status": sample.get("classification") or "candidate-global-root-needs-current-readback",
+                "globalRva": global_rva,
+                "chainRoot": f"rift_x64+{global_rva}" if global_rva else None,
+                "chainShape": f"[rift_x64+{global_rva}]+orientation/facing-candidate-fields" if global_rva else None,
+                "rootPointer": sample.get("rootPointer"),
+                "rootSlotAddress": sample.get("rootSlotAddress"),
+                "vtableRva": sample.get("vtableRva"),
+                "sourceFunctionRva": constructor.get("functionRva") or root_map.get("sourceFunctionRva"),
+                "sourceInstructionRva": root_map.get("rva") or root_map.get("sourceInstructionRva"),
+                "sourceInstruction": root_map.get("instruction"),
+                "sourceAccess": root_map.get("access"),
+                "sampleVectors": sample.get("samples"),
+                "candidateOnly": True,
+                "promotionEligible": False,
+                "routeControlAuthorized": False,
+                "actionableForNavigation": False,
+            }
+        )
+
+    top_cluster = safe_mapping(safe_mapping(owner_data).get("topStaticCluster"))
+    if not top_cluster and safe_list(safe_mapping(owner_data).get("staticFieldClusters")):
+        top_cluster = safe_mapping(safe_list(safe_mapping(owner_data).get("staticFieldClusters"))[0])
+    field_offsets = [str(item) for item in safe_list(top_cluster.get("offsets"))]
+    field_examples = safe_list(top_cluster.get("examples"))
+    examples_by_offset: dict[str, dict[str, Any]] = {}
+    for example in field_examples:
+        example_map = safe_mapping(example)
+        if example_map.get("offset"):
+            examples_by_offset[str(example_map.get("offset"))] = example_map
+    interesting_offsets = ["0x300", "0x304", "0x308", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328"]
+    field_candidates: list[dict[str, Any]] = []
+    for offset in interesting_offsets:
+        if offset not in field_offsets:
+            continue
+        example = examples_by_offset.get(offset, {})
+        field_candidates.append(
+            {
+                "state": "candidate",
+                "offset": offset,
+                "role": postupdate_field_role(offset),
+                "functionStartRva": top_cluster.get("functionStartRva"),
+                "exampleInstructionRva": example.get("rva"),
+                "exampleInstruction": example.get("instruction"),
+                "exampleAccess": example.get("access"),
+                "candidateOnly": True,
+                "promotionEligible": False,
+                "routeControlAuthorized": False,
+                "actionableForNavigation": False,
+            }
+        )
+
+    blockers = []
+    warnings = []
+    blockers.extend(str(item) for item in safe_list(safe_mapping(owner_data).get("blockers")))
+    blockers.extend(str(item) for item in safe_list(safe_mapping(static_data).get("blockers")))
+    warnings.extend(str(item) for item in safe_list(safe_mapping(owner_data).get("warnings")))
+    warnings.extend(str(item) for item in safe_list(safe_mapping(static_data).get("warnings")))
+    if owner_error:
+        blockers.append("postupdate-owner-root-rediscovery-parse-error")
+    if static_error or owner_static_error:
+        blockers.append("postupdate-static-access-chain-parse-error")
+    if candidate_roots or field_candidates:
+        blockers.extend(
+            [
+                "historical-promoted-facing-root-blocked-by-latest-static-owner-readback-root-null",
+                "postupdate-yaw-facing-requires-current-readback-and-live-proof",
+                "postupdate-yaw-facing-requires-restart-relog-survival-before-promotion",
+            ]
+        )
+        warnings.append("postupdate-yaw-facing-inventory-candidate-only-not-route-actionable")
+
+    status = "candidate" if candidate_roots or field_candidates else ("blocked" if blockers else "missing")
+    return {
+        "status": status,
+        "verdict": "postupdate-yaw-facing-candidate-inventory" if status == "candidate" else status,
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "routeControlAuthorized": False,
+        "actionableForNavigation": False,
+        "historicalPromotedFacingChain": {
+            "chain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "status": "blocked-post-update-old-root-null",
+            "blocker": "latest-static-owner-readback-root-pointer-null",
+            "candidateOnly": False,
+            "usableForNavigation": False,
+        },
+        "candidateRoots": candidate_roots,
+        "fieldCandidates": field_candidates,
+        "sourceArtifacts": {
+            "ownerRootRediscoverySummaryJson": repo_rel(repo_root, owner_path) if owner_path else None,
+            "staticAccessChainSummaryJson": repo_rel(repo_root, owner_static_path or static_path) if (owner_static_path or static_path) else None,
+            "latestStaticAccessAttemptJson": repo_rel(repo_root, static_path) if static_path else None,
+        },
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+    }
+
+
 def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> dict[str, Any]:
     """Summarize the latest post-update global-container coordinate candidate.
 
@@ -682,13 +853,26 @@ def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> di
     coordinate readback while route control stays blocked.
     """
 
+    yaw_facing_inventory = summarize_latest_postupdate_yaw_facing_inventory(repo_root)
     capture_root = repo_root / "scripts" / "captures"
     if not capture_root.exists():
-        return {"status": "missing", "reason": "captures-directory-missing", "candidateOnly": True, "promotionEligible": False}
+        return {
+            "status": "missing",
+            "reason": "captures-directory-missing",
+            "candidateOnly": True,
+            "promotionEligible": False,
+            "yawFacingCandidates": yaw_facing_inventory,
+        }
 
     paths = [path for path in capture_root.glob("postupdate-global-container-coordinate-readback-*/summary.json") if path.is_file()]
     if not paths:
-        return {"status": "missing", "reason": "postupdate-global-container-readback-summary-missing", "candidateOnly": True, "promotionEligible": False}
+        return {
+            "status": "missing",
+            "reason": "postupdate-global-container-readback-summary-missing",
+            "candidateOnly": True,
+            "promotionEligible": False,
+            "yawFacingCandidates": yaw_facing_inventory,
+        }
 
     latest = max(paths, key=lambda path: path.stat().st_mtime)
     data, error = try_load_json_object(latest)
@@ -700,6 +884,7 @@ def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> di
             "candidateOnly": True,
             "promotionEligible": False,
             "routeControlAuthorized": False,
+            "yawFacingCandidates": yaw_facing_inventory,
             "blockers": ["postupdate-global-container-readback-parse-error"],
         }
 
@@ -716,6 +901,7 @@ def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> di
         "promotionEligible": False,
         "routeControlAuthorized": False,
         "actionableForNavigation": False,
+        "canExecuteLiveNavigation": False,
         "chain": best.get("chain"),
         "coordinate": best.get("coordinate"),
         "maxAbsDelta": safe_mapping(best.get("deltaVsReference")).get("maxAbsDelta"),
@@ -741,6 +927,7 @@ def summarize_latest_postupdate_global_container_readback(repo_root: Path) -> di
         },
         "blockers": [str(item) for item in safe_list(data.get("blockers"))],
         "warnings": [str(item) for item in safe_list(data.get("warnings"))],
+        "yawFacingCandidates": yaw_facing_inventory,
         "safety": {
             **safety,
             "movementSent": False,
@@ -1735,6 +1922,8 @@ def _compact_nav_pointer_discovery(discovery_data: Any) -> dict[str, Any] | None
     return {
         "status": discovery_data.get("status"),
         "verdict": discovery_data.get("verdict"),
+        "canExecuteLiveNavigation": False,
+        "routeControlAuthorized": False,
         "freshnessStatus": freshness.get("status"),
         "staleSources": freshness.get("staleSources"),
         "promotedCoordinateStatus": promoted.get("status"),
@@ -1804,6 +1993,25 @@ def compact_decision_packet(packet: dict[str, Any]) -> dict[str, Any]:
             "candidateOnly": safe_mapping(packet.get("postUpdateRecovery")).get("candidateOnly"),
             "promotionEligible": safe_mapping(packet.get("postUpdateRecovery")).get("promotionEligible"),
             "routeControlAuthorized": safe_mapping(packet.get("postUpdateRecovery")).get("routeControlAuthorized"),
+            "actionableForNavigation": safe_mapping(packet.get("postUpdateRecovery")).get("actionableForNavigation"),
+            "canExecuteLiveNavigation": safe_mapping(packet.get("postUpdateRecovery")).get("canExecuteLiveNavigation"),
+            "yawFacingCandidates": {
+                "status": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("status"),
+                "verdict": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("verdict"),
+                "candidateOnly": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("candidateOnly"),
+                "promotionEligible": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("promotionEligible"),
+                "routeControlAuthorized": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("routeControlAuthorized"),
+                "actionableForNavigation": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("actionableForNavigation"),
+                "candidateRootCount": len(
+                    safe_list(safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("candidateRoots"))
+                ),
+                "fieldCandidateCount": len(
+                    safe_list(safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("fieldCandidates"))
+                ),
+                "blockers": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("blockers"),
+                "warnings": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("warnings"),
+                "sourceArtifacts": safe_mapping(safe_mapping(packet.get("postUpdateRecovery")).get("yawFacingCandidates")).get("sourceArtifacts"),
+            },
             "path": safe_mapping(packet.get("postUpdateRecovery")).get("path"),
         },
         "navigationPointerChains": _compact_nav_state(packet.get("navigationPointerChains")),
@@ -2042,6 +2250,20 @@ def build_markdown(packet: dict[str, Any]) -> str:
                 f"- Artifact: `{post_update.get('path')}`",
             ]
         )
+        yaw_facing = safe_mapping(post_update.get("yawFacingCandidates"))
+        if yaw_facing:
+            lines.extend(
+                [
+                    "",
+                    "### Post-update yaw/facing candidate inventory",
+                    "",
+                    f"- Status: `{yaw_facing.get('status')}`",
+                    f"- Candidate roots: `{len(safe_list(yaw_facing.get('candidateRoots')))}`",
+                    f"- Field candidates: `{len(safe_list(yaw_facing.get('fieldCandidates')))}`",
+                    f"- Route control authorized: `{yaw_facing.get('routeControlAuthorized')}`",
+                    f"- Historical chain blocked: `{safe_mapping(yaw_facing.get('historicalPromotedFacingChain')).get('chain')}`",
+                ]
+            )
     if packet.get("blockers"):
         lines.extend(["", "## Blockers"])
         lines.extend(f"- `{item}`" for item in packet.get("blockers") or [])
@@ -2187,6 +2409,7 @@ def build_schema_contract() -> dict[str, Any]:
             "promotionEligible",
             "routeControlAuthorized",
             "actionableForNavigation",
+            "canExecuteLiveNavigation",
             "chain",
             "coordinate",
             "maxAbsDelta",
@@ -2196,6 +2419,7 @@ def build_schema_contract() -> dict[str, Any]:
             "sourceFunctionRva",
             "sourceInstructionRva",
             "polling",
+            "yawFacingCandidates",
             "blockers",
             "warnings",
             "safety",

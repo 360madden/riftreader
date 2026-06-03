@@ -813,6 +813,8 @@ class NavigationPointerDiscoveryTests(unittest.TestCase):
         self.assertEqual(candidates["candidateTurnRate"]["chainShape"], "[rift_x64+0x32EBC80]+0x304")
         self.assertEqual(candidates["candidateTurnRate"]["latestClassification"], "left")
         self.assertEqual(summary["navigationControlChains"]["turnRate"]["state"], "candidate")
+        self.assertFalse(summary["navigationControlChains"]["routeControl"]["canExecuteLiveNavigation"])
+        self.assertFalse(summary["navigationControlChains"]["routeControl"]["routeControlAuthorized"])
         self.assertEqual(summary["navigationControlChains"]["supportFields"]["headingSupport0x300"]["latestValue"], 12.5)
         self.assertEqual(summary["navigationControlChains"]["supportFields"]["catalogSupport0x438"]["latestFloat"], 1.5)
         self.assertEqual(summary["candidateLedger"]["supportFields"]["owner+0x438"]["rawHex"], "0x3FC00000")

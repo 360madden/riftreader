@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -27,6 +26,8 @@ SCHEMA_VERSION = 1
 TOOL_VERSION = "riftreader-navigation-consumer-state-v0.1.0"
 DEFAULT_OUTPUT_DIR = Path(".riftreader-local") / "navigation-consumer-state" / "latest"
 POSTUPDATE_RECOVERY_GLOB = "postupdate-global-container-coordinate-readback-*/summary.json"
+POSTUPDATE_OWNER_ROOT_GLOB = "postupdate-owner-root-rediscovery-*/summary.json"
+POSTUPDATE_STATIC_ACCESS_GLOB = "postupdate-static-access-chain-*/summary.json"
 
 
 def chain_state(current_truth: Mapping[str, Any], key: str) -> str:
@@ -72,6 +73,150 @@ def latest_summary_path(root: Path, pattern: str) -> Path | None:
     return max(matches, key=lambda path: path.stat().st_mtime) if matches else None
 
 
+def postupdate_field_role(offset: str) -> str:
+    normalized = str(offset).upper().replace("0X", "0x")
+    roles = {
+        "0x300": "orientation-basis-or-yaw-support-candidate",
+        "0x304": "yaw-adjacent-scalar-candidate-not-active-turn-rate",
+        "0x308": "orientation-basis-or-rotation-support-candidate",
+        "0x30C": "facing-target-vector-x-candidate-historical-layout",
+        "0x310": "facing-target-vector-y-candidate-historical-layout",
+        "0x314": "facing-target-vector-z-candidate-historical-layout",
+        "0x320": "orientation-vector-component-under-0x335F508-not-position",
+        "0x324": "orientation-vector-component-under-0x335F508-not-position",
+        "0x328": "orientation-vector-component-under-0x335F508-not-position",
+    }
+    return roles.get(normalized, "post-update-static-layout-candidate")
+
+
+def load_latest_postupdate_yaw_facing_inventory(root: Path) -> dict[str, Any] | None:
+    owner_path = latest_summary_path(root, POSTUPDATE_OWNER_ROOT_GLOB)
+    static_path = latest_summary_path(root, POSTUPDATE_STATIC_ACCESS_GLOB)
+    owner_data: dict[str, Any] = {}
+    static_data: dict[str, Any] = {}
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if owner_path is not None:
+        try:
+            owner_data = load_json_object(owner_path)
+        except Exception:
+            blockers.append("postupdate-owner-root-rediscovery-parse-error")
+    if static_path is not None:
+        try:
+            static_data = load_json_object(static_path)
+        except Exception:
+            blockers.append("postupdate-static-access-chain-parse-error")
+
+    owner_static = safe_mapping(owner_data.get("staticAccessChain"))
+    constructor = safe_mapping(static_data.get("constructorEvidence"))
+    candidate_roots_raw = safe_mapping(static_data.get("constructorEvidence")).get("candidateGlobalRoots")
+    if not isinstance(candidate_roots_raw, list):
+        candidate_roots_raw = owner_static.get("candidateGlobalRoots")
+    if not isinstance(candidate_roots_raw, list):
+        candidate_roots_raw = []
+    live_root_samples = owner_static.get("liveRootSamples")
+    if not isinstance(live_root_samples, list):
+        live_root_samples = static_data.get("liveRootSamples")
+    if not isinstance(live_root_samples, list):
+        live_root_samples = []
+    samples_by_root = {str(sample.get("rootRva")): safe_mapping(sample) for sample in live_root_samples if isinstance(sample, Mapping)}
+
+    candidate_roots = []
+    for root_candidate in candidate_roots_raw:
+        root_map = safe_mapping(root_candidate)
+        global_rva = root_map.get("globalRva")
+        sample = samples_by_root.get(str(global_rva), {})
+        candidate_roots.append(
+            {
+                "state": "candidate",
+                "status": sample.get("classification") or "candidate-global-root-needs-current-readback",
+                "globalRva": global_rva,
+                "chainRoot": f"rift_x64+{global_rva}" if global_rva else None,
+                "chainShape": f"[rift_x64+{global_rva}]+orientation/facing-candidate-fields" if global_rva else None,
+                "rootPointer": sample.get("rootPointer"),
+                "sourceFunctionRva": constructor.get("functionRva") or root_map.get("sourceFunctionRva"),
+                "sourceInstructionRva": root_map.get("rva") or root_map.get("sourceInstructionRva"),
+                "sourceInstruction": root_map.get("instruction"),
+                "sampleVectors": sample.get("samples"),
+                "candidateOnly": True,
+                "promotionEligible": False,
+                "routeControlAuthorized": False,
+                "actionableForNavigation": False,
+            }
+        )
+
+    top_cluster = safe_mapping(owner_data.get("topStaticCluster"))
+    static_clusters = owner_data.get("staticFieldClusters")
+    if not top_cluster and isinstance(static_clusters, list) and static_clusters:
+        top_cluster = safe_mapping(static_clusters[0])
+    field_offsets = [str(item) for item in top_cluster.get("offsets", [])] if isinstance(top_cluster.get("offsets"), list) else []
+    examples = top_cluster.get("examples", []) if isinstance(top_cluster.get("examples"), list) else []
+    examples_by_offset = {str(safe_mapping(item).get("offset")): safe_mapping(item) for item in examples if safe_mapping(item).get("offset")}
+    field_candidates = []
+    for offset in ("0x300", "0x304", "0x308", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328"):
+        if offset not in field_offsets:
+            continue
+        example = examples_by_offset.get(offset, {})
+        field_candidates.append(
+            {
+                "state": "candidate",
+                "offset": offset,
+                "role": postupdate_field_role(offset),
+                "functionStartRva": top_cluster.get("functionStartRva"),
+                "exampleInstructionRva": example.get("rva"),
+                "exampleInstruction": example.get("instruction"),
+                "exampleAccess": example.get("access"),
+                "candidateOnly": True,
+                "promotionEligible": False,
+                "routeControlAuthorized": False,
+                "actionableForNavigation": False,
+            }
+        )
+
+    if isinstance(owner_data.get("blockers"), list):
+        blockers.extend(str(item) for item in owner_data.get("blockers", []) if item)
+    if isinstance(static_data.get("blockers"), list):
+        blockers.extend(str(item) for item in static_data.get("blockers", []) if item)
+    if isinstance(owner_data.get("warnings"), list):
+        warnings.extend(str(item) for item in owner_data.get("warnings", []) if item)
+    if isinstance(static_data.get("warnings"), list):
+        warnings.extend(str(item) for item in static_data.get("warnings", []) if item)
+    if candidate_roots or field_candidates:
+        blockers.extend(
+            [
+                "historical-promoted-facing-root-blocked-by-latest-static-owner-readback-root-null",
+                "postupdate-yaw-facing-requires-current-readback-and-live-proof",
+                "postupdate-yaw-facing-requires-restart-relog-survival-before-promotion",
+            ]
+        )
+        warnings.append("postupdate-yaw-facing-inventory-candidate-only-not-route-actionable")
+
+    if not candidate_roots and not field_candidates and not blockers:
+        return None
+    return {
+        "status": "candidate" if (candidate_roots or field_candidates) else "blocked",
+        "verdict": "postupdate-yaw-facing-candidate-inventory",
+        "candidateOnly": True,
+        "promotionEligible": False,
+        "routeControlAuthorized": False,
+        "actionableForNavigation": False,
+        "historicalPromotedFacingChain": {
+            "chain": "[rift_x64+0x32EBC80]+0x30C/+0x310/+0x314",
+            "status": "blocked-post-update-old-root-null",
+            "blocker": "latest-static-owner-readback-root-pointer-null",
+            "usableForNavigation": False,
+        },
+        "candidateRoots": candidate_roots,
+        "fieldCandidates": field_candidates,
+        "sourceArtifacts": {
+            "ownerRootRediscoverySummaryJson": str(owner_path.resolve()) if owner_path else None,
+            "latestStaticAccessAttemptJson": str(static_path.resolve()) if static_path else None,
+        },
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+    }
+
+
 def build_post_update_recovery(summary: Mapping[str, Any], *, summary_path: Path | None = None, root: Path | None = None) -> dict[str, Any]:
     best = safe_mapping(summary.get("bestReadback"))
     polling = safe_mapping(summary.get("polling"))
@@ -80,6 +225,9 @@ def build_post_update_recovery(summary: Mapping[str, Any], *, summary_path: Path
     summary_json = artifacts.get("summaryJson")
     if summary_path is not None:
         summary_json = str(summary_path if root is None else summary_path.resolve())
+    yaw_facing_candidates = safe_mapping(summary.get("yawFacingCandidates"))
+    if not yaw_facing_candidates and root is not None:
+        yaw_facing_candidates = safe_mapping(load_latest_postupdate_yaw_facing_inventory(root))
 
     return {
         "status": summary.get("status"),
@@ -89,6 +237,7 @@ def build_post_update_recovery(summary: Mapping[str, Any], *, summary_path: Path
         "promotionEligible": bool(summary.get("promotionEligible")),
         "routeControlAuthorized": False,
         "actionableForNavigation": False,
+        "canExecuteLiveNavigation": False,
         "chain": best.get("chain"),
         "coordinate": dict(best.get("coordinate")) if isinstance(best.get("coordinate"), Mapping) else None,
         "deltaVsReference": best.get("deltaVsReference"),
@@ -116,6 +265,7 @@ def build_post_update_recovery(summary: Mapping[str, Any], *, summary_path: Path
             "readbackStatus": summary.get("status"),
             "readbackVerdict": summary.get("verdict"),
         },
+        "yawFacingCandidates": dict(yaw_facing_candidates) if yaw_facing_candidates else None,
         "blockers": [str(item) for item in summary.get("blockers", []) if item]
         if isinstance(summary.get("blockers"), list)
         else [],
@@ -205,6 +355,8 @@ def build_consumer_state(
     post_update_recovery = safe_mapping(post_update_recovery)
     if post_update_recovery:
         warnings.append("post-update-coordinate-candidate-visible-not-promoted")
+        if post_update_recovery.get("yawFacingCandidates"):
+            warnings.append("post-update-yaw-facing-candidates-visible-not-promoted")
         if post_update_recovery.get("candidateOnly") is not True:
             blockers.append("post-update-recovery-candidate-flag-missing")
         if post_update_recovery.get("routeControlAuthorized") is not False:
@@ -374,6 +526,19 @@ def build_markdown(summary: Mapping[str, Any]) -> str:
                 "- Candidate-only: `true`; route control remains unauthorized.",
             ]
         )
+        yaw_facing = safe_mapping(post_update.get("yawFacingCandidates"))
+        if yaw_facing:
+            lines.extend(
+                [
+                    "",
+                    "### Post-update yaw/facing inventory",
+                    "",
+                    f"- Status: `{yaw_facing.get('status')}`",
+                    f"- Candidate roots: `{len(yaw_facing.get('candidateRoots', [])) if isinstance(yaw_facing.get('candidateRoots'), list) else 0}`",
+                    f"- Field candidates: `{len(yaw_facing.get('fieldCandidates', [])) if isinstance(yaw_facing.get('fieldCandidates'), list) else 0}`",
+                    "- Candidate-only: `true`; not route-actionable without later proof.",
+                ]
+            )
     if summary.get("blockers"):
         lines.extend(["", "## Blockers", ""])
         lines.extend(f"- `{item}`" for item in summary.get("blockers", []))

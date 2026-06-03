@@ -130,6 +130,54 @@ def write_postupdate_global_container_summary(root: Path) -> Path:
     return path
 
 
+def write_postupdate_yaw_facing_inventory_summary(root: Path) -> Path:
+    path = root / "scripts" / "captures" / "postupdate-owner-root-rediscovery-fixture" / "summary.json"
+    write_json(
+        path,
+        {
+            "status": "blocked",
+            "verdict": "post-update-owner-root-rediscovery-needed",
+            "generatedAtUtc": "2026-06-03T07:47:32Z",
+            "topStaticCluster": {
+                "functionStartRva": "0x3F8B0",
+                "offsets": ["0x300", "0x304", "0x308", "0x30C", "0x310", "0x314", "0x320", "0x324", "0x328"],
+                "examples": [
+                    {"offset": "0x30C", "rva": "0x3FA41", "instruction": "mov dword ptr [rdi + 0x30c], r13d", "access": "write"},
+                    {"offset": "0x304", "rva": "0x3FA33", "instruction": "mov dword ptr [rdi + 0x304], r13d", "access": "write"},
+                ],
+                "candidateOnly": True,
+            },
+            "staticAccessChain": {
+                "status": "blocked",
+                "verdict": "static-access-chain-found-orientation-root-only",
+                "path": "scripts\\captures\\postupdate-static-access-chain-fixture\\summary.json",
+                "candidateGlobalRoots": [
+                    {
+                        "globalRva": "0x335F508",
+                        "rva": "0x3FCFD",
+                        "access": "write",
+                        "instruction": "mov qword ptr [rip + 0x331f804], rdi",
+                    }
+                ],
+                "liveRootSamples": [
+                    {
+                        "rootRva": "0x335F508",
+                        "rootPointer": "0x1D4BA2A6230",
+                        "classification": "orientation-matrix-root-not-position-root",
+                        "samples": {
+                            "owner+0x300": [-0.016, 0.0, 0.999],
+                            "owner+0x30C": [-13.59, 0.28, 0.95],
+                        },
+                    }
+                ],
+            },
+            "blockers": ["no-owner-root-hypothesis-yet"],
+            "warnings": ["static-access-chain-root-orientation-only-not-position"],
+        },
+    )
+    return path
+
+
 def write_blocked_static_owner_summary(root: Path) -> Path:
     path = root / "scripts" / "captures" / "static-owner-coordinate-chain-readback-fixture" / "summary.json"
     write_json(
@@ -179,6 +227,7 @@ class DecisionPacketTests(unittest.TestCase):
             root = Path(temp_dir)
             init_empty_repo(root)
             write_postupdate_global_container_summary(root)
+            write_postupdate_yaw_facing_inventory_summary(root)
 
             summary = decision_packet.summarize_latest_postupdate_global_container_readback(root)
 
@@ -189,6 +238,14 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertFalse(summary["promotionEligible"])
         self.assertFalse(summary["routeControlAuthorized"])
         self.assertEqual(summary["maxAbsDelta"], 0.004628906250218279)
+        yaw_facing = summary["yawFacingCandidates"]
+        self.assertEqual(yaw_facing["status"], "candidate")
+        self.assertTrue(yaw_facing["candidateOnly"])
+        self.assertFalse(yaw_facing["routeControlAuthorized"])
+        self.assertEqual(yaw_facing["candidateRoots"][0]["globalRva"], "0x335F508")
+        self.assertEqual(yaw_facing["candidateRoots"][0]["status"], "orientation-matrix-root-not-position-root")
+        self.assertTrue(any(item["offset"] == "0x30C" for item in yaw_facing["fieldCandidates"]))
+        self.assertIn("postupdate-yaw-facing-requires-current-readback-and-live-proof", yaw_facing["blockers"])
 
     def test_postupdate_candidate_changes_safe_next_action_when_old_root_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

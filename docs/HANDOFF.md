@@ -3,6 +3,34 @@
 **Compact re-entry doc.** Read this first when returning to the project.
 
 
+## Latest compact handoff — post-update no-input yaw/facing inventory — 2026-06-03 08:05 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-03-0805-postupdate-no-input-yaw-facing-inventory-handoff.md`.
+
+The first no-input post-update recovery pass is complete. The old promoted
+static owner root remains blocked (`[rift_x64+0x32EBC80] == 0x0`), the current
+coordinate candidate refresh blocked safely with `global-container-coordinate-leads-missing`,
+and the recovery/status surfaces now expose post-update yaw/facing seeds as
+candidate-only inventory.
+
+| Evidence | Result |
+|---|---|
+| Current live target | PID `77152`, HWND `0x17A0DB2`, process start `2026-06-02T15:45:29.2617327Z`, module base `0x7FF7211C0000`. |
+| Current game epoch | Manifest `STABLE-1-1152-a-1256395`, `rift_x64.exe` SHA1 `a8ba8748ea752e4e5581cea34188dc702469c923`. |
+| Coordinate refresh | `scripts\captures\postupdate-global-container-coordinate-readback-20260603-074657-625756\summary.json` blocked with `global-container-coordinate-leads-missing`; no samples were read. |
+| Static/access refresh | `scripts\captures\postupdate-static-access-chain-20260603-074712-201893\summary.json` blocked with `process-start-mismatch`. |
+| Rollup | `scripts\captures\postupdate-owner-root-rediscovery-20260603-074732-196871\summary.json` blocked with `no-owner-root-hypothesis-yet` and `process-start-mismatch`. |
+| Yaw/facing inventory | `postUpdateRecovery.yawFacingCandidates.status=candidate`, root `rift_x64+0x335F508`, `fieldCandidateCount=8`, `routeControlAuthorized=false`, `actionableForNavigation=false`. |
+| Consumer/navigation status | `.riftreader-local\navigation-consumer-state\latest\summary.json` and `.riftreader-local\navigation-pointer-discovery\latest\summary.json` keep `canExecuteLiveNavigation=false`. |
+| Validation ledger | `.riftreader-local\validation-runs\20260603-080950-908985\summary.md` passed in `31.002s`. |
+
+Safety: no input, movement, route execution, `/reloadui`, screenshot key,
+x64dbg/CE attach, target memory write, provider write, current-truth update,
+ProofOnly, proof promotion, actor-chain promotion, Git commit, or Git push was
+performed. The next safe slice is target-epoch mismatch repair for the
+post-update helpers. Movement proof and restart/relog survival remain gated.
+
 ## Latest compact handoff — post-update coordinate candidate movement proof — 2026-06-02 23:05 UTC
 
 A new compact handoff exists at

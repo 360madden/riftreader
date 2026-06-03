@@ -867,6 +867,12 @@ def navigation_control_chains_summary(
             "candidateTurnRateRequiresAllowCandidateTurnControlFlag": not bool(turn.get("promotionAllowed")),
             "supportFieldsDoNotAuthorizeControl": True,
         },
+        "routeControl": {
+            "canExecuteLiveNavigation": False,
+            "routeControlAuthorized": False,
+            "candidateFieldsAuthorizeMovement": False,
+            "reason": "navigation pointer discovery is an evidence index; route execution remains a separate gated workflow",
+        },
     }
 
 
