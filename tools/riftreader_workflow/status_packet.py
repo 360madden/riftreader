@@ -1580,14 +1580,14 @@ def summarize_live_target(coordinate_status: dict[str, Any] | None) -> dict[str,
     }
 
 
-def stale_live_target_reason(live_target: dict[str, Any]) -> str:
+def stale_live_target_reason(live_target: dict[str, Any], *, artifact_label: str = "current proof artifact") -> str:
     """Return live-aware movement/blocker text for stale artifact PID cases."""
 
     return (
-        f"A rift_x64 process is visible with PID(s) {live_target.get('livePids') or []}, but the current proof "
-        f"artifact points at historical PID {live_target.get('artifactPid')} / HWND "
-        f"{live_target.get('artifactHwnd')}. Movement remains blocked until safe current-target "
-        "reacquisition/status refresh and same-target proof validation pass."
+        f"A rift_x64 process is visible with PID(s) {live_target.get('livePids') or []}, but the {artifact_label} "
+        f"points at historical PID {live_target.get('artifactPid')} / HWND "
+        f"{live_target.get('artifactHwnd')}. Movement remains blocked until the stale artifact is refreshed "
+        "or the workflow is reclassified to the correct repair lane."
     )
 
 
@@ -1602,15 +1602,16 @@ def apply_live_target_overlay(
     blockers: list[str],
     warnings: list[str],
     live_target: dict[str, Any],
+    artifact_label: str = "current proof artifact",
 ) -> list[str]:
-    """Keep status packets accurate when a live process exists but old proof is stale."""
+    """Keep status packets accurate when a live process exists but an artifact PID is stale."""
 
     if not live_target.get("artifactPidStale"):
         return blockers
 
     movement_gate = current_truth_summary.get("movementGate")
     if isinstance(movement_gate, dict) and movement_gate.get("allowed") is False:
-        movement_gate["reason"] = stale_live_target_reason(live_target)
+        movement_gate["reason"] = stale_live_target_reason(live_target, artifact_label=artifact_label)
 
     filtered: list[str] = []
     for blocker in blockers:
@@ -1627,6 +1628,104 @@ def apply_live_target_overlay(
         f"live={','.join(str(item) for item in live_target.get('livePids') or [])}"
     )
     return filtered
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(str(value), 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def proof_target_matches_live_target(current_proof_summary: dict[str, Any], live_target: dict[str, Any]) -> bool:
+    """Return true when the proof-anchor target matches one of the currently visible live PIDs."""
+
+    target = current_proof_summary.get("target") if isinstance(current_proof_summary.get("target"), dict) else {}
+    proof_pid = _int_or_none(target.get("processId"))
+    if proof_pid is None:
+        return False
+    live_pids = {_int_or_none(item) for item in live_target.get("livePids") or []}
+    live_pids.discard(None)
+    return proof_pid in live_pids
+
+
+def classify_workflow_state(
+    *,
+    current_proof_summary: dict[str, Any],
+    live_target: dict[str, Any],
+    static_owner_readback: dict[str, Any],
+    navigation_pointer_discovery: dict[str, Any],
+    current_truth_refresh_plan: dict[str, Any],
+) -> dict[str, Any]:
+    """Classify proof-current/static-root-null states so status does not loop back to proof recovery."""
+
+    proof_status = str(current_proof_summary.get("status") or "")
+    proof_current = proof_status == "current-target-proofonly-passed" and proof_target_matches_live_target(
+        current_proof_summary, live_target
+    )
+    coordinate_chain = (
+        static_owner_readback.get("coordinateChain") if isinstance(static_owner_readback.get("coordinateChain"), dict) else {}
+    )
+    chain_blockers = [str(item) for item in coordinate_chain.get("blockers") or []]
+    static_root_null = coordinate_chain.get("verdict") == "root-pointer-null" or "root-pointer-null" in chain_blockers
+    live_artifact_stale = bool(live_target.get("artifactPidStale"))
+
+    if proof_current and live_artifact_stale and static_root_null:
+        proof_target = (
+            current_proof_summary.get("target") if isinstance(current_proof_summary.get("target"), dict) else {}
+        )
+        return {
+            "classification": "static-chain-repair-needed",
+            "status": "blocked",
+            "proofAnchorCurrent": True,
+            "staleArtifactIsCurrentTruthOrDashboard": True,
+            "staticOwnerRootNull": True,
+            "blocker": "static-chain-repair-needed:root-pointer-null",
+            "warning": (
+                "stale-current-truth-or-dashboard-artifact-not-current-proof:"
+                f"artifact={live_target.get('artifactPid')};"
+                f"artifactHwnd={live_target.get('artifactHwnd')};"
+                f"proof={proof_target.get('processId')};"
+                f"proofHwnd={proof_target.get('targetWindowHandle')}"
+            ),
+            "nextRecommendedAction": (
+                "Proof anchor is current for the live target, but the current-truth/navigation dashboard still "
+                "references a historical target and the promoted static owner root is null. Do not rerun proof-anchor "
+                "recovery or apply stale current-truth refresh. Repair the static pointer chain/root next."
+            ),
+        }
+
+    if proof_current and live_artifact_stale:
+        return {
+            "classification": "current-truth-status-refresh-needed",
+            "status": "blocked",
+            "proofAnchorCurrent": True,
+            "staleArtifactIsCurrentTruthOrDashboard": True,
+            "staticOwnerRootNull": False,
+            "blocker": "current-truth-status-refresh-needed:stale-artifact-target",
+            "warning": (
+                "stale-current-truth-or-dashboard-artifact-not-current-proof:"
+                f"artifact={live_target.get('artifactPid')};"
+                f"live={','.join(str(item) for item in live_target.get('livePids') or [])}"
+            ),
+            "nextRecommendedAction": (
+                "Proof anchor is current for the live target, but a current-truth/status artifact still references "
+                "a historical target. Refresh the stale status source before movement or navigation decisions."
+            ),
+        }
+
+    return {
+        "classification": None,
+        "status": None,
+        "proofAnchorCurrent": proof_current,
+        "staleArtifactIsCurrentTruthOrDashboard": False,
+        "staticOwnerRootNull": static_root_null,
+        "blocker": None,
+        "warning": None,
+        "nextRecommendedAction": None,
+    }
 
 
 def apply_proof_freshness_overlay(
@@ -1901,21 +2000,39 @@ def build_status_packet(
 
     status = "failed" if errors else ("blocked" if blockers else "passed")
     live_target = summarize_live_target(coordinate_status)
+    workflow_classification = classify_workflow_state(
+        current_proof_summary=current_proof_summary,
+        live_target=live_target,
+        static_owner_readback=static_owner_readback,
+        navigation_pointer_discovery=navigation_pointer_discovery,
+        current_truth_refresh_plan=current_truth_refresh_plan,
+    )
+    if workflow_classification.get("blocker"):
+        blockers.append(str(workflow_classification["blocker"]))
+    if workflow_classification.get("warning"):
+        warnings.append(str(workflow_classification["warning"]))
+
     next_action = current_truth_summary.get("nextRecommendedAction")
     movement_gate = current_truth_summary.get("movementGate") if isinstance(current_truth_summary.get("movementGate"), dict) else {}
     if live_target.get("artifactPidStale"):
+        artifact_label = "current proof artifact"
+        if workflow_classification.get("staleArtifactIsCurrentTruthOrDashboard"):
+            artifact_label = "current-truth/status coordinate artifact"
         blockers = apply_live_target_overlay(
             current_truth_summary=current_truth_summary,
             blockers=[str(item) for item in blockers],
             warnings=warnings,
             live_target=live_target,
+            artifact_label=artifact_label,
         )
-        next_action = (
-            f"A rift_x64 process is visible with PID(s) {live_target.get('livePids')}, but the current proof artifact points "
-            f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
-            "Keep movement blocked, do not reuse stale proof, and run safe current-target reacquisition/status refresh "
-            "before ProofOnly or movement."
-        )
+        if workflow_classification.get("nextRecommendedAction"):
+            next_action = str(workflow_classification["nextRecommendedAction"])
+        else:
+            next_action = (
+                f"A rift_x64 process is visible with PID(s) {live_target.get('livePids')}, but the {artifact_label} points "
+                f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
+                "Keep movement blocked until the stale artifact is refreshed or the workflow is reclassified."
+            )
     elif str(movement_gate.get("status") or "").startswith("blocked-proof-anchor-"):
         next_action = (
             "Movement is proof-anchor freshness blocked. Continue no-input artifact/status diagnostics if useful, "
@@ -1950,6 +2067,8 @@ def build_status_packet(
     if not next_action:
         next_action = "No blocker detected by the status packet; run targeted validation for the intended next change."
 
+    status = "failed" if errors else ("blocked" if blockers else "passed")
+
     return {
         "schemaVersion": 1,
         "kind": "riftreader-local-workflow-status-packet",
@@ -1973,6 +2092,7 @@ def build_status_packet(
         },
         "git": git_summary,
         "liveTarget": live_target,
+        "workflowClassification": workflow_classification,
         "launcher": launcher_summary,
         "characterLoginSupervisor": supervisor_summary,
         "staticOwnerReadback": static_owner_readback,
@@ -2141,6 +2261,9 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
     launcher = packet.get("launcher") if isinstance(packet.get("launcher"), dict) else {}
     supervisor = packet.get("characterLoginSupervisor") if isinstance(packet.get("characterLoginSupervisor"), dict) else {}
     static_owner_readback = packet.get("staticOwnerReadback") if isinstance(packet.get("staticOwnerReadback"), dict) else {}
+    workflow_classification = (
+        packet.get("workflowClassification") if isinstance(packet.get("workflowClassification"), dict) else {}
+    )
     navigation_pointer = (
         packet.get("navigationPointerDiscovery") if isinstance(packet.get("navigationPointerDiscovery"), dict) else {}
     )
@@ -2164,6 +2287,7 @@ def compact_summary(packet: dict[str, Any]) -> dict[str, Any]:
         "legacyKind": "riftreader-opencode-compact-sitrep",
         "generatedAtUtc": packet.get("generatedAtUtc"),
         "status": packet.get("status"),
+        "workflowClassification": workflow_classification,
         "git": {
             "branch": git_status.get("branch"),
             "isClean": git_status.get("isClean"),
