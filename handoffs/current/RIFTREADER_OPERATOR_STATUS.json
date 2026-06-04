@@ -1,0 +1,251 @@
+{
+  "board": {
+    "artifacts": {
+      "compactStatus": ".riftreader-local/workflow-status/20260604-233223Z/compact-sitrep.json"
+    },
+    "blockedBy": "static-chain-repair-needed:root-pointer-null",
+    "currentLane": "static-chain-repair-needed",
+    "later": "Only build a new helper if the same blocker repeats",
+    "next": "Use existing diagnostics/artifacts to identify repair target",
+    "now": "Static-chain repair",
+    "repo": {
+      "branch": "main",
+      "head": [
+        "8da46d91ac30ad33d9041c9a90acd7c7f303df74",
+        "Add operator status publisher"
+      ],
+      "isClean": true
+    }
+  },
+  "classifier": {
+    "approvalRequiredActions": [
+      "static-chain promotion",
+      "current-truth apply",
+      "debugger attach",
+      "movement"
+    ],
+    "artifacts": {
+      "latestJson": ".riftreader-local/recovery-classifier/latest/summary.json",
+      "latestMarkdown": ".riftreader-local/recovery-classifier/latest/summary.md",
+      "summaryJson": ".riftreader-local/recovery-classifier/20260604T233224Z/summary.json",
+      "summaryMarkdown": ".riftreader-local/recovery-classifier/20260604T233224Z/summary.md"
+    },
+    "blocker": "static-chain-repair-needed:root-pointer-null",
+    "classification": "static-chain-repair-needed",
+    "confidence": "high",
+    "doNotDo": [
+      "Do not rerun proof-anchor recovery when proofAnchorCurrent is true.",
+      "Do not apply stale current-truth/dashboard artifacts.",
+      "Do not promote heap/current-PID-only evidence as restart-stable truth.",
+      "Do not use CE/x64dbg unless the debugger lane is explicitly selected later."
+    ],
+    "nextRecommendedAction": "Run or inspect static-chain repair diagnostics; do not rerun proof-anchor recovery for this state.",
+    "nextRecommendedCommand": "python tools/riftreader_mcp/call_tool.py --tool riftreader.run_static_chain_diagnostics --timeout-seconds 900 --json",
+    "reason": "Proof anchor is current, but static owner root/chain is null or blocked.",
+    "safeAutomaticActions": [
+      "run compact status",
+      "run no-input static-chain diagnostics",
+      "publish ChatGPT snapshot",
+      "write handoff draft"
+    ]
+  },
+  "compactStatus": {
+    "blockers": [
+      "proof-anchor-stale-for-movement:ageSeconds=22118;maxAgeSeconds=60",
+      "movement-not-allowed:blocked-proof-anchor-age-out-of-range",
+      "coordinate-status:artifact-target-pid-not-running:artifact=12664;live=75116",
+      "static-chain-repair-needed:root-pointer-null",
+      "live-target-artifact-pid-stale:artifact=12664;artifactHwnd=0x205146C;live=75116"
+    ],
+    "generatedAtUtc": "2026-06-04T23:32:23Z",
+    "git": {
+      "branch": "## main...origin/main",
+      "head": {
+        "hash": "8da46d9",
+        "subject": "Add operator status publisher"
+      },
+      "isClean": true
+    },
+    "status": "blocked",
+    "warnings": [
+      "launcher-inspection-stale:86262s",
+      "movement-gate-overridden-by-proof-freshness:stale",
+      "current-truth-stale-live-target-detected:artifact=12664;live=75116",
+      "stale-current-truth-or-dashboard-artifact-not-current-proof:artifact=12664;artifactHwnd=0x205146C;proof=75116;proofHwnd=0x3F3137C"
+    ],
+    "workflowClassification": {
+      "blocker": "static-chain-repair-needed:root-pointer-null",
+      "classification": "static-chain-repair-needed",
+      "nextRecommendedAction": "Proof anchor is current for the live target, but the current-truth/navigation dashboard still references a historical target and the promoted static owner root is null. Do not rerun proof-anchor recovery or apply stale current-truth refresh. Repair the static pointer chain/root next.",
+      "proofAnchorCurrent": true,
+      "staleArtifactIsCurrentTruthOrDashboard": true,
+      "staticOwnerRootNull": true,
+      "status": "blocked",
+      "warning": "stale-current-truth-or-dashboard-artifact-not-current-proof:artifact=12664;artifactHwnd=0x205146C;proof=75116;proofHwnd=0x3F3137C"
+    }
+  },
+  "generatedAtUtc": "2026-06-04T23:32:29Z",
+  "kind": "riftreader-operator-status-github-snapshot",
+  "operatorStatus": {
+    "artifacts": {
+      "latestJson": ".riftreader-local/operator-status/latest/summary.json",
+      "latestMarkdown": ".riftreader-local/operator-status/latest/summary.md",
+      "summaryJson": ".riftreader-local/operator-status/20260604T233224Z/summary.json",
+      "summaryMarkdown": ".riftreader-local/operator-status/20260604T233224Z/summary.md"
+    },
+    "board": {
+      "artifacts": {
+        "compactStatus": ".riftreader-local/workflow-status/20260604-233223Z/compact-sitrep.json"
+      },
+      "blockedBy": "static-chain-repair-needed:root-pointer-null",
+      "currentLane": "static-chain-repair-needed",
+      "later": "Only build a new helper if the same blocker repeats",
+      "next": "Use existing diagnostics/artifacts to identify repair target",
+      "now": "Static-chain repair",
+      "repo": {
+        "branch": "main",
+        "head": [
+          "8da46d91ac30ad33d9041c9a90acd7c7f303df74",
+          "Add operator status publisher"
+        ],
+        "isClean": true
+      }
+    },
+    "classifier": {
+      "approvalRequiredActions": [
+        "static-chain promotion",
+        "current-truth apply",
+        "debugger attach",
+        "movement"
+      ],
+      "artifacts": {
+        "latestJson": ".riftreader-local/recovery-classifier/latest/summary.json",
+        "latestMarkdown": ".riftreader-local/recovery-classifier/latest/summary.md",
+        "summaryJson": ".riftreader-local/recovery-classifier/20260604T233224Z/summary.json",
+        "summaryMarkdown": ".riftreader-local/recovery-classifier/20260604T233224Z/summary.md"
+      },
+      "blocker": "static-chain-repair-needed:root-pointer-null",
+      "classification": "static-chain-repair-needed",
+      "confidence": "high",
+      "doNotDo": [
+        "Do not rerun proof-anchor recovery when proofAnchorCurrent is true.",
+        "Do not apply stale current-truth/dashboard artifacts.",
+        "Do not promote heap/current-PID-only evidence as restart-stable truth.",
+        "Do not use CE/x64dbg unless the debugger lane is explicitly selected later."
+      ],
+      "nextRecommendedAction": "Run or inspect static-chain repair diagnostics; do not rerun proof-anchor recovery for this state.",
+      "nextRecommendedCommand": "python tools/riftreader_mcp/call_tool.py --tool riftreader.run_static_chain_diagnostics --timeout-seconds 900 --json",
+      "reason": "Proof anchor is current, but static owner root/chain is null or blocked.",
+      "safeAutomaticActions": [
+        "run compact status",
+        "run no-input static-chain diagnostics",
+        "publish ChatGPT snapshot",
+        "write handoff draft"
+      ]
+    },
+    "commands": [
+      {
+        "args": [
+          "C:\\Users\\mrkoo\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "C:\\RIFT MODDING\\RiftReader\\tools\\riftreader_workflow\\status_packet.py",
+          "--compact-json",
+          "--write"
+        ],
+        "completedAtUtc": "2026-06-04T23:32:23Z",
+        "cwd": "C:\\RIFT MODDING\\RiftReader",
+        "exitCode": 2,
+        "startedAtUtc": "2026-06-04T23:32:21Z",
+        "timedOut": false,
+        "timeoutSeconds": 240
+      },
+      {
+        "args": [
+          "C:\\Users\\mrkoo\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "-m",
+          "tools.riftreader_workflow.recovery_classifier",
+          "--write",
+          "--json"
+        ],
+        "completedAtUtc": "2026-06-04T23:32:24Z",
+        "cwd": "C:\\RIFT MODDING\\RiftReader",
+        "exitCode": 0,
+        "startedAtUtc": "2026-06-04T23:32:23Z",
+        "timedOut": false,
+        "timeoutSeconds": 240
+      }
+    ],
+    "compactStatus": {
+      "blockers": [
+        "proof-anchor-stale-for-movement:ageSeconds=22118;maxAgeSeconds=60",
+        "movement-not-allowed:blocked-proof-anchor-age-out-of-range",
+        "coordinate-status:artifact-target-pid-not-running:artifact=12664;live=75116",
+        "static-chain-repair-needed:root-pointer-null",
+        "live-target-artifact-pid-stale:artifact=12664;artifactHwnd=0x205146C;live=75116"
+      ],
+      "generatedAtUtc": "2026-06-04T23:32:23Z",
+      "git": {
+        "branch": "## main...origin/main",
+        "head": {
+          "hash": "8da46d9",
+          "subject": "Add operator status publisher"
+        },
+        "isClean": true
+      },
+      "status": "blocked",
+      "warnings": [
+        "launcher-inspection-stale:86262s",
+        "movement-gate-overridden-by-proof-freshness:stale",
+        "current-truth-stale-live-target-detected:artifact=12664;live=75116",
+        "stale-current-truth-or-dashboard-artifact-not-current-proof:artifact=12664;artifactHwnd=0x205146C;proof=75116;proofHwnd=0x3F3137C"
+      ],
+      "workflowClassification": {
+        "blocker": "static-chain-repair-needed:root-pointer-null",
+        "classification": "static-chain-repair-needed",
+        "nextRecommendedAction": "Proof anchor is current for the live target, but the current-truth/navigation dashboard still references a historical target and the promoted static owner root is null. Do not rerun proof-anchor recovery or apply stale current-truth refresh. Repair the static pointer chain/root next.",
+        "proofAnchorCurrent": true,
+        "staleArtifactIsCurrentTruthOrDashboard": true,
+        "staticOwnerRootNull": true,
+        "status": "blocked",
+        "warning": "stale-current-truth-or-dashboard-artifact-not-current-proof:artifact=12664;artifactHwnd=0x205146C;proof=75116;proofHwnd=0x3F3137C"
+      }
+    },
+    "generatedAtUtc": "2026-06-04T23:32:24Z",
+    "kind": "riftreader-operator-status",
+    "repoRoot": "C:\\RIFT MODDING\\RiftReader",
+    "safety": {
+      "currentTruthWritten": false,
+      "gitMutation": false,
+      "inputSent": false,
+      "movementSent": false,
+      "noCheatEngine": true,
+      "proofPromotion": false,
+      "targetMemoryBytesRead": false,
+      "targetMemoryBytesWritten": false,
+      "x64dbgAttach": false
+    },
+    "schemaVersion": 1,
+    "status": "passed",
+    "toolVersion": "riftreader-operator-status-v0.1.0"
+  },
+  "operatorStatusMarkdown": "# RiftReader Operator Status\n\n- Generated UTC: `2026-06-04T23:32:24Z`\n- Status: `passed`\n\n## Project Board\n\n| Field | Value |\n|---|---|\n| Current lane | `static-chain-repair-needed` |\n| Now | `Static-chain repair` |\n| Next | `Use existing diagnostics/artifacts to identify repair target` |\n| Later | `Only build a new helper if the same blocker repeats` |\n| Blocked by | `static-chain-repair-needed:root-pointer-null` |\n\n## Next Recommended Action\n\nRun or inspect static-chain repair diagnostics; do not rerun proof-anchor recovery for this state.\n\n```text\npython tools/riftreader_mcp/call_tool.py --tool riftreader.run_static_chain_diagnostics --timeout-seconds 900 --json\n```\n\n## Do Not Do\n\n- Do not rerun proof-anchor recovery when proofAnchorCurrent is true.\n- Do not apply stale current-truth/dashboard artifacts.\n- Do not promote heap/current-PID-only evidence as restart-stable truth.\n- Do not use CE/x64dbg unless the debugger lane is explicitly selected later.\n\n## END_OF_SCRIPT_MARKER\n",
+  "safety": {
+    "currentTruthWritten": false,
+    "inputSent": false,
+    "mainWorktreeMutation": false,
+    "movementSent": false,
+    "noCheatEngine": true,
+    "proofPromotion": false,
+    "snapshotBranchMutation": true,
+    "targetMemoryBytesRead": false,
+    "targetMemoryBytesWritten": false,
+    "x64dbgAttach": false
+  },
+  "schemaVersion": 1,
+  "source": {
+    "baseHead": "8da46d91ac30ad33d9041c9a90acd7c7f303df74",
+    "operatorStatusJson": ".riftreader-local/operator-status/latest/summary.json",
+    "operatorStatusMarkdown": ".riftreader-local/operator-status/latest/summary.md",
+    "repoRoot": "C:\\RIFT MODDING\\RiftReader"
+  },
+  "toolVersion": "riftreader-operator-status-publisher-v0.1.0"
+}
