@@ -63,7 +63,7 @@ def normalize_path(path: str) -> str:
 def porcelain_paths(stdout: str) -> list[str]:
     paths: list[str] = []
     for raw in stdout.splitlines():
-        if not raw.strip():
+        if not raw.strip() or raw.startswith("## "):
             continue
         path = raw[3:] if len(raw) > 3 else raw.strip()
         if " -> " in path:

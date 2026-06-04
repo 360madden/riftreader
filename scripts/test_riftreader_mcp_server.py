@@ -83,7 +83,7 @@ class RiftReaderMcpServerTests(unittest.TestCase):
         self.assertIn("Unknown tool", response["error"]["message"])
 
     def test_porcelain_paths(self) -> None:
-        output = " M tools/riftreader_workflow/status_packet.py\n?? docs/workflow/example.md\n"
+        output = "## main...origin/main\n M tools/riftreader_workflow/status_packet.py\n?? docs/workflow/example.md\n"
         self.assertEqual(
             porcelain_paths(output),
             ["docs/workflow/example.md", "tools/riftreader_workflow/status_packet.py"],
