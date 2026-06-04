@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RiftReader Recovery Classifier Summary",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "toolVersion",
+    "status",
+    "classification",
+    "confidence",
+    "board"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "riftreader-recovery-classifier"
+    },
+    "toolVersion": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "blocked"
+      ]
+    },
+    "classification": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "blocker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nextRecommendedAction": {
+      "type": "string"
+    },
+    "nextRecommendedCommand": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "safeAutomaticActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approvalRequiredActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "doNotDo": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "board": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "safety": {
+      "type": "object"
+    }
+  }
+}
