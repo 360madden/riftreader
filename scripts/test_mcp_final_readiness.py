@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -235,6 +236,35 @@ class McpFinalReadinessTests(unittest.TestCase):
         )
 
         self.assertIn("dependency:missing:mcp-sdk", payload["blockers"])
+
+    def test_tunnel_client_binary_diagnostics_records_hash_and_version_probe(self) -> None:
+        diagnostics = final._tunnel_client_binary_diagnostics(sys.executable, REPO_ROOT)  # noqa: SLF001
+
+        self.assertEqual(diagnostics["status"], "passed")
+        self.assertTrue(diagnostics["ok"])
+        self.assertEqual(len(diagnostics["sha256"]), 64)
+        self.assertTrue(diagnostics["versionProbe"]["ok"])
+
+    def test_dependency_preflight_blocks_when_tunnel_client_version_probe_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with (
+                mock.patch.object(final, "_find_executable", side_effect=lambda name, extra_candidates=None: sys.executable),
+                mock.patch.object(
+                    final,
+                    "_tunnel_client_binary_diagnostics",
+                    return_value={
+                        "status": "blocked",
+                        "ok": False,
+                        "blockers": ["tunnel-client-version-probe-failed"],
+                        "warnings": [],
+                    },
+                ),
+            ):
+                payload = final.dependency_preflight(root)
+
+        self.assertEqual(payload["dependencies"]["tunnel-client"]["status"], "blocked")
+        self.assertIn("dependency:tunnel-client-version-probe-failed", payload["blockers"])
 
     def test_unsafe_tool_surface_blocks_final_readiness(self) -> None:
         overrides = ok_gate_overrides()

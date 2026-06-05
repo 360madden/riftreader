@@ -20,9 +20,9 @@ support is preserved only as deprecated fallback/dev-only support.
 | Recommended Web/Desktop path | OpenAI Secure MCP Tunnel using `tunnel-client` and local stdio MCP. |
 | Local default | Self-test / SDK validation / loopback transport smoke. |
 | Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com`. |
-| Current blocker | `TUNNEL_CLIENT_NOT_FOUND` until `tunnel-client` is installed/found or passed with `--tunnel-client-path`. |
+| Current blocker | External tunnel setup remains gated: tunnel id, runtime API key, `tunnel-client init/doctor/run`, ChatGPT connector registration, and fresh actual-client proof. |
 | Primary command | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json`. |
-| Mission Control | `scripts\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json` displays the plan command without starting `tunnel-client`; final readiness now blocks on `dependency:missing:tunnel-client`. |
+| Mission Control | `scripts\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json` displays the plan command without starting `tunnel-client`; final readiness now verifies `tunnel-client` presence, SHA256, and `--version` behavior for the primary path. |
 
 Safety: no live RIFT input, movement, `/reloadui`, screenshot key, x64dbg/CE
 attach, provider write, ChatGPT registration, public tunnel startup, Git

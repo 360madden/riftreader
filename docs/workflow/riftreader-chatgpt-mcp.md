@@ -191,7 +191,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Helper | Command | Default behavior |
 |---|---|---|
 | MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
-| Secure Tunnel Plan | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Writes an ignored local plan artifact and prints `tunnel-client init`, `doctor`, and `run` command lines; returns blocked until `tunnel-client` is installed/found. |
+| Secure Tunnel Plan | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Writes an ignored local plan artifact, verifies the `tunnel-client` binary SHA256 plus `--version` probe, and prints `init`, `doctor`, and `run` command lines; returns blocked until the binary is installed/found and executable. |
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, `tunnel-client` dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
@@ -203,8 +203,9 @@ The shared state layer marks self-test inbox/draft artifacts, adds artifact age
 fields, indexes Secure Tunnel plan artifacts, warns on stale proof budgets, and
 labels stopped or aged-out ephemeral public URLs as expected-expired. The final
 gate also checks loopback port allocation, default serve-port availability,
-primary-path `tunnel-client` dependency presence, and whether
-`.riftreader-local` remains Git-ignored for local MCP artifacts.
+primary-path `tunnel-client` dependency presence plus SHA256/`--version`
+binary diagnostics, and whether `.riftreader-local` remains Git-ignored for
+local MCP artifacts.
 `MCP Mission Control --secure-tunnel-plan` prints the Secure Tunnel plan command
 without running `tunnel-client`; `--trial-command` remains a deprecated
 fallback-only Cloudflare public trial command. Only `--run-readiness` and
@@ -303,7 +304,9 @@ cd /d "C:\RIFT MODDING\RiftReader"
 The plan prints the exact local stdio MCP command for `tunnel-client`. If the
 plan reports `TUNNEL_CLIENT_NOT_FOUND`, install/download `tunnel-client` from
 OpenAI Platform tunnel settings or the latest `openai/tunnel-client` release,
-then rerun with either PATH discovery or `--tunnel-client-path <path>`.
+then rerun with either PATH discovery or `--tunnel-client-path <path>`. If the
+plan reports a `tunnel-client-version-probe-failed` blocker, replace the binary
+or fix local execution before configuring a tunnel profile.
 RiftReader also checks these adminless paths before the Program Files fallback:
 
 - `TUNNEL_CLIENT_PATH`, `OPENAI_TUNNEL_CLIENT_PATH`, `TUNNEL_CLIENT`, or

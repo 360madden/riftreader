@@ -1186,7 +1186,21 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             root = Path(temp_dir)
             make_repo(root)
             config = chatgpt_mcp.make_adapter_config(root)
-            with mock.patch.object(chatgpt_mcp, "resolve_tunnel_client_executable", return_value=root / "tunnel-client.exe"):
+            with (
+                mock.patch.object(chatgpt_mcp, "resolve_tunnel_client_executable", return_value=root / "tunnel-client.exe"),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "executable_binary_diagnostics",
+                    return_value={
+                        "status": "passed",
+                        "ok": True,
+                        "sha256": "a" * 64,
+                        "versionProbe": {"ok": True, "exitCode": 0, "stdoutPreview": "0.0.0-test"},
+                        "blockers": [],
+                        "warnings": [],
+                    },
+                ),
+            ):
                 payload = chatgpt_mcp.build_secure_tunnel_plan(
                     config,
                     profile="riftreader-local-stdio",
@@ -1204,8 +1218,41 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["chatGptConnector"]["toolSmokeOrder"], ["health", "get_repo_status", "get_latest_handoff"])
         self.assertIn("runtimeApiKey", payload["openAiRequirements"])
         self.assertIn("connect-from-chatgpt", payload["docs"]["connectFromChatGpt"])
+        self.assertEqual(payload["dependencies"]["tunnelClient"]["binaryDiagnostics"]["sha256"], "a" * 64)
         self.assertTrue(payload["safety"]["openAiSecureTunnelPreferred"])
         self.assertTrue(payload["safety"]["cloudflareQuickTunnelDeprecated"])
+
+    def test_secure_tunnel_plan_blocks_on_tunnel_client_binary_diagnostics_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            with (
+                mock.patch.object(chatgpt_mcp, "resolve_tunnel_client_executable", return_value=root / "tunnel-client.exe"),
+                mock.patch.object(
+                    chatgpt_mcp,
+                    "executable_binary_diagnostics",
+                    return_value={
+                        "status": "blocked",
+                        "ok": False,
+                        "blockers": ["tunnel-client-version-probe-failed"],
+                        "warnings": [],
+                    },
+                ),
+            ):
+                payload = chatgpt_mcp.build_secure_tunnel_plan(config, tunnel_id="tunnel_test")
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("tunnel-client-version-probe-failed", payload["blockers"])
+
+    def test_executable_binary_diagnostics_records_hash_and_version_probe(self) -> None:
+        diagnostics = chatgpt_mcp.executable_binary_diagnostics("python", Path(sys.executable), cwd=REPO_ROOT)
+
+        self.assertEqual(diagnostics["status"], "passed")
+        self.assertTrue(diagnostics["ok"])
+        self.assertEqual(len(diagnostics["sha256"]), 64)
+        self.assertTrue(diagnostics["versionProbe"]["ok"])
 
     def test_resolve_tunnel_client_checks_repo_local_adminless_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -34,13 +34,13 @@ try:
     from . import local_artifact_bridge as bridge
     from . import package_manifest
     from . import package_draft_review, status_packet
-    from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet
-    from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
 
 
 SCHEMA_VERSION = 1
@@ -1830,6 +1830,64 @@ def optional_executable_readiness(
         }
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def executable_binary_diagnostics(
+    name: str,
+    path: Path,
+    *,
+    cwd: Path,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Return fail-closed binary integrity and behavior diagnostics.
+
+    The probe only runs ``--version``. It does not initialize profiles, start a
+    tunnel, call OpenAI, mutate local config, or touch the MCP server.
+    """
+
+    blockers: list[str] = []
+    warnings: list[str] = []
+    resolved = path.expanduser()
+    payload: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-executable-binary-diagnostics",
+        "name": name,
+        "path": str(resolved),
+        "versionProbeArgs": [str(resolved), "--version"],
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+    if not resolved.is_file():
+        blockers.append(f"{name}-binary-not-file")
+        payload.update({"status": "blocked", "ok": False})
+        return payload
+    try:
+        payload["sha256"] = file_sha256(resolved)
+    except OSError as exc:
+        blockers.append(f"{name}-sha256-failed")
+        payload["error"] = f"{type(exc).__name__}:{exc}"
+        payload.update({"status": "blocked", "ok": False})
+        return payload
+
+    version_probe = run_command_envelope(
+        f"{name}-version",
+        [str(resolved), "--version"],
+        cwd,
+        timeout_seconds=timeout_seconds,
+    )
+    payload["versionProbe"] = version_probe
+    if not version_probe.get("ok"):
+        blockers.append(f"{name}-version-probe-failed")
+    payload.update({"status": "passed" if not blockers else "blocked", "ok": not blockers})
+    return payload
+
+
 def run_trial_readiness(
     config: AdapterConfig,
     *,
@@ -2001,7 +2059,20 @@ def build_secure_tunnel_plan(
         lambda: resolve_tunnel_client_executable(tunnel_client_path, repo_root=config.repo_root),
         required_for="OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
     )
+    tunnel_client_diagnostics = None
+    if tunnel_client_status.get("ok") and tunnel_client_status.get("path"):
+        tunnel_client_diagnostics = executable_binary_diagnostics(
+            "tunnel-client",
+            Path(str(tunnel_client_status["path"])),
+            cwd=config.repo_root,
+        )
+        tunnel_client_status["binaryDiagnostics"] = tunnel_client_diagnostics
     tunnel_client = str(tunnel_client_status.get("path") or "tunnel-client")
+    blockers: list[str] = []
+    if not tunnel_client_status.get("ok"):
+        blockers.append("tunnel-client-not-found-or-not-configured")
+    elif tunnel_client_diagnostics and not tunnel_client_diagnostics.get("ok"):
+        blockers.extend(str(blocker) for blocker in tunnel_client_diagnostics.get("blockers") or [])
     effective_tunnel_id = tunnel_id or "<tunnel_id from Platform tunnel settings>"
     mcp_command = secure_tunnel_mcp_command(config)
     init_command = [
@@ -2022,8 +2093,8 @@ def build_secure_tunnel_plan(
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-secure-tunnel-plan",
         "generatedAtUtc": utc_iso(),
-        "status": "ready" if tunnel_client_status.get("ok") else "blocked",
-        "ok": bool(tunnel_client_status.get("ok")),
+        "status": "ready" if not blockers else "blocked",
+        "ok": not blockers,
         "service": SERVER_NAME,
         "version": VERSION,
         "recommendedPath": "openai-secure-mcp-tunnel",
@@ -2071,7 +2142,7 @@ def build_secure_tunnel_plan(
         "dependencies": {
             "tunnelClient": tunnel_client_status,
         },
-        "blockers": [] if tunnel_client_status.get("ok") else ["tunnel-client-not-found-or-not-configured"],
+        "blockers": blockers,
         "warnings": [
             "This plan does not create a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or expose broad local tools.",
             "CONTROL_PLANE_API_KEY is intentionally shown as a placeholder; do not store or commit it.",

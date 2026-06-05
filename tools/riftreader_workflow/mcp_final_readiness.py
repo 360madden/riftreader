@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -284,6 +285,58 @@ def _find_executable(name: str, extra_candidates: list[Path] | None = None) -> s
     return None
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _tunnel_client_binary_diagnostics(path: str | None, repo_root: Path, *, timeout_seconds: float = 10.0) -> dict[str, Any]:
+    blockers: list[str] = []
+    payload: dict[str, Any] = {
+        "schemaVersion": 1,
+        "kind": "riftreader-mcp-tunnel-client-binary-diagnostics",
+        "path": path,
+        "versionProbeArgs": [path, "--version"] if path else None,
+        "blockers": blockers,
+        "warnings": [],
+    }
+    if not path:
+        blockers.append("tunnel-client-binary-missing")
+        payload.update({"status": "blocked", "ok": False})
+        return payload
+
+    resolved = Path(path).expanduser()
+    payload["path"] = str(resolved)
+    payload["versionProbeArgs"] = [str(resolved), "--version"]
+    if not resolved.is_file():
+        blockers.append("tunnel-client-binary-not-file")
+        payload.update({"status": "blocked", "ok": False})
+        return payload
+
+    try:
+        payload["sha256"] = _file_sha256(resolved)
+    except OSError as exc:
+        blockers.append("tunnel-client-sha256-failed")
+        payload["error"] = f"{type(exc).__name__}:{exc}"
+        payload.update({"status": "blocked", "ok": False})
+        return payload
+
+    version_probe = run_command_envelope(
+        "tunnel-client-version",
+        [str(resolved), "--version"],
+        repo_root,
+        timeout_seconds=timeout_seconds,
+    )
+    payload["versionProbe"] = version_probe
+    if not version_probe.get("ok"):
+        blockers.append("tunnel-client-version-probe-failed")
+    payload.update({"status": "passed" if not blockers else "blocked", "ok": not blockers})
+    return payload
+
+
 def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -327,15 +380,23 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
         *TUNNEL_CLIENT_DEFAULT_PATHS,
     ]
     tunnel_client = _find_executable("tunnel-client", tunnel_client_candidates)
+    tunnel_client_diagnostics = _tunnel_client_binary_diagnostics(tunnel_client, repo_root) if tunnel_client else None
+    tunnel_client_ok = bool(tunnel_client) and bool(tunnel_client_diagnostics and tunnel_client_diagnostics.get("ok"))
     dependencies["tunnel-client"] = {
-        "status": "passed" if tunnel_client else "blocked",
-        "ok": bool(tunnel_client),
+        "status": "passed" if tunnel_client_ok else "blocked",
+        "ok": tunnel_client_ok,
         "path": tunnel_client,
         "required": True,
         "requiredFor": "primary OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
+        "binaryDiagnostics": tunnel_client_diagnostics,
     }
     if not tunnel_client:
         blockers.append("dependency:missing:tunnel-client")
+    elif not tunnel_client_ok:
+        blockers.extend(
+            f"dependency:{blocker}"
+            for blocker in (tunnel_client_diagnostics or {}).get("blockers") or ["tunnel-client-diagnostics-failed"]
+        )
 
     cloudflared = _find_executable(
         "cloudflared",
