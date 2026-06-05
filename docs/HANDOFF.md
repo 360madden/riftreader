@@ -3,6 +3,30 @@
 **Compact re-entry doc.** Read this first when returning to the project.
 
 
+
+## Latest compact handoff — ChatGPT MCP dry-run diff preview — 2026-06-05 09:11 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-05-0911-chatgpt-mcp-dry-run-diff-preview-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP path now exposes a bounded
+`dryRun.diffPreview` from the existing `dry_run_latest_package_draft` tool. This
+preserves the current 10-tool contract while letting ChatGPT review the latest
+package-intake `package.diff` without arbitrary filesystem reads. The preview
+is capped at 16 KiB, reads only
+`.riftreader-local\package-intake\*\package.diff`, marks truncation explicitly,
+and blocks unsafe artifact paths without echoing arbitrary absolute paths.
+
+| Evidence | Result |
+|---|---|
+| Active adapter | `tools\riftreader_workflow\riftreader_chatgpt_mcp.py`. |
+| Tool surface | 10 allowlisted tools; no new tool-count/proof-contract churn. |
+| New review field | `dryRun.diffPreview`. |
+| Safety | Read-only, bounded, repo-local package-intake artifact preview; no `--apply`, Git, live RIFT, debugger, provider write, tunnel run, or ChatGPT connector registration. |
+| Focused validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp` passed 54 tests in 3.368s. |
+| Broader MCP validation | `python -m unittest scripts.test_local_artifact_bridge scripts.test_package_draft_review scripts.test_riftreader_chatgpt_mcp scripts.test_mcp_final_readiness scripts.test_mcp_proof_replay` passed 134 tests in 36.049s. |
+| Final ledger | `.riftreader-local\validation-runs\20260605-092746-535699\summary.md` passed in 34.756s. |
+
 ## Latest compact handoff — OpenAI Secure MCP Tunnel MCP path — 2026-06-05 05:54 UTC
 
 A new compact handoff exists at

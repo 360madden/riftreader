@@ -36,7 +36,7 @@ The adapter is designed for this safe loop:
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
 | `create_package_draft_from_inbox` | Guarded local write | Converts an explicit validated `inboxId` into an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`; never applies files or executes checks. |
 | `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
-| `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`. |
+| `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`; returns a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff` when available. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
 
 Each tool has an explicit allowlist of accepted argument keys. Unknown wrapper
@@ -104,6 +104,14 @@ synthetic `package-proposal` through `submit_package_proposal`, confirms
 `list_inbox` can see the result, creates an inert package draft with
 `create_package_draft_from_inbox`, writes only ignored `.riftreader-local`
 inbox/draft/audit/smoke artifacts, and stops the temporary loopback server.
+
+`dry_run_latest_package_draft` also compacts the package-intake result for
+ChatGPT review. Its optional `dryRun.diffPreview` is intentionally not an
+arbitrary file read: it resolves only the `artifacts.diff` path from the compact
+package-intake summary, requires the resolved file to be
+`.riftreader-local\package-intake\*\package.diff`, caps returned text at 16 KiB,
+sets `truncated=true` when clipped, and fails closed without echoing arbitrary
+absolute paths when the artifact path is unsafe.
 
 RUN THIS:
 

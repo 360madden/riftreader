@@ -168,6 +168,12 @@ class BridgeServerCase(unittest.TestCase):
         self.assertTrue(payload["safety"]["artifactReadGetHeadOnly"])
         self.assertTrue(payload["safety"]["inboxJsonPostOnly"])
 
+    def test_is_relative_to_normalizes_windows_extended_length_prefix(self) -> None:
+        parent = self.repo_root / ".riftreader-local" / "artifact-bridge-package-drafts"
+        child = pathlib.Path("\\\\?\\" + str(parent / "20260605T092317Z-d2f923589a06"))
+
+        self.assertTrue(bridge.is_relative_to(child, parent))
+
     def test_landing_page_is_markdown_and_lists_bridge_start_paths(self) -> None:
         status, headers, body = self.request("GET", f"/{self.token}/")
         self.assertEqual(status, 200)

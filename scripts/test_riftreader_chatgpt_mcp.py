@@ -162,6 +162,7 @@ def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180
         "warnings": [],
         "errors": [],
         "artifacts": {
+            "diff": str((intake_dir / "package.diff").relative_to(root)).replace("/", "\\"),
             "compactJson": str((intake_dir / "compact-package-intake-summary.json").relative_to(root)).replace("/", "\\")
         },
         "safety": {
@@ -178,6 +179,15 @@ def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180
     }
     path = intake_dir / "compact-package-intake-summary.json"
     path.write_text(json.dumps(compact, indent=2), encoding="utf-8")
+    (intake_dir / "package.diff").write_text(
+        "diff --git a/docs/proposed.md b/docs/proposed.md\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/docs/proposed.md\n"
+        "@@ -0,0 +1 @@\n"
+        "+# Proposed\n",
+        encoding="utf-8",
+    )
     os.utime(path, (1_900_000_000, 1_900_000_000))
     return path
 
@@ -519,6 +529,50 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["dryRun"]["command"]["args"][0], "cached-dry-run-artifact")
         self.assertTrue(payload["dryRun"]["safety"]["cachedDryRunArtifact"])
         self.assertTrue(payload["dryRun"]["intakeCompactSummary"]["dryRun"])
+        self.assertTrue(payload["dryRun"]["diffPreview"]["ok"])
+        self.assertEqual(payload["dryRun"]["diffPreview"]["artifactPath"], ".riftreader-local\\package-intake\\20260518-180100Z\\package.diff")
+        self.assertIn("+# Proposed", payload["dryRun"]["diffPreview"]["text"])
+        self.assertFalse(payload["dryRun"]["diffPreview"]["truncated"])
+        self.assertTrue(payload["dryRun"]["diffPreview"]["safety"]["diffArtifactUnderPackageIntake"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_dry_run_latest_package_draft_bounds_cached_diff_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Dry-run")
+            cached = make_cached_dry_run(root, draft)
+            diff_path = cached.parent / "package.diff"
+            diff_path.write_text("x" * (chatgpt_mcp.MAX_DRY_RUN_DIFF_PREVIEW_BYTES + 128), encoding="utf-8")
+            adapter = make_adapter(root)
+
+            payload = adapter.call_tool("dry_run_latest_package_draft", {"operatorOnly": True, "timeoutSeconds": 30})
+
+        preview = payload["dryRun"]["diffPreview"]
+        self.assertTrue(preview["ok"])
+        self.assertTrue(preview["truncated"])
+        self.assertEqual(len(preview["text"]), chatgpt_mcp.MAX_DRY_RUN_DIFF_PREVIEW_BYTES)
+        self.assertIn("package-intake-diff-preview-truncated", preview["warnings"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_dry_run_latest_package_draft_blocks_unsafe_diff_preview_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Dry-run")
+            cached = make_cached_dry_run(root, draft)
+            compact = json.loads(cached.read_text(encoding="utf-8"))
+            compact["artifacts"]["diff"] = str(root / "outside.diff")
+            cached.write_text(json.dumps(compact, indent=2), encoding="utf-8")
+            adapter = make_adapter(root)
+
+            payload = adapter.call_tool("dry_run_latest_package_draft", {"operatorOnly": True, "timeoutSeconds": 30})
+
+        preview = payload["dryRun"]["diffPreview"]
+        self.assertFalse(preview["ok"])
+        self.assertEqual(preview["code"], "DIFF_ARTIFACT_OUTSIDE_PACKAGE_INTAKE")
+        self.assertEqual(preview["artifactPath"], "<outside-package-intake>")
+        self.assertNotIn("outside.diff", json.dumps(preview))
         assert_repo_root_not_serialized(self, root, payload)
 
     def test_dry_run_latest_package_draft_ignores_stale_cached_summary(self) -> None:

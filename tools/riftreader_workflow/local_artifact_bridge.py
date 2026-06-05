@@ -366,18 +366,37 @@ def validate_token(token: str) -> None:
         raise BridgeError(400, "INVALID_TOKEN", "Token must be URL-safe and between 8 and 256 characters.")
 
 
+def strip_windows_extended_length_prefix(value: str) -> str:
+    if value.startswith("\\\\?\\unc\\"):
+        return "\\\\" + value[8:]
+    if value.startswith("\\\\?\\"):
+        return value[4:]
+    return value
+
+
+def absolute_display_path(path: pathlib.Path) -> str:
+    return strip_windows_extended_length_prefix(os.path.abspath(path))
+
+
+def normalized_containment_path(path: pathlib.Path) -> str:
+    return os.path.normcase(absolute_display_path(path))
+
+
 def is_relative_to(child: pathlib.Path, parent: pathlib.Path) -> bool:
     try:
-        child.relative_to(parent)
-        return True
-    except ValueError:
+        child_abs = normalized_containment_path(child)
+        parent_abs = normalized_containment_path(parent)
+        return os.path.commonpath([child_abs, parent_abs]) == parent_abs
+    except (OSError, ValueError):
         return False
 
 
 def repo_display_path(path: pathlib.Path, repo_root: pathlib.Path) -> str:
     try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
+        if not is_relative_to(path, repo_root):
+            return "<outside-repo>"
+        return pathlib.Path(os.path.relpath(absolute_display_path(path), absolute_display_path(repo_root))).as_posix()
+    except (OSError, ValueError):
         return "<outside-repo>"
 
 

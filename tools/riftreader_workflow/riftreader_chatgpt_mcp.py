@@ -64,6 +64,7 @@ SECRET_LIKE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("bearer-token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}")),
 )
 MAX_HANDOFF_BYTES = 512 * 1024
+MAX_DRY_RUN_DIFF_PREVIEW_BYTES = 16 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
@@ -908,7 +909,7 @@ class RiftReaderChatGptMcpAdapter:
                 kind="riftreader-chatgpt-mcp-dry-run-latest-package-draft",
                 extra={"command": command},
             )
-        compact_payload = compact_dry_run_payload(payload)
+        compact_payload = compact_dry_run_payload(self.config.repo_root, payload)
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-dry-run-latest-package-draft",
@@ -1109,7 +1110,111 @@ def cached_dry_run_payload_for_latest_draft(
     return None
 
 
-def compact_dry_run_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def dry_run_diff_preview(repo_root: Path, intake_summary: dict[str, Any]) -> dict[str, Any]:
+    """Return a bounded, repo-local package-intake diff preview for ChatGPT review."""
+    artifacts = intake_summary.get("artifacts") if isinstance(intake_summary.get("artifacts"), dict) else {}
+    diff_value = artifacts.get("diff")
+    preview_base = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-package-diff-preview",
+        "maxBytes": MAX_DRY_RUN_DIFF_PREVIEW_BYTES,
+        "safety": {
+            **base_safety(),
+            "readOnlyPreview": True,
+            "diffArtifactUnderPackageIntake": False,
+            "boundedBytes": True,
+            "repoSourceMutationExpected": False,
+            "applyFlagSent": False,
+        },
+    }
+    if not isinstance(diff_value, str) or not diff_value.strip():
+        return {
+            **preview_base,
+            "status": "unavailable",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_MISSING",
+            "blockers": [],
+            "warnings": ["package-intake-diff-artifact-missing"],
+        }
+    try:
+        diff_path = Path(diff_value)
+        resolved = diff_path.resolve() if diff_path.is_absolute() else (repo_root / diff_path).resolve()
+    except OSError as exc:
+        return {
+            **preview_base,
+            "status": "blocked",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_PATH_INVALID",
+            "artifactPath": "<invalid-diff-artifact-path>",
+            "blockers": [f"diff-artifact-path-invalid:{type(exc).__name__}"],
+            "warnings": [],
+        }
+    intake_root = (repo_root / ".riftreader-local" / "package-intake").resolve()
+    if not is_relative_to(resolved, intake_root):
+        return {
+            **preview_base,
+            "status": "blocked",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_OUTSIDE_PACKAGE_INTAKE",
+            "artifactPath": "<outside-package-intake>",
+            "blockers": ["diff-artifact-outside-package-intake"],
+            "warnings": [],
+        }
+    if resolved.name != "package.diff":
+        return {
+            **preview_base,
+            "status": "blocked",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_UNEXPECTED_NAME",
+            "artifactPath": rel(repo_root, resolved),
+            "blockers": ["diff-artifact-unexpected-name"],
+            "warnings": [],
+        }
+    if not resolved.is_file():
+        return {
+            **preview_base,
+            "status": "unavailable",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_NOT_FOUND",
+            "artifactPath": rel(repo_root, resolved),
+            "blockers": [],
+            "warnings": ["package-intake-diff-artifact-not-found"],
+            "safety": {**preview_base["safety"], "diffArtifactUnderPackageIntake": True},
+        }
+    try:
+        size_bytes = resolved.stat().st_size
+        with resolved.open("rb") as handle:
+            raw = handle.read(MAX_DRY_RUN_DIFF_PREVIEW_BYTES + 1)
+    except OSError as exc:
+        return {
+            **preview_base,
+            "status": "blocked",
+            "ok": False,
+            "code": "DIFF_ARTIFACT_READ_FAILED",
+            "artifactPath": rel(repo_root, resolved),
+            "blockers": [f"diff-artifact-read-failed:{type(exc).__name__}"],
+            "warnings": [],
+            "safety": {**preview_base["safety"], "diffArtifactUnderPackageIntake": True},
+        }
+    truncated = len(raw) > MAX_DRY_RUN_DIFF_PREVIEW_BYTES
+    if truncated:
+        raw = raw[:MAX_DRY_RUN_DIFF_PREVIEW_BYTES]
+    text = raw.decode("utf-8", errors="replace")
+    return {
+        **preview_base,
+        "status": "ready",
+        "ok": True,
+        "artifactPath": rel(repo_root, resolved),
+        "sizeBytes": size_bytes,
+        "truncated": truncated or size_bytes > MAX_DRY_RUN_DIFF_PREVIEW_BYTES,
+        "text": text,
+        "blockers": [],
+        "warnings": ["package-intake-diff-preview-truncated"] if truncated or size_bytes > MAX_DRY_RUN_DIFF_PREVIEW_BYTES else [],
+        "safety": {**preview_base["safety"], "diffArtifactUnderPackageIntake": True},
+    }
+
+
+def compact_dry_run_payload(repo_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     """Return a ChatGPT-safe dry-run summary without large command stdout blobs."""
     draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
     intake = payload.get("intakeCompactSummary") if isinstance(payload.get("intakeCompactSummary"), dict) else {}
@@ -1167,6 +1272,7 @@ def compact_dry_run_payload(payload: dict[str, Any]) -> dict[str, Any]:
             )
             if key in intake
         },
+        "diffPreview": dry_run_diff_preview(repo_root, intake) if intake else None,
         "blockers": list(payload.get("blockers") or []),
         "warnings": list(payload.get("warnings") or []),
         "errors": list(payload.get("errors") or []),
