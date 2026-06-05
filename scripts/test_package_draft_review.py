@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -99,6 +100,43 @@ def make_unsafe_draft(root: Path, draft_id: str) -> Path:
     }
     (draft_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return draft_dir
+
+
+def make_dry_run_summary(
+    root: Path,
+    package_root: Path,
+    *,
+    run_id: str = "20260518T140000Z-dry-run",
+    generated_at: str = "2026-05-18T14:00:00Z",
+    diff_text: str = "--- a/docs/proposed.md\n+++ b/docs/proposed.md\n",
+) -> tuple[Path, str]:
+    intake_dir = root / ".riftreader-local" / "package-intake" / run_id
+    intake_dir.mkdir(parents=True)
+    diff_path = intake_dir / "package.diff"
+    diff_path.write_text(diff_text, encoding="utf-8")
+    diff_sha256 = hashlib.sha256(diff_path.read_bytes()).hexdigest()
+    summary = {
+        "schemaVersion": 1,
+        "kind": "riftreader-package-intake-summary",
+        "generatedAtUtc": generated_at,
+        "status": "passed",
+        "dryRun": True,
+        "packagePath": str(package_root.resolve()),
+        "packageRoot": str(package_root.resolve()),
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "changedFiles": ["docs/proposed.md"],
+        "artifacts": {
+            "intakeDir": str(intake_dir.relative_to(root)).replace("/", "\\"),
+            "summaryJson": str((intake_dir / "package-intake-summary.json").relative_to(root)).replace("/", "\\"),
+            "diff": str(diff_path.relative_to(root)).replace("/", "\\"),
+        },
+        "safety": {"applyFlagSent": False},
+    }
+    summary_path = intake_dir / "package-intake-summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary_path, diff_sha256
 
 
 class PackageDraftReviewTests(unittest.TestCase):
@@ -262,6 +300,89 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["dryRunOnly"])
         self.assertEqual(payload["intakeCompactSummary"]["status"], "passed")
         self.assertTrue(payload["intakeCompactSummary"]["dryRun"])
+
+    def test_apply_preflight_latest_operator_binds_fresh_dry_run_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Apply preflight me")
+            package_root = draft / "package"
+            summary_path, diff_sha256 = make_dry_run_summary(root, package_root)
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=10**9,
+            )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["approvalFacts"]["draftId"], "20260518T130000Z-bbbbbbbbbbbb")
+        self.assertEqual(payload["approvalFacts"]["dryRunDiffSha256"], diff_sha256)
+        self.assertFalse(payload["applyToolExposed"])
+        self.assertFalse(payload["safety"]["applyFlagSent"])
+        self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
+
+    def test_apply_preflight_blocks_diff_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Hash mismatch")
+            summary_path, _diff_sha256 = make_dry_run_summary(root, draft / "package")
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256="0" * 64,
+                max_age_seconds=10**9,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("APPLY_DRY_RUN_HASH_MISMATCH", payload["blockers"])
+
+    def test_apply_preflight_blocks_stale_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Stale dry run")
+            summary_path, diff_sha256 = make_dry_run_summary(root, draft / "package", generated_at="2020-01-01T00:00:00Z")
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=1,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("APPLY_DRY_RUN_STALE", payload["blockers"])
+
+    def test_apply_preflight_blocks_self_test_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(
+                root,
+                "20260518T130000Z-bbbbbbbbbbbb",
+                title="Package draft review self-test proposal",
+                self_test=True,
+            )
+            summary_path, diff_sha256 = make_dry_run_summary(root, draft / "package")
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                operator_only=False,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=10**9,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("APPLY_DRAFT_SELF_TEST_BLOCKED", payload["blockers"])
 
     def test_self_test_runs_package_proposal_to_dry_run_loop(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

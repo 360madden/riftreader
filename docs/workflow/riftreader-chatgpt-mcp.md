@@ -83,11 +83,15 @@ the `fullProductStagePlan` field returned by `get_workflow_control_plan`.
 The first future repo-source-mutation contract is documented in
 `docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md` and is surfaced
 only as `futureToolContracts.apply_latest_package_draft` with
-`status=planned-not-exposed`; it is not part of the MCP tool manifest.
+`status=planned-not-exposed`; it is not part of the MCP tool manifest. Its
+Stage 18 local-only preflight helper is
+`tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`,
+which validates draft identity, dry-run freshness, and diff hash binding without
+passing `--apply`.
 
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
-| Apply latest package draft to repo | Stage 17 design; not exposed | Explicit operator approval plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
+| Apply latest package draft to repo | Stage 18 preflight helper; not exposed | Explicit operator approval plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |

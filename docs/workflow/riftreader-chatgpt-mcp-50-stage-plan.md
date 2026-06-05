@@ -11,7 +11,8 @@ Current stage: **Stage 1 — Current baseline and proof gap**. The local 10-tool
 - Expand in this order: proof current product, apply, local commit, push, bounded commands, provider writes, live RIFT read/control, debugger/CE, auth/roles, eval/dashboard/release.
 - Every mutating tool must return explicit safety truth: Git mutation, provider writes, input/movement, public tunnel, CE/x64dbg, and apply flags.
 - Prefer Python helpers for orchestration and thin `.cmd` launchers for operator convenience.
-- Stage 17 apply design contract: `docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md`; it is plan metadata only until the tool is deliberately exposed in Stage 20.
+- Stage 17 apply design contract: `docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md`; it remains plan metadata only until the tool is deliberately exposed in Stage 20.
+- Stage 18 local-only preflight helper: `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`; it never passes `--apply`.
 
 ## Stage table
 
@@ -33,8 +34,8 @@ Current stage: **Stage 1 — Current baseline and proof gap**. The local 10-tool
 | 14 | Dry-run diff proof | From ChatGPT, run dry_run_latest_package_draft and receive bounded diffPreview. | Proof records bounded bytes, text length, truncation boolean, and package-intake path confinement. | pending |
 | 15 | Final gate pass for current 10-tool product | Replay proof and rerun final gate after CI/current proof are fresh. | Final gate passes for current no-apply ChatGPT MCP product. | pending |
 | 16 | Release handoff for current product | Create and commit a compact handoff for the proven 10-tool Secure Tunnel product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
-| 17 | Apply-tool design spec | Design apply_latest_package_draft with exact inputs, approval copy, dry-run hash binding, and fail-closed states. | Design doc exists, control-plan metadata is surfaced, and tests prove the tool remains unexposed. | in progress |
-| 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | pending |
+| 17 | Apply-tool design spec | Design apply_latest_package_draft with exact inputs, approval copy, dry-run hash binding, and fail-closed states. | Design doc exists, control-plan metadata is surfaced, and tests prove the tool remains unexposed. | complete-local |
+| 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | complete-local |
 | 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper can self-test blocked and approved paths locally with no Git mutation. | pending |
 | 20 | Expose apply_latest_package_draft | Expose apply as an MCP tool only after helper gates pass and descriptions/outputSchema are complete. | Tool count intentionally changes with updated proof contract and tests. | pending |
 | 21 | Apply actual-client proof | Prove ChatGPT can apply only an approved reviewed draft and receive post-apply evidence. | Proof records repo source mutation truthfully and blocks unapproved apply. | pending |

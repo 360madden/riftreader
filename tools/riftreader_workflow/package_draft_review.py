@@ -9,8 +9,10 @@ existing package intake helper without --apply.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 SCHEMA_VERSION = 1
 DRAFT_ROOT_REL = Path(".riftreader-local") / "artifact-bridge-package-drafts"
+PACKAGE_INTAKE_ROOT_REL = Path(".riftreader-local") / "package-intake"
 SELF_TEST_TARGET = "docs/workflow/package-draft-review-selftest-preview.md"
 
 
@@ -40,11 +43,38 @@ def draft_root(repo_root: Path) -> Path:
     return (repo_root / DRAFT_ROOT_REL).resolve()
 
 
+def package_intake_root(repo_root: Path) -> Path:
+    return (repo_root / PACKAGE_INTAKE_ROOT_REL).resolve()
+
+
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"json-not-object:{path}")
     return value
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def parse_utc_timestamp(value: Any) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
 
 
 def safe_resolve_repo_path(repo_root: Path, value: Any) -> Path | None:
@@ -385,6 +415,180 @@ def dry_run_latest_package_draft(repo_root: Path, timeout_seconds: float, *, ope
     }
 
 
+def resolve_intake_artifact_path(repo_root: Path, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        candidate = repo_root / candidate
+    candidate = candidate.resolve()
+    intake_root = package_intake_root(repo_root)
+    if not is_relative_to(candidate, intake_root):
+        return None
+    return candidate
+
+
+def summarize_dry_run_summary(
+    repo_root: Path,
+    summary_path: Path,
+    *,
+    package_root: Path,
+    now_timestamp: float | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    intake_root = package_intake_root(repo_root)
+    if not is_relative_to(summary_path, intake_root):
+        return None, "APPLY_DRY_RUN_ROOT_INVALID"
+    if not summary_path.is_file():
+        return None, "APPLY_DRY_RUN_MISSING"
+    try:
+        summary = load_json(summary_path)
+    except Exception as exc:  # noqa: BLE001 - preserve exact blocker for preflight.
+        return None, f"APPLY_DRY_RUN_JSON_INVALID:{type(exc).__name__}"
+    if summary.get("kind") != "riftreader-package-intake-summary":
+        return None, "APPLY_DRY_RUN_KIND_INVALID"
+    if summary.get("dryRun") is not True:
+        return None, "APPLY_DRY_RUN_NOT_DRY_RUN"
+    if summary.get("status") != "passed":
+        return None, "APPLY_DRY_RUN_NOT_PASSED"
+
+    summary_package_root = safe_resolve_repo_path(repo_root, summary.get("packageRoot"))
+    if summary_package_root != package_root:
+        return None, "APPLY_DRY_RUN_PACKAGE_ROOT_MISMATCH"
+
+    artifacts = summary.get("artifacts") if isinstance(summary.get("artifacts"), dict) else {}
+    diff_path = resolve_intake_artifact_path(repo_root, artifacts.get("diff"))
+    if diff_path is None or not diff_path.is_file():
+        return None, "APPLY_DRY_RUN_DIFF_MISSING"
+
+    generated_timestamp = parse_utc_timestamp(summary.get("generatedAtUtc"))
+    if generated_timestamp is None:
+        generated_timestamp = summary_path.stat().st_mtime
+    reference_timestamp = datetime.now(timezone.utc).timestamp() if now_timestamp is None else now_timestamp
+    age_seconds = max(0.0, reference_timestamp - generated_timestamp)
+    diff_sha256 = sha256_file(diff_path)
+    return (
+        {
+            "summaryPath": rel(repo_root, summary_path),
+            "diffPath": rel(repo_root, diff_path),
+            "generatedAtUtc": summary.get("generatedAtUtc"),
+            "ageSeconds": round(age_seconds, 3),
+            "diffSha256": diff_sha256,
+            "changedFiles": summary.get("changedFiles") or [],
+            "changedFileCount": len(summary.get("changedFiles") or []),
+        },
+        None,
+    )
+
+
+def discover_matching_dry_runs(repo_root: Path, package_root: Path) -> list[dict[str, Any]]:
+    root = package_intake_root(repo_root)
+    if not root.is_dir():
+        return []
+    items: list[dict[str, Any]] = []
+    for summary_path in root.glob("*/package-intake-summary.json"):
+        item, blocker = summarize_dry_run_summary(repo_root, summary_path.resolve(), package_root=package_root)
+        if item is not None and blocker is None:
+            items.append(item)
+    items.sort(key=lambda item: (float(item.get("ageSeconds") or 0.0), str(item.get("summaryPath") or "")))
+    return items
+
+
+def apply_preflight_latest_package_draft(
+    repo_root: Path,
+    *,
+    operator_only: bool = True,
+    dry_run_summary_path: str | None = None,
+    dry_run_diff_sha256: str | None = None,
+    max_age_seconds: float = 86400.0,
+) -> dict[str, Any]:
+    latest_payload = latest_package_draft(repo_root, operator_only=operator_only)
+    blockers: list[str] = []
+    warnings: list[str] = []
+    draft = latest_payload.get("draft") if isinstance(latest_payload.get("draft"), dict) else None
+    package_root: Path | None = None
+    dry_run: dict[str, Any] | None = None
+
+    if not latest_payload.get("ok") or draft is None:
+        blockers.append(str(latest_payload.get("code") or "APPLY_DRAFT_NOT_FOUND"))
+    else:
+        draft_dir = safe_resolve_repo_path(repo_root, draft.get("draftRoot"))
+        package_root = safe_resolve_repo_path(repo_root, draft.get("packageRoot"))
+        root = draft_root(repo_root)
+        if draft.get("selfTest") is True:
+            blockers.append("APPLY_DRAFT_SELF_TEST_BLOCKED")
+        if draft_dir is None or not is_relative_to(draft_dir, root):
+            blockers.append("APPLY_DRAFT_ROOT_INVALID")
+        if package_root is None or not is_relative_to(package_root, root):
+            blockers.append("APPLY_PACKAGE_TARGET_INVALID")
+        elif not package_root.is_dir():
+            blockers.append("APPLY_DRAFT_NOT_FOUND")
+
+    if package_root is not None and not blockers:
+        if dry_run_summary_path:
+            summary_path = resolve_intake_artifact_path(repo_root, dry_run_summary_path)
+            if summary_path is None:
+                blockers.append("APPLY_DRY_RUN_ROOT_INVALID")
+            else:
+                dry_run, blocker = summarize_dry_run_summary(repo_root, summary_path, package_root=package_root)
+                if blocker:
+                    blockers.append(blocker)
+        else:
+            matches = discover_matching_dry_runs(repo_root, package_root)
+            if matches:
+                dry_run = matches[0]
+            else:
+                blockers.append("APPLY_DRY_RUN_MISSING")
+
+    if dry_run is not None:
+        if max_age_seconds >= 0 and float(dry_run.get("ageSeconds") or 0.0) > max_age_seconds:
+            blockers.append("APPLY_DRY_RUN_STALE")
+        if dry_run_diff_sha256 and dry_run.get("diffSha256") != dry_run_diff_sha256:
+            blockers.append("APPLY_DRY_RUN_HASH_MISMATCH")
+        if not dry_run_diff_sha256:
+            warnings.append("dry_run_diff_sha256_not_supplied_for_binding")
+
+    status = "ready" if not blockers else "blocked"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-package-draft-apply-preflight-latest-operator"
+        if operator_only
+        else "riftreader-package-draft-apply-preflight-latest",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "ready",
+        "applyToolExposed": False,
+        "operatorOnly": operator_only,
+        "draft": draft,
+        "dryRun": dry_run,
+        "blockers": blockers,
+        "warnings": warnings,
+        "approvalFacts": {
+            "draftId": draft.get("draftId") if draft else None,
+            "dryRunSummaryPath": dry_run.get("summaryPath") if dry_run else None,
+            "dryRunDiffSha256": dry_run.get("diffSha256") if dry_run else None,
+            "changedFileCount": dry_run.get("changedFileCount") if dry_run else None,
+        },
+        "safety": {
+            **safety_flags(),
+            "readOnlyPreflight": True,
+            "applyFlagSent": False,
+            "repoSourceMutationExpected": False,
+            "gitMutation": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+            "mcpToolExposed": False,
+        },
+        "next": [
+            "Review approvalFacts before any future apply approval token is generated.",
+            "Do not call package intake with --apply until a separate gated helper and MCP exposure stage exist.",
+            "Commit/push, shell execution, RIFT input, CE, and x64dbg remain out of scope for this preflight.",
+        ],
+    }
+
+
 def self_test_package_proposal() -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -508,12 +712,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicitly run package intake dry-run for the newest operator draft. Never passes --apply.",
     )
     mode.add_argument(
+        "--apply-preflight-latest-operator",
+        action="store_true",
+        help="Read-only future-apply preflight for the newest operator draft. Never passes --apply.",
+    )
+    mode.add_argument(
         "--self-test",
         action="store_true",
         help="Run a local proposal -> inbox -> draft -> dry-run self-test. Writes ignored .riftreader-local artifacts only.",
     )
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root; auto-detected by default.")
     parser.add_argument("--timeout-seconds", type=float, default=180.0, help="Dry-run command timeout.")
+    parser.add_argument("--dry-run-summary-path", default=None, help="Optional package-intake-summary.json to bind.")
+    parser.add_argument("--dry-run-diff-sha256", default=None, help="Optional expected SHA-256 for the dry-run diff.")
+    parser.add_argument("--max-age-seconds", type=float, default=86400.0, help="Maximum dry-run age for apply preflight.")
     parser.add_argument("--json", action="store_true", help="Emit JSON. Present for wrapper consistency.")
     return parser
 
@@ -531,6 +743,14 @@ def main(argv: list[str] | None = None) -> int:
         payload = dry_run_latest_package_draft(repo_root, args.timeout_seconds)
     elif args.dry_run_latest_operator:
         payload = dry_run_latest_package_draft(repo_root, args.timeout_seconds, operator_only=True)
+    elif args.apply_preflight_latest_operator:
+        payload = apply_preflight_latest_package_draft(
+            repo_root,
+            operator_only=True,
+            dry_run_summary_path=args.dry_run_summary_path,
+            dry_run_diff_sha256=args.dry_run_diff_sha256,
+            max_age_seconds=args.max_age_seconds,
+        )
     else:
         payload = run_self_test(repo_root, args.timeout_seconds)
     print(json.dumps(payload, indent=2, sort_keys=True))

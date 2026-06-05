@@ -266,8 +266,15 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
     "targetToolName": "apply_latest_package_draft",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
     "stageRange": [17, 18, 19, 20, 21, 22],
-    "currentStage": 17,
+    "currentStage": 18,
     "exposureStatus": "not-exposed",
+    "preflightHelper": {
+        "status": "implemented-local-only",
+        "module": "tools/riftreader_workflow/package_draft_review.py",
+        "cliMode": "--apply-preflight-latest-operator",
+        "mutatesRepo": False,
+        "passesApplyFlag": False,
+    },
     "argumentKeys": [
         "operatorOnly",
         "draftId",

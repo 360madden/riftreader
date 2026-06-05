@@ -823,7 +823,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             future_contract["designPath"],
             "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
         )
-        self.assertEqual(future_contract["currentStage"], 17)
+        self.assertEqual(future_contract["currentStage"], 18)
+        self.assertEqual(future_contract["preflightHelper"]["status"], "implemented-local-only")
+        self.assertFalse(future_contract["preflightHelper"]["mutatesRepo"])
+        self.assertFalse(future_contract["preflightHelper"]["passesApplyFlag"])
         self.assertIn("dryRunDiffSha256", future_contract["argumentKeys"])
         self.assertIn("diff-hash-binding", future_contract["requiredGates"])
         self.assertIn("APPLY_DRY_RUN_HASH_MISMATCH", future_contract["failClosedBlockers"])
