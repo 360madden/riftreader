@@ -2,6 +2,25 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — Validation ledger blocked-safe status handling — 2026-06-05 11:14 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1114-validation-ledger-blocked-safe-status-handoff.md`.
+
+The timestamped validation ledger `full-local` tier now treats known helper
+exit code `2` from the decision packet and workflow-status helpers as expected
+blocked-safe evidence instead of failed CI. This lets full local validation keep
+running through the repo's current proof-recovery blocker while still recording
+explicit warnings for expected nonzero status exits.
+
+| Evidence | Result |
+|---|---|
+| Root cause | `full-local` previously failed fast when `decision-packet` returned expected blocked-safe exit `2`. |
+| Code path | `tools/riftreader_workflow/validation_ledger.py`. |
+| Regression test | `python -m unittest scripts.test_validation_ledger` passed 10 tests in 9.811s. |
+| Full local validation | `.riftreader-local/validation-runs/20260605-110550-722733/summary.md` passed in 470.565s with expected status-exit warnings. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — ChatGPT MCP Mission Control final-gate truth — 2026-06-05 10:56 UTC
 
 A new compact handoff exists at

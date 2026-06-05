@@ -78,6 +78,22 @@ class ValidationLedgerTests(unittest.TestCase):
         self.assertFalse(summary["commands"][0]["ok"])
         self.assertTrue(summary["errors"])
 
+    def test_expected_nonzero_status_exit_passes_with_warning(self):
+        summary = self.run_ledger(
+            "--tier",
+            "custom",
+            "--command-json",
+            self.command_json(
+                args=[sys.executable, "-c", "import sys; sys.exit(2)"],
+                expectedExitCodes=[0, 2],
+            ),
+        )
+
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["commands"][0]["exitCode"], 2)
+        self.assertTrue(summary["commands"][0]["ok"])
+        self.assertTrue(any("command-returned-expected-status:test-command:exit=2" == warning for warning in summary["warnings"]))
+
     def test_timeout_records_timed_out_and_failed(self):
         summary = self.run_ledger(
             "--tier",

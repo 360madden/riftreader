@@ -324,9 +324,18 @@ def full_local_specs() -> list[CommandSpec]:
             phase="workflow",
             timeout_seconds=180.0,
             budget_seconds=COMMAND_BUDGET_SECONDS["decision-packet"],
+            expected_exit_codes=(0, STATUS_EXIT_CODES["blocked"]),
         ),
         spec("unittest-discover", [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py"], tier=tier, phase="python-tests", timeout_seconds=900.0, budget_seconds=COMMAND_BUDGET_SECONDS["unittest-discover"]),
-        spec("workflow-status", ["cmd", "/c", "scripts\\riftreader-workflow-status.cmd", "--compact-json"], tier=tier, phase="workflow", timeout_seconds=180.0, budget_seconds=120.0),
+        spec(
+            "workflow-status",
+            ["cmd", "/c", "scripts\\riftreader-workflow-status.cmd", "--compact-json"],
+            tier=tier,
+            phase="workflow",
+            timeout_seconds=180.0,
+            budget_seconds=120.0,
+            expected_exit_codes=(0, STATUS_EXIT_CODES["blocked"]),
+        ),
         spec("tool-catalog", ["cmd", "/c", "scripts\\riftreader-tool-catalog.cmd", "--compact-json"], tier=tier, phase="workflow", timeout_seconds=180.0, budget_seconds=120.0),
         spec("dotnet-restore", ["dotnet", "restore", "RiftReader.slnx"], tier=tier, phase="dotnet", timeout_seconds=300.0, budget_seconds=COMMAND_BUDGET_SECONDS["dotnet-restore"]),
         spec("dotnet-build", ["dotnet", "build", "RiftReader.slnx", "--no-restore", "--configuration", "Release"], tier=tier, phase="dotnet", timeout_seconds=420.0, budget_seconds=COMMAND_BUDGET_SECONDS["dotnet-build"]),
@@ -535,6 +544,9 @@ def summarize_runs(commands: list[dict[str, Any]]) -> tuple[list[dict[str, Any]]
     for cmd in commands:
         if cmd.get("slow"):
             warnings.append(f"slow-command:{cmd.get('label')}:{cmd.get('durationSeconds')}s")
+        exit_code = cmd.get("exitCode")
+        if cmd.get("ok") and exit_code not in (None, 0):
+            warnings.append(f"command-returned-expected-status:{cmd.get('label')}:exit={exit_code}")
         if cmd.get("blocked"):
             blockers.append(f"command-blocked:{cmd.get('label')}:{cmd.get('error')}")
         elif not cmd.get("ok"):

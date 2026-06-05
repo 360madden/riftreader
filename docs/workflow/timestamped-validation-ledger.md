@@ -103,6 +103,13 @@ python tools\riftreader_workflow\validation_ledger.py --tier full-local --heartb
 
 Exit codes are `0` passed, `1` failed, and `2` blocked.
 
+Some repo status helpers intentionally return exit code `2` for a safe blocked
+state. The `full-local` tier treats known status helpers such as the decision
+packet and workflow status as expected when they return `0` or `2`; a `2` is
+recorded as a warning like
+`command-returned-expected-status:decision-packet:exit=2` rather than stopping
+the rest of local CI. Unexpected nonzero exits still fail the run.
+
 ## Handoff usage
 
 Every substantial handoff should include the latest ledger artifact path and a
