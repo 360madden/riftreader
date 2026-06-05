@@ -27,10 +27,11 @@ REQUIRED_FIELDS = (
     "submitPackageProposalSucceeded",
     "inboxId",
     "listInboxSawInboxId",
+    "createPackageDraftSucceeded",
     "draftId",
     "dryRunSucceeded",
 )
-EXPECTED_CHATGPT_MCP_TOOL_COUNT = 9
+EXPECTED_CHATGPT_MCP_TOOL_COUNT = 10
 
 
 def proof_template() -> dict[str, Any]:
@@ -49,6 +50,7 @@ def proof_template() -> dict[str, Any]:
         "submitPackageProposalSucceeded": False,
         "inboxId": "",
         "listInboxSawInboxId": False,
+        "createPackageDraftSucceeded": False,
         "draftId": "",
         "dryRunSucceeded": False,
         "notes": "Fill this with actual ChatGPT-side observations, then record with --record --input proof.json.",
@@ -81,12 +83,16 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append("submit-succeeded-but-inbox-id-missing")
     if proof.get("submitPackageProposalSucceeded") is True and proof.get("listInboxSawInboxId") is not True:
         blockers.append("submit-succeeded-but-list-inbox-did-not-see-id")
+    if proof.get("createPackageDraftSucceeded") is not True:
+        blockers.append("create-package-draft-not-confirmed")
     if proof.get("chatgptRegistrationSucceeded") is not True:
         blockers.append("chatgpt-registration-not-confirmed")
     if proof.get("templateFetched") is not True:
         blockers.append("template-fetch-not-confirmed")
     if proof.get("dryRunSucceeded") is not True:
         blockers.append("dry-run-not-confirmed")
+    if proof.get("createPackageDraftSucceeded") is True and not proof.get("draftId"):
+        blockers.append("create-draft-succeeded-but-draft-id-missing")
     if not proof.get("draftId"):
         blockers.append("draft-id-missing")
     if proof.get("dryRunSucceeded") is True and not proof.get("draftId"):
@@ -108,6 +114,7 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Health repoName: `{health.get('repoName')}`",
         f"- absoluteRepoRootExposed: `{health.get('absoluteRepoRootExposed')}`",
         f"- Inbox ID: `{proof.get('inboxId')}`",
+        f"- Package draft created: `{proof.get('createPackageDraftSucceeded')}`",
         f"- Draft ID: `{proof.get('draftId')}`",
         f"- Dry-run succeeded: `{proof.get('dryRunSucceeded')}`",
         "",

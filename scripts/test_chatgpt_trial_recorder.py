@@ -30,7 +30,7 @@ def valid_proof() -> dict[str, object]:
         "schemaVersion": 1,
         "publicMcpUrl": "https://example.trycloudflare.com/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 9,
+        "toolCount": 10,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -40,6 +40,7 @@ def valid_proof() -> dict[str, object]:
         "submitPackageProposalSucceeded": True,
         "inboxId": "20260519T010000Z-abcdef",
         "listInboxSawInboxId": True,
+        "createPackageDraftSucceeded": True,
         "draftId": "20260519T010100Z-abcdef",
         "dryRunSucceeded": True,
         "notes": "Observed manually in ChatGPT Developer Mode.",
@@ -52,7 +53,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         for field in recorder.REQUIRED_FIELDS:
             self.assertIn(field, payload)
-        self.assertEqual(payload["toolCount"], 9)
+        self.assertEqual(payload["toolCount"], 10)
         self.assertEqual(payload["health"]["repoRoot"], ".")
         self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
 
@@ -83,7 +84,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         blockers = recorder.validate_proof(proof)
 
-        self.assertIn("tool-count-not-9:7", blockers)
+        self.assertIn("tool-count-not-10:7", blockers)
 
     def test_rejects_unredacted_repo_root(self) -> None:
         proof = valid_proof()
@@ -122,7 +123,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertEqual(payload["status"], "blocked")
-        self.assertIn("tool-count-not-9:99", payload["blockers"])
+        self.assertIn("tool-count-not-10:99", payload["blockers"])
 
 
 if __name__ == "__main__":

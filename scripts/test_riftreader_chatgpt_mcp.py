@@ -249,9 +249,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
+        self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
@@ -429,6 +431,44 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["inbox"]["count"], 1)
         self.assertEqual(payload["inbox"]["items"][0]["messageKind"], "package-proposal")
+
+    def test_create_package_draft_from_inbox_requires_explicit_valid_inbox_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+
+            missing = adapter.call_tool("create_package_draft_from_inbox", {})
+            malformed = adapter.call_tool("create_package_draft_from_inbox", {"inboxId": "../outside"})
+
+        self.assertFalse(missing["ok"])
+        self.assertEqual(missing["code"], "INBOX_ID_REQUIRED")
+        self.assertFalse(malformed["ok"])
+        self.assertEqual(malformed["code"], "INBOX_ID_INVALID")
+
+    def test_create_package_draft_from_inbox_writes_only_local_inert_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            submitted = adapter.call_tool("submit_package_proposal", {"proposal": package_proposal()})
+
+            payload = adapter.call_tool("create_package_draft_from_inbox", {"inboxId": submitted["inboxId"]})
+
+            target = root / "docs" / "proposed.md"
+            draft_root = root / payload["draft"]["draftRoot"]
+            summary_path = root / payload["draft"]["summaryPath"]
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["status"], "created")
+            self.assertEqual(payload["inboxId"], submitted["inboxId"])
+            self.assertTrue(draft_root.is_dir())
+            self.assertTrue(summary_path.is_file())
+            self.assertFalse(target.exists())
+            self.assertTrue(payload["safety"]["localPackageDraftOnly"])
+            self.assertTrue(payload["safety"]["explicitInboxIdRequired"])
+            self.assertFalse(payload["safety"]["applyFlagSent"])
+            self.assertFalse(payload["safety"]["gitMutation"])
 
     def test_review_latest_package_draft_defaults_to_operator_draft(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -906,6 +946,12 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 },
                 "listInboxAfterSubmitIsError": False,
                 "listInboxAfterSubmitStructuredContent": {"ok": True},
+                "createPackageDraftIsError": False,
+                "createPackageDraftStructuredContent": {
+                    "ok": True,
+                    "draftId": "20260519T000000Z-test",
+                    "safety": {"localPackageDraftOnly": True, "applyFlagSent": False},
+                },
             }
 
             async def fake_transport_client_with_retry(*args: object, **kwargs: object) -> dict[str, object]:
@@ -927,6 +973,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-chatgpt-mcp-proposal-transport-smoke")
         self.assertTrue(payload["safety"]["proposalSubmitTransportCovered"])
         self.assertTrue(payload["safety"]["proposalSubmitWritesLocalInboxOnly"])
+        self.assertTrue(payload["safety"]["packageDraftCreateTransportCovered"])
+        self.assertTrue(payload["safety"]["packageDraftWritesLocalOnly"])
         self.assertTrue(summary_exists)
         self.assertEqual(summary_payload["artifactPaths"], payload["artifactPaths"])
 
@@ -1201,10 +1249,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                             },
                             "listInboxAfterSubmitIsError": False,
                             "listInboxAfterSubmitStructuredContent": {"ok": True, "count": 1},
+                            "createPackageDraftIsError": False,
+                            "createPackageDraftStructuredContent": {
+                                "ok": True,
+                                "draftId": "20260519T000000Z-test",
+                                "safety": {"localPackageDraftOnly": True, "applyFlagSent": False},
+                            },
                         },
                         "safety": {
                             "proposalSubmitTransportCovered": True,
                             "proposalSubmitWritesLocalInboxOnly": True,
+                            "packageDraftCreateTransportCovered": True,
+                            "packageDraftWritesLocalOnly": True,
                         },
                     },
                 ) as transport_mock,
@@ -1223,7 +1279,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["stages"]["transport_smoke"]["client"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
         self.assertFalse(payload["stages"]["transport_smoke"]["client"]["submitPackageProposalIsError"])
         self.assertTrue(payload["stages"]["transport_smoke"]["client"]["submitPackageProposal"]["noRepoTargetWrites"])
+        self.assertFalse(payload["stages"]["transport_smoke"]["client"]["createPackageDraftIsError"])
+        self.assertTrue(payload["stages"]["transport_smoke"]["client"]["createPackageDraft"]["localPackageDraftOnly"])
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["proposalSubmitTransportCovered"])
+        self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftCreateTransportCovered"])
         self.assertTrue(payload["safety"]["trialReadinessLocalOnly"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertTrue(summary_exists)

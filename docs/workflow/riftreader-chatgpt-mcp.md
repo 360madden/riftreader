@@ -16,9 +16,11 @@ The adapter is designed for this safe loop:
 2. ChatGPT fetches the package-proposal template.
 3. ChatGPT submits an operator-approved `package-proposal`.
 4. The proposal is stored only under `.riftreader-local`.
-5. Operator/Codex reviews inbox and inert package drafts before any separate
+5. ChatGPT can create an inert package draft from a specific inbox proposal
+   under `.riftreader-local` only.
+6. Operator/Codex reviews inbox and inert package drafts before any separate
    dry-run/apply decision.
-6. ChatGPT can request a read-only workflow control plan with safe next actions,
+7. ChatGPT can request a read-only workflow control plan with safe next actions,
    explicit staging/check commands, bidirectional data-transfer steps, and
    gated boundaries.
 
@@ -32,6 +34,7 @@ The adapter is designed for this safe loop:
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
+| `create_package_draft_from_inbox` | Guarded local write | Converts an explicit validated `inboxId` into an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`; never applies files or executes checks. |
 | `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
 | `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
@@ -97,8 +100,9 @@ cd /d "C:\RIFT MODDING\RiftReader"
 To prove the guarded write-shaped MCP tool over the same real SDK/client
 transport before using ChatGPT, run the proposal transport smoke. It submits a
 synthetic `package-proposal` through `submit_package_proposal`, confirms
-`list_inbox` can see the result, writes only ignored `.riftreader-local`
-inbox/audit/smoke artifacts, and stops the temporary loopback server.
+`list_inbox` can see the result, creates an inert package draft with
+`create_package_draft_from_inbox`, writes only ignored `.riftreader-local`
+inbox/draft/audit/smoke artifacts, and stops the temporary loopback server.
 
 RUN THIS:
 
@@ -110,7 +114,8 @@ cd /d "C:\RIFT MODDING\RiftReader"
 For a single compact local go/no-go gate before any public tunnel or ChatGPT
 registration, run trial readiness. This runs the handler self-test, SDK
 metadata validation, loopback transport smoke including a synthetic
-`submit_package_proposal` call, optional OpenAI `tunnel-client`/`curl`
+`submit_package_proposal` plus inert package-draft creation call, optional
+OpenAI `tunnel-client`/`curl`
 readiness checks, and records Cloudflare only as a deprecated fallback. It
 writes a compact summary under
 `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`.
@@ -204,7 +209,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, `tunnel-client` dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
-| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, draft, or dry-run proof gaps. |
+| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, package-draft creation, draft, or dry-run proof gaps. |
 | Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Generates explicit `git add -- <path>` checklist and commit-message draft only; `--markdown` prints a review packet; it never stages, commits, or pushes. |
 | Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus actual ChatGPT client proof and reports whether Phase 1 is complete or externally blocked. |
 

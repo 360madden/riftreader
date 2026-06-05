@@ -83,6 +83,7 @@ EXPECTED_TOOL_ORDER = (
     "get_package_proposal_template",
     "submit_package_proposal",
     "list_inbox",
+    "create_package_draft_from_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
     "get_workflow_control_plan",
@@ -94,6 +95,7 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_package_proposal_template": frozenset(),
     "submit_package_proposal": frozenset({"proposal"}),
     "list_inbox": frozenset(),
+    "create_package_draft_from_inbox": frozenset({"inboxId"}),
     "review_latest_package_draft": frozenset({"operatorOnly"}),
     "dry_run_latest_package_draft": frozenset({"operatorOnly", "timeoutSeconds"}),
     "get_workflow_control_plan": frozenset(),
@@ -183,6 +185,18 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             "without reading arbitrary files or applying proposal content."
         ),
         read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "create_package_draft_from_inbox": ToolSpec(
+        name="create_package_draft_from_inbox",
+        title="Create Package Draft From Inbox",
+        description=(
+            "Use this when the operator explicitly wants ChatGPT to convert a specific validated inbox package-proposal "
+            "into an inert local package draft under .riftreader-local for review. This never applies files, executes checks, "
+            "stages, commits, pushes, starts tunnels, registers ChatGPT, sends RIFT input, or touches CE/x64dbg."
+        ),
+        read_only=False,
         destructive=False,
         open_world=False,
     ),
@@ -445,7 +459,7 @@ def result_summary(result: dict[str, Any]) -> dict[str, Any]:
         "code": result.get("code"),
         "kind": result.get("kind"),
         "inboxId": result.get("inboxId"),
-        "draftId": draft.get("draftId"),
+        "draftId": draft.get("draftId") or result.get("draftId"),
         "artifactPaths": artifacts,
         "files": files,
     }
@@ -512,6 +526,7 @@ class RiftReaderChatGptMcpAdapter:
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
                 "list_inbox": lambda _: self.list_inbox(),
+                "create_package_draft_from_inbox": lambda call_args: self.create_package_draft_from_inbox(call_args.get("inboxId")),
                 "review_latest_package_draft": lambda call_args: self.review_latest_package_draft(
                     operator_only=optional_bool(call_args.get("operatorOnly"), field_name="operatorOnly", default=True)
                 ),
@@ -775,6 +790,48 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def create_package_draft_from_inbox(self, inbox_id: Any) -> dict[str, Any]:
+        if not isinstance(inbox_id, str) or not inbox_id.strip():
+            raise AdapterError("INBOX_ID_REQUIRED", "create_package_draft_from_inbox requires an explicit inboxId string.")
+        inbox_id = bridge.validate_inbox_id(inbox_id.strip())
+        payload = bridge.create_inbox_package_draft(self.config.bridge_config, inbox_id)
+        draft_root = payload.get("draftRoot")
+        if isinstance(draft_root, str):
+            resolved_draft_root = (self.config.repo_root / draft_root).resolve()
+            if not is_relative_to(resolved_draft_root, self.config.repo_root / ".riftreader-local"):
+                return blocked_payload(
+                    "PACKAGE_DRAFT_ROOT_NOT_LOCAL",
+                    "Package draft root escaped .riftreader-local; blocking fail-closed.",
+                    kind="riftreader-chatgpt-mcp-create-package-draft-from-inbox",
+                    extra={"draftRoot": draft_root},
+                )
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-create-package-draft-from-inbox",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "inboxId": payload.get("inboxId"),
+            "draftId": Path(str(payload.get("draftRoot"))).name if payload.get("draftRoot") else None,
+            "draft": payload,
+            "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "localPackageDraftOnly": True,
+                "explicitInboxIdRequired": True,
+                "applyFlagSent": False,
+                "repoSourceMutationExpected": False,
+                "checksExecuted": False,
+                "bridgeSafety": payload.get("safety"),
+            },
+            "next": [
+                "Review the inert package draft summary and manifest locally.",
+                "Use review_latest_package_draft and dry_run_latest_package_draft for validation before any separate apply decision.",
+                "No repo target files were modified, executed, staged, committed, pushed, or sent to RIFT.",
+            ],
+        }
+
     def review_latest_package_draft(self, *, operator_only: bool = True) -> dict[str, Any]:
         payload = package_draft_review.latest_package_draft(self.config.repo_root, operator_only=operator_only)
         draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
@@ -870,7 +927,8 @@ class RiftReaderChatGptMcpAdapter:
                     "review_latest_package_draft",
                 ],
                 "writeToLocalInbox": ["submit_package_proposal"],
-                "validateLocalDraft": ["dry_run_latest_package_draft"],
+                "draftLocalPackage": ["create_package_draft_from_inbox"],
+                "validateLocalDraft": ["review_latest_package_draft", "dry_run_latest_package_draft"],
                 "writeBoundary": "ChatGPT-originated writes are stored only under .riftreader-local inbox/package-draft artifacts until a separate local operator step applies them.",
             },
             "missionControl": {
@@ -1159,11 +1217,11 @@ def run_self_test(config: AdapterConfig) -> dict[str, Any]:
     stages["list_inbox"] = adapter.call_tool("list_inbox", {})
     inbox_id = proposal_result.get("inboxId") if isinstance(proposal_result.get("inboxId"), str) else None
     if inbox_id:
-        stages["internal_create_self_test_draft"] = bridge.create_inbox_package_draft(config.bridge_config, inbox_id)
-        if not stages["internal_create_self_test_draft"].get("ok"):
+        stages["create_package_draft_from_inbox"] = adapter.call_tool("create_package_draft_from_inbox", {"inboxId": inbox_id})
+        if not stages["create_package_draft_from_inbox"].get("ok"):
             blockers.append(
-                "internal_create_self_test_draft:"
-                f"{stages['internal_create_self_test_draft'].get('code') or stages['internal_create_self_test_draft'].get('status')}"
+                "create_package_draft_from_inbox:"
+                f"{stages['create_package_draft_from_inbox'].get('code') or stages['create_package_draft_from_inbox'].get('status')}"
             )
 
     stages["review_latest_package_draft"] = adapter.call_tool("review_latest_package_draft", {"operatorOnly": False})
@@ -1525,9 +1583,14 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
             health_result = await session.call_tool("health", {})
             submit_result = None
             inbox_result = None
+            draft_result = None
             if package_proposal is not None:
                 submit_result = await session.call_tool("submit_package_proposal", {"proposal": package_proposal})
                 inbox_result = await session.call_tool("list_inbox", {})
+                submit_content = getattr(submit_result, "structuredContent", None)
+                inbox_id = submit_content.get("inboxId") if isinstance(submit_content, dict) else None
+                if isinstance(inbox_id, str) and inbox_id:
+                    draft_result = await session.call_tool("create_package_draft_from_inbox", {"inboxId": inbox_id})
     tools = list(getattr(tools_result, "tools", []) or [])
     tool_names = [getattr(tool, "name", None) for tool in tools]
     registered_summaries = []
@@ -1551,6 +1614,8 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
         "submitPackageProposalStructuredContent": getattr(submit_result, "structuredContent", None) if submit_result is not None else None,
         "listInboxAfterSubmitIsError": bool(getattr(inbox_result, "isError", False)) if inbox_result is not None else None,
         "listInboxAfterSubmitStructuredContent": getattr(inbox_result, "structuredContent", None) if inbox_result is not None else None,
+        "createPackageDraftIsError": bool(getattr(draft_result, "isError", False)) if draft_result is not None else None,
+        "createPackageDraftStructuredContent": getattr(draft_result, "structuredContent", None) if draft_result is not None else None,
     }
 
 
@@ -1641,6 +1706,21 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
             blockers.append("list-inbox-after-submit-structured-content-missing")
         elif inbox_result.get("ok") is not True:
             blockers.append(f"list-inbox-after-submit-not-ok:{inbox_result.get('code') or inbox_result.get('status')}")
+        if client_result.get("createPackageDraftIsError") is True:
+            blockers.append("create-package-draft-returned-error")
+        draft_result = client_result.get("createPackageDraftStructuredContent")
+        if not isinstance(draft_result, dict):
+            blockers.append("create-package-draft-structured-content-missing")
+        else:
+            if draft_result.get("ok") is not True:
+                blockers.append(f"create-package-draft-not-ok:{draft_result.get('code') or draft_result.get('status')}")
+            if not isinstance(draft_result.get("draftId"), str) or not draft_result.get("draftId"):
+                blockers.append("create-package-draft-draft-id-missing")
+            safety = draft_result.get("safety") if isinstance(draft_result.get("safety"), dict) else {}
+            if safety.get("localPackageDraftOnly") is not True:
+                blockers.append("create-package-draft-local-only-flag-missing")
+            if safety.get("applyFlagSent") is not False:
+                blockers.append("create-package-draft-apply-flag-not-false")
     return blockers
 
 
@@ -1762,7 +1842,7 @@ def run_transport_smoke_test(
         "blockers": blockers,
         "warnings": [
             "Transport smoke starts a temporary loopback-only server, calls list_tools and health, then terminates it.",
-            "Proposal transport smoke also calls submit_package_proposal with a synthetic self-test package and list_inbox; it writes ignored .riftreader-local inbox/audit artifacts only."
+            "Proposal transport smoke also calls submit_package_proposal, list_inbox, and create_package_draft_from_inbox with a synthetic self-test package; it writes ignored .riftreader-local inbox/draft/audit artifacts only."
             if include_proposal_submit
             else "No proposal submit is performed by this smoke.",
             "No HTTPS tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is performed.",
@@ -1781,6 +1861,8 @@ def run_transport_smoke_test(
             "transport": transport,
             "proposalSubmitTransportCovered": include_proposal_submit,
             "proposalSubmitWritesLocalInboxOnly": include_proposal_submit,
+            "packageDraftCreateTransportCovered": include_proposal_submit,
+            "packageDraftWritesLocalOnly": include_proposal_submit,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
         },
@@ -1864,6 +1946,8 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                 "serverStopped",
                 "proposalSubmitTransportCovered",
                 "proposalSubmitWritesLocalInboxOnly",
+                "packageDraftCreateTransportCovered",
+                "packageDraftWritesLocalOnly",
                 "publicTunnelStarted",
                 "chatGptRegistrationPerformed",
                 "applyFlagSent",
@@ -1880,6 +1964,7 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
         for key in (
             "submitPackageProposalIsError",
             "listInboxAfterSubmitIsError",
+            "createPackageDraftIsError",
         ):
             if key in client:
                 client_compact[key] = client.get(key)
@@ -1901,6 +1986,17 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                 "status": inbox_result.get("status"),
                 "code": inbox_result.get("code"),
                 "count": inbox_result.get("count"),
+            }
+        draft_result = client.get("createPackageDraftStructuredContent")
+        if isinstance(draft_result, dict):
+            client_compact["createPackageDraft"] = {
+                "ok": draft_result.get("ok"),
+                "status": draft_result.get("status"),
+                "code": draft_result.get("code"),
+                "draftId": draft_result.get("draftId"),
+                "localPackageDraftOnly": (draft_result.get("safety") or {}).get("localPackageDraftOnly")
+                if isinstance(draft_result.get("safety"), dict)
+                else None,
             }
         compact["client"] = client_compact
     registered = payload.get("registeredTools")
@@ -2114,7 +2210,7 @@ def run_trial_readiness(
         "blockers": blockers,
         "warnings": warnings
         + [
-            "Trial readiness starts only local/self-test and temporary loopback checks, including a synthetic submit_package_proposal transport call.",
+            "Trial readiness starts only local/self-test and temporary loopback checks, including synthetic submit_package_proposal and create_package_draft_from_inbox transport calls.",
             "It does not start a public tunnel, register ChatGPT, serve persistently, apply packages, mutate Git, send RIFT input, or attach CE/x64dbg.",
         ],
         "safety": {
@@ -3478,6 +3574,11 @@ def create_fastmcp_server(
 
         return adapter.call_tool("list_inbox", {})
 
+    def create_package_draft_from_inbox(inboxId: str) -> dict[str, Any]:  # noqa: N803 - MCP input name.
+        """Use this when the operator explicitly approves creating an inert package draft from an inbox proposal."""
+
+        return adapter.call_tool("create_package_draft_from_inbox", {"inboxId": inboxId})
+
     def review_latest_package_draft(operatorOnly: bool = True) -> dict[str, Any]:  # noqa: N803 - MCP input name.
         """Use this when you need the latest inert package draft summary before any dry-run."""
 
@@ -3506,6 +3607,7 @@ def create_fastmcp_server(
         ("get_package_proposal_template", get_package_proposal_template),
         ("submit_package_proposal", submit_package_proposal),
         ("list_inbox", list_inbox),
+        ("create_package_draft_from_inbox", create_package_draft_from_inbox),
         ("review_latest_package_draft", review_latest_package_draft),
         ("dry_run_latest_package_draft", dry_run_latest_package_draft),
         ("get_workflow_control_plan", get_workflow_control_plan),

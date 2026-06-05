@@ -42,7 +42,7 @@ def valid_proof() -> dict[str, object]:
         "schemaVersion": 1,
         "publicMcpUrl": "https://example.trycloudflare.com/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 9,
+        "toolCount": 10,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -52,6 +52,7 @@ def valid_proof() -> dict[str, object]:
         "submitPackageProposalSucceeded": True,
         "inboxId": "20260519T010000Z-abcdef",
         "listInboxSawInboxId": True,
+        "createPackageDraftSucceeded": True,
         "draftId": "20260519T010100Z-abcdef",
         "dryRunSucceeded": True,
         "notes": "Observed manually in ChatGPT Developer Mode.",
@@ -256,7 +257,7 @@ class McpPhase2StatusTests(unittest.TestCase):
         proof = valid_proof()
         proof["toolCount"] = 7
 
-        self.assertIn("tool-count-not-9:7", recorder.validate_proof(proof))
+        self.assertIn("tool-count-not-10:7", recorder.validate_proof(proof))
 
 
 if __name__ == "__main__":

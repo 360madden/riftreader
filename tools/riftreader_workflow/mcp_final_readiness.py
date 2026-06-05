@@ -32,6 +32,7 @@ APPROVED_TOOL_NAMES = (
     "get_package_proposal_template",
     "submit_package_proposal",
     "list_inbox",
+    "create_package_draft_from_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
     "get_workflow_control_plan",

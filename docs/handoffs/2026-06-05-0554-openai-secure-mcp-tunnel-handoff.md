@@ -18,7 +18,7 @@ commit, or push was performed.
 | ChatGPT app display name | `rift-mcp` |
 | Active local adapter | `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` |
 | Adapter service | `riftreader_chatgpt_mcp` |
-| Tool surface | 9 allowlisted tools only |
+| Tool surface | 10 allowlisted tools only |
 | Recommended Web/Desktop path | OpenAI Secure MCP Tunnel |
 | Local default | self-test / SDK validation / loopback transport smoke |
 | Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com` |
@@ -138,19 +138,48 @@ The failed parallel smoke did not mutate repo targets, Git, tunnel state,
 ChatGPT registration, RIFT, provider repos, CE, or x64dbg. It created only
 ignored `.riftreader-local` self-test/audit artifacts before the race was fixed.
 
+## Latest continuation - 2026-06-05 08:45 UTC
+
+The ChatGPT Web/Desktop MCP surface now supports a 10th guarded local-write
+tool, `create_package_draft_from_inbox`, to complete the safe bidirectional
+package path:
+
+`submit_package_proposal` -> `list_inbox` -> `create_package_draft_from_inbox`
+-> `review_latest_package_draft` -> `dry_run_latest_package_draft`.
+
+| Evidence | Result |
+|---|---|
+| New tool | Requires an explicit validated `inboxId` and creates only an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`. |
+| Tool surface | Approved surface is now 10 tools. |
+| Proof contract | Actual-client proof now expects `toolCount=10` and `createPackageDraftSucceeded=true`. |
+| Transport smoke | Proposal transport smoke now covers submit, list inbox, and inert package-draft creation through the real MCP SDK/client path. |
+| Focused tests | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_trial_recorder scripts.test_mcp_phase2_status scripts.test_mcp_proof_replay scripts.test_mcp_workflow_state scripts.test_mcp_phase1_completion scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness` passed 113 tests in `15.873s`. |
+| Local self-test | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --self-test --json` passed with `create_package_draft_from_inbox` and dry-run stages. |
+| Trial readiness | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --trial-readiness --json` passed with 10-tool SDK validation and 10-tool proposal transport smoke. |
+| New readiness artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T084601Z-trial-readiness.json`. |
+| New proposal smoke artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T084601Z-proposal-transport-smoke.json`. |
+| Validation ledger | `.riftreader-local\validation-runs\20260605-084838-369184\summary.md`, targeted unittest suite passed in `15.290s`. |
+| Safety | No apply, check execution, repo target write, shell endpoint, Git mutation, tunnel control, ChatGPT registration, live RIFT, provider, CE, or x64dbg authority was added. |
+
+The stale historical actual-client proof will now block with a 10-tool mismatch
+until a fresh ChatGPT Web/Desktop proof is recorded through the Secure Tunnel
+path.
+
 ## Code/docs changes
 
 | File | Change |
 |---|---|
-| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, `get_workflow_control_plan`, strict MCP wrapper-argument allowlists, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
-| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, workflow-control-plan coverage, strict argument allowlist coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
+| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, `get_workflow_control_plan`, `create_package_draft_from_inbox`, strict MCP wrapper-argument allowlists, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
+| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, workflow-control-plan coverage, package-draft creation coverage, strict argument allowlist coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
 | `tools/riftreader_workflow/local_artifact_bridge.py` | Added atomic package-draft directory reservation so concurrent local MCP/self-test validations do not collide on the same draft suffix. |
 | `scripts/test_local_artifact_bridge.py` | Added parallel package-draft creation regression coverage. |
 | `tools/riftreader_workflow/mcp_workflow_state.py` | Added Secure Tunnel plan artifact indexing and changed MCP recommended workflow routing to prefer `--secure-tunnel-plan` before ChatGPT Web/Desktop proof. |
-| `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate, env/shared-tools/repo-local discovery, SHA256/`--version` binary diagnostics, and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
+| `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate, env/shared-tools/repo-local discovery, SHA256/`--version` binary diagnostics, 10-tool approved surface, and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
 | `tools/riftreader_workflow/mcp_mission_control.py` | Surfaced Secure Tunnel plan commands in Mission Control and proof checklist; Cloudflare trial command remains fallback-only. |
+| `tools/riftreader_workflow/chatgpt_trial_recorder.py` | Updated actual-client proof template/validation to require 10 tools and package-draft creation confirmation. |
+| `tools/riftreader_workflow/mcp_proof_replay.py` | Updated proof replay self-test to use the 10-tool package-draft proof contract. |
 | `docs/HANDOFF.md` | Updated the compact handoff index so this Secure MCP Tunnel handoff is the newest resume point. |
-| `docs/workflow/riftreader-chatgpt-mcp.md` | Reframed ChatGPT Web/Desktop setup around OpenAI Secure MCP Tunnel; Cloudflare commands now fallback-only; added current OpenAI tunnel requirements/troubleshooting. |
+| `docs/workflow/riftreader-chatgpt-mcp.md` | Reframed ChatGPT Web/Desktop setup around OpenAI Secure MCP Tunnel; Cloudflare commands now fallback-only; added current OpenAI tunnel requirements/troubleshooting and the 10-tool bidirectional package flow. |
 | `docs/workflow/bridge-tunnel-session.md` | Marked old Cloudflare bridge helper deprecated fallback/dev-only and replaced PowerShell blocks with CMD-style commands. |
 
 ## New primary operator command

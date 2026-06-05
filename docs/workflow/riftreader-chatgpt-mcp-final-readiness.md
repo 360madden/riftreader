@@ -98,6 +98,7 @@ updates this list:
 | `get_package_proposal_template` | Read-only | Must return the accepted package-proposal shape only. |
 | `submit_package_proposal` | Guarded local write | May write only inert proposal artifacts under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Must list inbox metadata only. |
+| `create_package_draft_from_inbox` | Guarded local write | May create only inert package-draft artifacts under `.riftreader-local\artifact-bridge-package-drafts` from an explicit validated `inboxId`; must never apply files or execute checks. |
 | `review_latest_package_draft` | Read-only | Must review inert draft summaries only. |
 | `dry_run_latest_package_draft` | Explicit dry-run action | May run dry-run only; must never pass `--apply`. |
 | `get_workflow_control_plan` | Read-only | Must report Mission Control, safe commit-plan guidance, bidirectional data-flow steps, and gated boundaries without executing shell, Git, tunnel, RIFT, CE, x64dbg, or provider actions. |

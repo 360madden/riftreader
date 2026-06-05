@@ -331,6 +331,7 @@ def self_test() -> dict[str, Any]:
             "submitPackageProposalSucceeded": True,
             "inboxId": "inbox",
             "listInboxSawInboxId": True,
+            "createPackageDraftSucceeded": True,
             "draftId": "draft",
             "dryRunSucceeded": True,
         }
