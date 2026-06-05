@@ -2106,6 +2106,7 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
             draft_result = None
             review_result = None
             dry_run_result = None
+            apply_without_approval_result = None
             if package_proposal is not None:
                 submit_result = await session.call_tool("submit_package_proposal", {"proposal": package_proposal})
                 inbox_result = await session.call_tool("list_inbox", {})
@@ -2116,6 +2117,10 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
                     review_result = await session.call_tool("review_latest_package_draft", {"operatorOnly": False})
                     dry_run_result = await session.call_tool(
                         "dry_run_latest_package_draft",
+                        {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                    )
+                    apply_without_approval_result = await session.call_tool(
+                        "apply_latest_package_draft",
                         {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
                     )
     tools = list(getattr(tools_result, "tools", []) or [])
@@ -2148,6 +2153,12 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
         "reviewLatestPackageDraftStructuredContent": getattr(review_result, "structuredContent", None) if review_result is not None else None,
         "dryRunLatestPackageDraftIsError": bool(getattr(dry_run_result, "isError", False)) if dry_run_result is not None else None,
         "dryRunLatestPackageDraftStructuredContent": getattr(dry_run_result, "structuredContent", None) if dry_run_result is not None else None,
+        "applyLatestPackageDraftWithoutApprovalIsError": bool(getattr(apply_without_approval_result, "isError", False))
+        if apply_without_approval_result is not None
+        else None,
+        "applyLatestPackageDraftWithoutApprovalStructuredContent": getattr(apply_without_approval_result, "structuredContent", None)
+        if apply_without_approval_result is not None
+        else None,
     }
 
 
@@ -2293,6 +2304,32 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
                 blockers.append("dry-run-diff-preview-bounded-bytes-flag-missing")
             if diff_safety.get("applyFlagSent") is not False:
                 blockers.append("dry-run-diff-preview-apply-flag-not-false")
+        if client_result.get("applyLatestPackageDraftWithoutApprovalIsError") is None:
+            blockers.append("apply-latest-package-draft-without-approval-not-covered")
+        apply_without_approval = client_result.get("applyLatestPackageDraftWithoutApprovalStructuredContent")
+        if not isinstance(apply_without_approval, dict):
+            blockers.append("apply-latest-package-draft-without-approval-structured-content-missing")
+        else:
+            if apply_without_approval.get("ok") is not False:
+                blockers.append(f"apply-latest-package-draft-without-approval-ok-not-false:{apply_without_approval.get('ok')!r}")
+            if apply_without_approval.get("applied") is not False:
+                blockers.append(
+                    "apply-latest-package-draft-without-approval-applied-not-false:"
+                    f"{apply_without_approval.get('applied')!r}"
+                )
+            apply_blockers = apply_without_approval.get("blockers")
+            if not isinstance(apply_blockers, list):
+                blockers.append(
+                    "apply-latest-package-draft-without-approval-blockers-not-list:"
+                    f"{type(apply_blockers).__name__}"
+                )
+            elif "APPLY_APPROVAL_MISSING" not in apply_blockers:
+                blockers.append("apply-latest-package-draft-without-approval-missing-approval-blocker")
+            safety = apply_without_approval.get("safety") if isinstance(apply_without_approval.get("safety"), dict) else {}
+            if safety.get("applyFlagSent") is not False:
+                blockers.append("apply-latest-package-draft-without-approval-apply-flag-not-false")
+            if safety.get("repoSourceMutationExpected") is not False:
+                blockers.append("apply-latest-package-draft-without-approval-repo-mutation-expected-not-false")
     return blockers
 
 
@@ -2414,7 +2451,7 @@ def run_transport_smoke_test(
         "blockers": blockers,
         "warnings": [
             "Transport smoke starts a temporary loopback-only server, calls list_tools and health, then terminates it.",
-            "Proposal transport smoke also calls submit_package_proposal, list_inbox, create_package_draft_from_inbox, review_latest_package_draft, and dry_run_latest_package_draft with a synthetic self-test package; it writes ignored .riftreader-local inbox/draft/package-intake/audit artifacts only."
+            "Proposal transport smoke also calls submit_package_proposal, list_inbox, create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, and apply_latest_package_draft without approval with a synthetic self-test package; it writes ignored .riftreader-local inbox/draft/package-intake/audit artifacts only and expects apply to be blocked."
             if include_proposal_submit
             else "No proposal submit is performed by this smoke.",
             "No HTTPS tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is performed.",
@@ -2438,6 +2475,7 @@ def run_transport_smoke_test(
             "packageDraftReviewTransportCovered": include_proposal_submit,
             "packageDraftDryRunTransportCovered": include_proposal_submit,
             "packageDraftDiffPreviewTransportCovered": include_proposal_submit,
+            "packageDraftApplyWithoutApprovalBlocked": include_proposal_submit,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
         },
@@ -2526,6 +2564,7 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                 "packageDraftReviewTransportCovered",
                 "packageDraftDryRunTransportCovered",
                 "packageDraftDiffPreviewTransportCovered",
+                "packageDraftApplyWithoutApprovalBlocked",
                 "publicTunnelStarted",
                 "chatGptRegistrationPerformed",
                 "applyFlagSent",
@@ -2545,6 +2584,7 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
             "createPackageDraftIsError",
             "reviewLatestPackageDraftIsError",
             "dryRunLatestPackageDraftIsError",
+            "applyLatestPackageDraftWithoutApprovalIsError",
         ):
             if key in client:
                 client_compact[key] = client.get(key)
@@ -2615,6 +2655,21 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                     if isinstance(diff_preview.get("safety"), dict)
                     else None,
                 },
+            }
+        apply_without_approval = client.get("applyLatestPackageDraftWithoutApprovalStructuredContent")
+        if isinstance(apply_without_approval, dict):
+            client_compact["applyLatestPackageDraftWithoutApproval"] = {
+                "ok": apply_without_approval.get("ok"),
+                "status": apply_without_approval.get("status"),
+                "code": apply_without_approval.get("code"),
+                "applied": apply_without_approval.get("applied"),
+                "blockers": list(apply_without_approval.get("blockers") or [])[:10],
+                "applyFlagSent": (apply_without_approval.get("safety") or {}).get("applyFlagSent")
+                if isinstance(apply_without_approval.get("safety"), dict)
+                else None,
+                "repoSourceMutationExpected": (apply_without_approval.get("safety") or {}).get("repoSourceMutationExpected")
+                if isinstance(apply_without_approval.get("safety"), dict)
+                else None,
             }
         compact["client"] = client_compact
     registered = payload.get("registeredTools")
@@ -2828,8 +2883,8 @@ def run_trial_readiness(
         "blockers": blockers,
         "warnings": warnings
         + [
-            "Trial readiness starts only local/self-test and temporary loopback checks, including synthetic submit_package_proposal, create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, and diff-preview transport calls.",
-            "It does not start a public tunnel, register ChatGPT, serve persistently, apply packages, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "Trial readiness starts only local/self-test and temporary loopback checks, including synthetic submit_package_proposal, create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, diff-preview transport calls, and apply_latest_package_draft without approval.",
+            "It does not start a public tunnel, register ChatGPT, serve persistently, perform an approved package apply, mutate Git, send RIFT input, or attach CE/x64dbg.",
         ],
         "safety": {
             **base_safety(),

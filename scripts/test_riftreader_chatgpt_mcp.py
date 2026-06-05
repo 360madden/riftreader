@@ -1170,6 +1170,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                         }
                     },
                 },
+                "applyLatestPackageDraftWithoutApprovalIsError": False,
+                "applyLatestPackageDraftWithoutApprovalStructuredContent": {
+                    "ok": False,
+                    "status": "blocked",
+                    "applied": False,
+                    "blockers": ["APPLY_APPROVAL_MISSING"],
+                    "safety": {"applyFlagSent": False, "repoSourceMutationExpected": False},
+                },
             }
 
             async def fake_transport_client_with_retry(*args: object, **kwargs: object) -> dict[str, object]:
@@ -1196,6 +1204,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["packageDraftReviewTransportCovered"])
         self.assertTrue(payload["safety"]["packageDraftDryRunTransportCovered"])
         self.assertTrue(payload["safety"]["packageDraftDiffPreviewTransportCovered"])
+        self.assertTrue(payload["safety"]["packageDraftApplyWithoutApprovalBlocked"])
+        self.assertFalse(payload["client"]["applyLatestPackageDraftWithoutApprovalStructuredContent"]["applied"])
         self.assertTrue(summary_exists)
         self.assertEqual(summary_payload["artifactPaths"], payload["artifactPaths"])
 
@@ -1246,6 +1256,69 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("dry-run-diff-preview-not-ok:DIFF_ARTIFACT_MISSING", blockers)
         self.assertIn("dry-run-diff-preview-text-missing", blockers)
         self.assertIn("dry-run-diff-preview-package-intake-flag-missing", blockers)
+
+    def test_transport_smoke_result_verifier_requires_apply_without_approval_denial(self) -> None:
+        registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]
+        client_result = {
+            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "registeredTools": registered,
+            "healthIsError": False,
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
+            },
+            "submitPackageProposalIsError": False,
+            "submitPackageProposalStructuredContent": {
+                "ok": True,
+                "inboxId": "20260519T000000Z-test",
+                "safety": {"noRepoTargetWrites": True},
+            },
+            "listInboxAfterSubmitIsError": False,
+            "listInboxAfterSubmitStructuredContent": {"ok": True},
+            "createPackageDraftIsError": False,
+            "createPackageDraftStructuredContent": {
+                "ok": True,
+                "draftId": "20260519T000000Z-test",
+                "safety": {"localPackageDraftOnly": True, "applyFlagSent": False},
+            },
+            "reviewLatestPackageDraftIsError": False,
+            "reviewLatestPackageDraftStructuredContent": {
+                "ok": True,
+                "draftId": "20260519T000000Z-test",
+                "safety": {"readOnlyReview": True},
+            },
+            "dryRunLatestPackageDraftIsError": False,
+            "dryRunLatestPackageDraftStructuredContent": {
+                "ok": True,
+                "draftId": "20260519T000000Z-test",
+                "dryRunSucceeded": True,
+                "safety": {"packageIntakeDryRunOnly": True, "applyFlagSent": False},
+                "dryRun": {
+                    "diffPreview": {
+                        "ok": True,
+                        "text": "+# Preview\n",
+                        "safety": {"diffArtifactUnderPackageIntake": True, "boundedBytes": True, "applyFlagSent": False},
+                    }
+                },
+            },
+            "applyLatestPackageDraftWithoutApprovalIsError": False,
+            "applyLatestPackageDraftWithoutApprovalStructuredContent": {
+                "ok": True,
+                "status": "passed",
+                "applied": True,
+                "blockers": [],
+                "safety": {"applyFlagSent": True, "repoSourceMutationExpected": True},
+            },
+        }
+
+        blockers = chatgpt_mcp.verify_transport_smoke_result(client_result)
+
+        self.assertIn("apply-latest-package-draft-without-approval-ok-not-false:True", blockers)
+        self.assertIn("apply-latest-package-draft-without-approval-applied-not-false:True", blockers)
+        self.assertIn("apply-latest-package-draft-without-approval-missing-approval-blocker", blockers)
+        self.assertIn("apply-latest-package-draft-without-approval-apply-flag-not-false", blockers)
 
     def test_create_fastmcp_server_fails_closed_without_annotation_support(self) -> None:
         class FakeAnnotations:
@@ -1555,6 +1628,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                                     }
                                 },
                             },
+                            "applyLatestPackageDraftWithoutApprovalIsError": False,
+                            "applyLatestPackageDraftWithoutApprovalStructuredContent": {
+                                "ok": False,
+                                "status": "blocked",
+                                "applied": False,
+                                "blockers": ["APPLY_APPROVAL_MISSING"],
+                                "safety": {"applyFlagSent": False, "repoSourceMutationExpected": False},
+                            },
                         },
                         "safety": {
                             "proposalSubmitTransportCovered": True,
@@ -1564,6 +1645,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                             "packageDraftReviewTransportCovered": True,
                             "packageDraftDryRunTransportCovered": True,
                             "packageDraftDiffPreviewTransportCovered": True,
+                            "packageDraftApplyWithoutApprovalBlocked": True,
                         },
                     },
                 ) as transport_mock,
@@ -1595,11 +1677,19 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             ]
         )
         self.assertEqual(payload["stages"]["transport_smoke"]["client"]["dryRunLatestPackageDraft"]["diffPreview"]["textLength"], 11)
+        self.assertFalse(
+            payload["stages"]["transport_smoke"]["client"]["applyLatestPackageDraftWithoutApproval"]["applied"]
+        )
+        self.assertIn(
+            "APPLY_APPROVAL_MISSING",
+            payload["stages"]["transport_smoke"]["client"]["applyLatestPackageDraftWithoutApproval"]["blockers"],
+        )
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["proposalSubmitTransportCovered"])
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftCreateTransportCovered"])
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftReviewTransportCovered"])
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftDryRunTransportCovered"])
         self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftDiffPreviewTransportCovered"])
+        self.assertTrue(payload["stages"]["transport_smoke"]["safety"]["packageDraftApplyWithoutApprovalBlocked"])
         self.assertTrue(payload["safety"]["trialReadinessLocalOnly"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertTrue(summary_exists)

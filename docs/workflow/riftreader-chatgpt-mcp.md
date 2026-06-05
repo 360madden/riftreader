@@ -155,7 +155,9 @@ synthetic `package-proposal` through `submit_package_proposal`, confirms
 `list_inbox` can see the result, creates an inert package draft with
 `create_package_draft_from_inbox`, reviews it with
 `review_latest_package_draft`, dry-runs it with `dry_run_latest_package_draft`,
-verifies the bounded `dryRun.diffPreview`, writes only ignored
+verifies the bounded `dryRun.diffPreview`, calls `apply_latest_package_draft`
+without an approval token and requires the fail-closed `APPLY_APPROVAL_MISSING`
+denial with `applied=false`, writes only ignored
 `.riftreader-local` inbox/draft/package-intake/audit/smoke artifacts, and stops
 the temporary loopback server.
 
@@ -178,7 +180,8 @@ For a single compact local go/no-go gate before any public tunnel or ChatGPT
 registration, run trial readiness. This runs the handler self-test, SDK
 metadata validation, loopback transport smoke including a synthetic
 `submit_package_proposal`, `list_inbox`, inert package-draft creation, draft
-review, dry-run, bounded `dryRun.diffPreview`, optional OpenAI
+review, dry-run, bounded `dryRun.diffPreview`, fail-closed
+`apply_latest_package_draft` without approval, optional OpenAI
 `tunnel-client`/`curl`
 readiness checks, and records Cloudflare only as a deprecated fallback. It
 writes a compact summary under
