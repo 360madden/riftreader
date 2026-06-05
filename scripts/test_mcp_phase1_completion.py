@@ -199,12 +199,12 @@ class McpPhase1CompletionTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "blocked")
         self.assertTrue(payload["repoSideComplete"])
-        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "check-actual-client-proof-input")
         self.assertEqual(
             payload["recommendedNextAction"]["command"],
             [
                 "scripts\\riftreader-chatgpt-trial-recorder.cmd",
-                "--record",
+                "--check-input",
                 "--input",
                 ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
                 "--json",

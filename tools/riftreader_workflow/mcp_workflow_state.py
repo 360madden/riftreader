@@ -501,8 +501,8 @@ def standard_commands() -> dict[str, list[str]]:
     }
 
 
-def proof_input_template_record_command(item: dict[str, Any] | None) -> list[str] | None:
-    """Return the record command for a ready, fresh proof-input template."""
+def proof_input_template_check_command(item: dict[str, Any] | None) -> list[str] | None:
+    """Return the read-only check command for a ready, fresh proof-input template."""
 
     if not passed(item):
         return None
@@ -513,17 +513,17 @@ def proof_input_template_record_command(item: dict[str, Any] | None) -> list[str
     proof_input = artifact_paths.get("proofInputJson") or item.get("path")
     if not isinstance(proof_input, str) or not proof_input.strip():
         return None
-    return ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--record", "--input", proof_input, "--json"]
+    return ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--check-input", "--input", proof_input, "--json"]
 
 
 def proof_input_template_next_action(latest_artifacts: dict[str, dict[str, Any] | None]) -> dict[str, Any]:
-    """Prefer filling/recording the latest fresh template over writing another one."""
+    """Prefer checking the latest fresh template over writing another one."""
 
-    command = proof_input_template_record_command(latest_artifacts.get("proof-input-template"))
+    command = proof_input_template_check_command(latest_artifacts.get("proof-input-template"))
     if command:
         return action(
-            "record-actual-client-proof",
-            "Fill the latest fresh proof-input template with actual ChatGPT observations, then record it.",
+            "check-actual-client-proof-input",
+            "Fill the latest fresh proof-input template with actual ChatGPT observations, then check it read-only before recording.",
             command,
         )
     return action(

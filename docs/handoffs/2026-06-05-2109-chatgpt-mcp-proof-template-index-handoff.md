@@ -15,7 +15,7 @@ ad hoc `proof.json` instructions.
 | Proof template artifact kind | `proof-input-template` is indexed by `scripts\riftreader-mcp-artifacts.cmd`. |
 | Proof input check command | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input <proof-input.json> --json` validates filled proof input read-only before recording. |
 | Actual proof record command | The template payload includes the exact `--record --input <proof-input.json> --json` command to run after filling ChatGPT-side observations. |
-| Phase 1/final recommendation | Missing/stale actual-client proof now routes to the latest fresh indexed proof-input template when present; otherwise it routes to `--write-template --json`. |
+| Phase 1/final recommendation | Missing/stale actual-client proof now routes to a read-only check of the latest fresh indexed proof-input template when present; otherwise it routes to `--write-template --json`. |
 | Safety posture | No push, no persistent server, no public tunnel start, no ChatGPT registration, no live RIFT input, no CE/x64dbg. |
 
 ## Recent commits in this lane
@@ -23,7 +23,7 @@ ad hoc `proof.json` instructions.
 | Commit | Purpose |
 |---|---|
 | `39621da` | Prefer recording the latest fresh indexed proof-input template over writing duplicate templates. |
-| Current slice | Add read-only proof-input completeness checking before recording. |
+| Current slice | Add read-only proof-input completeness checking and route gates to check before recording. |
 | `ee3f5db` | Record local CI-parity validation evidence in this handoff. |
 | `80b7498` | Align Phase 1 missing-proof recommendation with `--write-template --json`. |
 | `aa8320a` | Index ignored proof-input templates as first-class MCP artifacts. |
@@ -54,8 +54,8 @@ scripts\riftreader-mcp-final.cmd --status --compact-json
 | `dependencyStatus` | `passed` |
 | `environmentStatus` | `passed` |
 | `publicSessionStatus` | `passed` (`expected-expired` sessions only) |
-| `recommendedNextAction.key` | `record-actual-client-proof` |
-| `recommendedNextAction.command` | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json` |
+| `recommendedNextAction.key` | `check-actual-client-proof-input` |
+| `recommendedNextAction.command` | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json` |
 
 ## Remaining blockers
 
@@ -77,8 +77,8 @@ scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 Then fill the emitted `proof-input.json` with actual ChatGPT Web/Desktop
 observations and run the emitted `recordCommand`.
 
-If the current latest template is still fresh, the gates now recommend recording
-that exact file directly after a read-only check:
+If the current latest template is still fresh, the gates now recommend checking
+that exact file read-only before recording:
 
 ```cmd
 scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json

@@ -254,12 +254,12 @@ class McpFinalReadinessTests(unittest.TestCase):
 
         payload = final_status(phase2=phase2, state=state_with_proof_input_template())
 
-        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "check-actual-client-proof-input")
         self.assertEqual(
             payload["recommendedNextAction"]["command"],
             [
                 "scripts\\riftreader-chatgpt-trial-recorder.cmd",
-                "--record",
+                "--check-input",
                 "--input",
                 ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
                 "--json",
