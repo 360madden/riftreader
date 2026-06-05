@@ -49,6 +49,11 @@ Each tool also carries an `outputSchema` contract for returned
 shape, and SDK/transport verification blocks missing or non-object output
 schemas before actual ChatGPT proof runs.
 
+At runtime, the adapter validates every handler result before returning it. A
+malformed result that omits the common structuredContent fields (`schemaVersion`,
+`kind`, `status`, or boolean `ok`) is converted into a fail-closed
+`TOOL_RESULT_CONTRACT_INVALID` response and recorded in sanitized audit metadata.
+
 ## Hard boundaries
 
 - No arbitrary filesystem read tool.

@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP runtime result contract — 2026-06-05 11:38 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1138-chatgpt-mcp-runtime-result-contract-handoff.md`.
+
+The ChatGPT Web/Desktop MCP adapter now validates each tool handler result
+against the minimum structuredContent contract before returning it to the client
+or writing sanitized audit metadata. Malformed handler payloads fail closed as
+`TOOL_RESULT_CONTRACT_INVALID` instead of leaking ambiguous structured content.
+
+| Evidence | Result |
+|---|---|
+| Code path | `tools/riftreader_workflow/riftreader_chatgpt_mcp.py::validate_tool_result_payload`. |
+| Runtime guard | `RiftReaderChatGptMcpAdapter.call_tool()` validates every handler result before return/audit. |
+| Focused validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp` passed 58 tests in 3.080s. |
+| Broad MCP validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 179 tests in 43.731s. |
+| Targeted ledger | `.riftreader-local/validation-runs/20260605-114220-809119/summary.md` passed in 43.023s. |
+| Local MCP self-test | `scripts\riftreader-chatgpt-mcp.cmd --self-test --json` passed with `ok=true`. |
+| SDK validation | `scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --json` passed with 10 registered tools. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — ChatGPT MCP output-schema guardrails — 2026-06-05 11:28 UTC
 
 A new compact handoff exists at

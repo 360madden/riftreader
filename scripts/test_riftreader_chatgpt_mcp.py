@@ -301,6 +301,29 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["auditUnderDotRiftReaderLocal"])
         self.assertFalse(payload["safety"]["absoluteRepoRootExposed"])
 
+    def test_tool_result_contract_blocks_malformed_handler_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(adapter, "health", return_value={"status": "passed"}):
+                payload = adapter.call_tool("health", {})
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], "TOOL_RESULT_CONTRACT_INVALID")
+        self.assertIn("tool-result-schema-version-invalid:health:None", payload["contractBlockers"])
+        self.assertIn("tool-result-kind-invalid:health:None", payload["contractBlockers"])
+        self.assertIn("tool-result-ok-not-boolean:health:None", payload["contractBlockers"])
+
+    def test_tool_result_contract_accepts_current_health_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            payload = adapter.call_tool("health", {})
+
+        self.assertEqual(chatgpt_mcp.validate_tool_result_payload("health", payload), [])
+
     def test_latest_handoff_reads_only_allowlisted_handoff_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

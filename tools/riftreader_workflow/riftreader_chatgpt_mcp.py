@@ -482,6 +482,32 @@ def validate_tool_arguments(tool_name: str, arguments: dict[str, Any], *, max_by
         )
 
 
+def validate_tool_result_payload(tool_name: str, result: Any) -> list[str]:
+    """Return contract blockers for a tool's structuredContent payload."""
+
+    if not isinstance(result, dict):
+        return [f"tool-result-not-object:{tool_name}:{type(result).__name__}"]
+    blockers: list[str] = []
+    if result.get("schemaVersion") != SCHEMA_VERSION:
+        blockers.append(f"tool-result-schema-version-invalid:{tool_name}:{result.get('schemaVersion')!r}")
+    kind = result.get("kind")
+    if not isinstance(kind, str) or not kind.startswith("riftreader-chatgpt-mcp"):
+        blockers.append(f"tool-result-kind-invalid:{tool_name}:{kind!r}")
+    status = result.get("status")
+    if not isinstance(status, str) or not status:
+        blockers.append(f"tool-result-status-invalid:{tool_name}:{status!r}")
+    if not isinstance(result.get("ok"), bool):
+        blockers.append(f"tool-result-ok-not-boolean:{tool_name}:{result.get('ok')!r}")
+    for list_field in ("blockers", "warnings", "errors"):
+        value = result.get(list_field)
+        if value is not None and (not isinstance(value, list) or any(not isinstance(item, str) for item in value)):
+            blockers.append(f"tool-result-{list_field}-not-string-list:{tool_name}")
+    safety = result.get("safety")
+    if safety is not None and not isinstance(safety, dict):
+        blockers.append(f"tool-result-safety-not-object:{tool_name}:{type(safety).__name__}")
+    return blockers
+
+
 def result_summary(result: dict[str, Any]) -> dict[str, Any]:
     artifacts = result.get("artifacts") if isinstance(result.get("artifacts"), dict) else {}
     files = result.get("files") if isinstance(result.get("files"), dict) else {}
@@ -596,6 +622,15 @@ class RiftReaderChatGptMcpAdapter:
                 status="failed",
             )
 
+        result_blockers = validate_tool_result_payload(tool_name, result)
+        if result_blockers:
+            result = blocked_payload(
+                "TOOL_RESULT_CONTRACT_INVALID",
+                "Tool handler returned structuredContent that does not match the minimum ChatGPT MCP result contract.",
+                kind=f"riftreader-chatgpt-mcp-{tool_name}",
+                status="failed",
+                extra={"contractBlockers": result_blockers},
+            )
         result = redact_repo_paths(result, self.config.repo_root)
         self.write_audit(tool_name, summarize_tool_input(tool_name, args), result)
         return result
