@@ -27,6 +27,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 SCHEMA_VERSION = 1
 TRANSPORT_SMOKE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "transport-smoke"
 ACTUAL_CLIENT_PROOF_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "actual-client-proof"
+PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 INBOX_ROOT = Path(".riftreader-local") / "artifact-bridge-inbox"
 DRAFT_ROOT = Path(".riftreader-local") / "artifact-bridge-package-drafts"
 PACKAGE_INTAKE_ROOT = Path(".riftreader-local") / "package-intake"
@@ -35,6 +36,7 @@ FRESHNESS_BUDGET_SECONDS = {
     "proposal-smoke": 6 * 60 * 60,
     "cloudflare-smoke": 24 * 60 * 60,
     "trial-session": 24 * 60 * 60,
+    "proof-input-template": 24 * 60 * 60,
     "actual-client-proof": 24 * 60 * 60,
 }
 
@@ -47,6 +49,7 @@ ARTIFACT_KINDS = (
     "trial-session",
     "trial-session-ready",
     "trial-session-final",
+    "proof-input-template",
     "actual-client-proof",
     "inbox",
     "draft",
@@ -60,6 +63,7 @@ DEFAULT_TIMELINE_KINDS = (
     "cloudflare-smoke",
     "transport-smoke",
     "trial-session",
+    "proof-input-template",
     "actual-client-proof",
     "inbox",
     "draft",
@@ -108,6 +112,7 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
     submit = client.get("submitPackageProposalStructuredContent") if isinstance(client.get("submitPackageProposalStructuredContent"), dict) else {}
     draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
     proof = payload.get("proof") if isinstance(payload.get("proof"), dict) else {}
+    proof_facts = payload if artifact_kind == "proof-input-template" else proof
     message_metadata = payload.get("messageMetadata") if isinstance(payload.get("messageMetadata"), dict) else {}
     message_source = payload.get("messageSource") if isinstance(payload.get("messageSource"), dict) else {}
     title = str(payload.get("messageTitle") or payload.get("title") or payload.get("packageName") or "")
@@ -116,6 +121,8 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
     status = payload.get("status")
     if status is None and artifact_kind == "inbox":
         status = "stored"
+    if status is None and artifact_kind == "proof-input-template":
+        status = "ready"
     ok = bool(payload.get("ok")) if "ok" in payload else status in {"passed", "created", "ready", "stored"}
     public_mcp_url = payload.get("publicMcpUrl") or proof.get("publicMcpUrl")
     public_tunnel_stopped = safety.get("publicTunnelStopped") if "publicTunnelStopped" in safety else tunnel_process.get("stopped")
@@ -132,17 +139,17 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
         "generatedAtUtc": payload.get("generatedAtUtc"),
         "blockers": payload.get("blockers") if isinstance(payload.get("blockers"), list) else [],
         "warnings": payload.get("warnings") if isinstance(payload.get("warnings"), list) else [],
-        "connectionMode": payload.get("connectionMode") or proof.get("connectionMode"),
+        "connectionMode": payload.get("connectionMode") or proof_facts.get("connectionMode"),
         "publicMcpUrl": public_mcp_url,
         "publicUrlEphemeral": ephemeral_public_url,
         "publicUrlExpectedExpired": bool(ephemeral_public_url and public_tunnel_stopped),
-        "toolCount": payload.get("toolCount") or proof.get("toolCount"),
-        "toolNames": proof.get("toolNames"),
-        "toolOutputSchemasPresent": proof.get("toolOutputSchemasPresent"),
-        "toolOutputSchemaCount": proof.get("toolOutputSchemaCount"),
-        "toolOutputSchemaToolNames": proof.get("toolOutputSchemaToolNames"),
-        "inboxId": payload.get("inboxId") or submit.get("inboxId") or draft.get("inboxId") or proof.get("inboxId"),
-        "draftId": payload.get("draftId") or draft.get("draftId") or proof.get("draftId"),
+        "toolCount": payload.get("toolCount") or proof_facts.get("toolCount"),
+        "toolNames": proof_facts.get("toolNames"),
+        "toolOutputSchemasPresent": proof_facts.get("toolOutputSchemasPresent"),
+        "toolOutputSchemaCount": proof_facts.get("toolOutputSchemaCount"),
+        "toolOutputSchemaToolNames": proof_facts.get("toolOutputSchemaToolNames"),
+        "inboxId": payload.get("inboxId") or submit.get("inboxId") or draft.get("inboxId") or proof_facts.get("inboxId"),
+        "draftId": payload.get("draftId") or draft.get("draftId") or proof_facts.get("draftId"),
         "packageName": payload.get("packageName") or draft.get("packageName"),
         "messageTitle": payload.get("messageTitle") or payload.get("title"),
         "messageKind": payload.get("messageKind"),
@@ -153,26 +160,28 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
         "serverStopped": safety.get("serverStopped") if "serverStopped" in safety else server_process.get("stopped"),
         "publicTunnelStopped": public_tunnel_stopped,
         "chatGptRegistrationPerformed": safety.get("chatGptRegistrationPerformed"),
-        "chatGptRegistrationSucceeded": proof.get("chatgptRegistrationSucceeded"),
-        "templateFetched": proof.get("templateFetched"),
-        "submitPackageProposalSucceeded": proof.get("submitPackageProposalSucceeded"),
-        "listInboxSawInboxId": proof.get("listInboxSawInboxId"),
-        "createPackageDraftSucceeded": proof.get("createPackageDraftSucceeded"),
-        "reviewLatestPackageDraftSucceeded": proof.get("reviewLatestPackageDraftSucceeded"),
-        "reviewLatestPackageDraftReadOnly": proof.get("reviewLatestPackageDraftReadOnly"),
-        "dryRunSucceeded": proof.get("dryRunSucceeded"),
-        "dryRunDiffPreviewOk": proof.get("dryRunDiffPreviewOk"),
-        "dryRunDiffPreviewArtifactUnderPackageIntake": proof.get("dryRunDiffPreviewArtifactUnderPackageIntake"),
-        "dryRunDiffPreviewBoundedBytes": proof.get("dryRunDiffPreviewBoundedBytes"),
-        "dryRunDiffPreviewTextLength": proof.get("dryRunDiffPreviewTextLength"),
-        "dryRunDiffPreviewTruncated": proof.get("dryRunDiffPreviewTruncated"),
-        "applyLatestPackageDraftWithoutApprovalBlocked": proof.get("applyLatestPackageDraftWithoutApprovalBlocked"),
-        "applyLatestPackageDraftWithoutApprovalBlockers": proof.get("applyLatestPackageDraftWithoutApprovalBlockers"),
-        "applyLatestPackageDraftWithoutApprovalApplied": proof.get("applyLatestPackageDraftWithoutApprovalApplied"),
+        "chatGptRegistrationSucceeded": proof_facts.get("chatgptRegistrationSucceeded"),
+        "templateFetched": proof_facts.get("templateFetched"),
+        "submitPackageProposalSucceeded": proof_facts.get("submitPackageProposalSucceeded"),
+        "listInboxSawInboxId": proof_facts.get("listInboxSawInboxId"),
+        "createPackageDraftSucceeded": proof_facts.get("createPackageDraftSucceeded"),
+        "reviewLatestPackageDraftSucceeded": proof_facts.get("reviewLatestPackageDraftSucceeded"),
+        "reviewLatestPackageDraftReadOnly": proof_facts.get("reviewLatestPackageDraftReadOnly"),
+        "dryRunSucceeded": proof_facts.get("dryRunSucceeded"),
+        "dryRunDiffPreviewOk": proof_facts.get("dryRunDiffPreviewOk"),
+        "dryRunDiffPreviewArtifactUnderPackageIntake": proof_facts.get("dryRunDiffPreviewArtifactUnderPackageIntake"),
+        "dryRunDiffPreviewBoundedBytes": proof_facts.get("dryRunDiffPreviewBoundedBytes"),
+        "dryRunDiffPreviewTextLength": proof_facts.get("dryRunDiffPreviewTextLength"),
+        "dryRunDiffPreviewTruncated": proof_facts.get("dryRunDiffPreviewTruncated"),
+        "applyLatestPackageDraftWithoutApprovalBlocked": proof_facts.get("applyLatestPackageDraftWithoutApprovalBlocked"),
+        "applyLatestPackageDraftWithoutApprovalBlockers": proof_facts.get("applyLatestPackageDraftWithoutApprovalBlockers"),
+        "applyLatestPackageDraftWithoutApprovalApplied": proof_facts.get("applyLatestPackageDraftWithoutApprovalApplied"),
         "proposalSubmitTransportCovered": safety.get("proposalSubmitTransportCovered"),
         "proposalSubmitWritesLocalInboxOnly": safety.get("proposalSubmitWritesLocalInboxOnly"),
         "artifactPaths": artifact_paths if isinstance(artifact_paths, dict) else {},
     }
+    if artifact_kind == "proof-input-template":
+        item["artifactPaths"] = {"proofInputJson": rel(repo_root, path)}
     if artifact_kind == "inbox" and not item["inboxId"]:
         item["inboxId"] = path.parent.name if path.name.endswith(".json") else path.name
     if artifact_kind == "draft" and not item["draftId"]:
@@ -367,6 +376,10 @@ def discover_actual_client_proofs(repo_root: Path) -> tuple[list[dict[str, Any]]
     return collect_directory_artifacts(repo_root, ACTUAL_CLIENT_PROOF_ROOT, "actual-client-proof", ("proof.json",))
 
 
+def discover_proof_input_templates(repo_root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    return collect_directory_artifacts(repo_root, PROOF_INPUT_TEMPLATE_ROOT, "proof-input-template", ("proof-input.json",))
+
+
 def discover_mcp_artifacts(repo_root: Path) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     warnings: list[str] = []
     by_kind: dict[str, list[dict[str, Any]]] = {kind: [] for kind in ARTIFACT_KINDS}
@@ -398,6 +411,9 @@ def discover_mcp_artifacts(repo_root: Path) -> tuple[dict[str, list[dict[str, An
     proof_items, proof_warnings = discover_actual_client_proofs(repo_root)
     by_kind["actual-client-proof"] = proof_items
     warnings.extend(proof_warnings)
+    proof_template_items, proof_template_warnings = discover_proof_input_templates(repo_root)
+    by_kind["proof-input-template"] = proof_template_items
+    warnings.extend(proof_template_warnings)
     inbox_items, inbox_warnings = collect_directory_artifacts(repo_root, INBOX_ROOT, "inbox", ("metadata.json", "message.json"))
     by_kind["inbox"] = inbox_items
     warnings.extend(inbox_warnings)

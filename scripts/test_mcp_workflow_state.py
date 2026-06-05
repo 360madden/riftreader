@@ -173,6 +173,11 @@ class McpWorkflowStateTests(unittest.TestCase):
                 },
                 1_800_000_080,
             )
+            write_json(
+                root / state.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010900Z" / "proof-input.json",
+                recorder.proof_template(),
+                1_800_000_090,
+            )
 
             payload = state.build_mcp_workflow_state(root)
 
@@ -213,6 +218,30 @@ class McpWorkflowStateTests(unittest.TestCase):
             ["APPLY_APPROVAL_MISSING"],
         )
         self.assertFalse(latest["actual-client-proof"]["applyLatestPackageDraftWithoutApprovalApplied"])
+        self.assertEqual(latest["proof-input-template"]["status"], "ready")
+        self.assertTrue(latest["proof-input-template"]["ok"])
+        self.assertEqual(latest["proof-input-template"]["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
+        self.assertEqual(latest["proof-input-template"]["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
+        self.assertEqual(
+            latest["proof-input-template"]["artifactPaths"]["proofInputJson"],
+            ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010900Z\\proof-input.json",
+        )
+        self.assertEqual(payload["counts"]["proof-input-template"], 1)
+
+    def test_artifact_timeline_includes_proof_input_templates_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_transport_artifacts(root)
+            write_json(
+                root / state.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010900Z" / "proof-input.json",
+                recorder.proof_template(),
+                1_800_000_090,
+            )
+
+            payload = state.artifact_timeline(root)
+
+        self.assertIn("proof-input-template", {item["artifactKind"] for item in payload["items"]})
 
     def test_marks_self_test_artifacts_and_expired_ephemeral_public_urls(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
