@@ -24,6 +24,28 @@ commit, or push was performed.
 | Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com` |
 | Current blocker | External tunnel setup remains gated: tunnel id, runtime API key, `tunnel-client init/doctor/run`, ChatGPT connector registration, and fresh actual-client proof. |
 | Installed tunnel-client | `C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe`, version `0.0.9+62b9b42f698ec5319d2115e0c0ff1dcf6557d7ae`. |
+| Latest local diagnostics slice | `b9a8341 Verify tunnel-client binary diagnostics` adds SHA256 plus `--version` behavior checks before the Secure Tunnel plan/final dependency gate can pass. |
+
+## Latest continuation - 2026-06-05 07:20 UTC
+
+The Secure Tunnel path now fails closed on a corrupt, missing, or non-executable
+`tunnel-client` binary instead of treating file presence as enough evidence.
+
+| Evidence | Result |
+|---|---|
+| Secure Tunnel plan | Passed and wrote `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T071455Z-secure-tunnel-plan.json`. |
+| Binary SHA256 | `6cf9b0ba8f01a661bb040cbf5223c725beef51e3aa6fe6ebe08fb9d364f8334a`. |
+| Binary version probe | `tunnel-client --version` exited `0` and printed `0.0.9+62b9b42f698ec5319d2115e0c0ff1dcf6557d7ae`. |
+| Wrapper check | `cmd /v:on /c "scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json > NUL & echo LAST=!ERRORLEVEL!"` printed `LAST=0`. |
+| Final readiness | `dependencyStatus=passed`, `requiredDependencies.tunnel-client=passed`; still blocked on unpushed/current-head CI and stale actual-client proof. |
+| Phase 2 status | Still blocked on missing current-head CI for `.NET build and test` and `RiftReader Policy`; proof replay passes but proof freshness is stale. |
+| GitHub Actions read-only check | Latest remote CI is for `46bbd33`; local Secure Tunnel commits are not pushed, so remote CI cannot cover current HEAD yet. |
+| Validation ledger | `.riftreader-local\validation-runs\20260605-071641-190166\summary.md`, targeted unittest suite passed in `7.779s`. |
+| Pre-commit | `pre-commit run --all-files --show-diff-on-failure` passed all configured hooks. |
+
+No tunnel profile was initialized, no `tunnel-client run` was started, no
+credential was created or stored, no ChatGPT connector registration was
+performed, and no live RIFT/proof/debugger/provider action was attempted.
 
 ## Code/docs changes
 
