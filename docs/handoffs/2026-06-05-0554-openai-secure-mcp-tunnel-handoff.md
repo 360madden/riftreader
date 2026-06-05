@@ -63,6 +63,22 @@ actionable without requiring the full dependency payload.
 No public tunnel, ChatGPT registration, credential write, live RIFT/proof
 action, provider write, debugger attach, or Git push was performed.
 
+## Latest continuation - 2026-06-05 07:37 UTC
+
+The Secure Tunnel plan now includes a credential-leak guard before writing the
+plan artifact.
+
+| Evidence | Result |
+|---|---|
+| Tunnel id validation | `--secure-tunnel-id` must be a `tunnel_...` value; malformed values are redacted and block the plan. |
+| Accidental API-key guard | Secret-looking values passed as `--secure-tunnel-id` are redacted, replaced with the placeholder, and produce `secure-tunnel-id-looks-like-secret`. |
+| Secret leak check | Generated plan artifacts include `secretLeakCheck`; the normal local plan reports `secretLeakCheck.status=passed`. |
+| Wrapper fail-closed check | Passing a dummy secret-shaped value to `--secure-tunnel-id` returned `LAST=2`. |
+| Focused adapter tests | `python -m unittest scripts.test_riftreader_chatgpt_mcp` passed 46 tests in `4.995s`. |
+
+No real credential was passed or stored, and the plan helper still does not run
+`tunnel-client init`, `doctor`, or `run`.
+
 ## Code/docs changes
 
 | File | Change |

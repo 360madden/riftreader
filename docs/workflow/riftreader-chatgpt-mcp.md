@@ -309,6 +309,12 @@ OpenAI Platform tunnel settings or the latest `openai/tunnel-client` release,
 then rerun with either PATH discovery or `--tunnel-client-path <path>`. If the
 plan reports a `tunnel-client-version-probe-failed` blocker, replace the binary
 or fix local execution before configuring a tunnel profile.
+If you pass `--secure-tunnel-id`, it must be a `tunnel_...` identifier. The
+plan blocks and redacts the input when the value is malformed or resembles an
+OpenAI API key; generated plan artifacts should keep
+`secretLeakCheck.status=passed` and `safety.credentialPlaceholderOnly=true`
+until the operator intentionally runs `tunnel-client` outside this planning
+helper.
 RiftReader also checks these adminless paths before the Program Files fallback:
 
 - `TUNNEL_CLIENT_PATH`, `OPENAI_TUNNEL_CLIENT_PATH`, `TUNNEL_CLIENT`, or
@@ -411,6 +417,8 @@ in this turn.
 |---|---|---|
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
 | `TUNNEL_CLIENT_NOT_FOUND` | OpenAI `tunnel-client` is not installed, not on PATH, or not passed explicitly. | Install/download it from OpenAI Platform tunnel settings or latest `openai/tunnel-client` release; rerun `--secure-tunnel-plan --tunnel-client-path <path>` if needed. |
+| `secure-tunnel-id-looks-like-secret` | A value passed as `--secure-tunnel-id` resembles a credential instead of a tunnel id. | Do not paste API keys into `--secure-tunnel-id`; use the generated `CONTROL_PLANE_API_KEY` environment placeholder only when manually running `tunnel-client`. |
+| `secure-tunnel-id-invalid-format` | A supplied tunnel id was not in the expected `tunnel_...` form. | Re-run with a valid Platform tunnel id or omit the flag to keep the placeholder. |
 | Tunnel not visible in ChatGPT | Tunnel is not associated with the target workspace, or the connector operator lacks Tunnels Read + Use. | Fix workspace/permission scope in Platform, then refresh ChatGPT connector settings. |
 | Connector discovery/tool calls fail through Secure MCP Tunnel | `tunnel-client run` is not healthy or not connected. | Rerun `tunnel-client doctor --profile riftreader-local-stdio --explain` and check `/ui`, `/healthz`, and `/readyz`. |
 | HTTP `421 Misdirected Request` through a tunnel | The tunnel Host header is not allowlisted. | Restart `--serve` with `--allowed-host <bare-public-host>` and, for ChatGPT, `--allowed-origin https://chatgpt.com`. |

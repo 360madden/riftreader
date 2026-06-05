@@ -55,6 +55,12 @@ DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS = 30.0
 DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS = 120.0
 DEFAULT_CHATGPT_SESSION_SECONDS = 900.0
 DEFAULT_CHATGPT_ORIGIN = "https://chatgpt.com"
+SECURE_TUNNEL_ID_PLACEHOLDER = "<tunnel_id from Platform tunnel settings>"
+SECURE_TUNNEL_ID_RE = re.compile(r"^tunnel_[A-Za-z0-9_-]{4,}$")
+SECRET_LIKE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("openai-api-key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b")),
+    ("bearer-token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}")),
+)
 MAX_HANDOFF_BYTES = 512 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
@@ -2047,6 +2053,61 @@ def secure_tunnel_mcp_command(config: AdapterConfig) -> str:
     return command_line(args)
 
 
+def find_secret_like_values(value: Any) -> list[dict[str, str]]:
+    text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    findings: list[dict[str, str]] = []
+    for name, pattern in SECRET_LIKE_PATTERNS:
+        for match in pattern.finditer(text):
+            findings.append({"kind": name, "preview": match.group(0)[:6] + "...<redacted>"})
+    return findings
+
+
+def resolve_secure_tunnel_id(value: str | None) -> dict[str, Any]:
+    if value is None or value.strip() == "":
+        return {
+            "status": "placeholder",
+            "ok": True,
+            "value": SECURE_TUNNEL_ID_PLACEHOLDER,
+            "placeholder": True,
+            "redacted": False,
+            "blockers": [],
+            "warnings": ["secure-tunnel-id-placeholder-used"],
+        }
+
+    stripped = value.strip()
+    secret_findings = find_secret_like_values(stripped)
+    if secret_findings:
+        return {
+            "status": "blocked",
+            "ok": False,
+            "value": SECURE_TUNNEL_ID_PLACEHOLDER,
+            "placeholder": True,
+            "redacted": True,
+            "blockers": ["secure-tunnel-id-looks-like-secret"],
+            "warnings": ["supplied-secure-tunnel-id-redacted"],
+            "secretFindings": secret_findings,
+        }
+    if not SECURE_TUNNEL_ID_RE.fullmatch(stripped):
+        return {
+            "status": "blocked",
+            "ok": False,
+            "value": SECURE_TUNNEL_ID_PLACEHOLDER,
+            "placeholder": True,
+            "redacted": True,
+            "blockers": ["secure-tunnel-id-invalid-format"],
+            "warnings": ["supplied-secure-tunnel-id-not-echoed"],
+        }
+    return {
+        "status": "passed",
+        "ok": True,
+        "value": stripped,
+        "placeholder": False,
+        "redacted": False,
+        "blockers": [],
+        "warnings": [],
+    }
+
+
 def build_secure_tunnel_plan(
     config: AdapterConfig,
     *,
@@ -2073,7 +2134,10 @@ def build_secure_tunnel_plan(
         blockers.append("tunnel-client-not-found-or-not-configured")
     elif tunnel_client_diagnostics and not tunnel_client_diagnostics.get("ok"):
         blockers.extend(str(blocker) for blocker in tunnel_client_diagnostics.get("blockers") or [])
-    effective_tunnel_id = tunnel_id or "<tunnel_id from Platform tunnel settings>"
+    tunnel_id_status = resolve_secure_tunnel_id(tunnel_id)
+    if not tunnel_id_status.get("ok"):
+        blockers.extend(str(blocker) for blocker in tunnel_id_status.get("blockers") or [])
+    effective_tunnel_id = str(tunnel_id_status["value"])
     mcp_command = secure_tunnel_mcp_command(config)
     init_command = [
         tunnel_client,
@@ -2102,6 +2166,7 @@ def build_secure_tunnel_plan(
         "repoRoot": str(config.repo_root),
         "profile": profile,
         "tunnelId": effective_tunnel_id,
+        "tunnelIdInput": {key: value for key, value in tunnel_id_status.items() if key != "value"},
         "mcpCommand": mcp_command,
         "commands": {
             "setApiKeyCmd": 'set "CONTROL_PLANE_API_KEY=<runtime API key with Tunnels Read + Use>"',
@@ -2152,6 +2217,7 @@ def build_secure_tunnel_plan(
             **base_safety(),
             "publicTunnelStarted": False,
             "openAiSecureTunnelPreferred": True,
+            "credentialPlaceholderOnly": True,
             "cloudflareQuickTunnelDeprecated": True,
             "mcpTransport": "stdio",
             "chatGptRegistrationPerformed": False,
@@ -2164,6 +2230,16 @@ def build_secure_tunnel_plan(
             "chatGptConnectorSettings": "https://chatgpt.com/#settings/Connectors",
         },
     }
+    secret_findings = find_secret_like_values(payload)
+    payload["secretLeakCheck"] = {
+        "status": "passed" if not secret_findings else "blocked",
+        "ok": not secret_findings,
+        "findings": secret_findings,
+    }
+    if secret_findings:
+        payload["blockers"] = [*payload["blockers"], "secure-tunnel-plan-secret-like-value-detected"]
+        payload["status"] = "blocked"
+        payload["ok"] = False
     return payload
 
 
