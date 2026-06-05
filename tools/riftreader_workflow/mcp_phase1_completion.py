@@ -100,8 +100,8 @@ def phase1_status(repo_root: Path) -> dict[str, Any]:
     status = "passed" if phase1_complete else "blocked"
     next_action = {
         "key": "record-actual-client-proof",
-        "reason": "Actual ChatGPT Developer Mode proof is still required.",
-        "command": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--record", "--input", "proof.json", "--json"],
+        "reason": "Actual ChatGPT Developer Mode proof is still required; write the current fillable proof template first.",
+        "command": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
     }
     if "git-working-tree-dirty" in blockers:
         next_action = state.get("recommendedNextAction") or next_action

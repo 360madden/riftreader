@@ -157,7 +157,7 @@ than implying an automated push.
 | Evidence | Result |
 |---|---|
 | Active final gate | `tools/riftreader_workflow/mcp_final_readiness.py`. |
-| Proof priority | `proof:*` blockers recommend `record-actual-client-proof` with `scripts/riftreader-chatgpt-trial-recorder.cmd --template --json`. |
+| Proof priority | `proof:*` blockers recommend `record-actual-client-proof` with `scripts/riftreader-chatgpt-trial-recorder.cmd --write-template --json` so the operator gets the current fillable 11-tool proof packet before recording actual ChatGPT observations. |
 | Upstream priority | `git:upstream-not-synced:*` recommends `request-push-approval` with `git --no-pager status --short --branch`; no push command is emitted. |
 | Dirty-tree priority | Dirty worktree still recommends `safe-commit-plan` before external proof/CI work. |
 | Focused validation | `python -m unittest scripts.test_mcp_final_readiness scripts.test_mcp_phase2_status scripts.test_mcp_phase1_completion scripts.test_mcp_mission_control scripts.test_workflow_router` passed 51 tests in 11.650s. |

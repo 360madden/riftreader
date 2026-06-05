@@ -165,6 +165,10 @@ class McpPhase1CompletionTests(unittest.TestCase):
         self.assertFalse(payload["phase1Complete"])
         self.assertIn("actual-client-proof-not-passed", payload["blockers"])
         self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(
+            payload["recommendedNextAction"]["command"],
+            ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
+        )
 
     def test_phase1_passes_when_actual_client_proof_exists_and_git_clean(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -181,7 +181,7 @@ Use this checklist before giving Desktop ChatGPT a real bridge URL:
 21. To isolate just the MCP guarded write-shaped tool path, run `.\scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json`.
 22. For a real MCP Developer Mode registration window, run the direct bounded helper:
     `.\scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json`.
-23. After manual ChatGPT client proof, record operator-supplied facts with `.\scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json`.
+23. Before manual ChatGPT client proof, write the current fillable packet with `.\scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json`; after filling it with actual ChatGPT observations, record it with the printed `--record --input <proof-input.json> --json` command.
 24. If using a bridge tunnel manually, start it manually and stop both bridge and tunnel when finished.
 
 ## Endpoints
