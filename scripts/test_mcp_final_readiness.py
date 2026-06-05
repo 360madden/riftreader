@@ -50,6 +50,21 @@ def base_state(*, dirty: bool = False) -> dict[str, object]:
     }
 
 
+def state_with_proof_input_template() -> dict[str, object]:
+    payload = base_state()
+    payload["latestArtifacts"] = {
+        "proof-input-template": {
+            "status": "ready",
+            "ok": True,
+            "artifactAgeSeconds": 120,
+            "artifactPaths": {
+                "proofInputJson": ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json"
+            },
+        }
+    }
+    return payload
+
+
 def ok_gate_overrides() -> dict[str, dict[str, object]]:
     return {
         "git_sync_payload": {"status": "passed", "ok": True, "blockers": [], "warnings": [], "ahead": 0, "behind": 0},
@@ -227,6 +242,29 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertIn("ci:missing:.NET build and test", payload["blockers"])
         self.assertIn("proof:replay-failed:required-field-missing:connectionMode", payload["blockers"])
         self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+
+    def test_proof_action_uses_latest_fresh_template_when_present(self) -> None:
+        phase2 = base_phase2()
+        phase2["proofReplay"] = {
+            "status": "blocked",
+            "ok": False,
+            "blockers": ["required-field-missing:connectionMode"],
+            "proofFreshness": {"status": "stale"},
+        }
+
+        payload = final_status(phase2=phase2, state=state_with_proof_input_template())
+
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(
+            payload["recommendedNextAction"]["command"],
+            [
+                "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+                "--record",
+                "--input",
+                ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
+                "--json",
+            ],
+        )
 
     def test_upstream_sync_blocker_has_non_mutating_recommendation(self) -> None:
         overrides = ok_gate_overrides()

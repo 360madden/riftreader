@@ -458,6 +458,9 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
             commands["secureTunnelPlan"],
         )
     if not passed(latest_artifacts.get("actual-client-proof")):
+        template_action = proof_input_template_next_action(latest_artifacts)
+        if template_action["command"] != commands["trialProofTemplate"]:
+            return template_action
         return action(
             "chatgpt-secure-tunnel-proof",
             "Use OpenAI Secure MCP Tunnel for actual ChatGPT proof; Cloudflare remains fallback-only.",
@@ -496,6 +499,38 @@ def standard_commands() -> dict[str, list[str]]:
         "safeCommitPlan": ["scripts\\riftreader-safe-commit-packager.cmd", "--plan", "--json"],
         "workflowRouter": ["scripts\\riftreader-workflow-router.cmd", "--mcp", "--json"],
     }
+
+
+def proof_input_template_record_command(item: dict[str, Any] | None) -> list[str] | None:
+    """Return the record command for a ready, fresh proof-input template."""
+
+    if not passed(item):
+        return None
+    age_seconds = item.get("artifactAgeSeconds")
+    if not isinstance(age_seconds, int) or age_seconds > FRESHNESS_BUDGET_SECONDS["proof-input-template"]:
+        return None
+    artifact_paths = item.get("artifactPaths") if isinstance(item.get("artifactPaths"), dict) else {}
+    proof_input = artifact_paths.get("proofInputJson") or item.get("path")
+    if not isinstance(proof_input, str) or not proof_input.strip():
+        return None
+    return ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--record", "--input", proof_input, "--json"]
+
+
+def proof_input_template_next_action(latest_artifacts: dict[str, dict[str, Any] | None]) -> dict[str, Any]:
+    """Prefer filling/recording the latest fresh template over writing another one."""
+
+    command = proof_input_template_record_command(latest_artifacts.get("proof-input-template"))
+    if command:
+        return action(
+            "record-actual-client-proof",
+            "Fill the latest fresh proof-input template with actual ChatGPT observations, then record it.",
+            command,
+        )
+    return action(
+        "record-actual-client-proof",
+        "Actual ChatGPT Developer Mode proof is still required; write the current fillable proof template first.",
+        standard_commands()["trialProofTemplate"],
+    )
 
 
 def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:

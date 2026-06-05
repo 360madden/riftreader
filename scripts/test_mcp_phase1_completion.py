@@ -74,6 +74,24 @@ def write_repo_side_artifacts(root: Path) -> None:
     )
 
 
+def write_proof_input_template(root: Path) -> None:
+    write_json(
+        root / state.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010350Z" / "proof-input.json",
+        {
+            "kind": "riftreader-chatgpt-actual-client-proof-input",
+            "schemaVersion": 1,
+            "status": "ready",
+            "ok": True,
+            "connectionMode": "openai-secure-mcp-tunnel",
+            "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+        },
+        1_800_000_025,
+    )
+
+
 def write_actual_client_proof(root: Path) -> None:
     write_json(
         root / state.ACTUAL_CLIENT_PROOF_ROOT / "20260519-010400Z" / "proof.json",
@@ -168,6 +186,29 @@ class McpPhase1CompletionTests(unittest.TestCase):
         self.assertEqual(
             payload["recommendedNextAction"]["command"],
             ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
+        )
+
+    def test_repo_side_complete_recommends_latest_fresh_proof_template_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_repo_side_artifacts(root)
+            write_proof_input_template(root)
+
+            payload = phase1.phase1_status(root)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertTrue(payload["repoSideComplete"])
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(
+            payload["recommendedNextAction"]["command"],
+            [
+                "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+                "--record",
+                "--input",
+                ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
+                "--json",
+            ],
         )
 
     def test_phase1_passes_when_actual_client_proof_exists_and_git_clean(self) -> None:

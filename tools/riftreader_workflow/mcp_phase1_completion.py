@@ -17,12 +17,12 @@ from typing import Any
 try:
     from .chatgpt_trial_recorder import validate_proof
     from .common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
-    from .mcp_workflow_state import build_mcp_workflow_state, passed
+    from .mcp_workflow_state import build_mcp_workflow_state, passed, proof_input_template_next_action
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.chatgpt_trial_recorder import validate_proof
     from riftreader_workflow.common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
-    from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, passed
+    from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, passed, proof_input_template_next_action
 
 
 PHASE1_CHECKS = (
@@ -98,11 +98,7 @@ def phase1_status(repo_root: Path) -> dict[str, Any]:
     repo_side_complete = all(check["ok"] for check in checks if check["kind"] in REPO_SIDE_CHECKS)
     phase1_complete = not blockers
     status = "passed" if phase1_complete else "blocked"
-    next_action = {
-        "key": "record-actual-client-proof",
-        "reason": "Actual ChatGPT Developer Mode proof is still required; write the current fillable proof template first.",
-        "command": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
-    }
+    next_action = proof_input_template_next_action(latest)
     if "git-working-tree-dirty" in blockers:
         next_action = state.get("recommendedNextAction") or next_action
     elif phase1_complete:

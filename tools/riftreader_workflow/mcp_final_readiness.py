@@ -17,12 +17,12 @@ from typing import Any
 try:
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_phase2_status import compact_phase2_status, phase2_status
-    from .mcp_workflow_state import build_mcp_workflow_state, safe_load_json, standard_commands
+    from .mcp_workflow_state import build_mcp_workflow_state, proof_input_template_next_action, safe_load_json, standard_commands
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_phase2_status import compact_phase2_status, phase2_status
-    from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, safe_load_json, standard_commands
+    from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, proof_input_template_next_action, safe_load_json, standard_commands
 
 
 APPROVED_TOOL_NAMES = (
@@ -576,7 +576,12 @@ def _latest_release_handoff_path(repo_root: Path) -> str | None:
     return str(newest.relative_to(repo_root))
 
 
-def _next_action(blockers: list[str], *, release_handoff_path: str | None = None) -> dict[str, Any]:
+def _next_action(
+    blockers: list[str],
+    *,
+    latest_artifacts: dict[str, dict[str, Any] | None] | None = None,
+    release_handoff_path: str | None = None,
+) -> dict[str, Any]:
     commands = standard_commands()
 
     def first_by_prefix(*prefixes: str) -> str | None:
@@ -604,7 +609,7 @@ def _next_action(blockers: list[str], *, release_handoff_path: str | None = None
     if first_by_prefix("artifact:proposal-smoke"):
         return {"key": "refresh-proposal-smoke", "reason": "Final readiness requires a fresh guarded proposal transport smoke.", "command": commands["proposalTransportSmoke"]}
     if first_by_prefix("proof:"):
-        return {"key": "record-actual-client-proof", "reason": "Actual-client proof is missing, stale, or failed replay.", "command": commands["trialProofTemplate"]}
+        return proof_input_template_next_action(latest_artifacts or {})
     if first_by_prefix("ci:"):
         return {
             "key": "inspect-current-head-ci",
@@ -725,7 +730,11 @@ def final_readiness(
         "dependencies": dependency_payload,
         "environment": environment_payload,
         "publicSession": public_session_payload,
-        "recommendedNextAction": _next_action(blockers, release_handoff_path=release_handoff_path),
+        "recommendedNextAction": _next_action(
+            blockers,
+            latest_artifacts=state_payload.get("latestArtifacts") if isinstance(state_payload.get("latestArtifacts"), dict) else {},
+            release_handoff_path=release_handoff_path,
+        ),
         "safety": {
             **safety_flags(),
             "finalGateReadOnly": True,
