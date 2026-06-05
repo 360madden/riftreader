@@ -13,6 +13,7 @@ Current stage: **Stage 1 — Current baseline and proof gap**. The local 10-tool
 - Prefer Python helpers for orchestration and thin `.cmd` launchers for operator convenience.
 - Stage 17 apply design contract: `docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md`; it remains plan metadata only until the tool is deliberately exposed in Stage 20.
 - Stage 18 local-only preflight helper: `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`; it never passes `--apply`.
+- Stage 19 local-only apply bridge: `tools\riftreader_workflow\package_draft_review.py --apply-latest-operator`; it requires the preflight approval token and is still not MCP-exposed.
 
 ## Stage table
 
@@ -36,7 +37,7 @@ Current stage: **Stage 1 — Current baseline and proof gap**. The local 10-tool
 | 16 | Release handoff for current product | Create and commit a compact handoff for the proven 10-tool Secure Tunnel product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
 | 17 | Apply-tool design spec | Design apply_latest_package_draft with exact inputs, approval copy, dry-run hash binding, and fail-closed states. | Design doc exists, control-plan metadata is surfaced, and tests prove the tool remains unexposed. | complete-local |
 | 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | complete-local |
-| 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper can self-test blocked and approved paths locally with no Git mutation. | pending |
+| 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper blocks missing/mismatched approval tokens and only passes `--apply` after preflight approval. | complete-local |
 | 20 | Expose apply_latest_package_draft | Expose apply as an MCP tool only after helper gates pass and descriptions/outputSchema are complete. | Tool count intentionally changes with updated proof contract and tests. | pending |
 | 21 | Apply actual-client proof | Prove ChatGPT can apply only an approved reviewed draft and receive post-apply evidence. | Proof records repo source mutation truthfully and blocks unapproved apply. | pending |
 | 22 | Post-apply validation reporting | Return validation commands/results, changed files, and rollback hints after apply. | ChatGPT can explain applied state without committing. | pending |

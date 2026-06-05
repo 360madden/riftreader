@@ -548,6 +548,13 @@ def apply_preflight_latest_package_draft(
             warnings.append("dry_run_diff_sha256_not_supplied_for_binding")
 
     status = "ready" if not blockers else "blocked"
+    approval_facts = {
+        "draftId": draft.get("draftId") if draft else None,
+        "dryRunSummaryPath": dry_run.get("summaryPath") if dry_run else None,
+        "dryRunDiffSha256": dry_run.get("diffSha256") if dry_run else None,
+        "changedFileCount": dry_run.get("changedFileCount") if dry_run else None,
+    }
+    expected_approval_token = approval_token_for_facts(approval_facts) if status_is_preapproval_ready(blockers, approval_facts) else None
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-package-draft-apply-preflight-latest-operator"
@@ -562,12 +569,8 @@ def apply_preflight_latest_package_draft(
         "dryRun": dry_run,
         "blockers": blockers,
         "warnings": warnings,
-        "approvalFacts": {
-            "draftId": draft.get("draftId") if draft else None,
-            "dryRunSummaryPath": dry_run.get("summaryPath") if dry_run else None,
-            "dryRunDiffSha256": dry_run.get("diffSha256") if dry_run else None,
-            "changedFileCount": dry_run.get("changedFileCount") if dry_run else None,
-        },
+        "approvalFacts": approval_facts,
+        "expectedApprovalToken": expected_approval_token,
         "safety": {
             **safety_flags(),
             "readOnlyPreflight": True,
@@ -585,6 +588,152 @@ def apply_preflight_latest_package_draft(
             "Review approvalFacts before any future apply approval token is generated.",
             "Do not call package intake with --apply until a separate gated helper and MCP exposure stage exist.",
             "Commit/push, shell execution, RIFT input, CE, and x64dbg remain out of scope for this preflight.",
+        ],
+    }
+
+
+def status_is_preapproval_ready(blockers: list[str], approval_facts: dict[str, Any]) -> bool:
+    return (
+        not blockers
+        and isinstance(approval_facts.get("draftId"), str)
+        and isinstance(approval_facts.get("dryRunSummaryPath"), str)
+        and isinstance(approval_facts.get("dryRunDiffSha256"), str)
+        and isinstance(approval_facts.get("changedFileCount"), int)
+    )
+
+
+def approval_token_for_facts(approval_facts: dict[str, Any]) -> str:
+    payload = {
+        "draftId": approval_facts.get("draftId"),
+        "dryRunSummaryPath": approval_facts.get("dryRunSummaryPath"),
+        "dryRunDiffSha256": approval_facts.get("dryRunDiffSha256"),
+        "changedFileCount": approval_facts.get("changedFileCount"),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return f"APPLY-{digest[:16]}"
+
+
+def apply_latest_package_draft_bridge(
+    repo_root: Path,
+    *,
+    approval_token: str | None,
+    operator_only: bool = True,
+    dry_run_summary_path: str | None = None,
+    dry_run_diff_sha256: str | None = None,
+    max_age_seconds: float = 86400.0,
+    timeout_seconds: float = 180.0,
+) -> dict[str, Any]:
+    preflight = apply_preflight_latest_package_draft(
+        repo_root,
+        operator_only=operator_only,
+        dry_run_summary_path=dry_run_summary_path,
+        dry_run_diff_sha256=dry_run_diff_sha256,
+        max_age_seconds=max_age_seconds,
+    )
+    blockers: list[str] = list(preflight.get("blockers") or [])
+    warnings: list[str] = list(preflight.get("warnings") or [])
+    expected_token = preflight.get("expectedApprovalToken")
+    if not preflight.get("ok"):
+        blockers.append("APPLY_PREFLIGHT_NOT_READY")
+    if not approval_token:
+        blockers.append("APPLY_APPROVAL_MISSING")
+    elif approval_token != expected_token:
+        blockers.append("APPLY_APPROVAL_TOKEN_MISMATCH")
+    draft = preflight.get("draft") if isinstance(preflight.get("draft"), dict) else {}
+    package_root = safe_resolve_repo_path(repo_root, draft.get("packageRoot")) if draft else None
+    if package_root is None:
+        blockers.append("APPLY_PACKAGE_TARGET_INVALID")
+
+    if blockers:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-package-draft-apply-bridge-latest-operator"
+            if operator_only
+            else "riftreader-package-draft-apply-bridge-latest",
+            "generatedAtUtc": utc_iso(),
+            "status": "blocked",
+            "ok": False,
+            "applied": False,
+            "preflight": preflight,
+            "blockers": blockers,
+            "warnings": warnings,
+            "safety": {
+                **safety_flags(),
+                "applyFlagSent": False,
+                "repoSourceMutationExpected": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "mcpToolExposed": False,
+            },
+            "next": [
+                "Review blockers and rerun preflight before retrying.",
+                "No package intake apply command was started.",
+            ],
+        }
+
+    args = [
+        str(repo_root / "scripts" / "riftreader-package-intake.cmd"),
+        "--package",
+        str(package_root),
+        "--apply",
+        "--compact-json",
+    ]
+    envelope = run_command_envelope(
+        "latest-package-draft-intake-apply",
+        args,
+        repo_root,
+        timeout_seconds=timeout_seconds,
+        expected_exit_codes={0, 2},
+        capture_full_output=True,
+    )
+    parsed_stdout: Any = None
+    stdout = envelope.get("stdout")
+    if isinstance(stdout, str) and stdout.strip():
+        try:
+            parsed_stdout = json.loads(stdout)
+        except json.JSONDecodeError:
+            warnings.append("apply_stdout_json_parse_failed")
+    exit_code = envelope.get("exitCode")
+    status = "passed" if exit_code == 0 else "blocked" if exit_code == 2 else "failed"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-package-draft-apply-bridge-latest-operator"
+        if operator_only
+        else "riftreader-package-draft-apply-bridge-latest",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": exit_code == 0,
+        "applied": exit_code == 0,
+        "preflight": preflight,
+        "command": {
+            "args": args,
+            "timeoutSeconds": timeout_seconds,
+            "applyFlagSent": True,
+            "operatorOnly": operator_only,
+        },
+        "commandEnvelope": envelope,
+        "intakeCompactSummary": parsed_stdout,
+        "blockers": [] if status == "passed" else [f"package-intake-apply-{status}:{exit_code}"],
+        "warnings": warnings,
+        "safety": {
+            **safety_flags(),
+            "applyFlagSent": True,
+            "repoSourceMutationExpected": True,
+            "gitMutation": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+            "mcpToolExposed": False,
+        },
+        "next": [
+            "Review applied diff and validation output before any Git staging.",
+            "Commit/push remains a separate explicit Git gate.",
         ],
     }
 
@@ -717,6 +866,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Read-only future-apply preflight for the newest operator draft. Never passes --apply.",
     )
     mode.add_argument(
+        "--apply-latest-operator",
+        action="store_true",
+        help="Apply newest operator draft only after approval-token preflight. Not exposed through MCP.",
+    )
+    mode.add_argument(
         "--self-test",
         action="store_true",
         help="Run a local proposal -> inbox -> draft -> dry-run self-test. Writes ignored .riftreader-local artifacts only.",
@@ -725,6 +879,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-seconds", type=float, default=180.0, help="Dry-run command timeout.")
     parser.add_argument("--dry-run-summary-path", default=None, help="Optional package-intake-summary.json to bind.")
     parser.add_argument("--dry-run-diff-sha256", default=None, help="Optional expected SHA-256 for the dry-run diff.")
+    parser.add_argument("--approval-token", default=None, help="Required for --apply-latest-operator.")
     parser.add_argument("--max-age-seconds", type=float, default=86400.0, help="Maximum dry-run age for apply preflight.")
     parser.add_argument("--json", action="store_true", help="Emit JSON. Present for wrapper consistency.")
     return parser
@@ -750,6 +905,16 @@ def main(argv: list[str] | None = None) -> int:
             dry_run_summary_path=args.dry_run_summary_path,
             dry_run_diff_sha256=args.dry_run_diff_sha256,
             max_age_seconds=args.max_age_seconds,
+        )
+    elif args.apply_latest_operator:
+        payload = apply_latest_package_draft_bridge(
+            repo_root,
+            approval_token=args.approval_token,
+            operator_only=True,
+            dry_run_summary_path=args.dry_run_summary_path,
+            dry_run_diff_sha256=args.dry_run_diff_sha256,
+            max_age_seconds=args.max_age_seconds,
+            timeout_seconds=args.timeout_seconds,
         )
     else:
         payload = run_self_test(repo_root, args.timeout_seconds)

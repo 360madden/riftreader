@@ -1,12 +1,17 @@
 # ChatGPT MCP apply_latest_package_draft design
 
-Status: Stage 18 local preflight implemented. This does **not** expose an apply MCP tool yet.
+Status: Stage 19 local apply bridge implemented. This does **not** expose an apply MCP tool yet.
 
 Stage 18 local-only preflight is implemented in
 `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`.
 It validates the operator draft, package root, matching dry-run summary, dry-run
 age budget, and diff SHA-256 binding without calling package intake with
 `--apply`.
+
+Stage 19 local-only apply bridge is implemented in
+`tools\riftreader_workflow\package_draft_review.py --apply-latest-operator`.
+It requires the Stage 18 approval token before passing `--apply` to package
+intake and remains outside the MCP tool manifest.
 
 ## Purpose
 
@@ -80,7 +85,7 @@ The tool must never become arbitrary filesystem write, shell execution, Git muta
 |---:|---|
 | 17 | This design contract. |
 | 18 | Package identity and freshness gate implemented local-only. |
-| 19 | Apply dry-run-to-apply bridge helper. |
+| 19 | Apply dry-run-to-apply bridge helper implemented local-only. |
 | 20 | Expose `apply_latest_package_draft` as MCP tool. |
 | 21 | Actual-client apply proof. |
 | 22 | Post-apply validation reporting. |

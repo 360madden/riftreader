@@ -88,10 +88,14 @@ Stage 18 local-only preflight helper is
 `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`,
 which validates draft identity, dry-run freshness, and diff hash binding without
 passing `--apply`.
+Stage 19 adds `--apply-latest-operator` as a local-only bridge that requires the
+preflight approval token before it can pass `--apply` to package intake; it is
+still not exposed through MCP and it performs no Git, provider, RIFT, CE, or
+x64dbg action.
 
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
-| Apply latest package draft to repo | Stage 18 preflight helper; not exposed | Explicit operator approval plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
+| Apply latest package draft to repo | Stage 19 local bridge; not exposed | Explicit operator approval token plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |

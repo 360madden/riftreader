@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -320,6 +321,7 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["approvalFacts"]["draftId"], "20260518T130000Z-bbbbbbbbbbbb")
         self.assertEqual(payload["approvalFacts"]["dryRunDiffSha256"], diff_sha256)
+        self.assertTrue(str(payload["expectedApprovalToken"]).startswith("APPLY-"))
         self.assertFalse(payload["applyToolExposed"])
         self.assertFalse(payload["safety"]["applyFlagSent"])
         self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
@@ -383,6 +385,88 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("APPLY_DRAFT_SELF_TEST_BLOCKED", payload["blockers"])
+
+    def test_apply_bridge_blocks_without_approval_token_before_apply_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Missing approval")
+            summary_path, diff_sha256 = make_dry_run_summary(root, draft / "package")
+
+            with mock.patch.object(package_draft_review, "run_command_envelope") as run_command:
+                payload = package_draft_review.apply_latest_package_draft_bridge(
+                    root,
+                    approval_token=None,
+                    dry_run_summary_path=str(summary_path.relative_to(root)),
+                    dry_run_diff_sha256=diff_sha256,
+                    max_age_seconds=10**9,
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["blockers"])
+        self.assertFalse(payload["safety"]["applyFlagSent"])
+        run_command.assert_not_called()
+
+    def test_apply_bridge_invokes_package_intake_with_apply_after_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Approved apply")
+            summary_path, diff_sha256 = make_dry_run_summary(root, draft / "package")
+            preflight = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=10**9,
+            )
+            envelope = {
+                "label": "latest-package-draft-intake-apply",
+                "ok": True,
+                "exitCode": 0,
+                "stdout": json.dumps({"status": "passed", "dryRun": False, "changedFileCount": 1}),
+                "stderr": "",
+            }
+            with mock.patch.object(package_draft_review, "run_command_envelope", return_value=envelope) as run_command:
+                payload = package_draft_review.apply_latest_package_draft_bridge(
+                    root,
+                    approval_token=str(preflight["expectedApprovalToken"]),
+                    dry_run_summary_path=str(summary_path.relative_to(root)),
+                    dry_run_diff_sha256=diff_sha256,
+                    max_age_seconds=10**9,
+                    timeout_seconds=30,
+                )
+
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["applied"])
+        self.assertTrue(payload["safety"]["applyFlagSent"])
+        self.assertTrue(payload["safety"]["repoSourceMutationExpected"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        command_args = run_command.call_args.args[1]
+        self.assertIn("--apply", command_args)
+        self.assertIn("--compact-json", command_args)
+        self.assertEqual(payload["intakeCompactSummary"]["dryRun"], False)
+
+    def test_apply_bridge_blocks_approval_token_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Token mismatch")
+            summary_path, diff_sha256 = make_dry_run_summary(root, draft / "package")
+
+            with mock.patch.object(package_draft_review, "run_command_envelope") as run_command:
+                payload = package_draft_review.apply_latest_package_draft_bridge(
+                    root,
+                    approval_token="APPLY-wrong",
+                    dry_run_summary_path=str(summary_path.relative_to(root)),
+                    dry_run_diff_sha256=diff_sha256,
+                    max_age_seconds=10**9,
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("APPLY_APPROVAL_TOKEN_MISMATCH", payload["blockers"])
+        run_command.assert_not_called()
 
     def test_self_test_runs_package_proposal_to_dry_run_loop(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
