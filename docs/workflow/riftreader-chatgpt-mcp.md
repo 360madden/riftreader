@@ -98,12 +98,15 @@ cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
 ```
 
-To prove the guarded write-shaped MCP tool over the same real SDK/client
+To prove the guarded write-shaped MCP tools over the same real SDK/client
 transport before using ChatGPT, run the proposal transport smoke. It submits a
 synthetic `package-proposal` through `submit_package_proposal`, confirms
 `list_inbox` can see the result, creates an inert package draft with
-`create_package_draft_from_inbox`, writes only ignored `.riftreader-local`
-inbox/draft/audit/smoke artifacts, and stops the temporary loopback server.
+`create_package_draft_from_inbox`, reviews it with
+`review_latest_package_draft`, dry-runs it with `dry_run_latest_package_draft`,
+verifies the bounded `dryRun.diffPreview`, writes only ignored
+`.riftreader-local` inbox/draft/package-intake/audit/smoke artifacts, and stops
+the temporary loopback server.
 
 `dry_run_latest_package_draft` also compacts the package-intake result for
 ChatGPT review. Its optional `dryRun.diffPreview` is intentionally not an
@@ -123,8 +126,9 @@ cd /d "C:\RIFT MODDING\RiftReader"
 For a single compact local go/no-go gate before any public tunnel or ChatGPT
 registration, run trial readiness. This runs the handler self-test, SDK
 metadata validation, loopback transport smoke including a synthetic
-`submit_package_proposal` plus inert package-draft creation call, optional
-OpenAI `tunnel-client`/`curl`
+`submit_package_proposal`, `list_inbox`, inert package-draft creation, draft
+review, dry-run, bounded `dryRun.diffPreview`, optional OpenAI
+`tunnel-client`/`curl`
 readiness checks, and records Cloudflare only as a deprecated fallback. It
 writes a compact summary under
 `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`.

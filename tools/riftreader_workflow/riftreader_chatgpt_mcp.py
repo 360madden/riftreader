@@ -1725,6 +1725,8 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
             submit_result = None
             inbox_result = None
             draft_result = None
+            review_result = None
+            dry_run_result = None
             if package_proposal is not None:
                 submit_result = await session.call_tool("submit_package_proposal", {"proposal": package_proposal})
                 inbox_result = await session.call_tool("list_inbox", {})
@@ -1732,6 +1734,11 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
                 inbox_id = submit_content.get("inboxId") if isinstance(submit_content, dict) else None
                 if isinstance(inbox_id, str) and inbox_id:
                     draft_result = await session.call_tool("create_package_draft_from_inbox", {"inboxId": inbox_id})
+                    review_result = await session.call_tool("review_latest_package_draft", {"operatorOnly": False})
+                    dry_run_result = await session.call_tool(
+                        "dry_run_latest_package_draft",
+                        {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                    )
     tools = list(getattr(tools_result, "tools", []) or [])
     tool_names = [getattr(tool, "name", None) for tool in tools]
     registered_summaries = []
@@ -1757,6 +1764,10 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
         "listInboxAfterSubmitStructuredContent": getattr(inbox_result, "structuredContent", None) if inbox_result is not None else None,
         "createPackageDraftIsError": bool(getattr(draft_result, "isError", False)) if draft_result is not None else None,
         "createPackageDraftStructuredContent": getattr(draft_result, "structuredContent", None) if draft_result is not None else None,
+        "reviewLatestPackageDraftIsError": bool(getattr(review_result, "isError", False)) if review_result is not None else None,
+        "reviewLatestPackageDraftStructuredContent": getattr(review_result, "structuredContent", None) if review_result is not None else None,
+        "dryRunLatestPackageDraftIsError": bool(getattr(dry_run_result, "isError", False)) if dry_run_result is not None else None,
+        "dryRunLatestPackageDraftStructuredContent": getattr(dry_run_result, "structuredContent", None) if dry_run_result is not None else None,
     }
 
 
@@ -1862,6 +1873,45 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
                 blockers.append("create-package-draft-local-only-flag-missing")
             if safety.get("applyFlagSent") is not False:
                 blockers.append("create-package-draft-apply-flag-not-false")
+        if client_result.get("reviewLatestPackageDraftIsError") is True:
+            blockers.append("review-latest-package-draft-returned-error")
+        review_result = client_result.get("reviewLatestPackageDraftStructuredContent")
+        if not isinstance(review_result, dict):
+            blockers.append("review-latest-package-draft-structured-content-missing")
+        else:
+            if review_result.get("ok") is not True:
+                blockers.append(f"review-latest-package-draft-not-ok:{review_result.get('code') or review_result.get('status')}")
+            safety = review_result.get("safety") if isinstance(review_result.get("safety"), dict) else {}
+            if safety.get("readOnlyReview") is not True:
+                blockers.append("review-latest-package-draft-read-only-review-flag-missing")
+        if client_result.get("dryRunLatestPackageDraftIsError") is True:
+            blockers.append("dry-run-latest-package-draft-returned-error")
+        dry_run_result = client_result.get("dryRunLatestPackageDraftStructuredContent")
+        if not isinstance(dry_run_result, dict):
+            blockers.append("dry-run-latest-package-draft-structured-content-missing")
+        else:
+            if dry_run_result.get("ok") is not True:
+                blockers.append(f"dry-run-latest-package-draft-not-ok:{dry_run_result.get('code') or dry_run_result.get('status')}")
+            if dry_run_result.get("dryRunSucceeded") is not True:
+                blockers.append("dry-run-latest-package-draft-succeeded-flag-missing")
+            safety = dry_run_result.get("safety") if isinstance(dry_run_result.get("safety"), dict) else {}
+            if safety.get("packageIntakeDryRunOnly") is not True:
+                blockers.append("dry-run-latest-package-draft-dry-run-only-flag-missing")
+            if safety.get("applyFlagSent") is not False:
+                blockers.append("dry-run-latest-package-draft-apply-flag-not-false")
+            dry_run = dry_run_result.get("dryRun") if isinstance(dry_run_result.get("dryRun"), dict) else {}
+            diff_preview = dry_run.get("diffPreview") if isinstance(dry_run.get("diffPreview"), dict) else {}
+            if diff_preview.get("ok") is not True:
+                blockers.append(f"dry-run-diff-preview-not-ok:{diff_preview.get('code') or diff_preview.get('status')}")
+            if not isinstance(diff_preview.get("text"), str):
+                blockers.append("dry-run-diff-preview-text-missing")
+            diff_safety = diff_preview.get("safety") if isinstance(diff_preview.get("safety"), dict) else {}
+            if diff_safety.get("diffArtifactUnderPackageIntake") is not True:
+                blockers.append("dry-run-diff-preview-package-intake-flag-missing")
+            if diff_safety.get("boundedBytes") is not True:
+                blockers.append("dry-run-diff-preview-bounded-bytes-flag-missing")
+            if diff_safety.get("applyFlagSent") is not False:
+                blockers.append("dry-run-diff-preview-apply-flag-not-false")
     return blockers
 
 
@@ -1983,7 +2033,7 @@ def run_transport_smoke_test(
         "blockers": blockers,
         "warnings": [
             "Transport smoke starts a temporary loopback-only server, calls list_tools and health, then terminates it.",
-            "Proposal transport smoke also calls submit_package_proposal, list_inbox, and create_package_draft_from_inbox with a synthetic self-test package; it writes ignored .riftreader-local inbox/draft/audit artifacts only."
+            "Proposal transport smoke also calls submit_package_proposal, list_inbox, create_package_draft_from_inbox, review_latest_package_draft, and dry_run_latest_package_draft with a synthetic self-test package; it writes ignored .riftreader-local inbox/draft/package-intake/audit artifacts only."
             if include_proposal_submit
             else "No proposal submit is performed by this smoke.",
             "No HTTPS tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is performed.",
@@ -2004,6 +2054,9 @@ def run_transport_smoke_test(
             "proposalSubmitWritesLocalInboxOnly": include_proposal_submit,
             "packageDraftCreateTransportCovered": include_proposal_submit,
             "packageDraftWritesLocalOnly": include_proposal_submit,
+            "packageDraftReviewTransportCovered": include_proposal_submit,
+            "packageDraftDryRunTransportCovered": include_proposal_submit,
+            "packageDraftDiffPreviewTransportCovered": include_proposal_submit,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
         },
@@ -2089,6 +2142,9 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                 "proposalSubmitWritesLocalInboxOnly",
                 "packageDraftCreateTransportCovered",
                 "packageDraftWritesLocalOnly",
+                "packageDraftReviewTransportCovered",
+                "packageDraftDryRunTransportCovered",
+                "packageDraftDiffPreviewTransportCovered",
                 "publicTunnelStarted",
                 "chatGptRegistrationPerformed",
                 "applyFlagSent",
@@ -2106,6 +2162,8 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
             "submitPackageProposalIsError",
             "listInboxAfterSubmitIsError",
             "createPackageDraftIsError",
+            "reviewLatestPackageDraftIsError",
+            "dryRunLatestPackageDraftIsError",
         ):
             if key in client:
                 client_compact[key] = client.get(key)
@@ -2138,6 +2196,44 @@ def compact_stage_payload(payload: Any) -> dict[str, Any]:
                 "localPackageDraftOnly": (draft_result.get("safety") or {}).get("localPackageDraftOnly")
                 if isinstance(draft_result.get("safety"), dict)
                 else None,
+            }
+        review_result = client.get("reviewLatestPackageDraftStructuredContent")
+        if isinstance(review_result, dict):
+            client_compact["reviewLatestPackageDraft"] = {
+                "ok": review_result.get("ok"),
+                "status": review_result.get("status"),
+                "code": review_result.get("code"),
+                "draftId": review_result.get("draftId"),
+                "readOnlyReview": (review_result.get("safety") or {}).get("readOnlyReview")
+                if isinstance(review_result.get("safety"), dict)
+                else None,
+            }
+        dry_run_result = client.get("dryRunLatestPackageDraftStructuredContent")
+        if isinstance(dry_run_result, dict):
+            dry_run = dry_run_result.get("dryRun") if isinstance(dry_run_result.get("dryRun"), dict) else {}
+            diff_preview = dry_run.get("diffPreview") if isinstance(dry_run.get("diffPreview"), dict) else {}
+            client_compact["dryRunLatestPackageDraft"] = {
+                "ok": dry_run_result.get("ok"),
+                "status": dry_run_result.get("status"),
+                "code": dry_run_result.get("code"),
+                "draftId": dry_run_result.get("draftId"),
+                "dryRunSucceeded": dry_run_result.get("dryRunSucceeded"),
+                "packageIntakeDryRunOnly": (dry_run_result.get("safety") or {}).get("packageIntakeDryRunOnly")
+                if isinstance(dry_run_result.get("safety"), dict)
+                else None,
+                "diffPreview": {
+                    "ok": diff_preview.get("ok"),
+                    "status": diff_preview.get("status"),
+                    "code": diff_preview.get("code"),
+                    "artifactPath": diff_preview.get("artifactPath"),
+                    "truncated": diff_preview.get("truncated"),
+                    "sizeBytes": diff_preview.get("sizeBytes"),
+                    "maxBytes": diff_preview.get("maxBytes"),
+                    "textLength": len(diff_preview.get("text")) if isinstance(diff_preview.get("text"), str) else None,
+                    "diffArtifactUnderPackageIntake": (diff_preview.get("safety") or {}).get("diffArtifactUnderPackageIntake")
+                    if isinstance(diff_preview.get("safety"), dict)
+                    else None,
+                },
             }
         compact["client"] = client_compact
     registered = payload.get("registeredTools")
@@ -2351,7 +2447,7 @@ def run_trial_readiness(
         "blockers": blockers,
         "warnings": warnings
         + [
-            "Trial readiness starts only local/self-test and temporary loopback checks, including synthetic submit_package_proposal and create_package_draft_from_inbox transport calls.",
+            "Trial readiness starts only local/self-test and temporary loopback checks, including synthetic submit_package_proposal, create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, and diff-preview transport calls.",
             "It does not start a public tunnel, register ChatGPT, serve persistently, apply packages, mutate Git, send RIFT input, or attach CE/x64dbg.",
         ],
         "safety": {

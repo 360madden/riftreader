@@ -195,9 +195,10 @@ Phase 6 may be considered complete when:
 4. The final gate blocks when root proof/smoke safety flags are missing,
    unknown, or report Git mutation, provider writes, RIFT input, x64dbg attach,
    SavedVariables-as-live-truth, package apply, or CE usage.
-5. A refreshed guarded proposal transport smoke still passes locally with no
-   public tunnel, ChatGPT registration, Git mutation, RIFT input, CE, x64dbg,
-   package apply, or provider write.
+5. A refreshed guarded proposal transport smoke still passes locally through
+   submit, inbox list, inert draft creation, draft review, dry-run, and bounded
+   `dryRun.diffPreview`, with no public tunnel, ChatGPT registration, Git
+   mutation, RIFT input, CE, x64dbg, package apply, or provider write.
 
 ## Public session states
 
