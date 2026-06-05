@@ -280,6 +280,7 @@ def base_safety() -> dict[str, Any]:
         "noPersistentServerStartedByTool": True,
         "noTunnelStartedByTool": True,
         "chatGptOriginatedWritesLocalOnly": True,
+        "absoluteRepoRootRedacted": True,
     }
 
 
@@ -291,6 +292,37 @@ def text_tail(value: str, max_chars: int = 4000) -> str:
     if len(value) <= max_chars:
         return value
     return value[-max_chars:]
+
+
+def redact_repo_root_in_text(value: str, repo_root: Path) -> str:
+    """Redact the absolute repo root from ChatGPT-facing tool payload text."""
+    root = str(repo_root.resolve())
+    variants = [root, root.replace("\\", "/")]
+    redacted = value
+    for variant in variants:
+        if not variant:
+            continue
+        if redacted.lower() == variant.lower():
+            return "."
+        for separator in ("\\", "/"):
+            prefix = variant + separator
+            if redacted.lower().startswith(prefix.lower()):
+                return redacted[len(prefix) :]
+        # Handle embedded command arguments or diagnostic strings. Keep this
+        # intentionally simple and deterministic: exact absolute root substrings
+        # become "." while the rest of the string is preserved.
+        redacted = re.sub(re.escape(variant), ".", redacted, flags=re.IGNORECASE)
+    return redacted
+
+
+def redact_repo_paths(value: Any, repo_root: Path) -> Any:
+    if isinstance(value, dict):
+        return {key: redact_repo_paths(item, repo_root) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_repo_paths(item, repo_root) for item in value]
+    if isinstance(value, str):
+        return redact_repo_root_in_text(value, repo_root)
+    return value
 
 
 def make_adapter_config(
@@ -502,6 +534,7 @@ class RiftReaderChatGptMcpAdapter:
                 "MCP tool arguments must be a JSON object.",
                 kind="riftreader-chatgpt-mcp-tool-result",
             )
+            result = redact_repo_paths(result, self.config.repo_root)
             self.write_audit(tool_name, {"argumentsType": type(arguments).__name__}, result)
             return result
         if tool_name not in TOOL_SPECS:
@@ -510,6 +543,7 @@ class RiftReaderChatGptMcpAdapter:
                 f"Tool is not exposed by {SERVER_NAME}: {tool_name}",
                 kind="riftreader-chatgpt-mcp-tool-result",
             )
+            result = redact_repo_paths(result, self.config.repo_root)
             self.write_audit(tool_name, summarize_tool_input(tool_name, args), result)
             return result
 
@@ -561,6 +595,7 @@ class RiftReaderChatGptMcpAdapter:
                 status="failed",
             )
 
+        result = redact_repo_paths(result, self.config.repo_root)
         self.write_audit(tool_name, summarize_tool_input(tool_name, args), result)
         return result
 

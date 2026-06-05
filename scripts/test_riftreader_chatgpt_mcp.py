@@ -238,6 +238,14 @@ def registered_tool_summary(name: str) -> dict[str, object]:
     return summary
 
 
+def assert_repo_root_not_serialized(testcase: unittest.TestCase, root: Path, payload: dict[str, object]) -> None:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    root_text = str(root)
+    testcase.assertNotIn(root_text, serialized)
+    testcase.assertNotIn(root_text.replace("\\", "\\\\"), serialized)
+    testcase.assertNotIn(root_text.replace("\\", "/"), serialized)
+
+
 class RiftReaderChatGptMcpTests(unittest.TestCase):
     def test_manifest_exposes_exact_safe_tool_set_with_annotations(self) -> None:
         manifest = chatgpt_mcp.tool_manifest()
@@ -469,6 +477,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertTrue(payload["safety"]["explicitInboxIdRequired"])
             self.assertFalse(payload["safety"]["applyFlagSent"])
             self.assertFalse(payload["safety"]["gitMutation"])
+            assert_repo_root_not_serialized(self, root, payload)
 
     def test_review_latest_package_draft_defaults_to_operator_draft(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -487,6 +496,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["draftId"], "20260518T120000Z-aaaaaaaaaaaa")
         self.assertEqual(payload["draftReview"]["draft"]["messageTitle"], "Operator")
         self.assertFalse(payload["draftReview"]["draft"]["selfTest"])
+        assert_repo_root_not_serialized(self, root, payload)
 
     def test_dry_run_latest_package_draft_reuses_cached_same_draft_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -509,6 +519,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["dryRun"]["command"]["args"][0], "cached-dry-run-artifact")
         self.assertTrue(payload["dryRun"]["safety"]["cachedDryRunArtifact"])
         self.assertTrue(payload["dryRun"]["intakeCompactSummary"]["dryRun"])
+        assert_repo_root_not_serialized(self, root, payload)
 
     def test_dry_run_latest_package_draft_ignores_stale_cached_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -549,6 +560,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["packageIntakeDryRunOnly"])
         self.assertFalse(payload["safety"]["applyFlagSent"])
         self.assertNotIn("--apply", payload["dryRun"]["command"]["args"])
+        assert_repo_root_not_serialized(self, root, payload)
 
     def test_dry_run_blocks_apply_flag_variants_from_helper(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

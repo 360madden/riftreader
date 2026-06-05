@@ -80,7 +80,7 @@ The Phase 3 final gate should emit JSON with at least these top-level fields:
 | Dependency preflight | Required dependencies for the requested mode are available. | `dependency:missing:<name>` |
 | Environment preflight | Repo markers are present, loopback ephemeral port allocation works, and local generated MCP artifacts stay under ignored `.riftreader-local`. | `repo:not-riftreader-root`, `environment:*` |
 | Tool exposure | MCP tool list is exactly the approved narrow surface. | `safety:unexpected-tool-surface` |
-| Repo-root redaction | Public health/proof reports `repoRoot="."` and `absoluteRepoRootExposed=false`. | `safety:absolute-repo-root-exposed` |
+| Repo-root redaction | Public health/proof reports `repoRoot="."` and `absoluteRepoRootExposed=false`; ChatGPT-facing nested helper payloads do not expose the absolute local repo root. | `safety:absolute-repo-root-exposed` |
 | Local-only writes | ChatGPT-originated writes are limited to `.riftreader-local` inbox/draft/audit artifacts. | `safety:write-boundary-broken` |
 | Unsafe actions | No shell, Git mutation, package apply, provider write, RIFT input, CE, x64dbg, target-control, reloadui, or screenshot action occurred. | `safety:unsafe-action` |
 | Unsafe-action unknowns | Required safety flags in proof/smoke artifacts must be present, not omitted. | `safety:unsafe-action-unknown:<flag>` |

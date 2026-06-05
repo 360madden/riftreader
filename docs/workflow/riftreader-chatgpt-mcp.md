@@ -56,8 +56,9 @@ Web/Desktop client debugging.
 - All ChatGPT-originated writes stay under `.riftreader-local`.
 - Server audit events are sanitized and written under
   `.riftreader-local\riftreader-chatgpt-mcp\audit`.
-- Public-facing health output reports the repo as `.` plus a repo name; it does
-  not expose the absolute local repository path.
+- ChatGPT-facing tool output redacts the absolute local repository path. Public
+  health reports the repo as `.` plus a repo name, and nested draft/dry-run
+  helper fields are normalized before audit/return.
 
 ## Local checks
 
