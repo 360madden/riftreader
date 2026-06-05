@@ -42,6 +42,13 @@ def valid_proof() -> dict[str, object]:
         "listInboxSawInboxId": True,
         "createPackageDraftSucceeded": True,
         "draftId": "20260519T010100Z-abcdef",
+        "reviewLatestPackageDraftSucceeded": True,
+        "reviewLatestPackageDraftReadOnly": True,
+        "dryRunDiffPreviewOk": True,
+        "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+        "dryRunDiffPreviewBoundedBytes": True,
+        "dryRunDiffPreviewTextLength": 195,
+        "dryRunDiffPreviewTruncated": False,
         "dryRunSucceeded": True,
         "notes": "Observed manually in ChatGPT Developer Mode.",
     }
@@ -106,6 +113,26 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         blockers = recorder.validate_proof(proof)
 
         self.assertIn("submit-succeeded-but-inbox-id-missing", blockers)
+
+    def test_rejects_missing_review_and_diff_preview_confirmation(self) -> None:
+        proof = valid_proof()
+        proof["reviewLatestPackageDraftSucceeded"] = False
+        proof["reviewLatestPackageDraftReadOnly"] = False
+        proof["dryRunDiffPreviewOk"] = False
+        proof["dryRunDiffPreviewArtifactUnderPackageIntake"] = False
+        proof["dryRunDiffPreviewBoundedBytes"] = False
+        proof["dryRunDiffPreviewTextLength"] = 0
+        proof["dryRunDiffPreviewTruncated"] = "no"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("review-latest-package-draft-not-confirmed", blockers)
+        self.assertIn("review-latest-package-draft-read-only-not-confirmed", blockers)
+        self.assertIn("dry-run-diff-preview-not-confirmed", blockers)
+        self.assertIn("dry-run-diff-preview-package-intake-not-confirmed", blockers)
+        self.assertIn("dry-run-diff-preview-bounded-bytes-not-confirmed", blockers)
+        self.assertIn("dry-run-diff-preview-text-length-invalid:0", blockers)
+        self.assertIn("dry-run-diff-preview-truncated-not-boolean:'no'", blockers)
 
     def test_record_invalid_proof_returns_exit_2_in_cli(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

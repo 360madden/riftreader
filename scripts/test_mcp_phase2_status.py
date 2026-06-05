@@ -54,6 +54,13 @@ def valid_proof() -> dict[str, object]:
         "listInboxSawInboxId": True,
         "createPackageDraftSucceeded": True,
         "draftId": "20260519T010100Z-abcdef",
+        "reviewLatestPackageDraftSucceeded": True,
+        "reviewLatestPackageDraftReadOnly": True,
+        "dryRunDiffPreviewOk": True,
+        "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+        "dryRunDiffPreviewBoundedBytes": True,
+        "dryRunDiffPreviewTextLength": 195,
+        "dryRunDiffPreviewTruncated": False,
         "dryRunSucceeded": True,
         "notes": "Observed manually in ChatGPT Developer Mode.",
     }

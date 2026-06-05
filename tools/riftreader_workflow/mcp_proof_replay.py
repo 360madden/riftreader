@@ -85,6 +85,21 @@ def _matching_dry_run_summaries(repo_root: Path, draft_id: str) -> list[tuple[Pa
     return matches
 
 
+def _repo_path(repo_root: Path, value: str) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return repo_root / value.replace("\\", "/")
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def local_artifact_consistency(
     repo_root: Path,
     proof: dict[str, Any],
@@ -174,6 +189,22 @@ def local_artifact_consistency(
                 "dryRun": latest_payload.get("dryRun"),
                 "changedFileCount": latest_payload.get("changedFileCount"),
             }
+            artifacts = latest_payload.get("artifacts") if isinstance(latest_payload.get("artifacts"), dict) else {}
+            diff_value = artifacts.get("diff")
+            if isinstance(diff_value, str) and diff_value:
+                diff_path = _repo_path(repo_root, diff_value)
+                under_package_intake = _is_under(diff_path, repo_root / PACKAGE_INTAKE_ROOT)
+                checks["dryRun"]["latest"]["diff"] = {
+                    "path": rel(repo_root, diff_path) if under_package_intake else diff_value,
+                    "exists": diff_path.is_file(),
+                    "underPackageIntake": under_package_intake,
+                }
+                if not under_package_intake:
+                    blockers.append(f"dry-run-diff-artifact-not-under-package-intake:{diff_value}")
+                if proof.get("dryRunDiffPreviewOk") is True and not diff_path.is_file():
+                    missing("dry-run-diff", draft_id, diff_path)
+            elif proof.get("dryRunDiffPreviewOk") is True:
+                blockers.append("dry-run-diff-artifact-path-missing")
             if latest_payload.get("status") != "passed" or latest_payload.get("dryRun") is not True:
                 blockers.append(
                     "dry-run-artifact-not-passed-dry-run:"
@@ -304,6 +335,10 @@ def replay_actual_client_proof(
             "publicMcpUrl": proof.get("publicMcpUrl") if isinstance(proof, dict) else None,
             "inboxId": proof.get("inboxId") if isinstance(proof, dict) else None,
             "draftId": proof.get("draftId") if isinstance(proof, dict) else None,
+            "reviewLatestPackageDraftSucceeded": proof.get("reviewLatestPackageDraftSucceeded") if isinstance(proof, dict) else None,
+            "dryRunSucceeded": proof.get("dryRunSucceeded") if isinstance(proof, dict) else None,
+            "dryRunDiffPreviewOk": proof.get("dryRunDiffPreviewOk") if isinstance(proof, dict) else None,
+            "dryRunDiffPreviewTextLength": proof.get("dryRunDiffPreviewTextLength") if isinstance(proof, dict) else None,
         },
         "artifactConsistency": artifact_consistency,
         "blockers": blockers,
@@ -333,7 +368,14 @@ def self_test() -> dict[str, Any]:
             "listInboxSawInboxId": True,
             "createPackageDraftSucceeded": True,
             "draftId": "draft",
+            "reviewLatestPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftReadOnly": True,
             "dryRunSucceeded": True,
+            "dryRunDiffPreviewOk": True,
+            "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+            "dryRunDiffPreviewBoundedBytes": True,
+            "dryRunDiffPreviewTextLength": 195,
+            "dryRunDiffPreviewTruncated": False,
         }
     )
     checks = [{"name": "proof-rules-accept-valid-shape", "pass": blockers == []}]

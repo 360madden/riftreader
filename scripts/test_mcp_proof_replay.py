@@ -38,6 +38,13 @@ def valid_proof() -> dict[str, object]:
         "listInboxSawInboxId": True,
         "createPackageDraftSucceeded": True,
         "draftId": "proof-id",
+        "reviewLatestPackageDraftSucceeded": True,
+        "reviewLatestPackageDraftReadOnly": True,
+        "dryRunDiffPreviewOk": True,
+        "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+        "dryRunDiffPreviewBoundedBytes": True,
+        "dryRunDiffPreviewTextLength": 195,
+        "dryRunDiffPreviewTruncated": False,
         "dryRunSucceeded": True,
     }
 
@@ -82,14 +89,17 @@ class McpProofReplayTests(unittest.TestCase):
                     "dryRun": True,
                     "packagePath": str(root / state.DRAFT_ROOT / "proof-id" / "package"),
                     "changedFileCount": 1,
+                    "artifacts": {"diff": str(state.PACKAGE_INTAKE_ROOT / "run" / "package.diff")},
                 },
             )
+            (root / state.PACKAGE_INTAKE_ROOT / "run" / "package.diff").write_text("+preview\n", encoding="utf-8")
 
             payload = replay.local_artifact_consistency(root, proof)
 
         self.assertEqual(payload["status"], "passed")
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["checks"]["dryRun"]["matchCount"], 1)
+        self.assertTrue(payload["checks"]["dryRun"]["latest"]["diff"]["underPackageIntake"])
 
     def test_local_artifact_consistency_blocks_unsafe_draft_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -111,6 +121,28 @@ class McpProofReplayTests(unittest.TestCase):
         self.assertEqual(payload["status"], "blocked")
         self.assertFalse(payload["ok"])
         self.assertTrue(any("noApplyExecute" in blocker for blocker in payload["blockers"]))
+
+    def test_local_artifact_consistency_blocks_diff_outside_package_intake_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            proof = valid_proof()
+            write_json(
+                root / state.PACKAGE_INTAKE_ROOT / "run" / "compact-package-intake-summary.json",
+                {
+                    "kind": "riftreader-package-intake-compact-summary",
+                    "status": "passed",
+                    "dryRun": True,
+                    "packagePath": str(root / state.DRAFT_ROOT / "proof-id" / "package"),
+                    "changedFileCount": 1,
+                    "artifacts": {"diff": "docs/unsafe.diff"},
+                },
+            )
+
+            payload = replay.local_artifact_consistency(root, proof)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertFalse(payload["ok"])
+        self.assertIn("dry-run-diff-artifact-not-under-package-intake:docs/unsafe.diff", payload["blockers"])
 
 
 if __name__ == "__main__":

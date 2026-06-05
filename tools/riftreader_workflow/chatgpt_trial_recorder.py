@@ -29,7 +29,14 @@ REQUIRED_FIELDS = (
     "listInboxSawInboxId",
     "createPackageDraftSucceeded",
     "draftId",
+    "reviewLatestPackageDraftSucceeded",
+    "reviewLatestPackageDraftReadOnly",
     "dryRunSucceeded",
+    "dryRunDiffPreviewOk",
+    "dryRunDiffPreviewArtifactUnderPackageIntake",
+    "dryRunDiffPreviewBoundedBytes",
+    "dryRunDiffPreviewTextLength",
+    "dryRunDiffPreviewTruncated",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = 10
 
@@ -52,7 +59,14 @@ def proof_template() -> dict[str, Any]:
         "listInboxSawInboxId": False,
         "createPackageDraftSucceeded": False,
         "draftId": "",
+        "reviewLatestPackageDraftSucceeded": False,
+        "reviewLatestPackageDraftReadOnly": False,
         "dryRunSucceeded": False,
+        "dryRunDiffPreviewOk": False,
+        "dryRunDiffPreviewArtifactUnderPackageIntake": False,
+        "dryRunDiffPreviewBoundedBytes": False,
+        "dryRunDiffPreviewTextLength": 0,
+        "dryRunDiffPreviewTruncated": False,
         "notes": "Fill this with actual ChatGPT-side observations, then record with --record --input proof.json.",
     }
 
@@ -85,12 +99,27 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append("submit-succeeded-but-list-inbox-did-not-see-id")
     if proof.get("createPackageDraftSucceeded") is not True:
         blockers.append("create-package-draft-not-confirmed")
+    if proof.get("reviewLatestPackageDraftSucceeded") is not True:
+        blockers.append("review-latest-package-draft-not-confirmed")
+    if proof.get("reviewLatestPackageDraftReadOnly") is not True:
+        blockers.append("review-latest-package-draft-read-only-not-confirmed")
     if proof.get("chatgptRegistrationSucceeded") is not True:
         blockers.append("chatgpt-registration-not-confirmed")
     if proof.get("templateFetched") is not True:
         blockers.append("template-fetch-not-confirmed")
     if proof.get("dryRunSucceeded") is not True:
         blockers.append("dry-run-not-confirmed")
+    if proof.get("dryRunDiffPreviewOk") is not True:
+        blockers.append("dry-run-diff-preview-not-confirmed")
+    if proof.get("dryRunDiffPreviewArtifactUnderPackageIntake") is not True:
+        blockers.append("dry-run-diff-preview-package-intake-not-confirmed")
+    if proof.get("dryRunDiffPreviewBoundedBytes") is not True:
+        blockers.append("dry-run-diff-preview-bounded-bytes-not-confirmed")
+    text_length = proof.get("dryRunDiffPreviewTextLength")
+    if not isinstance(text_length, int) or text_length <= 0:
+        blockers.append(f"dry-run-diff-preview-text-length-invalid:{text_length!r}")
+    if not isinstance(proof.get("dryRunDiffPreviewTruncated"), bool):
+        blockers.append(f"dry-run-diff-preview-truncated-not-boolean:{proof.get('dryRunDiffPreviewTruncated')!r}")
     if proof.get("createPackageDraftSucceeded") is True and not proof.get("draftId"):
         blockers.append("create-draft-succeeded-but-draft-id-missing")
     if not proof.get("draftId"):
@@ -116,7 +145,12 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Inbox ID: `{proof.get('inboxId')}`",
         f"- Package draft created: `{proof.get('createPackageDraftSucceeded')}`",
         f"- Draft ID: `{proof.get('draftId')}`",
+        f"- Package draft reviewed: `{proof.get('reviewLatestPackageDraftSucceeded')}`",
+        f"- Review read-only: `{proof.get('reviewLatestPackageDraftReadOnly')}`",
         f"- Dry-run succeeded: `{proof.get('dryRunSucceeded')}`",
+        f"- Diff preview OK: `{proof.get('dryRunDiffPreviewOk')}`",
+        f"- Diff preview text length: `{proof.get('dryRunDiffPreviewTextLength')}`",
+        f"- Diff preview truncated: `{proof.get('dryRunDiffPreviewTruncated')}`",
         "",
         "## Blockers",
         "",

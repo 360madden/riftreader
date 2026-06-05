@@ -2,6 +2,26 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP actual-client diff-preview proof contract — 2026-06-05 10:00 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1000-chatgpt-mcp-actual-proof-diff-preview-contract-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP actual-client proof recorder now matches
+the stronger local transport smoke contract. A fresh external ChatGPT
+Web/Desktop proof must confirm draft review and bounded dry-run diff-preview
+facts before Phase 2/final readiness can pass.
+
+| Evidence | Result |
+|---|---|
+| Active proof recorder | `tools/riftreader_workflow/chatgpt_trial_recorder.py`. |
+| Active proof replay | `tools/riftreader_workflow/mcp_proof_replay.py`. |
+| New required review proof | `reviewLatestPackageDraftSucceeded=true` and `reviewLatestPackageDraftReadOnly=true`. |
+| New required diff-preview proof | `dryRunDiffPreviewOk=true`, `dryRunDiffPreviewArtifactUnderPackageIntake=true`, `dryRunDiffPreviewBoundedBytes=true`, positive `dryRunDiffPreviewTextLength`, and boolean `dryRunDiffPreviewTruncated`. |
+| Defensive artifact replay | If a local dry-run diff artifact path is present, replay blocks paths outside `.riftreader-local/package-intake`. |
+| Focused validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_final_readiness` passed 42 tests in 3.958s. |
+| Broader MCP validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_phase1_completion scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 173 tests in 49.331s. |
+| Final ledger | `.riftreader-local/validation-runs/20260605-100236-265736/summary.md` passed in 48.033s. |
 
 ## Latest compact handoff — ChatGPT MCP transport dry-run preview coverage — 2026-06-05 09:40 UTC
 
