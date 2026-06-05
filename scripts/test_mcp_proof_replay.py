@@ -17,6 +17,7 @@ if str(TOOLS_ROOT) not in sys.path:
 
 from riftreader_workflow import mcp_proof_replay as replay  # noqa: E402
 from riftreader_workflow import mcp_workflow_state as state  # noqa: E402
+from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
 
 
 def write_json(path: Path, payload: dict[str, object], mtime: int = 1_800_000_000) -> None:
@@ -32,8 +33,10 @@ def valid_proof() -> dict[str, object]:
         "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
+        "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": True,
         "toolOutputSchemaCount": 10,
+        "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
         "templateFetched": True,
         "submitPackageProposalSucceeded": True,

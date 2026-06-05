@@ -32,8 +32,10 @@ def valid_proof() -> dict[str, object]:
         "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
+        "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": True,
         "toolOutputSchemaCount": 10,
+        "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -64,8 +66,10 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         for field in recorder.REQUIRED_FIELDS:
             self.assertIn(field, payload)
         self.assertEqual(payload["toolCount"], 10)
+        self.assertEqual(payload["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertFalse(payload["toolOutputSchemasPresent"])
         self.assertEqual(payload["toolOutputSchemaCount"], 10)
+        self.assertEqual(payload["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(payload["connectionMode"], "openai-secure-mcp-tunnel")
         self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
         self.assertEqual(payload["health"]["repoRoot"], ".")
@@ -98,6 +102,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
             self.assertTrue(proof_md.is_file())
             self.assertIn("RiftReader ChatGPT MCP Actual-Client Proof", markdown)
             self.assertIn("Connection mode", markdown)
+            self.assertIn("Tool names", markdown)
             self.assertIn("Tool output schemas present", markdown)
             self.assertFalse(payload["safety"]["chatGptApiCalled"])
             self.assertFalse(payload["safety"]["gitMutation"])
@@ -110,15 +115,34 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         self.assertIn("tool-count-not-10:7", blockers)
 
+    def test_rejects_unexpected_tool_name_set(self) -> None:
+        proof = valid_proof()
+        proof["toolNames"] = list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES[:-1]) + ["unexpected_tool"]
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("tool-names-not-expected", blockers)
+
+    def test_rejects_duplicate_tool_name_list(self) -> None:
+        proof = valid_proof()
+        proof["toolNames"] = ["health"] * 10
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("tool-names-contains-duplicates", blockers)
+        self.assertIn("tool-names-not-expected", blockers)
+
     def test_rejects_missing_tool_output_schema_confirmation(self) -> None:
         proof = valid_proof()
         proof["toolOutputSchemasPresent"] = False
         proof["toolOutputSchemaCount"] = 9
+        proof["toolOutputSchemaToolNames"] = list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES[:-1]) + ["unexpected_tool"]
 
         blockers = recorder.validate_proof(proof)
 
         self.assertIn("tool-output-schemas-not-confirmed", blockers)
         self.assertIn("tool-output-schema-count-not-10:9", blockers)
+        self.assertIn("tool-output-schema-tool-names-not-expected", blockers)
 
     def test_rejects_public_fallback_url_for_secure_tunnel_mode(self) -> None:
         proof = valid_proof()

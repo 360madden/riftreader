@@ -232,7 +232,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, `tunnel-client` dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
-| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` / `--self-test --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; defaults to `connectionMode=openai-secure-mcp-tunnel` and fails closed on unknown connection mode, Cloudflare/ngrok fallback hosts in Secure Tunnel mode, unfilled URL placeholders, tool count, per-tool output-schema confirmation/count, repo-root redaction, inbox, package-draft creation, read-only draft review, dry-run success, and bounded `dryRun.diffPreview` proof gaps. |
+| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` / `--self-test --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; defaults to `connectionMode=openai-secure-mcp-tunnel` and fails closed on unknown connection mode, Cloudflare/ngrok fallback hosts in Secure Tunnel mode, unfilled URL placeholders, tool count and exact tool-name set, per-tool output-schema confirmation/count/name set, repo-root redaction, inbox, package-draft creation, read-only draft review, dry-run success, and bounded `dryRun.diffPreview` proof gaps. |
 | Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Generates explicit `git add -- <path>` checklist and commit-message draft only; `--markdown` prints a review packet; it never stages, commits, or pushes. |
 | Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus the latest actual ChatGPT client proof revalidated against current proof rules, and reports whether Phase 1 is complete or externally blocked. |
 
@@ -410,8 +410,10 @@ Actual-client proof packets must record the selected connection path explicitly:
 |---|---|---|
 | `connectionMode` | `openai-secure-mcp-tunnel` | Required for primary ChatGPT Web/Desktop proof. |
 | `publicMcpUrl` | OpenAI-hosted tunnel endpoint or tunnel-selected ChatGPT connector endpoint | Must be HTTPS; must not use `trycloudflare.com`, `ngrok.app`, or `ngrok-free.app` when `connectionMode=openai-secure-mcp-tunnel`. |
+| `toolNames` | Canonical 10 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
 | `toolOutputSchemaCount` | `10` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 10 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Only use `connectionMode=public-https-fallback` when the operator explicitly
 selects the deprecated public HTTPS fallback lane.

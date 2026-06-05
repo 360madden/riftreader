@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, validate_proof
+    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES, validate_proof
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from .mcp_workflow_state import (
         ACTUAL_CLIENT_PROOF_ROOT,
@@ -24,7 +24,7 @@ try:
     )
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, validate_proof
+    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES, validate_proof
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from riftreader_workflow.mcp_workflow_state import (
         ACTUAL_CLIENT_PROOF_ROOT,
@@ -332,8 +332,10 @@ def replay_actual_client_proof(
         "proofFreshness": age_payload,
         "proofSummary": {
             "toolCount": proof.get("toolCount") if isinstance(proof, dict) else None,
+            "toolNames": proof.get("toolNames") if isinstance(proof, dict) else None,
             "toolOutputSchemasPresent": proof.get("toolOutputSchemasPresent") if isinstance(proof, dict) else None,
             "toolOutputSchemaCount": proof.get("toolOutputSchemaCount") if isinstance(proof, dict) else None,
+            "toolOutputSchemaToolNames": proof.get("toolOutputSchemaToolNames") if isinstance(proof, dict) else None,
             "connectionMode": proof.get("connectionMode") if isinstance(proof, dict) else None,
             "publicMcpUrl": proof.get("publicMcpUrl") if isinstance(proof, dict) else None,
             "inboxId": proof.get("inboxId") if isinstance(proof, dict) else None,
@@ -365,8 +367,10 @@ def self_test() -> dict[str, Any]:
             "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
             "chatgptRegistrationSucceeded": True,
             "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
             "toolOutputSchemasPresent": True,
             "toolOutputSchemaCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemaToolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
             "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
             "templateFetched": True,
             "submitPackageProposalSucceeded": True,

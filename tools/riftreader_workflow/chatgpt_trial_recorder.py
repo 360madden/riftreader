@@ -23,8 +23,10 @@ REQUIRED_FIELDS = (
     "publicMcpUrl",
     "chatgptRegistrationSucceeded",
     "toolCount",
+    "toolNames",
     "toolOutputSchemasPresent",
     "toolOutputSchemaCount",
+    "toolOutputSchemaToolNames",
     "health",
     "templateFetched",
     "submitPackageProposalSucceeded",
@@ -41,7 +43,19 @@ REQUIRED_FIELDS = (
     "dryRunDiffPreviewTextLength",
     "dryRunDiffPreviewTruncated",
 )
-EXPECTED_CHATGPT_MCP_TOOL_COUNT = 10
+EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
+    "health",
+    "get_repo_status",
+    "get_latest_handoff",
+    "get_package_proposal_template",
+    "submit_package_proposal",
+    "list_inbox",
+    "create_package_draft_from_inbox",
+    "review_latest_package_draft",
+    "dry_run_latest_package_draft",
+    "get_workflow_control_plan",
+)
+EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
 SECURE_TUNNEL_CONNECTION_MODE = "openai-secure-mcp-tunnel"
 PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE = "public-https-fallback"
 ALLOWED_CONNECTION_MODES = frozenset(
@@ -61,8 +75,10 @@ def proof_template() -> dict[str, Any]:
         "publicMcpUrl": "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp",
         "chatgptRegistrationSucceeded": False,
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": False,
         "toolOutputSchemaCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        "toolOutputSchemaToolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -84,6 +100,23 @@ def proof_template() -> dict[str, Any]:
         "dryRunDiffPreviewTruncated": False,
         "notes": "Fill this with actual ChatGPT-side observations, then record with --record --input proof.json.",
     }
+
+
+def _tool_name_list_blockers(field_name: str, value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{field_name}-not-list:{type(value).__name__}"]
+    if not all(isinstance(item, str) for item in value):
+        return [f"{field_name}-contains-non-string"]
+
+    blockers: list[str] = []
+    expected = list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+    if len(value) != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
+        blockers.append(f"{field_name}-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{len(value)}")
+    if len(set(value)) != len(value):
+        blockers.append(f"{field_name}-contains-duplicates")
+    if sorted(value) != sorted(expected):
+        blockers.append(f"{field_name}-not-expected")
+    return blockers
 
 
 def validate_proof(proof: dict[str, Any]) -> list[str]:
@@ -110,12 +143,14 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append("public-mcp-url-not-https")
     if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
         blockers.append(f"tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolCount')!r}")
+    blockers.extend(_tool_name_list_blockers("tool-names", proof.get("toolNames")))
     if proof.get("toolOutputSchemasPresent") is not True:
         blockers.append("tool-output-schemas-not-confirmed")
     if proof.get("toolOutputSchemaCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
         blockers.append(
             f"tool-output-schema-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolOutputSchemaCount')!r}"
         )
+    blockers.extend(_tool_name_list_blockers("tool-output-schema-tool-names", proof.get("toolOutputSchemaToolNames")))
     if health.get("repoRoot") != ".":
         blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
     if health.get("repoName") != "RiftReader":
@@ -171,8 +206,10 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Connection mode: `{proof.get('connectionMode')}`",
         f"- Public MCP URL: `{proof.get('publicMcpUrl')}`",
         f"- Tool count: `{proof.get('toolCount')}`",
+        f"- Tool names: `{proof.get('toolNames')}`",
         f"- Tool output schemas present: `{proof.get('toolOutputSchemasPresent')}`",
         f"- Tool output schema count: `{proof.get('toolOutputSchemaCount')}`",
+        f"- Tool output schema tool names: `{proof.get('toolOutputSchemaToolNames')}`",
         f"- Health repoRoot: `{health.get('repoRoot')}`",
         f"- Health repoName: `{health.get('repoName')}`",
         f"- absoluteRepoRootExposed: `{health.get('absoluteRepoRootExposed')}`",

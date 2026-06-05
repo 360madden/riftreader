@@ -17,6 +17,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_workflow_state as state  # noqa: E402
+from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
 
 
 def make_repo(root: Path) -> None:
@@ -151,8 +152,10 @@ class McpWorkflowStateTests(unittest.TestCase):
                         "dryRunSucceeded": True,
                         "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                         "toolCount": 10,
+                        "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "toolOutputSchemasPresent": True,
                         "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "inboxId": "20260519T010500Z-abc",
                         "draftId": "20260519T010600Z-def",
                     },
@@ -176,8 +179,10 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertEqual(latest["draft"]["draftId"], "20260519T010600Z-def")
         self.assertTrue(latest["dry-run"]["dryRun"])
         self.assertEqual(latest["actual-client-proof"]["toolCount"], 10)
+        self.assertEqual(latest["actual-client-proof"]["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertTrue(latest["actual-client-proof"]["toolOutputSchemasPresent"])
         self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaCount"], 10)
+        self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(latest["actual-client-proof"]["connectionMode"], "openai-secure-mcp-tunnel")
         self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["templateFetched"])

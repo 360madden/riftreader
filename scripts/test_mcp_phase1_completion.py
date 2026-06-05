@@ -18,6 +18,7 @@ if str(TOOLS_ROOT) not in sys.path:
 
 from riftreader_workflow import mcp_phase1_completion as phase1  # noqa: E402
 from riftreader_workflow import mcp_workflow_state as state  # noqa: E402
+from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
 
 
 def make_repo(root: Path) -> None:
@@ -84,8 +85,10 @@ def write_actual_client_proof(root: Path) -> None:
                 "schemaVersion": 1,
                 "connectionMode": "openai-secure-mcp-tunnel",
                 "toolCount": 10,
+                "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "toolOutputSchemasPresent": True,
                 "toolOutputSchemaCount": 10,
+                "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "publicMcpUrl": "https://client.openai-mcp-tunnel.invalid/mcp",
                 "chatgptRegistrationSucceeded": True,
                 "health": {

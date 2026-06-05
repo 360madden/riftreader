@@ -178,8 +178,10 @@ class McpMissionControlTests(unittest.TestCase):
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
                         "toolCount": 10,
+                        "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "toolOutputSchemasPresent": True,
                         "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaToolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                     }
                 },
             )
@@ -193,6 +195,25 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertEqual(progress["phases"][7]["status"], "completed")
         self.assertTrue(progress["actualClientProofCompleted"])
         self.assertEqual(progress["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")
+
+    def test_actual_client_completion_blocks_on_malformed_tool_name_lists(self) -> None:
+        self.assertFalse(
+            mission._actual_client_proof_completed(
+                {
+                    "actual-client-proof": {
+                        "ok": True,
+                        "status": "passed",
+                        "selfTest": False,
+                        "chatGptRegistrationSucceeded": True,
+                        "toolCount": 10,
+                        "toolNames": ["health"] * 10,
+                        "toolOutputSchemasPresent": True,
+                        "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaToolNames": "health",
+                    }
+                }
+            )
+        )
 
     def test_run_readiness_executes_local_only_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

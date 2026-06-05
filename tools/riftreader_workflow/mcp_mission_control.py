@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT
+    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_ci_status import current_head_ci_status
     from .mcp_final_readiness import compact_final_readiness, final_readiness
@@ -18,7 +18,7 @@ try:
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT
+    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
@@ -51,6 +51,12 @@ def latest_release_handoff_path(repo_root: Path) -> str | None:
     return str(newest.relative_to(repo_root))
 
 
+def _matches_expected_tool_names(value: Any) -> bool:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return False
+    return sorted(value) == sorted(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+
+
 def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
     actual_client = latest_artifacts.get("actual-client-proof") if isinstance(latest_artifacts, dict) else None
     if not isinstance(actual_client, dict):
@@ -61,8 +67,10 @@ def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
         and actual_client.get("selfTest") is not True
         and actual_client.get("chatGptRegistrationSucceeded") is True
         and actual_client.get("toolCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
+        and _matches_expected_tool_names(actual_client.get("toolNames"))
         and actual_client.get("toolOutputSchemasPresent") is True
         and actual_client.get("toolOutputSchemaCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
+        and _matches_expected_tool_names(actual_client.get("toolOutputSchemaToolNames"))
     )
 
 

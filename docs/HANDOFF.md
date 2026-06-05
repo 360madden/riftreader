@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP proof tool-identity contract — 2026-06-05 12:05 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1205-chatgpt-mcp-proof-tool-identity-contract-handoff.md`.
+
+The actual ChatGPT Web/Desktop MCP proof contract now validates exact tool
+identity, not only counts. Fresh proof packets must include both observed
+`toolNames` and observed `toolOutputSchemaToolNames`, and both lists must match
+the canonical 10-tool allowlist.
+
+| Evidence | Result |
+|---|---|
+| Proof fields | `toolNames` and `toolOutputSchemaToolNames` are required by `validate_proof`. |
+| Fail-closed validation | Duplicate, missing, unexpected, non-list, or non-string tool-name entries block proof replay. |
+| Replay/state visibility | Proof replay and latest-artifact summaries surface both tool-name proof lists. |
+| Mission Control | Final-product progress no longer treats actual-client proof as completed without exact tool-name matches. |
+| Focused validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase1_completion scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control` passed 46 tests in 12.203s. |
+| Broad MCP validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_local_artifact_bridge scripts.test_package_draft_review scripts.test_mcp_phase1_completion` passed 189 tests in 46.533s. |
+| Targeted ledger | `.riftreader-local\validation-runs\20260605-121300-915646\summary.md` passed in 45.276s. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — ChatGPT MCP proof output-schema contract — 2026-06-05 11:54 UTC
 
 A new compact handoff exists at
