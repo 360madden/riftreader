@@ -337,6 +337,23 @@ def _tunnel_client_binary_diagnostics(path: str | None, repo_root: Path, *, time
     return payload
 
 
+def _compact_tunnel_client_dependency(dep_map: dict[str, Any]) -> dict[str, Any]:
+    dependency = dep_map.get("tunnel-client") if isinstance(dep_map.get("tunnel-client"), dict) else {}
+    diagnostics = dependency.get("binaryDiagnostics") if isinstance(dependency.get("binaryDiagnostics"), dict) else {}
+    version_probe = diagnostics.get("versionProbe") if isinstance(diagnostics.get("versionProbe"), dict) else {}
+    return {
+        "status": dependency.get("status"),
+        "ok": dependency.get("ok"),
+        "path": dependency.get("path"),
+        "sha256": diagnostics.get("sha256"),
+        "binaryDiagnosticsStatus": diagnostics.get("status"),
+        "versionProbeOk": version_probe.get("ok"),
+        "versionProbeExitCode": version_probe.get("exitCode"),
+        "version": version_probe.get("stdoutPreview"),
+        "blockers": diagnostics.get("blockers") or dependency.get("blockers") or [],
+    }
+
+
 def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -726,6 +743,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
         "artifactFreshnessStatus": phase2_compact.get("artifactFreshnessStatus"),
         "toolSurfaceStatus": tool_surface.get("status"),
         "dependencyStatus": deps.get("status"),
+        "secureTunnelClient": _compact_tunnel_client_dependency(dep_map),
         "environmentStatus": environment.get("status"),
         "loopbackEphemeralPortStatus": ((environment.get("loopback") or {}).get("ephemeralPort") or {}).get("status")
         if isinstance(environment.get("loopback"), dict)

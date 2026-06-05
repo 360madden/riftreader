@@ -341,6 +341,9 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
     final_status = payload.get("finalStatus") if isinstance(payload.get("finalStatus"), dict) else {}
     if final_status:
         final_action = final_status.get("recommendedNextAction") if isinstance(final_status.get("recommendedNextAction"), dict) else {}
+        secure_tunnel_client = (
+            final_status.get("secureTunnelClient") if isinstance(final_status.get("secureTunnelClient"), dict) else {}
+        )
         lines.extend(
             [
                 "",
@@ -350,6 +353,8 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
                 f"- Environment: `{final_status.get('environmentStatus')}`",
                 f"- Tool surface: `{final_status.get('toolSurfaceStatus')}`",
                 f"- Dependencies: `{final_status.get('dependencyStatus')}`",
+                f"- Secure Tunnel client: `{secure_tunnel_client.get('status')}`"
+                f" / diagnostics `{secure_tunnel_client.get('binaryDiagnosticsStatus')}`",
                 f"- Public session: `{final_status.get('publicSessionStatus')}`",
                 f"- Next: `{final_action.get('key')}`",
             ]

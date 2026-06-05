@@ -47,6 +47,22 @@ No tunnel profile was initialized, no `tunnel-client run` was started, no
 credential was created or stored, no ChatGPT connector registration was
 performed, and no live RIFT/proof/debugger/provider action was attempted.
 
+## Latest continuation - 2026-06-05 07:29 UTC
+
+The compact final-readiness and Mission Control surfaces now expose the Secure
+Tunnel binary diagnostic result directly. This keeps CI/operator logs
+actionable without requiring the full dependency payload.
+
+| Evidence | Result |
+|---|---|
+| Compact final status | New `secureTunnelClient` object reports status, path, SHA256, binary diagnostic status, `--version` exit code, and version text. |
+| Mission Control summary | `Secure Tunnel client: passed / diagnostics passed` appears under Final readiness. |
+| Focused tests | `python -m unittest scripts.test_mcp_final_readiness scripts.test_mcp_mission_control` passed 28 tests in `2.628s`. |
+| Targeted MCP suite | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_mcp_final_readiness scripts.test_mcp_mission_control scripts.test_mcp_workflow_state` passed 76 tests in `7.145s`. |
+
+No public tunnel, ChatGPT registration, credential write, live RIFT/proof
+action, provider write, debugger attach, or Git push was performed.
+
 ## Code/docs changes
 
 | File | Change |

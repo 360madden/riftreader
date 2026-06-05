@@ -61,6 +61,23 @@ def ok_gate_overrides() -> dict[str, dict[str, object]]:
                 "python": {"status": "passed", "required": True},
                 "mcp-sdk": {"status": "passed", "required": True},
                 "gh": {"status": "passed", "required": True},
+                "tunnel-client": {
+                    "status": "passed",
+                    "ok": True,
+                    "required": True,
+                    "path": "C:\\RIFT MODDING\\Tools\\OpenAI\\tunnel-client\\tunnel-client.exe",
+                    "binaryDiagnostics": {
+                        "status": "passed",
+                        "ok": True,
+                        "sha256": "b" * 64,
+                        "blockers": [],
+                        "versionProbe": {
+                            "ok": True,
+                            "exitCode": 0,
+                            "stdoutPreview": "0.0.9-test",
+                        },
+                    },
+                },
             },
         },
         "environment_payload": {
@@ -408,6 +425,10 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertEqual(compact["status"], "passed")
         self.assertEqual(compact["phase2Status"], "passed")
         self.assertEqual(compact["dependencyStatus"], "passed")
+        self.assertEqual(compact["requiredDependencies"]["tunnel-client"], "passed")
+        self.assertEqual(compact["secureTunnelClient"]["binaryDiagnosticsStatus"], "passed")
+        self.assertEqual(compact["secureTunnelClient"]["sha256"], "b" * 64)
+        self.assertEqual(compact["secureTunnelClient"]["version"], "0.0.9-test")
         self.assertEqual(compact["environmentStatus"], "passed")
         self.assertIn("recommendedNextAction", compact)
 

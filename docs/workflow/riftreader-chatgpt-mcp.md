@@ -205,7 +205,9 @@ labels stopped or aged-out ephemeral public URLs as expected-expired. The final
 gate also checks loopback port allocation, default serve-port availability,
 primary-path `tunnel-client` dependency presence plus SHA256/`--version`
 binary diagnostics, and whether `.riftreader-local` remains Git-ignored for
-local MCP artifacts.
+local MCP artifacts. The compact final status exposes these checks under
+`secureTunnelClient` so CI logs and Mission Control summaries show the binary
+status without requiring operators to inspect the full dependency payload.
 `MCP Mission Control --secure-tunnel-plan` prints the Secure Tunnel plan command
 without running `tunnel-client`; `--trial-command` remains a deprecated
 fallback-only Cloudflare public trial command. Only `--run-readiness` and

@@ -161,6 +161,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Final product progress", summary)
         self.assertIn("Current-head CI", summary)
         self.assertIn("Final readiness", summary)
+        self.assertIn("Secure Tunnel client", summary)
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
         self.assertIn("Local final gate", checklist)
