@@ -3416,6 +3416,24 @@ def result_json(result: dict[str, Any]) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def tool_call_structured_content(response: dict[str, Any]) -> tuple[bool | None, dict[str, Any] | None]:
+    payload = result_json(response)
+    result = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(result, dict):
+        return None, None
+    structured = result.get("structuredContent")
+    return bool(result.get("isError", False)), structured if isinstance(structured, dict) else None
+
+
+def json_rpc_tool_call_request(request_id: int, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }
+
+
 def cloudflare_smoke_client_result(
     *,
     curl_executable: str,
@@ -3425,6 +3443,7 @@ def cloudflare_smoke_client_result(
     origin: str,
     resolve_host: str | None = None,
     resolve_ip: str | None = None,
+    include_proposal_submit: bool = False,
 ) -> dict[str, Any]:
     requests = [
         {
@@ -3440,19 +3459,20 @@ def cloudflare_smoke_client_result(
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
         {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "health", "arguments": {}}},
     ]
-    responses = [
-        curl_json_rpc_request(
-            curl_executable=curl_executable,
-            url=url,
-            request=request,
-            timeout_seconds=timeout_seconds,
-            temp_dir=temp_dir,
-            origin=origin,
-            resolve_host=resolve_host,
-            resolve_ip=resolve_ip,
+    responses = []
+    for request in requests:
+        responses.append(
+            curl_json_rpc_request(
+                curl_executable=curl_executable,
+                url=url,
+                request=request,
+                timeout_seconds=timeout_seconds,
+                temp_dir=temp_dir,
+                origin=origin,
+                resolve_host=resolve_host,
+                resolve_ip=resolve_ip,
+            )
         )
-        for request in requests
-    ]
     tools_payload = result_json(responses[1])
     tools = []
     if tools_payload:
@@ -3465,6 +3485,7 @@ def cloudflare_smoke_client_result(
             "descriptionStartsUseThisWhen": str(tool.get("description") or "").startswith("Use this when"),
             "annotations": tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {},
             "inputSchema": tool.get("inputSchema") if isinstance(tool.get("inputSchema"), dict) else None,
+            "outputSchema": tool.get("outputSchema") if isinstance(tool.get("outputSchema"), dict) else None,
         }
         for tool in tools
     ]
@@ -3478,6 +3499,109 @@ def cloudflare_smoke_client_result(
             health_is_error = bool(call_result.get("isError", False))
             health_structured = call_result.get("structuredContent")
 
+    submit_is_error = None
+    submit_structured = None
+    inbox_is_error = None
+    inbox_structured = None
+    draft_is_error = None
+    draft_structured = None
+    review_is_error = None
+    review_structured = None
+    dry_run_is_error = None
+    dry_run_structured = None
+    apply_without_approval_is_error = None
+    apply_without_approval_structured = None
+    if include_proposal_submit:
+        submit_response = curl_json_rpc_request(
+            curl_executable=curl_executable,
+            url=url,
+            request=json_rpc_tool_call_request(4, "submit_package_proposal", {"proposal": self_test_package_proposal()}),
+            timeout_seconds=timeout_seconds,
+            temp_dir=temp_dir,
+            origin=origin,
+            resolve_host=resolve_host,
+            resolve_ip=resolve_ip,
+        )
+        responses.append(submit_response)
+        submit_is_error, submit_structured = tool_call_structured_content(submit_response)
+
+        inbox_response = curl_json_rpc_request(
+            curl_executable=curl_executable,
+            url=url,
+            request=json_rpc_tool_call_request(5, "list_inbox", {}),
+            timeout_seconds=timeout_seconds,
+            temp_dir=temp_dir,
+            origin=origin,
+            resolve_host=resolve_host,
+            resolve_ip=resolve_ip,
+        )
+        responses.append(inbox_response)
+        inbox_is_error, inbox_structured = tool_call_structured_content(inbox_response)
+
+        inbox_id = submit_structured.get("inboxId") if isinstance(submit_structured, dict) else None
+        if isinstance(inbox_id, str) and inbox_id:
+            draft_response = curl_json_rpc_request(
+                curl_executable=curl_executable,
+                url=url,
+                request=json_rpc_tool_call_request(6, "create_package_draft_from_inbox", {"inboxId": inbox_id}),
+                timeout_seconds=timeout_seconds,
+                temp_dir=temp_dir,
+                origin=origin,
+                resolve_host=resolve_host,
+                resolve_ip=resolve_ip,
+            )
+            responses.append(draft_response)
+            draft_is_error, draft_structured = tool_call_structured_content(draft_response)
+
+            review_response = curl_json_rpc_request(
+                curl_executable=curl_executable,
+                url=url,
+                request=json_rpc_tool_call_request(7, "review_latest_package_draft", {"operatorOnly": False}),
+                timeout_seconds=timeout_seconds,
+                temp_dir=temp_dir,
+                origin=origin,
+                resolve_host=resolve_host,
+                resolve_ip=resolve_ip,
+            )
+            responses.append(review_response)
+            review_is_error, review_structured = tool_call_structured_content(review_response)
+
+            dry_run_response = curl_json_rpc_request(
+                curl_executable=curl_executable,
+                url=url,
+                request=json_rpc_tool_call_request(
+                    8,
+                    "dry_run_latest_package_draft",
+                    {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                ),
+                timeout_seconds=timeout_seconds,
+                temp_dir=temp_dir,
+                origin=origin,
+                resolve_host=resolve_host,
+                resolve_ip=resolve_ip,
+            )
+            responses.append(dry_run_response)
+            dry_run_is_error, dry_run_structured = tool_call_structured_content(dry_run_response)
+
+            apply_without_approval_response = curl_json_rpc_request(
+                curl_executable=curl_executable,
+                url=url,
+                request=json_rpc_tool_call_request(
+                    9,
+                    "apply_latest_package_draft",
+                    {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                ),
+                timeout_seconds=timeout_seconds,
+                temp_dir=temp_dir,
+                origin=origin,
+                resolve_host=resolve_host,
+                resolve_ip=resolve_ip,
+            )
+            responses.append(apply_without_approval_response)
+            apply_without_approval_is_error, apply_without_approval_structured = tool_call_structured_content(
+                apply_without_approval_response
+            )
+
     return {
         "responses": responses,
         "toolCount": len(tools),
@@ -3485,6 +3609,18 @@ def cloudflare_smoke_client_result(
         "registeredTools": registered,
         "healthIsError": health_is_error,
         "healthStructuredContent": health_structured,
+        "submitPackageProposalIsError": submit_is_error,
+        "submitPackageProposalStructuredContent": submit_structured,
+        "listInboxAfterSubmitIsError": inbox_is_error,
+        "listInboxAfterSubmitStructuredContent": inbox_structured,
+        "createPackageDraftIsError": draft_is_error,
+        "createPackageDraftStructuredContent": draft_structured,
+        "reviewLatestPackageDraftIsError": review_is_error,
+        "reviewLatestPackageDraftStructuredContent": review_structured,
+        "dryRunLatestPackageDraftIsError": dry_run_is_error,
+        "dryRunLatestPackageDraftStructuredContent": dry_run_structured,
+        "applyLatestPackageDraftWithoutApprovalIsError": apply_without_approval_is_error,
+        "applyLatestPackageDraftWithoutApprovalStructuredContent": apply_without_approval_structured,
     }
 
 
@@ -3885,6 +4021,7 @@ def run_chatgpt_trial_session(
                     origin=public_origin,
                     resolve_host=public_host,
                     resolve_ip=curl_resolve_ip,
+                    include_proposal_submit=True,
                 )
                 last_blockers = verify_cloudflare_smoke_client_result(client_result)
                 if not last_blockers:
@@ -3940,7 +4077,8 @@ def run_chatgpt_trial_session(
                         "In ChatGPT web, enable Developer mode under Settings -> Apps -> Advanced settings.",
                         "Create an app from this remote MCP URL while this session is still running.",
                         "Use No Authentication and streamable HTTP if prompted.",
-                        "In a Developer Mode conversation, first call health and confirm the 8-tool surface.",
+                        "In a Developer Mode conversation, first call health and confirm the 11-tool surface.",
+                        "For Stage 21 proof, call apply_latest_package_draft without approval and confirm APPLY_APPROVAL_MISSING.",
                     ],
                 }
                 ready_artifact = write_smoke_artifact(config, ready_payload, prefix="chatgpt-trial-session-ready")

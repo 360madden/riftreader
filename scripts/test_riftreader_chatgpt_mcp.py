@@ -1053,6 +1053,131 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertEqual(chatgpt_mcp.verify_cloudflare_smoke_client_result(client_result), [])
 
+    def test_cloudflare_smoke_client_can_cover_apply_denial_sequence(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def tool_response(request: dict[str, object], structured: dict[str, object], *, is_error: bool = False) -> dict[str, object]:
+            return {
+                "request": {"id": request.get("id"), "method": request.get("method")},
+                "exitCode": 0,
+                "httpStatus": 200,
+                "jsonParseError": None,
+                "json": {"result": {"isError": is_error, "structuredContent": structured}},
+            }
+
+        def fake_curl_json_rpc_request(**kwargs: object) -> dict[str, object]:
+            request = kwargs["request"]
+            assert isinstance(request, dict)
+            calls.append(request)
+            method = request.get("method")
+            params = request.get("params") if isinstance(request.get("params"), dict) else {}
+            name = params.get("name")
+            if method == "initialize":
+                return {
+                    "request": {"id": request.get("id"), "method": method},
+                    "exitCode": 0,
+                    "httpStatus": 200,
+                    "jsonParseError": None,
+                    "json": {"result": {}},
+                }
+            if method == "tools/list":
+                tools = chatgpt_mcp.tool_manifest()["tools"]
+                for tool in tools:
+                    if tool["name"] == "submit_package_proposal":
+                        tool["inputSchema"] = submit_package_proposal_input_schema()
+                return {
+                    "request": {"id": request.get("id"), "method": method},
+                    "exitCode": 0,
+                    "httpStatus": 200,
+                    "jsonParseError": None,
+                    "json": {"result": {"tools": tools}},
+                }
+            if name == "health":
+                return tool_response(
+                    request,
+                    {
+                        "service": chatgpt_mcp.SERVER_NAME,
+                        "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                        "repoRoot": ".",
+                        "safety": {"absoluteRepoRootExposed": False},
+                    },
+                )
+            if name == "submit_package_proposal":
+                return tool_response(request, {"ok": True, "inboxId": "inbox-1", "safety": {"noRepoTargetWrites": True}})
+            if name == "list_inbox":
+                return tool_response(request, {"ok": True})
+            if name == "create_package_draft_from_inbox":
+                return tool_response(
+                    request,
+                    {"ok": True, "draftId": "draft-1", "safety": {"localPackageDraftOnly": True, "applyFlagSent": False}},
+                )
+            if name == "review_latest_package_draft":
+                return tool_response(request, {"ok": True, "draftId": "draft-1", "safety": {"readOnlyReview": True}})
+            if name == "dry_run_latest_package_draft":
+                return tool_response(
+                    request,
+                    {
+                        "ok": True,
+                        "draftId": "draft-1",
+                        "dryRunSucceeded": True,
+                        "safety": {"packageIntakeDryRunOnly": True, "applyFlagSent": False},
+                        "dryRun": {
+                            "diffPreview": {
+                                "ok": True,
+                                "text": "+# Preview\n",
+                                "safety": {"diffArtifactUnderPackageIntake": True, "boundedBytes": True, "applyFlagSent": False},
+                            }
+                        },
+                    },
+                )
+            if name == "apply_latest_package_draft":
+                return tool_response(
+                    request,
+                    {
+                        "ok": False,
+                        "status": "blocked",
+                        "applied": False,
+                        "blockers": ["APPLY_APPROVAL_MISSING"],
+                        "safety": {"applyFlagSent": False, "repoSourceMutationExpected": False},
+                    },
+                )
+            raise AssertionError(f"unexpected request: {request!r}")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            chatgpt_mcp,
+            "curl_json_rpc_request",
+            side_effect=fake_curl_json_rpc_request,
+        ):
+            payload = chatgpt_mcp.cloudflare_smoke_client_result(
+                curl_executable="curl.exe",
+                url="https://example.trycloudflare.com/mcp",
+                timeout_seconds=5,
+                temp_dir=Path(temp_dir),
+                origin="https://chatgpt.com",
+                include_proposal_submit=True,
+            )
+
+        tool_call_names = [
+            request["params"]["name"]
+            for request in calls
+            if isinstance(request.get("params"), dict) and request.get("method") == "tools/call"
+        ]
+        self.assertEqual(
+            tool_call_names,
+            [
+                "health",
+                "submit_package_proposal",
+                "list_inbox",
+                "create_package_draft_from_inbox",
+                "review_latest_package_draft",
+                "dry_run_latest_package_draft",
+                "apply_latest_package_draft",
+            ],
+        )
+        self.assertEqual(chatgpt_mcp.verify_cloudflare_smoke_client_result(payload), [])
+        self.assertFalse(payload["applyLatestPackageDraftWithoutApprovalStructuredContent"]["applied"])
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["applyLatestPackageDraftWithoutApprovalStructuredContent"]["blockers"])
+
     def test_transport_smoke_result_verifier_blocks_unredacted_health_repo_root(self) -> None:
         registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]
         client_result = {
@@ -1900,7 +2025,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                     return_value="https://example.trycloudflare.com",
                 ),
                 mock.patch.object(chatgpt_mcp, "resolve_ipv4_for_curl", return_value="104.16.1.1"),
-                mock.patch.object(chatgpt_mcp, "cloudflare_smoke_client_result", return_value=fake_client),
+                mock.patch.object(chatgpt_mcp, "cloudflare_smoke_client_result", return_value=fake_client) as cloudflare_client,
             ):
                 payload = chatgpt_mcp.run_chatgpt_trial_session(config, session_seconds=0)
                 ready_exists = (root / payload["artifactPaths"]["readyJson"]).is_file()
@@ -1915,6 +2040,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["publicTunnelStopped"])
         self.assertTrue(ready_exists)
         self.assertTrue(summary_exists)
+        self.assertTrue(cloudflare_client.call_args.kwargs["include_proposal_submit"])
 
     def test_parser_exposes_trial_modes(self) -> None:
         help_text = chatgpt_mcp.build_parser().format_help()
