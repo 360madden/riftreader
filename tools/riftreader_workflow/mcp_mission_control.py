@@ -197,6 +197,48 @@ def phase_row(phase: int, name: str, status: str, evidence: str) -> dict[str, An
     return {"phase": phase, "name": name, "status": status, "evidence": evidence}
 
 
+def dashboard_ranked_actions(state: dict[str, Any], final_status: dict[str, Any], commands: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """Return operator actions using final-gate truth before raw artifact presence."""
+
+    final_action = final_status.get("recommendedNextAction") if isinstance(final_status.get("recommendedNextAction"), dict) else {}
+    if final_status.get("ok") is not True and final_action:
+        actions = [
+            {
+                "key": final_action.get("key"),
+                "priority": "P1",
+                "reason": final_action.get("reason") or "Final readiness selected this blocker-specific next action.",
+                "command": final_action.get("command") or commands["mcpFinalCompactStatus"],
+            },
+            {
+                "key": "mcp-final-status",
+                "priority": "P1",
+                "reason": "Inspect the full final readiness gate for blocker context.",
+                "command": commands["mcpFinalStatus"],
+            },
+            {
+                "key": "latest-artifacts",
+                "priority": "P2",
+                "reason": "Open latest artifact browser when evidence paths are unclear.",
+                "command": commands["mcpArtifactsLatest"],
+            },
+            {
+                "key": "mission-control",
+                "priority": "P2",
+                "reason": "Open consolidated MCP dashboard.",
+                "command": ["scripts\\riftreader-mcp-mission-control.cmd", "--json"],
+            },
+        ]
+        seen: set[str] = set()
+        unique_actions = []
+        for action in actions:
+            key = str(action.get("key") or "")
+            if key and key not in seen:
+                seen.add(key)
+                unique_actions.append(action)
+        return unique_actions
+    return ranked_actions(state)
+
+
 def mission_control(repo_root: Path) -> dict[str, Any]:
     state = build_mcp_workflow_state(repo_root)
     ci_status = current_head_ci_status(repo_root)
@@ -213,9 +255,9 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
         "schemaVersion": 1,
         "kind": "riftreader-mcp-mission-control",
         "generatedAtUtc": utc_iso(),
-        "status": state.get("status"),
-        "ok": state.get("ok"),
-        "blockers": state.get("blockers"),
+        "status": compact_final_status.get("status") or state.get("status"),
+        "ok": compact_final_status.get("ok") if "ok" in compact_final_status else state.get("ok"),
+        "blockers": compact_final_status.get("blockers") or state.get("blockers"),
         "warnings": warnings,
         "ciStatus": ci_status,
         "finalStatus": compact_final_status,
@@ -223,9 +265,9 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
         "latestArtifacts": state.get("latestArtifacts"),
         "counts": state.get("counts"),
         "gitDirtyState": state.get("gitDirtyState"),
-        "recommendedNextAction": state.get("recommendedNextAction"),
+        "recommendedNextAction": compact_final_status.get("recommendedNextAction") or state.get("recommendedNextAction"),
         "operatorNextAction": progress.get("recommendedNextAction"),
-        "rankedActions": ranked_actions(state),
+        "rankedActions": dashboard_ranked_actions(state, compact_final_status, commands),
         "pasteSafeCommands": {
             "readiness": commands["mcpTrialReadiness"],
             "proposalSmoke": commands["proposalTransportSmoke"],

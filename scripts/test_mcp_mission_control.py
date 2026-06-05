@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +63,75 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertEqual(payload["finalProductProgress"]["phases"][4]["status"], "completed")
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_dashboard_prefers_final_gate_truth_over_raw_artifact_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            state = {
+                "status": "ready",
+                "ok": True,
+                "blockers": [],
+                "warnings": [],
+                "latestArtifacts": {
+                    "actual-client-proof": {
+                        "status": "passed",
+                        "ok": True,
+                        "chatGptRegistrationSucceeded": None,
+                        "toolCount": 8,
+                    }
+                },
+                "counts": {},
+                "gitDirtyState": {"dirty": False, "dirtyCount": 0, "entries": []},
+                "recommendedNextAction": {
+                    "key": "docs-or-commit",
+                    "reason": "Raw artifact state is stale.",
+                    "command": ["scripts\\riftreader-safe-commit-packager.cmd", "--plan", "--json"],
+                },
+            }
+            final_payload = {
+                "status": "blocked",
+                "ok": False,
+                "warnings": [],
+                "recommendedNextAction": {
+                    "key": "record-actual-client-proof",
+                    "reason": "Actual-client proof is missing, stale, or failed replay.",
+                    "command": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--template", "--json"],
+                },
+            }
+            compact_final = {
+                **final_payload,
+                "blockers": ["proof:replay-failed:required-field-missing:connectionMode"],
+                "phase2Ready": False,
+                "ciStatus": "blocked",
+                "upstreamStatus": "blocked",
+                "dependencyStatus": "passed",
+                "environmentStatus": "passed",
+                "toolSurfaceStatus": "passed",
+                "publicSessionStatus": "passed",
+                "proofReplayStatus": "blocked",
+                "proofFreshnessStatus": "stale",
+                "requiredDependencies": {"tunnel-client": "passed"},
+            }
+
+            with (
+                mock.patch.object(mission, "build_mcp_workflow_state", return_value=state),
+                mock.patch.object(
+                    mission,
+                    "current_head_ci_status",
+                    return_value={"status": "blocked", "ok": False, "warnings": [], "blockers": []},
+                ),
+                mock.patch.object(mission, "final_readiness", return_value=final_payload),
+                mock.patch.object(mission, "compact_final_readiness", return_value=compact_final),
+            ):
+                payload = mission.mission_control(root)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(payload["operatorNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(payload["rankedActions"][0]["key"], "record-actual-client-proof")
+        self.assertIn("proof:replay-failed:required-field-missing:connectionMode", payload["blockers"])
 
     def test_trial_command_displays_bounded_public_trial_command_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

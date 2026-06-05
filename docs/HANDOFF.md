@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP Mission Control final-gate truth — 2026-06-05 10:56 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1056-chatgpt-mcp-mission-control-final-truth-handoff.md`.
+
+Mission Control now uses compact final-readiness truth for dashboard status,
+blockers, recommended action, and ranked actions. A stale actual-client proof
+artifact with historical `status=passed` can no longer make the dashboard look
+ready when final proof replay blocks on the current Secure Tunnel/diff-preview
+proof rules.
+
+| Evidence | Result |
+|---|---|
+| Active Mission Control | `tools/riftreader_workflow/mcp_mission_control.py`. |
+| Final-gate truth source | `tools/riftreader_workflow/mcp_final_readiness.py::compact_final_readiness`. |
+| Dashboard routing | `recommendedNextAction` and `rankedActions[0]` now prefer final readiness blocker-specific action before raw artifact state. |
+| Real dirty dashboard check | `scripts/riftreader-mcp-mission-control.cmd --json` reported `status=blocked`, `ok=false`, and top ranked `safe-commit-plan` while this slice was dirty. |
+| Focused validation | `python -m unittest scripts.test_mcp_mission_control scripts.test_mcp_final_readiness scripts.test_workflow_router scripts.test_mcp_phase1_completion scripts.test_mcp_phase2_status` passed 52 tests in 11.110s. |
+| Broad MCP validation | `python -m unittest scripts.test_mcp_mission_control scripts.test_mcp_final_readiness scripts.test_workflow_router scripts.test_mcp_phase1_completion scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 182 tests in 48.063s. |
+| Final ledger | `.riftreader-local/validation-runs/20260605-105433-751150/summary.md` passed in 45.527s. |
+
 ## Latest compact handoff — ChatGPT MCP final next-action priority — 2026-06-05 10:46 UTC
 
 A new compact handoff exists at

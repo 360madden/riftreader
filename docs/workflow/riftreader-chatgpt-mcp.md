@@ -264,7 +264,8 @@ Mission Control now emits:
 |---|---|
 | `finalStatus` | Compact final gate result with CI, proof, dependency, environment, tool-surface, and public-session status. |
 | `finalProductProgress` | Phase 1-8 progress table with completed phases, next phase, and explicit public-trial boundary state. |
-| `operatorNextAction` | One dashboard-selected next operator action. |
+| `operatorNextAction` | One dashboard-selected next operator action from final-gate truth. |
+| `recommendedNextAction` / `rankedActions` | Final-gate-aligned operator routing; raw artifact presence cannot mark the dashboard ready when proof replay fails current rules. |
 | `--summary-md` | Human-readable progress and latest-artifact summary suitable for handoff context. |
 | `--checklist-md` | Paste-safe proof checklist covering final gate, optional local refreshes, explicit public trial, package review, proof recording, and final gate rerun. |
 | `--trial-command --json` | Prints the bounded public-trial command without running it. |
@@ -274,6 +275,12 @@ register ChatGPT, mutate Git, apply packages, send RIFT input, attach CE/x64dbg,
 or write provider repos. Only `--run-readiness` and `--run-proposal-smoke`
 execute local-only validation helpers; the public trial command is display-only
 unless the operator explicitly runs the printed command.
+
+Mission Control status, blockers, recommended action, and ranked actions should
+prefer final-readiness proof replay over raw artifact presence. If the latest
+actual-client proof artifact has historical `status=passed` but fails the
+current Secure Tunnel/diff-preview proof rules, Mission Control must report
+`blocked` and route to `record-actual-client-proof`.
 
 ## Running the MCP server locally
 
