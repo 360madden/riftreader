@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import socket
 import shutil
 import sys
@@ -64,6 +65,7 @@ DEFAULT_MCP_SERVE_PORT = 8770
 LOCAL_IGNORED_ARTIFACT_ROOT = ".riftreader-local"
 EPHEMERAL_PUBLIC_READY_MAX_AGE_SECONDS = 15 * 60
 TUNNEL_CLIENT_DEFAULT_PATHS = (
+    Path(r"C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe"),
     Path(r"C:\Program Files\OpenAI\tunnel-client\tunnel-client.exe"),
     Path(r"C:\Program Files (x86)\OpenAI\tunnel-client\tunnel-client.exe"),
 )
@@ -313,7 +315,18 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
     if not gh:
         blockers.append("dependency:missing:gh")
 
-    tunnel_client = _find_executable("tunnel-client", list(TUNNEL_CLIENT_DEFAULT_PATHS))
+    tunnel_client_candidates = [
+        *(Path(value).expanduser() for value in (
+            os.environ.get("TUNNEL_CLIENT_PATH"),
+            os.environ.get("OPENAI_TUNNEL_CLIENT_PATH"),
+            os.environ.get("TUNNEL_CLIENT"),
+            os.environ.get("OPENAI_TUNNEL_CLIENT"),
+        ) if value),
+        repo_root / ".riftreader-local" / "tools" / "openai" / "tunnel-client" / "tunnel-client.exe",
+        repo_root / ".riftreader-local" / "tools" / "tunnel-client" / "tunnel-client.exe",
+        *TUNNEL_CLIENT_DEFAULT_PATHS,
+    ]
+    tunnel_client = _find_executable("tunnel-client", tunnel_client_candidates)
     dependencies["tunnel-client"] = {
         "status": "passed" if tunnel_client else "blocked",
         "ok": bool(tunnel_client),

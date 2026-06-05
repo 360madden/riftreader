@@ -304,6 +304,26 @@ The plan prints the exact local stdio MCP command for `tunnel-client`. If the
 plan reports `TUNNEL_CLIENT_NOT_FOUND`, install/download `tunnel-client` from
 OpenAI Platform tunnel settings or the latest `openai/tunnel-client` release,
 then rerun with either PATH discovery or `--tunnel-client-path <path>`.
+RiftReader also checks these adminless paths before the Program Files fallback:
+
+- `TUNNEL_CLIENT_PATH`, `OPENAI_TUNNEL_CLIENT_PATH`, `TUNNEL_CLIENT`, or
+  `OPENAI_TUNNEL_CLIENT` environment variables.
+- `C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe`.
+- `.riftreader-local\tools\openai\tunnel-client\tunnel-client.exe`.
+
+Current local shared-tools install:
+
+| Field | Value |
+|---|---|
+| Version | `0.0.9+62b9b42f698ec5319d2115e0c0ff1dcf6557d7ae` |
+| Release tag | `v0.0.9--context-conduit-topaz` |
+| Installed binary | `C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe` |
+| Source ZIP | `tunnel-client-v0.0.9--context-conduit-topaz-windows-amd64.zip` |
+| Source ZIP SHA-256 | `570fe871cb1f8911653433a04e2905488e3316994054b49b34e9219aaa61fd92` |
+
+Note: this installed CLI advertises `tunnel-client help quickstart` in `--help`,
+but that topic currently returns an unknown-topic error. Do not depend on it in
+automation; use the generated `init`, `doctor`, and `run` commands instead.
 
 Before connecting ChatGPT, create or choose a tunnel in OpenAI Platform tunnel
 settings and obtain a runtime API key whose principal has Tunnels Read + Use for

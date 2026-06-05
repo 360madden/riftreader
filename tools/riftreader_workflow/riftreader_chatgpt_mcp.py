@@ -62,6 +62,7 @@ CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files\cloudflared\cloudflared.exe"),
 )
 TUNNEL_CLIENT_DEFAULT_PATHS = (
+    Path(r"C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe"),
     Path(r"C:\Program Files\OpenAI\tunnel-client\tunnel-client.exe"),
     Path(r"C:\Program Files (x86)\OpenAI\tunnel-client\tunnel-client.exe"),
 )
@@ -1935,13 +1936,24 @@ def run_trial_readiness(
     return payload
 
 
-def resolve_tunnel_client_executable(value: str | None = None) -> Path:
+def resolve_tunnel_client_executable(value: str | None = None, *, repo_root: Path | None = None) -> Path:
     candidates: list[Path] = []
     if value:
         candidates.append(Path(value).expanduser())
+    for env_name in ("TUNNEL_CLIENT_PATH", "OPENAI_TUNNEL_CLIENT_PATH", "TUNNEL_CLIENT", "OPENAI_TUNNEL_CLIENT"):
+        env_value = os.environ.get(env_name)
+        if env_value:
+            candidates.append(Path(env_value).expanduser())
     for found in (shutil.which("tunnel-client.exe"), shutil.which("tunnel-client")):
         if found:
             candidates.append(Path(found))
+    if repo_root is not None:
+        candidates.extend(
+            (
+                repo_root / ".riftreader-local" / "tools" / "openai" / "tunnel-client" / "tunnel-client.exe",
+                repo_root / ".riftreader-local" / "tools" / "tunnel-client" / "tunnel-client.exe",
+            )
+        )
     candidates.extend(TUNNEL_CLIENT_DEFAULT_PATHS)
     for candidate in candidates:
         if candidate.is_file():
@@ -1986,7 +1998,7 @@ def build_secure_tunnel_plan(
 ) -> dict[str, Any]:
     tunnel_client_status = optional_executable_readiness(
         "tunnel-client",
-        lambda: resolve_tunnel_client_executable(tunnel_client_path),
+        lambda: resolve_tunnel_client_executable(tunnel_client_path, repo_root=config.repo_root),
         required_for="OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
     )
     tunnel_client = str(tunnel_client_status.get("path") or "tunnel-client")
@@ -2038,6 +2050,12 @@ def build_secure_tunnel_plan(
             "managerPermission": "Tunnels Read + Manage is needed only to create or edit tunnel metadata.",
             "network": "The tunnel-client host needs outbound HTTPS to api.openai.com:443 and local reachability to the stdio MCP command.",
             "adminHealth": "Use tunnel-client doctor plus the local /ui, /healthz, and /readyz surfaces before ChatGPT smoke testing.",
+        },
+        "tunnelClientDiscovery": {
+            "explicitFlag": "--tunnel-client-path",
+            "environmentVariables": ["TUNNEL_CLIENT_PATH", "OPENAI_TUNNEL_CLIENT_PATH", "TUNNEL_CLIENT", "OPENAI_TUNNEL_CLIENT"],
+            "adminlessSharedToolsPath": r"C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe",
+            "repoLocalFallbackPath": str(config.repo_root / ".riftreader-local" / "tools" / "openai" / "tunnel-client" / "tunnel-client.exe"),
         },
         "chatGptConnector": {
             "name": "rift-mcp",

@@ -1207,6 +1207,17 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["openAiSecureTunnelPreferred"])
         self.assertTrue(payload["safety"]["cloudflareQuickTunnelDeprecated"])
 
+    def test_resolve_tunnel_client_checks_repo_local_adminless_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            expected = root / ".riftreader-local" / "tools" / "openai" / "tunnel-client" / "tunnel-client.exe"
+            expected.parent.mkdir(parents=True)
+            expected.write_text("fake tunnel-client", encoding="utf-8")
+
+            resolved = chatgpt_mcp.resolve_tunnel_client_executable(repo_root=root)
+
+        self.assertEqual(resolved, expected.resolve())
+
     def test_chatgpt_trial_session_writes_ready_and_final_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

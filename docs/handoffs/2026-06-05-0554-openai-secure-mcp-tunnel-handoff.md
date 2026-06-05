@@ -22,16 +22,17 @@ commit, or push was performed.
 | Recommended Web/Desktop path | OpenAI Secure MCP Tunnel |
 | Local default | self-test / SDK validation / loopback transport smoke |
 | Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com` |
-| Current blocker | `TUNNEL_CLIENT_NOT_FOUND` locally |
+| Current blocker | External tunnel setup remains gated: tunnel id, runtime API key, `tunnel-client init/doctor/run`, ChatGPT connector registration, and fresh actual-client proof. |
+| Installed tunnel-client | `C:\RIFT MODDING\Tools\OpenAI\tunnel-client\tunnel-client.exe`, version `0.0.9+62b9b42f698ec5319d2115e0c0ff1dcf6557d7ae`. |
 
 ## Code/docs changes
 
 | File | Change |
 |---|---|
-| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, `tunnel-client` discovery, stdio MCP command generation, JSON tunnel plan output, and Cloudflare deprecation framing. |
-| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
+| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
+| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
 | `tools/riftreader_workflow/mcp_workflow_state.py` | Added Secure Tunnel plan artifact indexing and changed MCP recommended workflow routing to prefer `--secure-tunnel-plan` before ChatGPT Web/Desktop proof. |
-| `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
+| `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate, env/shared-tools/repo-local discovery, and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
 | `tools/riftreader_workflow/mcp_mission_control.py` | Surfaced Secure Tunnel plan commands in Mission Control and proof checklist; Cloudflare trial command remains fallback-only. |
 | `docs/HANDOFF.md` | Updated the compact handoff index so this Secure MCP Tunnel handoff is the newest resume point. |
 | `docs/workflow/riftreader-chatgpt-mcp.md` | Reframed ChatGPT Web/Desktop setup around OpenAI Secure MCP Tunnel; Cloudflare commands now fallback-only; added current OpenAI tunnel requirements/troubleshooting. |
@@ -56,9 +57,9 @@ input, or expose broad local tools.
 | `python -m unittest scripts.test_riftreader_chatgpt_mcp` | Passed: 41 tests. |
 | `python -m unittest scripts.test_mcp_workflow_state scripts.test_mcp_final_readiness scripts.test_mcp_mission_control scripts.test_riftreader_chatgpt_mcp` | Passed: 71 tests. |
 | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --trial-readiness --json` | Passed local-only readiness; wrote `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T062943Z-trial-readiness.json`. |
-| `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --secure-tunnel-plan --json` | Plan emitted, wrote `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T064433Z-secure-tunnel-plan.json`, status `blocked` only because local `tunnel-client` is not installed/found; returned expected exit code `2`. |
-| `cmd /v:on /c "scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json > NUL & echo LAST=!ERRORLEVEL!"` | Passed wrapper exit-code check; printed `LAST=2`. |
-| `scripts\riftreader-mcp-final.cmd --status --compact-json` | Blocked as expected on dirty tree, stale proof, and `dependency:missing:tunnel-client`; public session state passed after stale Cloudflare ready URL aged out. |
+| `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --secure-tunnel-plan --json` | Initially blocked before install; after verified shared-tools install, passed and wrote `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T065733Z-secure-tunnel-plan.json`. |
+| `cmd /v:on /c "scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json > NUL & echo LAST=!ERRORLEVEL!"` | Passed wrapper exit-code check; now prints `LAST=0` after shared-tools `tunnel-client` install. |
+| `scripts\riftreader-mcp-final.cmd --status --compact-json` | After install, `dependencyStatus=passed` and `requiredDependencies.tunnel-client=passed`; still blocked on dirty/ahead local slice, current-head CI unavailable for unpushed commit, and stale actual-client proof. |
 | `scripts\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json` | Passed display-only command payload; no tunnel or ChatGPT registration started. |
 | `python tools\riftreader_workflow\validation_ledger.py --tier targeted --command "python -m unittest scripts.test_mcp_workflow_state scripts.test_mcp_final_readiness scripts.test_mcp_mission_control scripts.test_mcp_phase1_completion scripts.test_mcp_phase2_status scripts.test_mcp_proof_replay scripts.test_mcp_artifact_browser scripts.test_mcp_ci_status scripts.test_riftreader_chatgpt_mcp"` | Passed in `16.298s`; ledger `.riftreader-local\validation-runs\20260605-064914-219738\summary.md`. |
 | `pre-commit run --all-files --show-diff-on-failure` | Passed all configured local hooks. |
@@ -69,7 +70,8 @@ input, or expose broad local tools.
 
 | Blocker | Meaning | Safe next step |
 |---|---|---|
-| `TUNNEL_CLIENT_NOT_FOUND` | OpenAI `tunnel-client` executable is not installed, not on PATH, or not passed with `--tunnel-client-path`. | Install/download it from OpenAI Platform tunnel settings or rerun with an explicit `--tunnel-client-path`. |
+| `tunnel-client profile not initialized` | Binary is installed, but no tunnel id/runtime API key has been used to initialize `riftreader-local-stdio`. | Create/select a Platform tunnel, set a runtime API key with Tunnels Read + Use, then run the generated `init`, `doctor`, and `run` command lines. |
+| stale actual-client proof | The last actual ChatGPT proof is old and Cloudflare-based. | After Secure Tunnel is running, create/refresh the ChatGPT connector with Tunnel and smoke `health`, `get_repo_status`, `get_latest_handoff`. |
 
 ## OpenAI docs context used
 
