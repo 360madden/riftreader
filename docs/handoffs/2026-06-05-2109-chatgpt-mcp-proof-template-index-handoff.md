@@ -14,13 +14,16 @@ ad hoc `proof.json` instructions.
 | Proof template command | `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json` writes the ignored fillable packet. |
 | Proof template artifact kind | `proof-input-template` is indexed by `scripts\riftreader-mcp-artifacts.cmd`. |
 | Actual proof record command | The template payload includes the exact `--record --input <proof-input.json> --json` command to run after filling ChatGPT-side observations. |
-| Phase 1 recommendation | Missing/stale actual-client proof now routes to `--write-template --json`. |
+| Phase 1/final recommendation | Missing/stale actual-client proof now routes to the latest fresh indexed proof-input template when present; otherwise it routes to `--write-template --json`. |
 | Safety posture | No push, no persistent server, no public tunnel start, no ChatGPT registration, no live RIFT input, no CE/x64dbg. |
 
 ## Recent commits in this lane
 
 | Commit | Purpose |
 |---|---|
+| `39621da` | Prefer recording the latest fresh indexed proof-input template over writing duplicate templates. |
+| `ee3f5db` | Record local CI-parity validation evidence in this handoff. |
+| `80b7498` | Align Phase 1 missing-proof recommendation with `--write-template --json`. |
 | `aa8320a` | Index ignored proof-input templates as first-class MCP artifacts. |
 | `9f8d45a` | Add `--write-template` to produce fillable actual-client proof input packets. |
 | `5de5891` | Preserve the actual proof checklist handoff. |
@@ -43,20 +46,20 @@ scripts\riftreader-mcp-final.cmd --status --compact-json
 | Field | Result |
 |---|---|
 | `status` | `blocked` |
-| `currentHead` | `80b7498884b15603be351ee3318eb37d5be3407f` after the Phase 1 recommendation alignment commit |
+| `currentHead` | `39621da52bab5049cfba49f4a8e02689f9b2e149` after the latest-template recommendation commit |
 | `gitDirty` | `false` after commit |
 | `toolSurfaceStatus` | `passed` |
 | `dependencyStatus` | `passed` |
 | `environmentStatus` | `passed` |
 | `publicSessionStatus` | `passed` (`expected-expired` sessions only) |
 | `recommendedNextAction.key` | `record-actual-client-proof` |
-| `recommendedNextAction.command` | `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json` |
+| `recommendedNextAction.command` | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json` |
 
 ## Remaining blockers
 
 | Blocker | Why it remains |
 |---|---|
-| `git:upstream-not-synced:behind=0:ahead=15` | Local branch has unpushed commits; remote mutation still requires explicit push approval. |
+| `git:upstream-not-synced:behind=0:ahead=18` | Local branch has unpushed commits; remote mutation still requires explicit push approval. |
 | `phase2:not-ready` | External proof/CI gates are not complete. |
 | `ci:missing:.NET build and test` | Current-head CI evidence is absent. |
 | `ci:missing:RiftReader Policy` | Current-head policy CI evidence is absent. |
@@ -71,6 +74,13 @@ scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 
 Then fill the emitted `proof-input.json` with actual ChatGPT Web/Desktop
 observations and run the emitted `recordCommand`.
+
+If the current latest template is still fresh, the gates now recommend recording
+that exact file directly:
+
+```cmd
+scripts\riftreader-chatgpt-trial-recorder.cmd --record --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json
+```
 
 ## Validation status for this handoff slice
 
@@ -88,6 +98,8 @@ observations and run the emitted `recordCommand`.
 | `python -m py_compile <workflow-tools-and-script-tests>` | Passed. |
 | `python -m unittest discover -s scripts -p "test_*.py"` | Passed: 1888 tests in 446.708s. |
 | `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed: 0 blockers, 0 warnings. |
+| `python -m unittest scripts.test_mcp_phase1_completion scripts.test_mcp_final_readiness scripts.test_mcp_workflow_state` | Passed: 38 tests in 5.973s after latest-template recommendation patch. |
+| Broad MCP/local workflow unittest set | Passed: 213 tests in 52.069s after latest-template recommendation patch. |
 
 These local checks are CI-parity confidence only. They do not replace the final
 gate requirement for GitHub Actions evidence on the pushed current HEAD.
