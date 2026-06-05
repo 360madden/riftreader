@@ -69,6 +69,7 @@ ALLOWED_CONNECTION_MODES = frozenset(
     }
 )
 PUBLIC_FALLBACK_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.app")
+PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 
 
 def proof_template() -> dict[str, Any]:
@@ -106,6 +107,44 @@ def proof_template() -> dict[str, Any]:
         "applyLatestPackageDraftWithoutApprovalBlockers": [],
         "applyLatestPackageDraftWithoutApprovalApplied": None,
         "notes": "Fill this with actual ChatGPT-side observations, then record with --record --input proof.json.",
+    }
+
+
+def write_proof_template(repo_root: Path) -> dict[str, Any]:
+    output_dir = timestamped_output_dir(repo_root / PROOF_INPUT_TEMPLATE_ROOT)
+    proof_input_path = output_dir / "proof-input.json"
+    template = proof_template()
+    proof_input_path.write_text(json.dumps(template, indent=2, sort_keys=True), encoding="utf-8")
+    proof_input_rel = rel(repo_root, proof_input_path)
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-chatgpt-proof-template-write",
+        "generatedAtUtc": utc_iso(),
+        "status": "ready",
+        "ok": True,
+        "template": template,
+        "artifactPaths": {
+            "proofInputJson": proof_input_rel,
+        },
+        "next": [
+            "Fill proofInputJson with actual ChatGPT-side observations.",
+            "Record the filled proof input with the recordCommand.",
+        ],
+        "recordCommand": [
+            "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+            "--record",
+            "--input",
+            proof_input_rel,
+            "--json",
+        ],
+        "safety": {
+            **safety_flags(),
+            "templateWriteOnly": True,
+            "chatGptApiCalled": False,
+            "publicTunnelStarted": False,
+            "gitMutation": False,
+            "applyFlagSent": False,
+        },
     }
 
 
@@ -366,6 +405,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Record actual ChatGPT MCP proof facts supplied by the operator.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--template", action="store_true", help="Print proof input template JSON.")
+    mode.add_argument("--write-template", action="store_true", help="Write a fillable proof input template under .riftreader-local.")
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
     mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
     parser.add_argument("--input", default=None, help="Path to proof input JSON for --record.")
@@ -379,6 +419,8 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     if args.template:
         payload = proof_template()
+    elif args.write_template:
+        payload = write_proof_template(repo_root)
     elif args.self_test:
         payload = self_test()
     else:

@@ -175,7 +175,7 @@ Expected blockers remain:
 Start with:
 
 ```cmd
-scripts\riftreader-chatgpt-trial-recorder.cmd --template --json
+scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 ```
 
 The proof must include:
@@ -241,7 +241,7 @@ git status --short --branch
 git --no-pager log --oneline -20
 scripts\riftreader-mcp-final.cmd --status --compact-json
 scripts\riftreader-mcp-mission-control.cmd --checklist-md
-scripts\riftreader-chatgpt-trial-recorder.cmd --template --json
+scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json
 ```
 

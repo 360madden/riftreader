@@ -87,6 +87,26 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertEqual(payload["applyLatestPackageDraftWithoutApprovalBlockers"], [])
         self.assertIsNone(payload["applyLatestPackageDraftWithoutApprovalApplied"])
 
+    def test_write_template_creates_ignored_fillable_proof_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = recorder.write_proof_template(root)
+
+            proof_input = root / payload["artifactPaths"]["proofInputJson"]
+            proof = json.loads(proof_input.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["safety"]["templateWriteOnly"])
+        self.assertIn(".riftreader-local", payload["artifactPaths"]["proofInputJson"])
+        self.assertEqual(proof["kind"], "riftreader-chatgpt-actual-client-proof-input")
+        self.assertEqual(proof["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
+        self.assertEqual(payload["recordCommand"][0], "scripts\\riftreader-chatgpt-trial-recorder.cmd")
+        self.assertIn("--record", payload["recordCommand"])
+        self.assertIn(payload["artifactPaths"]["proofInputJson"], payload["recordCommand"])
+
     def test_self_test_passes_without_chatgpt_or_tunnel(self) -> None:
         payload = recorder.self_test()
 

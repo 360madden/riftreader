@@ -151,7 +151,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--latest", mcp_artifacts["args"])
         proof_template = next(item for item in plan["commands"] if item["key"] == "chatgpt-trial-proof-template")
         self.assertIn("riftreader-chatgpt-trial-recorder.cmd", proof_template["args"][0])
-        self.assertIn("--template", proof_template["args"])
+        self.assertIn("--write-template", proof_template["args"])
         commit_plan = next(item for item in plan["commands"] if item["key"] == "safe-commit-plan")
         self.assertIn("riftreader-safe-commit-packager.cmd", commit_plan["args"][0])
         self.assertIn("--plan", commit_plan["args"])

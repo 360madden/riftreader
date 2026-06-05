@@ -476,7 +476,7 @@ def standard_commands() -> dict[str, list[str]]:
         "inboxPackageDraft": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-package-draft", "--json"],
         "latestDraft": ["scripts\\riftreader-package-draft-review.cmd", "--latest", "--json"],
         "dryRunLatestDraft": ["scripts\\riftreader-package-draft-review.cmd", "--dry-run-latest", "--json"],
-        "trialProofTemplate": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--template", "--json"],
+        "trialProofTemplate": ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
         "safeCommitPlan": ["scripts\\riftreader-safe-commit-packager.cmd", "--plan", "--json"],
         "workflowRouter": ["scripts\\riftreader-workflow-router.cmd", "--mcp", "--json"],
     }

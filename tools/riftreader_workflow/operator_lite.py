@@ -433,9 +433,9 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
         "chatgpt-trial-proof-template": CommandSpec(
             key="chatgpt-trial-proof-template",
             label="ChatGPT Trial Proof Template",
-            args=(str(scripts / "riftreader-chatgpt-trial-recorder.cmd"), "--template", "--json"),
+            args=(str(scripts / "riftreader-chatgpt-trial-recorder.cmd"), "--write-template", "--json"),
             timeout_seconds=60,
-            description="Print the actual ChatGPT client proof template; does not call ChatGPT or start a tunnel.",
+            description="Write a fillable actual ChatGPT client proof template; does not call ChatGPT or start a tunnel.",
         ),
         "safe-commit-plan": CommandSpec(
             key="safe-commit-plan",

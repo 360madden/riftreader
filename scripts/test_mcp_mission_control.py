@@ -308,7 +308,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Local final gate", checklist)
         self.assertIn("Explicit ChatGPT Secure Tunnel proof", checklist)
         self.assertIn("riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json", checklist)
-        self.assertIn("riftreader-chatgpt-trial-recorder.cmd --template --json", checklist)
+        self.assertIn("riftreader-chatgpt-trial-recorder.cmd --write-template --json", checklist)
         self.assertIn("Confirm output schemas are present", checklist)
         self.assertIn("get_package_proposal_template", checklist)
         self.assertIn("create_package_draft_from_inbox", checklist)

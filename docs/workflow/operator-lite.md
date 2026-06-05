@@ -290,7 +290,7 @@ Current groups:
 | MCP Trial Readiness | Runs `scripts\riftreader-chatgpt-mcp.cmd --trial-readiness --json`. | Proves the narrow ChatGPT MCP adapter locally: self-test, SDK metadata validation, loopback transport smoke with synthetic `submit_package_proposal`, and optional tunnel-tool availability checks; no public tunnel, ChatGPT registration, persistent serve, apply, Git mutation, live input, CE, or x64dbg. |
 | MCP Mission Control | Runs `scripts\riftreader-mcp-mission-control.cmd --json`. | Consolidated MCP status, latest proof artifacts, dirty state, ranked next actions, paste-safe commands, and optional Markdown summary/checklist modes; no tunnel or Git mutation. |
 | Latest MCP Artifacts | Runs `scripts\riftreader-mcp-artifacts.cmd --latest --json`. | Read-only latest readiness/smoke/trial/inbox/draft/dry-run/proof lookup with timeline/kind/open-latest CLI support. |
-| ChatGPT Trial Proof Template | Runs `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json`. | Prints the operator-fillable actual-client proof template only. |
+| ChatGPT Trial Proof Template | Runs `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json`. | Writes an ignored, operator-fillable actual-client proof input template and prints the record command. |
 | Safe Commit Plan | Runs `scripts\riftreader-safe-commit-packager.cmd --plan --json`. | Builds an explicit-path staging/commit checklist only; Markdown export is available; never stages, commits, or pushes. |
 | Workflow Router | Runs `scripts\riftreader-workflow-router.cmd --mcp --json`. | Recommends the next safest MCP lane action from local state only. |
 | Open Bridge Docs | Opens `docs\workflow\local-artifact-bridge.md`. | Local view only. |
