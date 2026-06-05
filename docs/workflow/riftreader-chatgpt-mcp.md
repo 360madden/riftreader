@@ -70,6 +70,26 @@ malformed result that omits the common structuredContent fields (`schemaVersion`
   health reports the repo as `.` plus a repo name, and nested draft/dry-run
   helper fields are normalized before audit/return.
 
+## Future capability roadmap
+
+`get_workflow_control_plan` now advertises the intended higher-power capability
+ladder while keeping those endpoints **not exposed** until their proof and
+approval gates exist. This lets ChatGPT Web/Desktop reason about next steps
+without silently gaining apply, Git, shell, live RIFT, CE, or x64dbg powers.
+
+| Future capability | Current status | Minimum gate before exposure |
+|---|---|---|
+| Apply latest package draft to repo | Planned; not exposed | Explicit operator approval plus fresh reviewed dry-run. |
+| Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
+| Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
+| Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |
+| Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan. |
+| Debugger/CE assist | Planned; not exposed | Explicit debugger approval with crash-risk statement and candidate-only proof boundaries. |
+
+Default development order: apply-package dry-run-to-apply bridge first, local
+commit second, push third, bounded shell fourth, live RIFT control fifth, and
+debugger/CE assist last.
+
 ## Local checks
 
 RUN THIS:

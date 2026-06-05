@@ -121,6 +121,100 @@ class ToolSpec:
         }
 
 
+FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
+    {
+        "key": "apply-package-to-repo",
+        "targetToolName": "apply_latest_package_draft",
+        "currentStatus": "not-exposed",
+        "riskClass": "repo-source-mutation",
+        "minimumGate": "explicit-operator-approval-plus-clean-reviewed-dry-run",
+        "safePrecursorTools": ["review_latest_package_draft", "dry_run_latest_package_draft"],
+        "requiredSafeguards": [
+            "latest draft must be operator-originated, not self-test",
+            "dry-run diff preview must be fresh and reviewed",
+            "apply command must use explicit package path under .riftreader-local only",
+            "no Git staging, commit, push, shell, RIFT input, CE, or x64dbg side effects",
+            "post-apply validation summary must be returned before any commit step",
+        ],
+    },
+    {
+        "key": "commit-local-slice",
+        "targetToolName": "commit_reviewed_slice",
+        "currentStatus": "not-exposed",
+        "riskClass": "git-local-mutation",
+        "minimumGate": "explicit-operator-approval-plus-safe-commit-plan",
+        "safePrecursorTools": ["get_workflow_control_plan"],
+        "requiredSafeguards": [
+            "stage explicit paths only from safeCommitPlan.stageablePaths",
+            "never run git add .",
+            "validationCommandsBeforeCommit must pass in the same session",
+            "commit message must be visible before commit",
+            "no push, branch rewrite, reset, clean, or remote mutation",
+        ],
+    },
+    {
+        "key": "push-current-branch",
+        "targetToolName": "push_current_branch",
+        "currentStatus": "not-exposed",
+        "riskClass": "git-remote-mutation",
+        "minimumGate": "explicit-operator-approval-in-current-turn",
+        "safePrecursorTools": ["get_repo_status", "get_workflow_control_plan"],
+        "requiredSafeguards": [
+            "branch, upstream, ahead/behind state, and commit hash must be returned first",
+            "worktree must be clean",
+            "required local validation or pre-commit evidence must be current",
+            "no force push or branch rewrite",
+            "post-push CI links/status must be returned",
+        ],
+    },
+    {
+        "key": "bounded-shell-command",
+        "targetToolName": "run_bounded_repo_command",
+        "currentStatus": "not-exposed",
+        "riskClass": "shell-execution",
+        "minimumGate": "explicit-operator-approval-plus-command-allowlist",
+        "safePrecursorTools": ["get_workflow_control_plan"],
+        "requiredSafeguards": [
+            "command must match a repo-owned allowlist entry",
+            "arguments must be arrays, not shell strings",
+            "timeout and output caps must be enforced",
+            "destructive commands and broad filesystem writes must be blocked",
+            "no RIFT input, CE, x64dbg, provider writes, or hidden Git mutation",
+        ],
+    },
+    {
+        "key": "live-rift-control",
+        "targetToolName": "control_rift_live",
+        "currentStatus": "not-exposed",
+        "riskClass": "live-game-state-mutation",
+        "minimumGate": "explicit-live-approval-and-current-target-proof",
+        "safePrecursorTools": ["get_repo_status", "get_latest_handoff"],
+        "requiredSafeguards": [
+            "exact PID/HWND/process-start target identity must be current",
+            "movement/input intent must be approved in the current turn",
+            "no debugger, CE, proof promotion, or provider writes by default",
+            "bounded action plan and stop conditions must be returned first",
+            "post-action evidence must record inputSent/movementSent truthfully",
+        ],
+    },
+    {
+        "key": "debugger-or-ce-assist",
+        "targetToolName": "debugger_ce_assist",
+        "currentStatus": "not-exposed",
+        "riskClass": "debugger-attach-crash-risk",
+        "minimumGate": "explicit-debugger-approval-in-current-turn",
+        "safePrecursorTools": ["get_repo_status", "get_latest_handoff"],
+        "requiredSafeguards": [
+            "attach target and crash risk must be stated before action",
+            "no automatic breakpoints/watchpoints without separate approval",
+            "read-only static/offline alternatives must be preferred first",
+            "candidate evidence must remain candidate-only until proof gates pass",
+            "promotion/current-truth updates require separate approval",
+        ],
+    },
+)
+
+
 TOOL_SPECS: dict[str, ToolSpec] = {
     "health": ToolSpec(
         name="health",
@@ -1014,9 +1108,29 @@ class RiftReaderChatGptMcpAdapter:
                 "blockers": mission_payload.get("blockers") or [],
             },
             "safeCommitPlan": safe_commit,
+            "futureCapabilityRoadmap": list(FUTURE_CAPABILITY_ROADMAP),
+            "futureCapabilityPolicy": {
+                "status": "planned-not-exposed",
+                "rule": (
+                    "Future higher-power tools should be added incrementally behind explicit gates; this plan "
+                    "advertises the intended capability ladder without exposing apply, Git mutation, shell, "
+                    "live RIFT control, CE, or x64dbg endpoints yet."
+                ),
+                "defaultDevelopmentOrder": [
+                    "apply-package-to-repo",
+                    "commit-local-slice",
+                    "push-current-branch",
+                    "bounded-shell-command",
+                    "live-rift-control",
+                    "debugger-or-ce-assist",
+                ],
+            },
             "gatedActions": [
+                "apply-package-to-repo",
+                "commit-local-slice",
                 "git-push",
                 "git-branch-rewrite",
+                "bounded-shell-command",
                 "tunnel-client-init-doctor-run-with-real-credentials",
                 "chatgpt-connector-registration",
                 "live-rift-input-or-movement",

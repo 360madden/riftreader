@@ -801,6 +801,15 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
         self.assertIn("git-push", payload["gatedActions"])
+        roadmap_by_key = {item["key"]: item for item in payload["futureCapabilityRoadmap"]}
+        self.assertIn("apply-package-to-repo", roadmap_by_key)
+        self.assertIn("bounded-shell-command", roadmap_by_key)
+        self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "not-exposed")
+        self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
+        self.assertIn("commit-local-slice", payload["gatedActions"])
+        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "planned-not-exposed")
+        self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
+        self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 
     def test_create_fastmcp_server_registers_tools_with_annotations(self) -> None:
         class FakeAnnotations:
