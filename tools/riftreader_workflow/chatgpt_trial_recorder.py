@@ -378,6 +378,48 @@ def check_proof_input(repo_root: Path, input_path: Path) -> dict[str, Any]:
     }
 
 
+def latest_proof_input_template(repo_root: Path) -> Path | None:
+    """Return the newest ignored proof-input template, if one exists."""
+
+    root = repo_root / PROOF_INPUT_TEMPLATE_ROOT
+    if not root.is_dir():
+        return None
+    candidates = [path for path in root.glob("*/proof-input.json") if path.is_file()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: (path.stat().st_mtime_ns, path.parent.name, path.name))
+
+
+def check_latest_proof_input_template(repo_root: Path) -> dict[str, Any]:
+    """Validate the newest proof-input template without recording artifacts."""
+
+    latest = latest_proof_input_template(repo_root)
+    if latest is None:
+        return {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-proof-input-check",
+            "generatedAtUtc": utc_iso(),
+            "status": "blocked",
+            "ok": False,
+            "inputPath": None,
+            "blockers": ["proof-input-template-missing"],
+            "warnings": [],
+            "next": ["Write a proof input template first with --write-template."],
+            "safety": {
+                **safety_flags(),
+                "readOnlyProofInputCheck": True,
+                "chatGptApiCalled": False,
+                "publicTunnelStarted": False,
+                "gitMutation": False,
+                "applyFlagSent": False,
+                "artifactWrite": False,
+            },
+        }
+    payload = check_proof_input(repo_root, latest)
+    payload["latestTemplate"] = True
+    return payload
+
+
 def self_test() -> dict[str, Any]:
     valid_proof = proof_template()
     valid_proof.update(
@@ -455,6 +497,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--template", action="store_true", help="Print proof input template JSON.")
     mode.add_argument("--write-template", action="store_true", help="Write a fillable proof input template under .riftreader-local.")
     mode.add_argument("--check-input", action="store_true", help="Validate proof input JSON without recording artifacts.")
+    mode.add_argument("--check-latest-template", action="store_true", help="Validate the latest proof input template without recording artifacts.")
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
     mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
     parser.add_argument("--input", default=None, help="Path to proof input JSON for --check-input or --record.")
@@ -477,6 +520,8 @@ def main(argv: list[str] | None = None) -> int:
             print("error: --check-input requires --input proof.json", file=sys.stderr)
             return 2
         payload = check_proof_input(repo_root, Path(args.input))
+    elif args.check_latest_template:
+        payload = check_latest_proof_input_template(repo_root)
     else:
         if not args.input:
             print("error: --record requires --input proof.json", file=sys.stderr)

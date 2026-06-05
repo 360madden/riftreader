@@ -181,6 +181,42 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
         self.assertFalse(payload["safety"]["artifactWrite"])
 
+    def test_check_latest_template_uses_newest_template_without_writing_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            older = root / recorder.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010000Z" / "proof-input.json"
+            newer = root / recorder.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010100Z" / "proof-input.json"
+            older.parent.mkdir(parents=True, exist_ok=True)
+            newer.parent.mkdir(parents=True, exist_ok=True)
+            older.write_text(json.dumps(valid_proof()), encoding="utf-8")
+            bad = valid_proof()
+            bad["toolCount"] = 99
+            newer.write_text(json.dumps(bad), encoding="utf-8")
+
+            payload = recorder.check_latest_proof_input_template(root)
+
+            proof_root = root / recorder.ACTUAL_CLIENT_PROOF_ROOT
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertTrue(payload["latestTemplate"])
+        self.assertTrue(payload["inputPath"].endswith("20260519-010100Z\\proof-input.json"))
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
+        self.assertFalse(proof_root.exists())
+        self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
+
+    def test_check_latest_template_blocks_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = recorder.check_latest_proof_input_template(root)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertFalse(payload["ok"])
+        self.assertIn("proof-input-template-missing", payload["blockers"])
+        self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
+
     def test_rejects_wrong_tool_count(self) -> None:
         proof = valid_proof()
         proof["toolCount"] = 7
@@ -350,6 +386,28 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
         self.assertFalse(proof_root.exists())
         self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
+
+    def test_check_latest_template_invalid_proof_returns_exit_2_without_recording(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            input_path = root / recorder.PROOF_INPUT_TEMPLATE_ROOT / "20260519-010000Z" / "proof-input.json"
+            input_path.parent.mkdir(parents=True, exist_ok=True)
+            proof = valid_proof()
+            proof["toolCount"] = 99
+            input_path.write_text(json.dumps(proof), encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = recorder.main(["--repo-root", str(root), "--check-latest-template", "--json"])
+            payload = json.loads(stdout.getvalue())
+            proof_root = root / recorder.ACTUAL_CLIENT_PROOF_ROOT
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "blocked")
+        self.assertTrue(payload["latestTemplate"])
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
+        self.assertFalse(proof_root.exists())
 
 
 if __name__ == "__main__":

@@ -79,6 +79,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "mcp-mission-control",
                 "mcp-artifacts-latest",
                 "chatgpt-trial-proof-template",
+                "chatgpt-trial-proof-check-latest",
                 "safe-commit-plan",
                 "workflow-router-mcp",
                 "decision-packet",
@@ -152,6 +153,10 @@ class OperatorLiteTests(unittest.TestCase):
         proof_template = next(item for item in plan["commands"] if item["key"] == "chatgpt-trial-proof-template")
         self.assertIn("riftreader-chatgpt-trial-recorder.cmd", proof_template["args"][0])
         self.assertIn("--write-template", proof_template["args"])
+        proof_check_latest = next(item for item in plan["commands"] if item["key"] == "chatgpt-trial-proof-check-latest")
+        self.assertIn("riftreader-chatgpt-trial-recorder.cmd", proof_check_latest["args"][0])
+        self.assertIn("--check-latest-template", proof_check_latest["args"])
+        self.assertEqual(proof_check_latest["expectedExitCodes"], [0, 2])
         commit_plan = next(item for item in plan["commands"] if item["key"] == "safe-commit-plan")
         self.assertIn("riftreader-safe-commit-packager.cmd", commit_plan["args"][0])
         self.assertIn("--plan", commit_plan["args"])

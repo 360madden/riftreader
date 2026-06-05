@@ -291,6 +291,7 @@ Current groups:
 | MCP Mission Control | Runs `scripts\riftreader-mcp-mission-control.cmd --json`. | Consolidated MCP status, latest proof artifacts, dirty state, ranked next actions, paste-safe commands, and optional Markdown summary/checklist modes; no tunnel or Git mutation. |
 | Latest MCP Artifacts | Runs `scripts\riftreader-mcp-artifacts.cmd --latest --json`. | Read-only latest readiness/smoke/trial/proof-input-template/inbox/draft/dry-run/proof lookup with timeline/kind/open-latest CLI support. |
 | ChatGPT Trial Proof Template | Runs `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json`. | Writes an ignored, operator-fillable actual-client proof input template and prints the record command. |
+| Check Latest ChatGPT Proof Input | Runs `scripts\riftreader-chatgpt-trial-recorder.cmd --check-latest-template --json`. | Validates the latest filled proof input template read-only before recording proof artifacts. |
 | Safe Commit Plan | Runs `scripts\riftreader-safe-commit-packager.cmd --plan --json`. | Builds an explicit-path staging/commit checklist only; Markdown export is available; never stages, commits, or pushes. |
 | Workflow Router | Runs `scripts\riftreader-workflow-router.cmd --mcp --json`. | Recommends the next safest MCP lane action from local state only. |
 | Open Bridge Docs | Opens `docs\workflow\local-artifact-bridge.md`. | Local view only. |

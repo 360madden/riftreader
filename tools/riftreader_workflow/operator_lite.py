@@ -83,6 +83,9 @@ COMMAND_ALIASES = {
     "latest-mcp-artifacts": "mcp-artifacts-latest",
     "chatgpt-trial-proof": "chatgpt-trial-proof-template",
     "chatgpt-trial-proof-template": "chatgpt-trial-proof-template",
+    "chatgpt-trial-proof-check": "chatgpt-trial-proof-check-latest",
+    "chatgpt-trial-proof-check-latest": "chatgpt-trial-proof-check-latest",
+    "check-latest-proof-input": "chatgpt-trial-proof-check-latest",
     "safe-commit-plan": "safe-commit-plan",
     "workflow-router": "workflow-router-mcp",
     "mcp-router": "workflow-router-mcp",
@@ -437,6 +440,14 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=60,
             description="Write a fillable actual ChatGPT client proof template; does not call ChatGPT or start a tunnel.",
         ),
+        "chatgpt-trial-proof-check-latest": CommandSpec(
+            key="chatgpt-trial-proof-check-latest",
+            label="Check Latest ChatGPT Proof Input",
+            args=(str(scripts / "riftreader-chatgpt-trial-recorder.cmd"), "--check-latest-template", "--json"),
+            timeout_seconds=60,
+            description="Validate the latest filled ChatGPT proof input template read-only before recording artifacts.",
+            expected_exit_codes=(0, 2),
+        ),
         "safe-commit-plan": CommandSpec(
             key="safe-commit-plan",
             label="Safe Commit Plan",
@@ -674,6 +685,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-mission-control --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-artifacts --json",
             ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-check-latest --json",
             ".\\scripts\\riftreader-operator-lite.cmd --safe-commit-plan --json",
             ".\\scripts\\riftreader-operator-lite.cmd --workflow-router --json",
             ".\\scripts\\riftreader-operator-lite.cmd --run decision-packet --json",
@@ -1182,6 +1194,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "MCP mission control button",
             "latest MCP artifacts button",
             "ChatGPT trial proof template button",
+            "latest ChatGPT proof input check button",
             "safe commit plan button",
             "workflow router button",
             "manual bridge start command copy",
@@ -1496,6 +1509,13 @@ def run_gui(repo_root: Path) -> int:
         "neutral",
         width=29,
     )
+    action_button(
+        mcp_local_row,
+        "Check Latest Proof Input",
+        lambda: run_spec("chatgpt-trial-proof-check-latest"),
+        "neutral",
+        width=24,
+    )
     action_button(mcp_local_row, "Safe Commit Plan", lambda: run_spec("safe-commit-plan"), "neutral", width=19)
 
     bridge_utility_row = button_row(bridge_frame)
@@ -1570,6 +1590,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --mcp-mission-control --json | "
             "riftreader-operator-lite.cmd --mcp-artifacts --json | "
             "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
+            "riftreader-operator-lite.cmd --chatgpt-trial-proof-check-latest --json | "
             "riftreader-operator-lite.cmd --safe-commit-plan --json | "
             "riftreader-operator-lite.cmd --workflow-router --json | "
             "riftreader-operator-lite.cmd --decision-packet --json | "
@@ -1633,6 +1654,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--chatgpt-trial-proof-template",
         action="store_true",
         help="Shortcut for --run chatgpt-trial-proof-template.",
+    )
+    parser.add_argument(
+        "--chatgpt-trial-proof-check-latest",
+        action="store_true",
+        help="Shortcut for --run chatgpt-trial-proof-check-latest.",
     )
     parser.add_argument(
         "--safe-commit-plan",
@@ -1708,6 +1734,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "mcp-artifacts-latest"
     if args.chatgpt_trial_proof_template:
         shortcut_command = "chatgpt-trial-proof-template"
+    if args.chatgpt_trial_proof_check_latest:
+        shortcut_command = "chatgpt-trial-proof-check-latest"
     if args.safe_commit_plan:
         shortcut_command = "safe-commit-plan"
     if args.workflow_router:
@@ -1735,6 +1763,7 @@ def main(argv: list[str] | None = None) -> int:
             args.mcp_mission_control,
             args.mcp_artifacts,
             args.chatgpt_trial_proof_template,
+            args.chatgpt_trial_proof_check_latest,
             args.safe_commit_plan,
             args.workflow_router,
             args.decision_packet,

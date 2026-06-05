@@ -14,6 +14,7 @@ ad hoc `proof.json` instructions.
 | Proof template command | `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json` writes the ignored fillable packet. |
 | Proof template artifact kind | `proof-input-template` is indexed by `scripts\riftreader-mcp-artifacts.cmd`. |
 | Proof input check command | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input <proof-input.json> --json` validates filled proof input read-only before recording. |
+| Latest proof input check command | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-latest-template --json` resolves and validates the newest ignored proof-input template read-only. |
 | Actual proof record command | The template payload includes the exact `--record --input <proof-input.json> --json` command to run after filling ChatGPT-side observations. |
 | Phase 1/final recommendation | Missing/stale actual-client proof now routes to a read-only check of the latest fresh indexed proof-input template when present; otherwise it routes to `--write-template --json`. |
 | Safety posture | No push, no persistent server, no public tunnel start, no ChatGPT registration, no live RIFT input, no CE/x64dbg. |
@@ -22,8 +23,11 @@ ad hoc `proof.json` instructions.
 
 | Commit | Purpose |
 |---|---|
+| Current slice | Add Operator Lite/latest-template proof-input check action. |
+| `541f57f` | Route gates to check proof input before recording. |
+| `5fc2e93` | Add read-only proof-input completeness checking before recording. |
+| `faa1b4f` | Record latest proof-template action handoff. |
 | `39621da` | Prefer recording the latest fresh indexed proof-input template over writing duplicate templates. |
-| Current slice | Add read-only proof-input completeness checking and route gates to check before recording. |
 | `ee3f5db` | Record local CI-parity validation evidence in this handoff. |
 | `80b7498` | Align Phase 1 missing-proof recommendation with `--write-template --json`. |
 | `aa8320a` | Index ignored proof-input templates as first-class MCP artifacts. |
@@ -82,6 +86,12 @@ that exact file read-only before recording:
 
 ```cmd
 scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260605-211505Z\proof-input.json --json
+```
+
+Or let the helper resolve the newest ignored template:
+
+```cmd
+scripts\riftreader-chatgpt-trial-recorder.cmd --check-latest-template --json
 ```
 
 ```cmd
