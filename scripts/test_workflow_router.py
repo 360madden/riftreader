@@ -69,7 +69,7 @@ def write_actual_proof(root: Path) -> None:
             "kind": "riftreader-chatgpt-actual-client-proof",
             "status": "passed",
             "ok": True,
-            "proof": {"toolCount": 8, "publicMcpUrl": "https://client.example/mcp"},
+            "proof": {"toolCount": 9, "publicMcpUrl": "https://client.example/mcp"},
             "blockers": [],
         },
         1_800_000_030,

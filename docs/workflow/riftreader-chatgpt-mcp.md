@@ -18,6 +18,9 @@ The adapter is designed for this safe loop:
 4. The proposal is stored only under `.riftreader-local`.
 5. Operator/Codex reviews inbox and inert package drafts before any separate
    dry-run/apply decision.
+6. ChatGPT can request a read-only workflow control plan with safe next actions,
+   explicit staging/check commands, bidirectional data-transfer steps, and
+   gated boundaries.
 
 ## Tool surface
 
@@ -31,6 +34,7 @@ The adapter is designed for this safe loop:
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
 | `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
 | `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`. |
+| `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
 
 ## Hard boundaries
 

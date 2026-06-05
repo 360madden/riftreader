@@ -18,7 +18,7 @@ commit, or push was performed.
 | ChatGPT app display name | `rift-mcp` |
 | Active local adapter | `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` |
 | Adapter service | `riftreader_chatgpt_mcp` |
-| Tool surface | 8 allowlisted tools only |
+| Tool surface | 9 allowlisted tools only |
 | Recommended Web/Desktop path | OpenAI Secure MCP Tunnel |
 | Local default | self-test / SDK validation / loopback transport smoke |
 | Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com` |
@@ -79,12 +79,33 @@ plan artifact.
 No real credential was passed or stored, and the plan helper still does not run
 `tunnel-client init`, `doctor`, or `run`.
 
+## Latest continuation - 2026-06-05 08:03 UTC
+
+The ChatGPT Web/Desktop MCP surface now supports a 9th read-only tool,
+`get_workflow_control_plan`, so ChatGPT can inspect the safe repo-control plan
+without receiving shell, Git, tunnel, live RIFT, CE, x64dbg, or provider-write
+authority.
+
+| Evidence | Result |
+|---|---|
+| New tool | `get_workflow_control_plan` returns Mission Control state, safe commit-plan guidance, bidirectional data-transfer steps, and gated boundaries. |
+| Tool surface | Approved surface is now 9 tools. |
+| Local call smoke | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_workflow_control_plan --json` passed. |
+| Trial readiness | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --trial-readiness --json` passed with 9-tool SDK validation and 9-tool proposal transport smoke. |
+| New readiness artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T080228Z-trial-readiness.json`. |
+| New proposal smoke artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T080228Z-proposal-transport-smoke.json`. |
+| Final gate reconciliation | `toolSurfaceStatus=passed`; old actual-client proof now blocks with `tool-count-not-9:8` until a fresh 9-tool ChatGPT proof is recorded. |
+
+No shell endpoint, Git mutation endpoint, tunnel-control endpoint, ChatGPT
+registration, public tunnel, live RIFT action, provider write, or debugger
+attach was added.
+
 ## Code/docs changes
 
 | File | Change |
 |---|---|
-| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
-| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
+| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, `get_workflow_control_plan`, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
+| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, workflow-control-plan coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
 | `tools/riftreader_workflow/mcp_workflow_state.py` | Added Secure Tunnel plan artifact indexing and changed MCP recommended workflow routing to prefer `--secure-tunnel-plan` before ChatGPT Web/Desktop proof. |
 | `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate, env/shared-tools/repo-local discovery, SHA256/`--version` binary diagnostics, and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
 | `tools/riftreader_workflow/mcp_mission_control.py` | Surfaced Secure Tunnel plan commands in Mission Control and proof checklist; Cloudflare trial command remains fallback-only. |

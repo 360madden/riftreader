@@ -32,12 +32,14 @@ from urllib.parse import urlsplit
 
 try:
     from . import local_artifact_bridge as bridge
+    from . import mcp_mission_control, safe_commit_packager
     from . import package_manifest
     from . import package_draft_review, status_packet
     from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import local_artifact_bridge as bridge
+    from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
@@ -83,6 +85,7 @@ EXPECTED_TOOL_ORDER = (
     "list_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
+    "get_workflow_control_plan",
 )
 
 
@@ -190,6 +193,18 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             "inert package draft. This never passes --apply and never mutates repo source, Git, RIFT, CE, or x64dbg."
         ),
         read_only=False,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_workflow_control_plan": ToolSpec(
+        name="get_workflow_control_plan",
+        title="Get Workflow Control Plan",
+        description=(
+            "Use this when ChatGPT needs the current safe repo workflow plan, bidirectional data-transfer steps, "
+            "safe commit checklist, and gated action boundaries without shell execution, Git mutation, tunnel control, "
+            "RIFT input, CE, x64dbg, or provider writes."
+        ),
+        read_only=True,
         destructive=False,
         open_world=False,
     ),
@@ -454,6 +469,7 @@ class RiftReaderChatGptMcpAdapter:
                     operator_only=optional_bool(call_args.get("operatorOnly"), field_name="operatorOnly", default=True),
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
                 ),
+                "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
             }
             result = dispatch[tool_name](args)
         except AdapterError as exc:
@@ -767,6 +783,78 @@ class RiftReaderChatGptMcpAdapter:
             "safety": {
                 **base_safety(),
                 "packageIntakeDryRunOnly": True,
+                "applyFlagSent": False,
+                "repoSourceMutationExpected": False,
+            },
+        }
+
+    def get_workflow_control_plan(self) -> dict[str, Any]:
+        mission_payload = mcp_mission_control.mission_control(self.config.repo_root)
+        commit_plan = safe_commit_packager.safe_commit_plan(self.config.repo_root)
+        final_status = mission_payload.get("finalStatus") if isinstance(mission_payload.get("finalStatus"), dict) else {}
+        operator_next = mission_payload.get("operatorNextAction") if isinstance(mission_payload.get("operatorNextAction"), dict) else {}
+        safe_commit = {
+            "status": commit_plan.get("status"),
+            "stageablePaths": commit_plan.get("stageablePaths") or [],
+            "pasteSafeGitAddCommands": commit_plan.get("pasteSafeGitAddCommands") or [],
+            "draftCommitMessage": commit_plan.get("draftCommitMessage"),
+            "validationCommandsBeforeCommit": commit_plan.get("validationCommandsBeforeCommit") or [],
+            "containsGitAddDot": commit_plan.get("containsGitAddDot"),
+            "safety": commit_plan.get("safety"),
+        }
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-workflow-control-plan",
+            "generatedAtUtc": utc_iso(),
+            "status": "passed",
+            "ok": True,
+            "controlMode": "plan-only",
+            "bidirectionalDataTransfer": {
+                "readFromRepo": [
+                    "health",
+                    "get_repo_status",
+                    "get_latest_handoff",
+                    "get_workflow_control_plan",
+                    "get_package_proposal_template",
+                    "list_inbox",
+                    "review_latest_package_draft",
+                ],
+                "writeToLocalInbox": ["submit_package_proposal"],
+                "validateLocalDraft": ["dry_run_latest_package_draft"],
+                "writeBoundary": "ChatGPT-originated writes are stored only under .riftreader-local inbox/package-draft artifacts until a separate local operator step applies them.",
+            },
+            "missionControl": {
+                "status": mission_payload.get("status"),
+                "ok": mission_payload.get("ok"),
+                "operatorNextAction": operator_next,
+                "finalStatus": final_status,
+                "finalProductProgress": mission_payload.get("finalProductProgress"),
+                "pasteSafeCommands": mission_payload.get("pasteSafeCommands"),
+                "rankedActions": (mission_payload.get("rankedActions") or [])[:10],
+                "warnings": (mission_payload.get("warnings") or [])[:20],
+                "blockers": mission_payload.get("blockers") or [],
+            },
+            "safeCommitPlan": safe_commit,
+            "gatedActions": [
+                "git-push",
+                "git-branch-rewrite",
+                "tunnel-client-init-doctor-run-with-real-credentials",
+                "chatgpt-connector-registration",
+                "live-rift-input-or-movement",
+                "x64dbg-or-cheat-engine",
+                "provider-repo-writes",
+                "proof-promotion-or-current-truth-update",
+            ],
+            "blockers": [],
+            "warnings": [],
+            "safety": {
+                **base_safety(),
+                "readOnlyControlPlan": True,
+                "planOnly": True,
+                "shellExecutionEndpoint": False,
+                "gitMutation": False,
+                "tunnelControl": False,
+                "chatGptRegistrationPerformed": False,
                 "applyFlagSent": False,
                 "repoSourceMutationExpected": False,
             },
@@ -3355,6 +3443,11 @@ def create_fastmcp_server(
             {"operatorOnly": operatorOnly, "timeoutSeconds": timeoutSeconds},
         )
 
+    def get_workflow_control_plan() -> dict[str, Any]:
+        """Use this when you need a read-only repo workflow control plan."""
+
+        return adapter.call_tool("get_workflow_control_plan", {})
+
     for tool_name, fn in (
         ("health", health),
         ("get_repo_status", get_repo_status),
@@ -3364,6 +3457,7 @@ def create_fastmcp_server(
         ("list_inbox", list_inbox),
         ("review_latest_package_draft", review_latest_package_draft),
         ("dry_run_latest_package_draft", dry_run_latest_package_draft),
+        ("get_workflow_control_plan", get_workflow_control_plan),
     ):
         register(tool_name, fn)
     return mcp

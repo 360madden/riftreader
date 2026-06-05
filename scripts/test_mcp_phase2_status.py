@@ -42,7 +42,7 @@ def valid_proof() -> dict[str, object]:
         "schemaVersion": 1,
         "publicMcpUrl": "https://example.trycloudflare.com/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 8,
+        "toolCount": 9,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -256,7 +256,7 @@ class McpPhase2StatusTests(unittest.TestCase):
         proof = valid_proof()
         proof["toolCount"] = 7
 
-        self.assertIn("tool-count-not-8:7", recorder.validate_proof(proof))
+        self.assertIn("tool-count-not-9:7", recorder.validate_proof(proof))
 
 
 if __name__ == "__main__":

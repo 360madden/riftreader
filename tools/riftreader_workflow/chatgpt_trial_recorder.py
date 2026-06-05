@@ -30,6 +30,7 @@ REQUIRED_FIELDS = (
     "draftId",
     "dryRunSucceeded",
 )
+EXPECTED_CHATGPT_MCP_TOOL_COUNT = 9
 
 
 def proof_template() -> dict[str, Any]:
@@ -38,7 +39,7 @@ def proof_template() -> dict[str, Any]:
         "kind": "riftreader-chatgpt-actual-client-proof-input",
         "publicMcpUrl": "https://example.trycloudflare.com/mcp",
         "chatgptRegistrationSucceeded": False,
-        "toolCount": 8,
+        "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -66,8 +67,8 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
     public_url = str(proof.get("publicMcpUrl") or "")
     if not public_url.startswith("https://"):
         blockers.append("public-mcp-url-not-https")
-    if proof.get("toolCount") != 8:
-        blockers.append(f"tool-count-not-8:{proof.get('toolCount')!r}")
+    if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
+        blockers.append(f"tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolCount')!r}")
     if health.get("repoRoot") != ".":
         blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
     if health.get("repoName") != "RiftReader":

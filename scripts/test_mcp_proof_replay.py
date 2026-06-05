@@ -30,7 +30,7 @@ def valid_proof() -> dict[str, object]:
         "schemaVersion": 1,
         "publicMcpUrl": "https://example.trycloudflare.com/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 8,
+        "toolCount": 9,
         "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
         "templateFetched": True,
         "submitPackageProposalSucceeded": True,

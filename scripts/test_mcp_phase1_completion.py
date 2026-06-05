@@ -81,7 +81,7 @@ def write_actual_client_proof(root: Path) -> None:
             "status": "passed",
             "ok": True,
             "proof": {
-                "toolCount": 8,
+                "toolCount": 9,
                 "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                 "inboxId": "inbox-1",
                 "draftId": "draft-1",

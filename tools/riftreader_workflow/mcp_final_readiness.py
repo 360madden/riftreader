@@ -34,6 +34,7 @@ APPROVED_TOOL_NAMES = (
     "list_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
+    "get_workflow_control_plan",
 )
 
 FALSE_SAFETY_KEYS = (

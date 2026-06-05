@@ -18,7 +18,7 @@ clean checkout without Codex context and without hidden unsafe actions.
 
 ## Non-goals
 
-- Do not add new MCP tools in this contract.
+- Do not add MCP tools outside the approved narrow surface in this contract.
 - Do not broaden the adapter into shell, Git, arbitrary filesystem, RIFT input,
   CE, x64dbg, provider-repo, or target-control access.
 - Do not start a public tunnel or ChatGPT registration from final status checks.
@@ -100,6 +100,7 @@ updates this list:
 | `list_inbox` | Read-only | Must list inbox metadata only. |
 | `review_latest_package_draft` | Read-only | Must review inert draft summaries only. |
 | `dry_run_latest_package_draft` | Explicit dry-run action | May run dry-run only; must never pass `--apply`. |
+| `get_workflow_control_plan` | Read-only | Must report Mission Control, safe commit-plan guidance, bidirectional data-flow steps, and gated boundaries without executing shell, Git, tunnel, RIFT, CE, x64dbg, or provider actions. |
 
 Any extra tool is a final-readiness blocker until the contract is updated and
 tests prove the new tool stays within the safety model.

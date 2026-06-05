@@ -246,6 +246,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         annotation_by_name = {item["name"]: item["annotations"] for item in manifest["tools"]}
         self.assertTrue(annotation_by_name["health"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
         for annotations in annotation_by_name.values():
@@ -579,6 +580,45 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["compact"], compact)
         build.assert_called_once()
+
+    def test_get_workflow_control_plan_is_plan_only_and_surfaces_safe_commit_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            mission_payload = {
+                "status": "blocked",
+                "ok": False,
+                "operatorNextAction": {"key": "safe-next", "command": ["scripts\\x.cmd", "--json"]},
+                "finalStatus": {"status": "blocked", "secureTunnelClient": {"status": "passed"}},
+                "finalProductProgress": {"completedPhaseCount": 4, "totalPhaseCount": 8},
+                "pasteSafeCommands": {"secureTunnelPlan": ["scripts\\riftreader-chatgpt-mcp.cmd", "--secure-tunnel-plan", "--json"]},
+                "rankedActions": [{"key": "safe-next"}],
+                "warnings": [],
+                "blockers": [],
+            }
+            commit_plan = {
+                "status": "ready",
+                "stageablePaths": ["docs/example.md"],
+                "pasteSafeGitAddCommands": ['git add -- "docs/example.md"'],
+                "draftCommitMessage": "Update docs",
+                "validationCommandsBeforeCommit": ["python -m unittest scripts.test_riftreader_chatgpt_mcp"],
+                "containsGitAddDot": False,
+                "safety": {"planOnly": True, "gitMutation": False},
+            }
+            with (
+                mock.patch.object(chatgpt_mcp.mcp_mission_control, "mission_control", return_value=mission_payload),
+                mock.patch.object(chatgpt_mcp.safe_commit_packager, "safe_commit_plan", return_value=commit_plan),
+            ):
+                payload = adapter.call_tool("get_workflow_control_plan", {})
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["controlMode"], "plan-only")
+        self.assertIn("submit_package_proposal", payload["bidirectionalDataTransfer"]["writeToLocalInbox"])
+        self.assertEqual(payload["safeCommitPlan"]["stageablePaths"], ["docs/example.md"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
+        self.assertIn("git-push", payload["gatedActions"])
 
     def test_create_fastmcp_server_registers_tools_with_annotations(self) -> None:
         class FakeAnnotations:

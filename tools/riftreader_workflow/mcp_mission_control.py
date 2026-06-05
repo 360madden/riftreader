@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_ci_status import current_head_ci_status
     from .mcp_final_readiness import compact_final_readiness, final_readiness
@@ -17,6 +18,7 @@ try:
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
@@ -58,7 +60,7 @@ def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
         and actual_client.get("status") == "passed"
         and actual_client.get("selfTest") is not True
         and actual_client.get("chatGptRegistrationSucceeded") is True
-        and actual_client.get("toolCount") == 8
+        and actual_client.get("toolCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
     )
 
 
@@ -414,7 +416,7 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
             "- [ ] Print the Secure Tunnel plan command without running tunnel-client.",
             "  - `scripts\\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json`",
             "- [ ] Install/configure OpenAI `tunnel-client`, then run the printed `init`, `doctor`, and `run` commands outside Mission Control.",
-            "- [ ] In ChatGPT Developer Mode, confirm 8 tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
+            f"- [ ] In ChatGPT Developer Mode, confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
             "- [ ] Submit one tiny package proposal through actual ChatGPT.",
             "- [ ] Confirm `list_inbox` sees the returned inbox ID.",
             f"  - `{' '.join(commands.get('inboxReview') or [])}`",

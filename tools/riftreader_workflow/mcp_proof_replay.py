@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .chatgpt_trial_recorder import validate_proof
+    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, validate_proof
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from .mcp_workflow_state import (
         ACTUAL_CLIENT_PROOF_ROOT,
@@ -24,7 +24,7 @@ try:
     )
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.chatgpt_trial_recorder import validate_proof
+    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, validate_proof
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from riftreader_workflow.mcp_workflow_state import (
         ACTUAL_CLIENT_PROOF_ROOT,
@@ -325,7 +325,7 @@ def self_test() -> dict[str, Any]:
             "schemaVersion": 1,
             "publicMcpUrl": "https://example.trycloudflare.com/mcp",
             "chatgptRegistrationSucceeded": True,
-            "toolCount": 8,
+            "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
             "templateFetched": True,
             "submitPackageProposalSucceeded": True,

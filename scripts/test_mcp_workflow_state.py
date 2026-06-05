@@ -148,7 +148,7 @@ class McpWorkflowStateTests(unittest.TestCase):
                         "listInboxSawInboxId": True,
                         "dryRunSucceeded": True,
                         "publicMcpUrl": "https://client.trycloudflare.com/mcp",
-                        "toolCount": 8,
+                        "toolCount": 9,
                         "inboxId": "20260519T010500Z-abc",
                         "draftId": "20260519T010600Z-def",
                     },
@@ -171,7 +171,7 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertTrue(latest["inbox"]["ok"])
         self.assertEqual(latest["draft"]["draftId"], "20260519T010600Z-def")
         self.assertTrue(latest["dry-run"]["dryRun"])
-        self.assertEqual(latest["actual-client-proof"]["toolCount"], 8)
+        self.assertEqual(latest["actual-client-proof"]["toolCount"], 9)
         self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["templateFetched"])
         self.assertTrue(latest["actual-client-proof"]["submitPackageProposalSucceeded"])
