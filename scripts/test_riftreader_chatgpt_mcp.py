@@ -816,6 +816,19 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
         )
         self.assertGreaterEqual(len(payload["fullProductStagePlan"]["immediateStages"]), 5)
+        future_contract = payload["futureToolContracts"]["apply_latest_package_draft"]
+        self.assertEqual(future_contract["status"], "planned-not-exposed")
+        self.assertEqual(future_contract["targetToolName"], "apply_latest_package_draft")
+        self.assertEqual(
+            future_contract["designPath"],
+            "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
+        )
+        self.assertEqual(future_contract["currentStage"], 17)
+        self.assertIn("dryRunDiffSha256", future_contract["argumentKeys"])
+        self.assertIn("diff-hash-binding", future_contract["requiredGates"])
+        self.assertIn("APPLY_DRY_RUN_HASH_MISMATCH", future_contract["failClosedBlockers"])
+        self.assertEqual(future_contract["exposureStatus"], "not-exposed")
+        self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
         self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 

@@ -80,10 +80,14 @@ without silently gaining apply, Git, shell, live RIFT, CE, or x64dbg powers.
 The full current-to-finished-product plan is maintained in
 `docs\workflow\riftreader-chatgpt-mcp-50-stage-plan.md` and is summarized in
 the `fullProductStagePlan` field returned by `get_workflow_control_plan`.
+The first future repo-source-mutation contract is documented in
+`docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md` and is surfaced
+only as `futureToolContracts.apply_latest_package_draft` with
+`status=planned-not-exposed`; it is not part of the MCP tool manifest.
 
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
-| Apply latest package draft to repo | Planned; not exposed | Explicit operator approval plus fresh reviewed dry-run. |
+| Apply latest package draft to repo | Stage 17 design; not exposed | Explicit operator approval plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |

@@ -259,6 +259,52 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
 }
 
 
+APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
+    "schemaVersion": SCHEMA_VERSION,
+    "kind": "riftreader-chatgpt-mcp-apply-tool-design-contract",
+    "status": "planned-not-exposed",
+    "targetToolName": "apply_latest_package_draft",
+    "designPath": "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
+    "stageRange": [17, 18, 19, 20, 21, 22],
+    "currentStage": 17,
+    "exposureStatus": "not-exposed",
+    "argumentKeys": [
+        "operatorOnly",
+        "draftId",
+        "dryRunSummaryPath",
+        "dryRunDiffSha256",
+        "approvalToken",
+        "timeoutSeconds",
+    ],
+    "requiredPrecursorTools": ["review_latest_package_draft", "dry_run_latest_package_draft"],
+    "requiredGates": [
+        "operator-origin-draft",
+        "draft-root-confinement",
+        "package-root-confinement",
+        "fresh-dry-run",
+        "diff-hash-binding",
+        "explicit-approval-token",
+        "clean-worktree-preflight",
+        "no-apply-flag-leakage",
+        "post-apply-validation-by-default",
+        "truthful-safety-flags",
+    ],
+    "failClosedBlockers": [
+        "APPLY_TOOL_NOT_ENABLED",
+        "APPLY_APPROVAL_MISSING",
+        "APPLY_DRAFT_SELF_TEST_BLOCKED",
+        "APPLY_DRAFT_NOT_FOUND",
+        "APPLY_DRAFT_ROOT_INVALID",
+        "APPLY_DRY_RUN_MISSING",
+        "APPLY_DRY_RUN_STALE",
+        "APPLY_DRY_RUN_HASH_MISMATCH",
+        "APPLY_WORKTREE_DIRTY_UNRELATED",
+        "APPLY_PACKAGE_TARGET_INVALID",
+        "APPLY_VALIDATION_FAILED",
+    ],
+}
+
+
 TOOL_SPECS: dict[str, ToolSpec] = {
     "health": ToolSpec(
         name="health",
@@ -1154,6 +1200,9 @@ class RiftReaderChatGptMcpAdapter:
             "safeCommitPlan": safe_commit,
             "fullProductStagePlan": FULL_PRODUCT_STAGE_PLAN,
             "futureCapabilityRoadmap": list(FUTURE_CAPABILITY_ROADMAP),
+            "futureToolContracts": {
+                "apply_latest_package_draft": APPLY_TOOL_DESIGN_CONTRACT,
+            },
             "futureCapabilityPolicy": {
                 "status": "planned-not-exposed",
                 "rule": (
