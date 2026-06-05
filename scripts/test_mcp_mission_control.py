@@ -48,6 +48,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("readiness", payload["pasteSafeCommands"])
         self.assertIn("proposalSmoke", payload["pasteSafeCommands"])
         self.assertIn("trialSession", payload["pasteSafeCommands"])
+        self.assertIn("trialProofTemplate", payload["pasteSafeCommands"])
         self.assertIn("phase2Status", payload["pasteSafeCommands"])
         self.assertIn("phase2CompactStatus", payload["pasteSafeCommands"])
         self.assertIn("finalStatus", payload["pasteSafeCommands"])
@@ -177,11 +178,26 @@ class McpMissionControlTests(unittest.TestCase):
                         "status": "passed",
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
+                        "templateFetched": True,
                         "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "toolOutputSchemasPresent": True,
                         "toolOutputSchemaCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolOutputSchemaToolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+                        "submitPackageProposalSucceeded": True,
+                        "listInboxSawInboxId": True,
+                        "createPackageDraftSucceeded": True,
+                        "reviewLatestPackageDraftSucceeded": True,
+                        "reviewLatestPackageDraftReadOnly": True,
+                        "dryRunSucceeded": True,
+                        "dryRunDiffPreviewOk": True,
+                        "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+                        "dryRunDiffPreviewBoundedBytes": True,
+                        "dryRunDiffPreviewTextLength": 195,
+                        "dryRunDiffPreviewTruncated": False,
+                        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+                        "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+                        "applyLatestPackageDraftWithoutApprovalApplied": False,
                     }
                 },
             )
@@ -214,6 +230,38 @@ class McpMissionControlTests(unittest.TestCase):
                 }
             )
         )
+
+    def test_actual_client_completion_requires_apply_denial_proof(self) -> None:
+        proof = {
+            "ok": True,
+            "status": "passed",
+            "selfTest": False,
+            "chatGptRegistrationSucceeded": True,
+            "templateFetched": True,
+            "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "toolOutputSchemasPresent": True,
+            "toolOutputSchemaCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemaToolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "submitPackageProposalSucceeded": True,
+            "listInboxSawInboxId": True,
+            "createPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftReadOnly": True,
+            "dryRunSucceeded": True,
+            "dryRunDiffPreviewOk": True,
+            "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+            "dryRunDiffPreviewBoundedBytes": True,
+            "dryRunDiffPreviewTextLength": 195,
+            "dryRunDiffPreviewTruncated": False,
+            "applyLatestPackageDraftWithoutApprovalBlocked": True,
+            "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+            "applyLatestPackageDraftWithoutApprovalApplied": False,
+        }
+
+        self.assertTrue(mission._actual_client_proof_completed({"actual-client-proof": proof}))
+        proof["applyLatestPackageDraftWithoutApprovalBlockers"] = ["APPLY_PREFLIGHT_NOT_READY"]
+        self.assertFalse(mission._actual_client_proof_completed({"actual-client-proof": proof}))
 
     def test_run_readiness_executes_local_only_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -260,6 +308,12 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Local final gate", checklist)
         self.assertIn("Explicit ChatGPT Secure Tunnel proof", checklist)
         self.assertIn("riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json", checklist)
+        self.assertIn("riftreader-chatgpt-trial-recorder.cmd --template --json", checklist)
+        self.assertIn("Confirm output schemas are present", checklist)
+        self.assertIn("get_package_proposal_template", checklist)
+        self.assertIn("create_package_draft_from_inbox", checklist)
+        self.assertIn("apply_latest_package_draft", checklist)
+        self.assertIn("APPLY_APPROVAL_MISSING", checklist)
         self.assertIn("riftreader-mcp-final.cmd --status --compact-json", checklist)
         self.assertIn("scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json", checklist)
 

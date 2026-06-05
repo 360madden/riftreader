@@ -149,7 +149,17 @@ class McpWorkflowStateTests(unittest.TestCase):
                         "submitPackageProposalSucceeded": True,
                         "listInboxSawInboxId": True,
                         "createPackageDraftSucceeded": True,
+                        "reviewLatestPackageDraftSucceeded": True,
+                        "reviewLatestPackageDraftReadOnly": True,
                         "dryRunSucceeded": True,
+                        "dryRunDiffPreviewOk": True,
+                        "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+                        "dryRunDiffPreviewBoundedBytes": True,
+                        "dryRunDiffPreviewTextLength": 195,
+                        "dryRunDiffPreviewTruncated": False,
+                        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+                        "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+                        "applyLatestPackageDraftWithoutApprovalApplied": False,
                         "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                         "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -188,7 +198,21 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertTrue(latest["actual-client-proof"]["templateFetched"])
         self.assertTrue(latest["actual-client-proof"]["submitPackageProposalSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["listInboxSawInboxId"])
+        self.assertTrue(latest["actual-client-proof"]["createPackageDraftSucceeded"])
+        self.assertTrue(latest["actual-client-proof"]["reviewLatestPackageDraftSucceeded"])
+        self.assertTrue(latest["actual-client-proof"]["reviewLatestPackageDraftReadOnly"])
         self.assertTrue(latest["actual-client-proof"]["dryRunSucceeded"])
+        self.assertTrue(latest["actual-client-proof"]["dryRunDiffPreviewOk"])
+        self.assertTrue(latest["actual-client-proof"]["dryRunDiffPreviewArtifactUnderPackageIntake"])
+        self.assertTrue(latest["actual-client-proof"]["dryRunDiffPreviewBoundedBytes"])
+        self.assertEqual(latest["actual-client-proof"]["dryRunDiffPreviewTextLength"], 195)
+        self.assertFalse(latest["actual-client-proof"]["dryRunDiffPreviewTruncated"])
+        self.assertTrue(latest["actual-client-proof"]["applyLatestPackageDraftWithoutApprovalBlocked"])
+        self.assertEqual(
+            latest["actual-client-proof"]["applyLatestPackageDraftWithoutApprovalBlockers"],
+            ["APPLY_APPROVAL_MISSING"],
+        )
+        self.assertFalse(latest["actual-client-proof"]["applyLatestPackageDraftWithoutApprovalApplied"])
 
     def test_marks_self_test_artifacts_and_expired_ephemeral_public_urls(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

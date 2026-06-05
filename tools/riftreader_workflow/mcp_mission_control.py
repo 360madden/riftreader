@@ -61,16 +61,34 @@ def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
     actual_client = latest_artifacts.get("actual-client-proof") if isinstance(latest_artifacts, dict) else None
     if not isinstance(actual_client, dict):
         return False
+    apply_without_approval_blockers = actual_client.get("applyLatestPackageDraftWithoutApprovalBlockers")
     return (
         actual_client.get("ok") is True
         and actual_client.get("status") == "passed"
         and actual_client.get("selfTest") is not True
         and actual_client.get("chatGptRegistrationSucceeded") is True
+        and actual_client.get("templateFetched") is True
         and actual_client.get("toolCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
         and _matches_expected_tool_names(actual_client.get("toolNames"))
         and actual_client.get("toolOutputSchemasPresent") is True
         and actual_client.get("toolOutputSchemaCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
         and _matches_expected_tool_names(actual_client.get("toolOutputSchemaToolNames"))
+        and actual_client.get("submitPackageProposalSucceeded") is True
+        and actual_client.get("listInboxSawInboxId") is True
+        and actual_client.get("createPackageDraftSucceeded") is True
+        and actual_client.get("reviewLatestPackageDraftSucceeded") is True
+        and actual_client.get("reviewLatestPackageDraftReadOnly") is True
+        and actual_client.get("dryRunSucceeded") is True
+        and actual_client.get("dryRunDiffPreviewOk") is True
+        and actual_client.get("dryRunDiffPreviewArtifactUnderPackageIntake") is True
+        and actual_client.get("dryRunDiffPreviewBoundedBytes") is True
+        and isinstance(actual_client.get("dryRunDiffPreviewTextLength"), int)
+        and actual_client.get("dryRunDiffPreviewTextLength") > 0
+        and isinstance(actual_client.get("dryRunDiffPreviewTruncated"), bool)
+        and actual_client.get("applyLatestPackageDraftWithoutApprovalBlocked") is True
+        and isinstance(apply_without_approval_blockers, list)
+        and "APPLY_APPROVAL_MISSING" in apply_without_approval_blockers
+        and actual_client.get("applyLatestPackageDraftWithoutApprovalApplied") is False
     )
 
 
@@ -284,6 +302,7 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
             "secureTunnelPlan": commands["secureTunnelPlan"],
             "publicSmoke": commands["cloudflareSmoke"],
             "trialSession": commands["chatGptTrialSession"],
+            "trialProofTemplate": commands["trialProofTemplate"],
             "phase2Status": commands["mcpPhase2Status"],
             "phase2CompactStatus": commands["mcpPhase2CompactStatus"],
             "finalStatus": commands["mcpFinalStatus"],
@@ -468,16 +487,24 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
             "- [ ] Print the Secure Tunnel plan command without running tunnel-client.",
             "  - `scripts\\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json`",
             "- [ ] Install/configure OpenAI `tunnel-client`, then run the printed `init`, `doctor`, and `run` commands outside Mission Control.",
+            "- [ ] Generate the current proof template before the ChatGPT-side run.",
+            f"  - `{' '.join(commands.get('trialProofTemplate') or [])}`",
             f"- [ ] In ChatGPT Developer Mode, confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
+            f"- [ ] Confirm output schemas are present for all {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools and record the exact tool-name list.",
+            "- [ ] Call `get_package_proposal_template` through actual ChatGPT and record `templateFetched: true`.",
             "- [ ] Submit one tiny package proposal through actual ChatGPT.",
             "- [ ] Confirm `list_inbox` sees the returned inbox ID.",
             f"  - `{' '.join(commands.get('inboxReview') or [])}`",
+            "- [ ] Through actual ChatGPT, call `create_package_draft_from_inbox` for that inbox ID.",
+            "- [ ] Through actual ChatGPT, call `review_latest_package_draft` and confirm `readOnlyReview: true`.",
+            "- [ ] Through actual ChatGPT, call `dry_run_latest_package_draft` and record `dryRun.diffPreview` path, length, bounded-bytes flag, and truncated flag.",
+            "- [ ] Through actual ChatGPT, call `apply_latest_package_draft` without an approval token and confirm it is blocked with `APPLY_APPROVAL_MISSING` and `applied: false`.",
             "",
-            "## Local package review",
+            "## Optional local package review cross-check",
             "",
-            "- [ ] Export the inbox item into an inert draft.",
+            "- [ ] If actual ChatGPT did not create the draft, export the inbox item into an inert draft locally before dry-run proof.",
             f"  - `{' '.join(commands.get('draftExport') or [])}`",
-            "- [ ] Dry-run the latest draft without apply.",
+            "- [ ] If actual ChatGPT did not dry-run the draft, dry-run the latest draft locally as a cross-check only.",
             f"  - `{' '.join(commands.get('draftDryRun') or [])}`",
             "- [ ] Record actual-client facts with the ChatGPT Trial Recorder.",
             "  - `scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json`",
