@@ -808,6 +808,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(payload["futureCapabilityPolicy"]["status"], "planned-not-exposed")
+        self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 1)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 2)
+        self.assertEqual(
+            payload["fullProductStagePlan"]["planPath"],
+            "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
+        )
+        self.assertGreaterEqual(len(payload["fullProductStagePlan"]["immediateStages"]), 5)
         self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
         self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 

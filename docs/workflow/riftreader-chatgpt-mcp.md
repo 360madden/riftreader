@@ -77,6 +77,10 @@ ladder while keeping those endpoints **not exposed** until their proof and
 approval gates exist. This lets ChatGPT Web/Desktop reason about next steps
 without silently gaining apply, Git, shell, live RIFT, CE, or x64dbg powers.
 
+The full current-to-finished-product plan is maintained in
+`docs\workflow\riftreader-chatgpt-mcp-50-stage-plan.md` and is summarized in
+the `fullProductStagePlan` field returned by `get_workflow_control_plan`.
+
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
 | Apply latest package draft to repo | Planned; not exposed | Explicit operator approval plus fresh reviewed dry-run. |

@@ -215,6 +215,50 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
 )
 
 
+FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
+    "schemaVersion": SCHEMA_VERSION,
+    "kind": "riftreader-chatgpt-mcp-50-stage-finished-product-plan",
+    "status": "active",
+    "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
+    "stageCount": 50,
+    "currentStage": 1,
+    "currentStageName": "Current baseline and proof gap",
+    "currentTruth": (
+        "Local 10-tool MCP is validated; full readiness is blocked on fresh actual "
+        "ChatGPT Web/Desktop Secure Tunnel proof and any unpushed local commits."
+    ),
+    "nextStage": 2,
+    "nextStageName": "Publish current roadmap slice",
+    "phaseOrder": [
+        "prove current 10-tool Secure Tunnel product",
+        "add package apply with reviewed dry-run gates",
+        "add local commit with safe explicit-path staging",
+        "add push as separate remote-mutation gate",
+        "add bounded repo command allowlist",
+        "add provider-write planning and separation",
+        "add live RIFT read-only then gated control",
+        "add debugger/CE plan-only then gated assist",
+        "add optional auth/roles for broader sharing",
+        "add end-to-end evals, dashboard, recovery, and release handoff",
+    ],
+    "immediateStages": [
+        {"stage": 2, "name": "Publish current roadmap slice", "status": "pending"},
+        {"stage": 3, "name": "Refresh Secure Tunnel command plan", "status": "pending"},
+        {"stage": 4, "name": "ChatGPT proof template refresh", "status": "pending"},
+        {"stage": 5, "name": "Secure Tunnel health rehearsal", "status": "pending"},
+        {"stage": 6, "name": "ChatGPT connector registration smoke", "status": "pending"},
+        {"stage": 7, "name": "Read-only ChatGPT smoke", "status": "pending"},
+        {"stage": 8, "name": "Tool identity proof", "status": "pending"},
+        {"stage": 9, "name": "Output schema proof", "status": "pending"},
+        {"stage": 10, "name": "Local proposal submit proof", "status": "pending"},
+    ],
+    "finishedProductDefinition": (
+        "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
+        "are implemented, gated, proven, documented, recoverable, and passing final readiness."
+    ),
+}
+
+
 TOOL_SPECS: dict[str, ToolSpec] = {
     "health": ToolSpec(
         name="health",
@@ -1108,6 +1152,7 @@ class RiftReaderChatGptMcpAdapter:
                 "blockers": mission_payload.get("blockers") or [],
             },
             "safeCommitPlan": safe_commit,
+            "fullProductStagePlan": FULL_PRODUCT_STAGE_PLAN,
             "futureCapabilityRoadmap": list(FUTURE_CAPABILITY_ROADMAP),
             "futureCapabilityPolicy": {
                 "status": "planned-not-exposed",
