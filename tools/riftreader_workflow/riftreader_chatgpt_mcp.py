@@ -1296,10 +1296,31 @@ def tool_manifest() -> dict[str, Any]:
                 "description": TOOL_SPECS[name].description,
                 "allowedArgumentKeys": sorted(TOOL_ARGUMENT_KEYS[name]),
                 "annotations": TOOL_SPECS[name].annotation_payload(),
+                "outputSchema": tool_output_schema(name),
             }
             for name in EXPECTED_TOOL_ORDER
         ],
         "safety": base_safety(),
+    }
+
+
+def tool_output_schema(tool_name: str) -> dict[str, Any]:
+    """Return the minimum structuredContent contract all ChatGPT MCP tools expose."""
+
+    return {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["schemaVersion", "kind", "status", "ok"],
+        "properties": {
+            "schemaVersion": {"type": "integer", "const": SCHEMA_VERSION},
+            "kind": {"type": "string", "pattern": "^riftreader-chatgpt-mcp.*"},
+            "status": {"type": "string"},
+            "ok": {"type": "boolean"},
+            "blockers": {"type": "array", "items": {"type": "string"}},
+            "warnings": {"type": "array", "items": {"type": "string"}},
+            "errors": {"type": "array", "items": {"type": "string"}},
+            "safety": {"type": "object", "additionalProperties": True},
+        },
     }
 
 
@@ -1422,6 +1443,22 @@ def actual_tool_input_schema_payload(tool: Any) -> dict[str, Any] | None:
     return schema if isinstance(schema, dict) else None
 
 
+def actual_tool_output_schema_payload(tool: Any) -> dict[str, Any] | None:
+    schema = getattr(tool, "outputSchema", None)
+    return schema if isinstance(schema, dict) else None
+
+
+def verify_tool_output_schema(tool_name: str, schema: Any) -> list[str]:
+    if not isinstance(schema, dict):
+        return [f"output-schema-missing:{tool_name}"]
+    blockers: list[str] = []
+    if schema.get("type") != "object":
+        blockers.append(f"output-schema-not-object:{tool_name}:{schema.get('type')!r}")
+    if schema.get("additionalProperties") not in (True, False):
+        blockers.append(f"output-schema-additional-properties-missing:{tool_name}")
+    return blockers
+
+
 def verify_submit_package_proposal_input_schema(schema: Any) -> list[str]:
     if not isinstance(schema, dict):
         return ["submit-package-proposal-input-schema-missing"]
@@ -1520,6 +1557,8 @@ def verify_registered_sdk_tools(server: Any) -> list[dict[str, Any]]:
         if not str(description).startswith("Use this when"):
             blockers.append(f"description-prefix-missing:{expected_name}")
         input_schema = actual_tool_input_schema_payload(tool)
+        output_schema = actual_tool_output_schema_payload(tool)
+        blockers.extend(verify_tool_output_schema(expected_name, output_schema))
         if expected_name == "submit_package_proposal" and input_schema is not None:
             blockers.extend(verify_submit_package_proposal_input_schema(input_schema))
         summaries.append(
@@ -1528,6 +1567,7 @@ def verify_registered_sdk_tools(server: Any) -> list[dict[str, Any]]:
                 "descriptionStartsUseThisWhen": str(description).startswith("Use this when"),
                 "annotations": annotation_payload,
                 "inputSchema": input_schema,
+                "outputSchema": output_schema,
             }
         )
 
@@ -1749,6 +1789,7 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
                 "descriptionStartsUseThisWhen": str(getattr(tool, "description", "") or "").startswith("Use this when"),
                 "annotations": actual_tool_annotation_payload(tool),
                 "inputSchema": actual_tool_input_schema_payload(tool),
+                "outputSchema": actual_tool_output_schema_payload(tool),
             }
         )
     return {
@@ -1835,6 +1876,7 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
                 blockers.append(f"transport-annotation-mismatch:{name}:{field}:actual={annotations.get(field)!r}:expected={expected_value!r}")
         if tool.get("descriptionStartsUseThisWhen") is not True:
             blockers.append(f"transport-description-prefix-missing:{name}")
+        blockers.extend(verify_tool_output_schema(name, tool.get("outputSchema")))
         if name == "submit_package_proposal":
             blockers.extend(verify_submit_package_proposal_input_schema(tool.get("inputSchema")))
     if client_result.get("submitPackageProposalIsError") is not None:

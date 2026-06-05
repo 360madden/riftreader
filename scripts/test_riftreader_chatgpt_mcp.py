@@ -242,6 +242,7 @@ def registered_tool_summary(name: str) -> dict[str, object]:
         "name": name,
         "descriptionStartsUseThisWhen": True,
         "annotations": chatgpt_mcp.TOOL_SPECS[name].annotation_payload(),
+        "outputSchema": chatgpt_mcp.tool_output_schema(name),
     }
     if name == "submit_package_proposal":
         summary["inputSchema"] = submit_package_proposal_input_schema()
@@ -263,6 +264,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in manifest["tools"]], list(chatgpt_mcp.EXPECTED_TOOL_ORDER))
         annotation_by_name = {item["name"]: item["annotations"] for item in manifest["tools"]}
         allowed_args_by_name = {item["name"]: item["allowedArgumentKeys"] for item in manifest["tools"]}
+        output_schema_by_name = {item["name"]: item["outputSchema"] for item in manifest["tools"]}
         self.assertTrue(annotation_by_name["health"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
@@ -276,6 +278,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
             self.assertFalse(annotations["openWorldHint"])
+        for name, schema in output_schema_by_name.items():
+            self.assertEqual(schema["type"], "object")
+            self.assertIn("schemaVersion", schema["required"])
+            self.assertEqual(schema["properties"]["schemaVersion"]["const"], chatgpt_mcp.SCHEMA_VERSION)
 
     def test_health_reports_no_broad_mcp_proxy_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -989,6 +995,25 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("submit-package-proposal-top-level-extra-not-forbidden", blockers)
         self.assertIn("submit-package-proposal-schema-version-not-const-1", blockers)
 
+    def test_transport_smoke_result_verifier_blocks_missing_output_schema(self) -> None:
+        registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]
+        registered[0].pop("outputSchema")
+        client_result = {
+            "toolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "healthIsError": False,
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
+            },
+            "registeredTools": registered,
+        }
+
+        blockers = chatgpt_mcp.verify_transport_smoke_result(client_result)
+
+        self.assertIn(f"output-schema-missing:{chatgpt_mcp.EXPECTED_TOOL_ORDER[0]}", blockers)
+
     def test_proposal_transport_smoke_writes_artifact_and_covers_submit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1191,6 +1216,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                         name=registration["name"],
                         description=registration["description"],
                         annotations=registration["annotations"],
+                        outputSchema=chatgpt_mcp.tool_output_schema(str(registration["name"])),
                     )
                     for registration in self.registrations
                 ]
@@ -1268,6 +1294,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                             name=registration["name"],
                             description=registration["description"],
                             annotations=annotations,
+                            outputSchema=chatgpt_mcp.tool_output_schema(str(registration["name"])),
                         )
                     )
                 return tools

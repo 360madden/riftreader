@@ -2,6 +2,26 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP output-schema guardrails — 2026-06-05 11:28 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1128-chatgpt-mcp-output-schema-guardrails-handoff.md`.
+
+The ChatGPT Web/Desktop MCP manifest and SDK/transport verification now surface
+and require per-tool `outputSchema` contracts for returned `structuredContent`.
+This catches missing/non-object output-schema regressions locally before an
+actual ChatGPT Secure Tunnel proof run.
+
+| Evidence | Result |
+|---|---|
+| Code path | `tools/riftreader_workflow/riftreader_chatgpt_mcp.py`. |
+| Manifest | `tool_manifest()` now includes `outputSchema` for all 10 allowlisted tools. |
+| Verifier | SDK/transport validation captures and blocks missing/non-object output schemas. |
+| Focused validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp` passed 56 tests in 3.048s. |
+| Broad MCP validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 177 tests in 44.610s. |
+| Targeted ledger | `.riftreader-local/validation-runs/20260605-113233-975976/summary.md` passed in 42.770s. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — Validation ledger blocked-safe status handling — 2026-06-05 11:14 UTC
 
 A new compact handoff exists at

@@ -44,6 +44,11 @@ arguments are blocked fail-closed instead of being silently ignored, and the
 `health` manifest reports each tool's `allowedArgumentKeys` for ChatGPT
 Web/Desktop client debugging.
 
+Each tool also carries an `outputSchema` contract for returned
+`structuredContent`. The local manifest surfaces the minimum common result
+shape, and SDK/transport verification blocks missing or non-object output
+schemas before actual ChatGPT proof runs.
+
 ## Hard boundaries
 
 - No arbitrary filesystem read tool.
