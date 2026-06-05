@@ -332,6 +332,7 @@ def replay_actual_client_proof(
         "proofFreshness": age_payload,
         "proofSummary": {
             "toolCount": proof.get("toolCount") if isinstance(proof, dict) else None,
+            "connectionMode": proof.get("connectionMode") if isinstance(proof, dict) else None,
             "publicMcpUrl": proof.get("publicMcpUrl") if isinstance(proof, dict) else None,
             "inboxId": proof.get("inboxId") if isinstance(proof, dict) else None,
             "draftId": proof.get("draftId") if isinstance(proof, dict) else None,
@@ -358,7 +359,8 @@ def self_test() -> dict[str, Any]:
     blockers = validate_proof(
         {
             "schemaVersion": 1,
-            "publicMcpUrl": "https://example.trycloudflare.com/mcp",
+            "connectionMode": "openai-secure-mcp-tunnel",
+            "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
             "chatgptRegistrationSucceeded": True,
             "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},

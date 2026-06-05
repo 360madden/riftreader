@@ -222,7 +222,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, `tunnel-client` dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
-| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, package-draft creation, read-only draft review, dry-run success, and bounded `dryRun.diffPreview` proof gaps. |
+| ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` / `--self-test --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; defaults to `connectionMode=openai-secure-mcp-tunnel` and fails closed on unknown connection mode, Cloudflare/ngrok fallback hosts in Secure Tunnel mode, unfilled URL placeholders, tool count, repo-root redaction, inbox, package-draft creation, read-only draft review, dry-run success, and bounded `dryRun.diffPreview` proof gaps. |
 | Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Generates explicit `git add -- <path>` checklist and commit-message draft only; `--markdown` prints a review packet; it never stages, commits, or pushes. |
 | Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus actual ChatGPT client proof and reports whether Phase 1 is complete or externally blocked. |
 
@@ -386,6 +386,16 @@ admin UI, `/healthz`, and `/readyz` to confirm the client is healthy and ready
 before ChatGPT smoke testing. Do not paste a `trycloudflare.com` URL for the
 primary path.
 
+Actual-client proof packets must record the selected connection path explicitly:
+
+| Field | Primary value | Rule |
+|---|---|---|
+| `connectionMode` | `openai-secure-mcp-tunnel` | Required for primary ChatGPT Web/Desktop proof. |
+| `publicMcpUrl` | OpenAI-hosted tunnel endpoint or tunnel-selected ChatGPT connector endpoint | Must be HTTPS; must not use `trycloudflare.com`, `ngrok.app`, or `ngrok-free.app` when `connectionMode=openai-secure-mcp-tunnel`. |
+
+Only use `connectionMode=public-https-fallback` when the operator explicitly
+selects the deprecated public HTTPS fallback lane.
+
 ## Deprecated manual public HTTPS exposure
 
 Cloudflare quick tunnels and ngrok-style public URLs are now fallback/dev-only.
@@ -406,7 +416,7 @@ In ChatGPT web:
 1. Enable Developer Mode under Settings -> Apps -> Advanced settings.
 2. Open Apps/Connectors settings.
 3. Create an app/connector using the OpenAI Secure MCP Tunnel connection path.
-4. Confirm the tool list contains only the eight tools in this document.
+4. Confirm the tool list contains only the ten allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
 Suggested first prompt:

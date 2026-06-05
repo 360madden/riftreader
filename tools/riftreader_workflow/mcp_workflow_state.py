@@ -132,6 +132,7 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
         "generatedAtUtc": payload.get("generatedAtUtc"),
         "blockers": payload.get("blockers") if isinstance(payload.get("blockers"), list) else [],
         "warnings": payload.get("warnings") if isinstance(payload.get("warnings"), list) else [],
+        "connectionMode": payload.get("connectionMode") or proof.get("connectionMode"),
         "publicMcpUrl": public_mcp_url,
         "publicUrlEphemeral": ephemeral_public_url,
         "publicUrlExpectedExpired": bool(ephemeral_public_url and public_tunnel_stopped),

@@ -40,7 +40,8 @@ def make_repo(root: Path) -> None:
 def valid_proof() -> dict[str, object]:
     return {
         "schemaVersion": 1,
-        "publicMcpUrl": "https://example.trycloudflare.com/mcp",
+        "connectionMode": "openai-secure-mcp-tunnel",
+        "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
         "health": {

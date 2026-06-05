@@ -28,7 +28,8 @@ def write_json(path: Path, payload: dict[str, object], mtime: int = 1_800_000_00
 def valid_proof() -> dict[str, object]:
     return {
         "schemaVersion": 1,
-        "publicMcpUrl": "https://example.trycloudflare.com/mcp",
+        "connectionMode": "openai-secure-mcp-tunnel",
+        "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
         "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},

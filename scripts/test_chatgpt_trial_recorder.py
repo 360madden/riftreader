@@ -28,7 +28,8 @@ def make_repo(root: Path) -> None:
 def valid_proof() -> dict[str, object]:
     return {
         "schemaVersion": 1,
-        "publicMcpUrl": "https://example.trycloudflare.com/mcp",
+        "connectionMode": "openai-secure-mcp-tunnel",
+        "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
         "health": {
@@ -61,8 +62,18 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         for field in recorder.REQUIRED_FIELDS:
             self.assertIn(field, payload)
         self.assertEqual(payload["toolCount"], 10)
+        self.assertEqual(payload["connectionMode"], "openai-secure-mcp-tunnel")
+        self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
         self.assertEqual(payload["health"]["repoRoot"], ".")
         self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
+
+    def test_self_test_passes_without_chatgpt_or_tunnel(self) -> None:
+        payload = recorder.self_test()
+
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["safety"]["chatGptApiCalled"])
+        self.assertFalse(payload["safety"]["publicTunnelStarted"])
 
     def test_valid_proof_writes_json_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -82,6 +93,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
             self.assertTrue(proof_json.is_file())
             self.assertTrue(proof_md.is_file())
             self.assertIn("RiftReader ChatGPT MCP Actual-Client Proof", markdown)
+            self.assertIn("Connection mode", markdown)
             self.assertFalse(payload["safety"]["chatGptApiCalled"])
             self.assertFalse(payload["safety"]["gitMutation"])
 
@@ -92,6 +104,39 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         blockers = recorder.validate_proof(proof)
 
         self.assertIn("tool-count-not-10:7", blockers)
+
+    def test_rejects_public_fallback_url_for_secure_tunnel_mode(self) -> None:
+        proof = valid_proof()
+        proof["publicMcpUrl"] = "https://example.trycloudflare.com/mcp"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("secure-tunnel-proof-url-uses-public-fallback-host", blockers)
+
+    def test_allows_public_url_only_when_fallback_mode_is_explicit(self) -> None:
+        proof = valid_proof()
+        proof["connectionMode"] = "public-https-fallback"
+        proof["publicMcpUrl"] = "https://example.trycloudflare.com/mcp"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertNotIn("secure-tunnel-proof-url-uses-public-fallback-host", blockers)
+
+    def test_rejects_unknown_connection_mode(self) -> None:
+        proof = valid_proof()
+        proof["connectionMode"] = "trycloudflare"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("connection-mode-invalid:'trycloudflare'", blockers)
+
+    def test_rejects_unfilled_public_url_placeholder(self) -> None:
+        proof = valid_proof()
+        proof["publicMcpUrl"] = "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("public-mcp-url-placeholder", blockers)
 
     def test_rejects_unredacted_repo_root(self) -> None:
         proof = valid_proof()

@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP Secure Tunnel proof template — 2026-06-05 10:22 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1022-chatgpt-mcp-secure-tunnel-proof-template-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP actual-client proof path is now
+explicitly **OpenAI Secure MCP Tunnel-first**. The trial proof template requires
+`connectionMode`, defaults to `openai-secure-mcp-tunnel`, and fails closed if a
+Secure Tunnel-mode proof uses public fallback hosts such as Cloudflare or ngrok.
+
+| Evidence | Result |
+|---|---|
+| Active proof recorder | `tools/riftreader_workflow/chatgpt_trial_recorder.py`. |
+| Required connection proof | `connectionMode` must be `openai-secure-mcp-tunnel` or explicit `public-https-fallback`. |
+| Primary-path fallback-host guard | `trycloudflare.com`, `ngrok.app`, and `ngrok-free.app` block proof replay when `connectionMode=openai-secure-mcp-tunnel`. |
+| Placeholder guard | Unfilled `publicMcpUrl` placeholders with `<...>` block proof recording. |
+| Replay visibility | Proof replay and artifact summaries now surface `connectionMode`. |
+| Focused validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state` passed 27 tests in 6.132s. |
+| Broad MCP validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_phase1_completion scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 178 tests in 47.060s. |
+| Final ledger | `.riftreader-local/validation-runs/20260605-102706-854015/summary.md` passed in 47.278s. |
+
 ## Latest compact handoff — ChatGPT MCP actual-client diff-preview proof contract — 2026-06-05 10:00 UTC
 
 A new compact handoff exists at

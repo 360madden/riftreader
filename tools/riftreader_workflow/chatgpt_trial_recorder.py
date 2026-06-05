@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
 
 
 REQUIRED_FIELDS = (
+    "connectionMode",
     "publicMcpUrl",
     "chatgptRegistrationSucceeded",
     "toolCount",
@@ -39,13 +40,23 @@ REQUIRED_FIELDS = (
     "dryRunDiffPreviewTruncated",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = 10
+SECURE_TUNNEL_CONNECTION_MODE = "openai-secure-mcp-tunnel"
+PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE = "public-https-fallback"
+ALLOWED_CONNECTION_MODES = frozenset(
+    {
+        SECURE_TUNNEL_CONNECTION_MODE,
+        PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE,
+    }
+)
+PUBLIC_FALLBACK_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.app")
 
 
 def proof_template() -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-actual-client-proof-input",
-        "publicMcpUrl": "https://example.trycloudflare.com/mcp",
+        "connectionMode": SECURE_TUNNEL_CONNECTION_MODE,
+        "publicMcpUrl": "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp",
         "chatgptRegistrationSucceeded": False,
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "health": {
@@ -81,6 +92,16 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         if field not in health:
             blockers.append(f"required-field-missing:health.{field}")
     public_url = str(proof.get("publicMcpUrl") or "")
+    connection_mode = proof.get("connectionMode")
+    if connection_mode not in ALLOWED_CONNECTION_MODES:
+        blockers.append(f"connection-mode-invalid:{connection_mode!r}")
+    if (
+        connection_mode == SECURE_TUNNEL_CONNECTION_MODE
+        and any(marker in public_url.lower() for marker in PUBLIC_FALLBACK_HOST_MARKERS)
+    ):
+        blockers.append("secure-tunnel-proof-url-uses-public-fallback-host")
+    if "<" in public_url or ">" in public_url:
+        blockers.append("public-mcp-url-placeholder")
     if not public_url.startswith("https://"):
         blockers.append("public-mcp-url-not-https")
     if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
@@ -137,6 +158,7 @@ def render_markdown(record: dict[str, Any]) -> str:
         "",
         f"- Generated UTC: `{record.get('generatedAtUtc')}`",
         f"- Status: `{record.get('status')}`",
+        f"- Connection mode: `{proof.get('connectionMode')}`",
         f"- Public MCP URL: `{proof.get('publicMcpUrl')}`",
         f"- Tool count: `{proof.get('toolCount')}`",
         f"- Health repoRoot: `{health.get('repoRoot')}`",
@@ -195,11 +217,79 @@ def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
     return record
 
 
+def self_test() -> dict[str, Any]:
+    valid_proof = proof_template()
+    valid_proof.update(
+        {
+            "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
+            "chatgptRegistrationSucceeded": True,
+            "templateFetched": True,
+            "submitPackageProposalSucceeded": True,
+            "inboxId": "self-test-inbox",
+            "listInboxSawInboxId": True,
+            "createPackageDraftSucceeded": True,
+            "draftId": "self-test-draft",
+            "reviewLatestPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftReadOnly": True,
+            "dryRunSucceeded": True,
+            "dryRunDiffPreviewOk": True,
+            "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+            "dryRunDiffPreviewBoundedBytes": True,
+            "dryRunDiffPreviewTextLength": 1,
+        }
+    )
+    secure_fallback_host_proof = dict(valid_proof)
+    secure_fallback_host_proof["publicMcpUrl"] = "https://example.trycloudflare.com/mcp"
+    explicit_fallback_proof = dict(secure_fallback_host_proof)
+    explicit_fallback_proof["connectionMode"] = PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE
+    placeholder_proof = dict(valid_proof)
+    placeholder_proof["publicMcpUrl"] = "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp"
+
+    checks = [
+        {
+            "name": "template-has-required-fields",
+            "pass": all(field in proof_template() for field in REQUIRED_FIELDS),
+        },
+        {
+            "name": "secure-tunnel-valid-shape-passes",
+            "pass": validate_proof(valid_proof) == [],
+        },
+        {
+            "name": "secure-tunnel-blocks-public-fallback-host",
+            "pass": "secure-tunnel-proof-url-uses-public-fallback-host" in validate_proof(secure_fallback_host_proof),
+        },
+        {
+            "name": "explicit-public-fallback-host-allowed",
+            "pass": "secure-tunnel-proof-url-uses-public-fallback-host" not in validate_proof(explicit_fallback_proof),
+        },
+        {
+            "name": "placeholder-url-blocked",
+            "pass": "public-mcp-url-placeholder" in validate_proof(placeholder_proof),
+        },
+    ]
+    ok = all(bool(check["pass"]) for check in checks)
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-chatgpt-trial-recorder-self-test",
+        "generatedAtUtc": utc_iso(),
+        "status": "passed" if ok else "failed",
+        "ok": ok,
+        "checks": checks,
+        "safety": {
+            **safety_flags(),
+            "chatGptApiCalled": False,
+            "publicTunnelStarted": False,
+            "gitMutation": False,
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Record actual ChatGPT MCP proof facts supplied by the operator.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--template", action="store_true", help="Print proof input template JSON.")
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
+    mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
     parser.add_argument("--input", default=None, help="Path to proof input JSON for --record.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
@@ -211,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     if args.template:
         payload = proof_template()
+    elif args.self_test:
+        payload = self_test()
     else:
         if not args.input:
             print("error: --record requires --input proof.json", file=sys.stderr)
