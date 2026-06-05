@@ -1121,6 +1121,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                         },
                     },
                 ) as transport_mock,
+                mock.patch.object(chatgpt_mcp, "resolve_tunnel_client_executable", return_value=root / "tunnel-client.exe"),
                 mock.patch.object(chatgpt_mcp, "resolve_cloudflared_executable", return_value=root / "cloudflared.exe"),
                 mock.patch.object(chatgpt_mcp, "resolve_curl_executable", return_value=root / "curl.exe"),
             ):
@@ -1161,6 +1162,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 mock.patch.object(chatgpt_mcp, "run_transport_smoke_test", return_value={"status": "passed", "ok": True}),
                 mock.patch.object(
                     chatgpt_mcp,
+                    "resolve_tunnel_client_executable",
+                    side_effect=chatgpt_mcp.AdapterError("TUNNEL_CLIENT_NOT_FOUND", "missing", status="failed"),
+                ),
+                mock.patch.object(
+                    chatgpt_mcp,
                     "resolve_cloudflared_executable",
                     side_effect=chatgpt_mcp.AdapterError("CLOUDFLARED_NOT_FOUND", "missing", status="failed"),
                 ),
@@ -1171,8 +1177,35 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("validate_sdk:MCP_PYTHON_SDK_MISSING", payload["blockers"])
-        self.assertIn("cloudflared:CLOUDFLARED_NOT_FOUND", payload["warnings"])
-        self.assertFalse(payload["optionalDependencies"]["cloudflared"]["ok"])
+        self.assertIn("tunnelClient:TUNNEL_CLIENT_NOT_FOUND", payload["warnings"])
+        self.assertFalse(payload["optionalDependencies"]["tunnelClient"]["ok"])
+        self.assertFalse(payload["optionalDependencies"]["cloudflaredFallback"]["ok"])
+
+    def test_secure_tunnel_plan_prefers_tunnel_client_without_starting_processes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            with mock.patch.object(chatgpt_mcp, "resolve_tunnel_client_executable", return_value=root / "tunnel-client.exe"):
+                payload = chatgpt_mcp.build_secure_tunnel_plan(
+                    config,
+                    profile="riftreader-local-stdio",
+                    tunnel_id="tunnel_test",
+                )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["recommendedPath"], "openai-secure-mcp-tunnel")
+        self.assertEqual(payload["deprecatedFallback"], "cloudflare-quick-tunnel")
+        self.assertIn("--transport", payload["mcpCommand"])
+        self.assertIn("stdio", payload["mcpCommand"])
+        self.assertIn("--mcp-command", payload["commands"]["init"])
+        self.assertIn("--mcp-command", payload["commandLines"]["init"])
+        self.assertEqual(payload["commands"]["init"][payload["commands"]["init"].index("--tunnel-id") + 1], "tunnel_test")
+        self.assertEqual(payload["chatGptConnector"]["toolSmokeOrder"], ["health", "get_repo_status", "get_latest_handoff"])
+        self.assertIn("runtimeApiKey", payload["openAiRequirements"])
+        self.assertIn("connect-from-chatgpt", payload["docs"]["connectFromChatGpt"])
+        self.assertTrue(payload["safety"]["openAiSecureTunnelPreferred"])
+        self.assertTrue(payload["safety"]["cloudflareQuickTunnelDeprecated"])
 
     def test_chatgpt_trial_session_writes_ready_and_final_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1232,6 +1265,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         serve_args = chatgpt_mcp.build_parser().parse_args(["--serve", "--transport", "stdio"])
 
         self.assertIn("--trial-readiness", help_text)
+        self.assertIn("--secure-tunnel-plan", help_text)
         self.assertIn("--proposal-transport-smoke", help_text)
         self.assertIn("--chatgpt-trial-session", help_text)
         self.assertTrue(args.chatgpt_trial_session)

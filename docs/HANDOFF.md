@@ -3,6 +3,32 @@
 **Compact re-entry doc.** Read this first when returning to the project.
 
 
+## Latest compact handoff — OpenAI Secure MCP Tunnel MCP path — 2026-06-05 05:54 UTC
+
+A new compact handoff exists at
+`docs\handoffs\2026-06-05-0554-openai-secure-mcp-tunnel-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP path is now **OpenAI Secure MCP Tunnel
+first**. Local-only adapter tests remain the default, and Cloudflare quick tunnel
+support is preserved only as deprecated fallback/dev-only support.
+
+| Evidence | Result |
+|---|---|
+| ChatGPT app display name | `rift-mcp`. |
+| Active local adapter | `tools\riftreader_workflow\riftreader_chatgpt_mcp.py`. |
+| Tool surface | 8 allowlisted tools only. |
+| Recommended Web/Desktop path | OpenAI Secure MCP Tunnel using `tunnel-client` and local stdio MCP. |
+| Local default | Self-test / SDK validation / loopback transport smoke. |
+| Deprecated fallback | Cloudflare quick tunnel / `trycloudflare.com`. |
+| Current blocker | `TUNNEL_CLIENT_NOT_FOUND` until `tunnel-client` is installed/found or passed with `--tunnel-client-path`. |
+| Primary command | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json`. |
+| Mission Control | `scripts\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json` displays the plan command without starting `tunnel-client`; final readiness now blocks on `dependency:missing:tunnel-client`. |
+
+Safety: no live RIFT input, movement, `/reloadui`, screenshot key, x64dbg/CE
+attach, provider write, ChatGPT registration, public tunnel startup, Git
+mutation, commit, or push was performed. This handoff is transport-only and does
+not authorize live game/proof/promotion work.
+
 ## Latest compact handoff — post-update no-input yaw/facing inventory — 2026-06-03 08:05 UTC
 
 A new compact handoff exists at

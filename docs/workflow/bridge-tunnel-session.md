@@ -2,9 +2,16 @@
 
 Version: `riftreader-bridge-tunnel-session-docs-v0.2.1`
 
+## Status
+
+Deprecated for ChatGPT Web/Desktop MCP communication. Prefer the OpenAI Secure
+MCP Tunnel path documented in `docs/workflow/riftreader-chatgpt-mcp.md`.
+This helper remains only as historical fallback/dev-only Cloudflare bridge
+support until the Cloudflare method is fully removed.
+
 ## Purpose
 
-Adds a repo-owned Python helper that starts the existing RiftReader Local Artifact Bridge and a Cloudflare quick tunnel, then prints the exact URL to paste into ChatGPT.
+Legacy fallback helper that starts the existing RiftReader Local Artifact Bridge and a Cloudflare quick tunnel, then prints the exact URL to paste into ChatGPT.
 
 ## Files
 
@@ -33,14 +40,14 @@ using `sys.executable` and an argument list.
 
 ## Run
 
-```powershell
-Set-Location -LiteralPath "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-bridge-tunnel-session.cmd
 ```
 
 ## Validation
 
-```powershell
+```cmd
 python -m py_compile tools\riftreader_workflow\bridge_tunnel_session.py scripts\test_bridge_tunnel_session.py
 python tools\riftreader_workflow\bridge_tunnel_session.py --self-test
 python -m unittest scripts.test_bridge_tunnel_session

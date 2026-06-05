@@ -164,9 +164,9 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
         self.assertIn("Local final gate", checklist)
-        self.assertIn("Explicit public ChatGPT trial", checklist)
+        self.assertIn("Explicit ChatGPT Secure Tunnel proof", checklist)
+        self.assertIn("riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json", checklist)
         self.assertIn("riftreader-mcp-final.cmd --status --compact-json", checklist)
-        self.assertIn("riftreader-mcp-mission-control.cmd --trial-command --json", checklist)
         self.assertIn("scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json", checklist)
 
 

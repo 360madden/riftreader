@@ -272,6 +272,40 @@ class McpFinalReadinessTests(unittest.TestCase):
 
         self.assertIn("environment:artifact-root-not-ignored:.riftreader-local", payload["blockers"])
 
+    def test_public_session_status_ages_out_stale_ephemeral_ready_url(self) -> None:
+        payload = final.public_session_status(
+            {
+                "latestArtifacts": {
+                    "trial-session": {
+                        "status": "ready",
+                        "publicMcpUrl": "https://old.trycloudflare.com/mcp",
+                        "publicUrlEphemeral": True,
+                        "artifactAgeSeconds": final.EPHEMERAL_PUBLIC_READY_MAX_AGE_SECONDS + 1,
+                    }
+                }
+            }
+        )
+
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["states"]["trial-session"], "expected-expired")
+
+    def test_public_session_status_blocks_fresh_unexpected_public_ready_url(self) -> None:
+        payload = final.public_session_status(
+            {
+                "latestArtifacts": {
+                    "trial-session": {
+                        "status": "ready",
+                        "publicMcpUrl": "https://fresh.trycloudflare.com/mcp",
+                        "publicUrlEphemeral": True,
+                        "artifactAgeSeconds": 1,
+                    }
+                }
+            }
+        )
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("public-session:unexpected-active:trial-session", payload["blockers"])
+
     def test_tool_surface_parser_blocks_unapproved_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

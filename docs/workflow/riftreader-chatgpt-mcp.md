@@ -51,8 +51,8 @@ The adapter is designed for this safe loop:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --tool-manifest --json
 .\scripts\riftreader-chatgpt-mcp.cmd --self-test --json
 ```
@@ -67,8 +67,8 @@ registration, descriptions, and annotations without starting a server:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --json
 ```
 
@@ -80,8 +80,8 @@ the server. It does **not** start a tunnel or register anything in ChatGPT.
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
 ```
 
@@ -93,29 +93,30 @@ inbox/audit/smoke artifacts, and stops the temporary loopback server.
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json
 ```
 
 For a single compact local go/no-go gate before any public tunnel or ChatGPT
 registration, run trial readiness. This runs the handler self-test, SDK
 metadata validation, loopback transport smoke including a synthetic
-`submit_package_proposal` call, and optional `cloudflared`/`curl` availability
-checks. It writes a compact summary under
+`submit_package_proposal` call, optional OpenAI `tunnel-client`/`curl`
+readiness checks, and records Cloudflare only as a deprecated fallback. It
+writes a compact summary under
 `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`.
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --trial-readiness --json
 ```
 
 The same gate is exposed through Operator Lite:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json
 ```
 
@@ -125,44 +126,48 @@ validation, including one synthetic package proposal. It does not start a
 public tunnel, register ChatGPT, serve persistently, apply package content,
 mutate Git, send RIFT input, or attach CE/x64dbg.
 
-Optional explicit public-tunnel smoke:
+OpenAI Secure MCP Tunnel command plan:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json
+```
+
+This prints the repo-specific OpenAI Secure MCP Tunnel plan for the local
+RiftReader MCP adapter. It does not start a tunnel, create credentials, register
+ChatGPT, mutate Git, send RIFT input, or expose broad local tools. Use this plan
+to configure `tunnel-client` with a local stdio MCP command. The JSON includes
+both argument arrays and copyable command-line strings, plus the exact first
+ChatGPT smoke order: `health`, `get_repo_status`, then `get_latest_handoff`.
+
+Deprecated Cloudflare fallback smoke:
+
+RUN THIS ONLY AS FALLBACK:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --cloudflare-tunnel-smoke --json
 ```
 
 This starts a temporary Cloudflare quick tunnel and a temporary loopback MCP
-server, calls `initialize`, `tools/list`, and `tools/call` for `health` through
-the public HTTPS `/mcp` URL with an `Origin: https://chatgpt.com` header, writes a local summary under
+server, verifies the public HTTPS `/mcp` endpoint, writes a local summary under
 `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, then stops both
-processes. It is opt-in only and does not register the app in ChatGPT. To test
-a different ChatGPT web origin, pass `--cloudflare-smoke-origin <exact-origin>`.
-The smoke helper records any curl DNS override IP it had to use under
-`curlResolveIp` because quick-tunnel DNS can take a few seconds to propagate.
-The transport/public smoke verifier also fails closed if `health` no longer
-redacts the repo root as `.` or if `absoluteRepoRootExposed` is not `false`.
+processes. It is fallback/dev-only and planned for full deprecation. Do not use
+it as the primary ChatGPT Web/Desktop route.
 
-Optional bounded ChatGPT registration session:
+Deprecated bounded Cloudflare ChatGPT registration session:
 
-RUN THIS:
+RUN THIS ONLY AS FALLBACK:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json
 ```
 
-This starts a temporary Cloudflare quick tunnel and a temporary loopback MCP
-server, verifies the public HTTPS `/mcp` endpoint, writes a ready packet under
-`.riftreader-local\riftreader-chatgpt-mcp\transport-smoke`, keeps the endpoint
-alive for the requested bounded duration, then stops both processes. Use the
-printed `publicMcpUrl` in ChatGPT Developer Mode while the command is still
-running. Pass `--chatgpt-session-seconds 0` to verify setup and stop
-immediately. The helper does **not** register the app in ChatGPT and does not
-expose shell, Git mutation, RIFT input, CE, x64dbg, or arbitrary filesystem
-tools.
+This keeps the old Cloudflare quick-tunnel registration window available only
+for fallback debugging while OpenAI Secure MCP Tunnel becomes the primary path.
 
 
 ## MCP Workflow Suite helpers
@@ -174,8 +179,8 @@ for ignored `.riftreader-local` proof records created by the trial recorder.
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-mcp-mission-control.cmd --json
 .\scripts\riftreader-mcp-artifacts.cmd --latest --json
 .\scripts\riftreader-workflow-router.cmd --mcp --json
@@ -186,7 +191,8 @@ cd "C:\RIFT MODDING\RiftReader"
 | Helper | Command | Default behavior |
 |---|---|---|
 | MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
-| Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, dependency checks, environment preflight, tool-surface safety, and public-session state. |
+| Secure Tunnel Plan | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Writes an ignored local plan artifact and prints `tunnel-client init`, `doctor`, and `run` command lines; returns blocked until `tunnel-client` is installed/found. |
+| Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, `tunnel-client` dependency checks, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
 | ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; fails closed on tool count, repo-root redaction, inbox, draft, or dry-run proof gaps. |
@@ -194,15 +200,18 @@ cd "C:\RIFT MODDING\RiftReader"
 | Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus actual ChatGPT client proof and reports whether Phase 1 is complete or externally blocked. |
 
 The shared state layer marks self-test inbox/draft artifacts, adds artifact age
-fields, warns on stale proof budgets, and labels stopped ephemeral public URLs
-as expected-expired. The final gate also checks loopback port allocation,
-default serve-port availability, and whether `.riftreader-local` remains
-Git-ignored for local MCP artifacts. `MCP Mission Control --trial-command`
-prints the bounded public trial command without running it. Only
-`--run-readiness` and `--run-proposal-smoke` execute local-only validation. No
-helper starts a public tunnel by default. The Phase 1 gate intentionally reports
-`blocked` until an actual ChatGPT Developer Mode proof packet is recorded with a
-passing `actual-client-proof` artifact.
+fields, indexes Secure Tunnel plan artifacts, warns on stale proof budgets, and
+labels stopped or aged-out ephemeral public URLs as expected-expired. The final
+gate also checks loopback port allocation, default serve-port availability,
+primary-path `tunnel-client` dependency presence, and whether
+`.riftreader-local` remains Git-ignored for local MCP artifacts.
+`MCP Mission Control --secure-tunnel-plan` prints the Secure Tunnel plan command
+without running `tunnel-client`; `--trial-command` remains a deprecated
+fallback-only Cloudflare public trial command. Only `--run-readiness` and
+`--run-proposal-smoke` execute local-only validation. No helper starts a public
+tunnel by default. The Phase 1 gate intentionally reports `blocked` until an
+actual ChatGPT Developer Mode proof packet is recorded with a passing
+`actual-client-proof` artifact.
 
 ## Final-product Mission Control flow
 
@@ -211,8 +220,8 @@ product lane. Use it before public exposure:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-mcp-mission-control.cmd --summary-md
 .\scripts\riftreader-mcp-mission-control.cmd --checklist-md
 .\scripts\riftreader-mcp-final.cmd --status --compact-json
@@ -242,7 +251,7 @@ Install the SDK before serving if it is not already available:
 
 RUN THIS:
 
-```powershell
+```cmd
 python -m pip install "mcp[cli]"
 ```
 
@@ -252,8 +261,8 @@ auto-detect `.riftreader-local\mcp-sdk-validation` when present:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 python -m pip install --target .riftreader-local\mcp-sdk-validation "mcp[cli]"
 .\scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --json
 .\scripts\riftreader-chatgpt-mcp.cmd --transport-smoke --json
@@ -263,8 +272,8 @@ Then start the local server manually:
 
 RUN THIS:
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --serve --host 127.0.0.1 --port 8770 --transport streamable-http
 ```
 
@@ -274,54 +283,63 @@ Local MCP endpoint:
 http://127.0.0.1:8770/mcp
 ```
 
-## Manual HTTPS exposure for ChatGPT Developer Mode
+## ChatGPT Web/Desktop route: OpenAI Secure MCP Tunnel
 
-ChatGPT Developer Mode requires an HTTPS-reachable MCP endpoint. The adapter
-does not start a public tunnel by default; use the bounded
-`--chatgpt-trial-session` helper above or expose the local server with a
-manually started tunnel such as Cloudflare Tunnel or ngrok.
+ChatGPT Developer Mode needs an HTTPS-reachable MCP endpoint, but the preferred
+RiftReader path is now **OpenAI Secure MCP Tunnel**, not a public Cloudflare
+quick tunnel. OpenAI Secure MCP Tunnel keeps the MCP server private: a local
+`tunnel-client` opens outbound HTTPS to OpenAI and forwards MCP requests to the
+local RiftReader adapter.
 
-For Cloudflare quick tunnels, the public hostname is random and must be
-allowlisted on the MCP server. Start the tunnel first, copy the bare hostname
-from the generated URL, then start the server with `--allowed-host`.
-
-Terminal 1:
+Primary local plan command:
 
 RUN THIS:
 
-```powershell
-cloudflared tunnel --url http://127.0.0.1:8770 --no-autoupdate
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json
 ```
 
-If Cloudflare prints:
+The plan prints the exact local stdio MCP command for `tunnel-client`. If the
+plan reports `TUNNEL_CLIENT_NOT_FOUND`, install/download `tunnel-client` from
+OpenAI Platform tunnel settings or the latest `openai/tunnel-client` release,
+then rerun with either PATH discovery or `--tunnel-client-path <path>`.
 
-```text
-https://example.trycloudflare.com
+Before connecting ChatGPT, create or choose a tunnel in OpenAI Platform tunnel
+settings and obtain a runtime API key whose principal has Tunnels Read + Use for
+that tunnel. Creating or editing tunnel metadata additionally requires Tunnels
+Read + Manage. The `tunnel-client` host needs outbound HTTPS to OpenAI and local
+reachability to the stdio MCP command printed by the plan.
+
+Command shape:
+
+```cmd
+set "CONTROL_PLANE_API_KEY=<runtime API key with Tunnels Read + Use>"
+tunnel-client init --sample sample_mcp_stdio_local --profile riftreader-local-stdio --tunnel-id <tunnel_id> --mcp-command "<printed MCP command>"
+tunnel-client doctor --profile riftreader-local-stdio --explain
+tunnel-client run --profile riftreader-local-stdio
 ```
 
-Terminal 2:
+Keep `tunnel-client run` healthy while creating or testing the ChatGPT app. In
+ChatGPT connector settings, create a custom connector, choose **Tunnel** under
+Connection, then select the available tunnel or paste its `tunnel_id`. Use
+`tunnel-client doctor --profile riftreader-local-stdio --explain`, the local
+admin UI, `/healthz`, and `/readyz` to confirm the client is healthy and ready
+before ChatGPT smoke testing. Do not paste a `trycloudflare.com` URL for the
+primary path.
 
-RUN THIS:
+## Deprecated manual public HTTPS exposure
 
-```powershell
-cd "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-chatgpt-mcp.cmd --serve --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host example.trycloudflare.com --allowed-origin https://chatgpt.com
-```
+Cloudflare quick tunnels and ngrok-style public URLs are now fallback/dev-only.
+They expose a local server through a public HTTPS URL and are planned for full
+Cloudflare deprecation in this repo. Use them only when Secure MCP Tunnel is
+unavailable and the operator explicitly selects the fallback lane.
 
-Use the generated HTTPS URL plus `/mcp` as the ChatGPT connector URL, for
-example:
-
-```text
-https://example.trycloudflare.com/mcp
-```
-
-Do not pass a full URL to `--allowed-host`; pass only the exact Host header
-value, such as `example.trycloudflare.com`. Pass only an exact origin to
-`--allowed-origin`, such as `https://chatgpt.com`; do not include a path,
-query, fragment, credentials, or wildcard. If `--allowed-host` is omitted for a
-public tunnel, the Python MCP SDK's DNS-rebinding protection can reject the
-request with HTTP `421 Misdirected Request`. If an `Origin` header is present
-and not allowlisted, it can reject the request with HTTP `403 Forbidden`.
+For fallback public tunnels, the public hostname must still be allowlisted on
+the MCP server. Do not pass a full URL to `--allowed-host`; pass only the exact
+Host header value, such as `example.trycloudflare.com`. Pass only an exact
+origin to `--allowed-origin`, such as `https://chatgpt.com`; do not include a
+path, query, fragment, credentials, or wildcard.
 
 ## Registering in ChatGPT Developer Mode
 
@@ -329,7 +347,7 @@ In ChatGPT web:
 
 1. Enable Developer Mode under Settings -> Apps -> Advanced settings.
 2. Open Apps/Connectors settings.
-3. Create an app/connector for the tunnel URL ending in `/mcp`.
+3. Create an app/connector using the OpenAI Secure MCP Tunnel connection path.
 4. Confirm the tool list contains only the eight tools in this document.
 5. In the conversation, explicitly select Developer Mode and this app.
 
@@ -350,8 +368,15 @@ in this turn.
 - ChatGPT Developer Mode supports MCP tools, including read and write tools, but
   write actions require careful review; read-only detection respects
   `readOnlyHint`.
-- ChatGPT local development needs an HTTPS-reachable MCP endpoint, commonly via
-  ngrok or Cloudflare Tunnel.
+- ChatGPT local development needs an HTTPS-reachable MCP endpoint. The preferred
+  RiftReader route is OpenAI Secure MCP Tunnel; Cloudflare quick tunnel is
+  fallback/dev-only.
+- Secure MCP Tunnel uses `tunnel-client` inside the private/local network. The
+  client opens outbound HTTPS to OpenAI, forwards MCP work to a local stdio or
+  HTTP MCP server, and keeps the private MCP server off the public internet.
+- ChatGPT connector setup should choose **Tunnel** under Connection and use the
+  OpenAI-hosted tunnel endpoint or `tunnel_id`; if the tunnel is not visible,
+  check workspace association and Tunnels Read + Use permission.
 - Current Python MCP SDK examples use `from mcp.server.fastmcp import FastMCP`
   and `mcp.run(transport="streamable-http")`.
 
@@ -360,6 +385,9 @@ in this turn.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
+| `TUNNEL_CLIENT_NOT_FOUND` | OpenAI `tunnel-client` is not installed, not on PATH, or not passed explicitly. | Install/download it from OpenAI Platform tunnel settings or latest `openai/tunnel-client` release; rerun `--secure-tunnel-plan --tunnel-client-path <path>` if needed. |
+| Tunnel not visible in ChatGPT | Tunnel is not associated with the target workspace, or the connector operator lacks Tunnels Read + Use. | Fix workspace/permission scope in Platform, then refresh ChatGPT connector settings. |
+| Connector discovery/tool calls fail through Secure MCP Tunnel | `tunnel-client run` is not healthy or not connected. | Rerun `tunnel-client doctor --profile riftreader-local-stdio --explain` and check `/ui`, `/healthz`, and `/readyz`. |
 | HTTP `421 Misdirected Request` through a tunnel | The tunnel Host header is not allowlisted. | Restart `--serve` with `--allowed-host <bare-public-host>` and, for ChatGPT, `--allowed-origin https://chatgpt.com`. |
 | HTTP `403 Forbidden` through a tunnel | The request has an `Origin` header not in `allowed_origins`. | Restart `--serve` with `--allowed-origin https://chatgpt.com` or the exact origin being tested. |
 | ChatGPT cannot connect | Tunnel URL is missing `/mcp`, expired, or not HTTPS. | Restart local server/tunnel and re-register/refresh tools. |

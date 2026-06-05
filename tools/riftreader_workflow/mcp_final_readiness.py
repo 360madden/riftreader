@@ -62,6 +62,11 @@ TRUE_HEALTH_SAFETY_KEYS = (
 DEFAULT_LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_MCP_SERVE_PORT = 8770
 LOCAL_IGNORED_ARTIFACT_ROOT = ".riftreader-local"
+EPHEMERAL_PUBLIC_READY_MAX_AGE_SECONDS = 15 * 60
+TUNNEL_CLIENT_DEFAULT_PATHS = (
+    Path(r"C:\Program Files\OpenAI\tunnel-client\tunnel-client.exe"),
+    Path(r"C:\Program Files (x86)\OpenAI\tunnel-client\tunnel-client.exe"),
+)
 
 
 def _bool(value: object) -> bool:
@@ -181,7 +186,13 @@ def public_session_status(state_payload: dict[str, Any], *, live_trial_mode: boo
         if not isinstance(item, dict):
             states[kind] = "not-started"
             continue
-        if item.get("publicUrlExpectedExpired"):
+        age_seconds = item.get("artifactAgeSeconds")
+        aged_ephemeral_public_url = bool(
+            item.get("publicUrlEphemeral")
+            and isinstance(age_seconds, int)
+            and age_seconds > EPHEMERAL_PUBLIC_READY_MAX_AGE_SECONDS
+        )
+        if item.get("publicUrlExpectedExpired") or aged_ephemeral_public_url:
             states[kind] = "expected-expired"
             continue
         if item.get("publicTunnelStopped") or item.get("serverStopped"):
@@ -302,15 +313,27 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
     if not gh:
         blockers.append("dependency:missing:gh")
 
+    tunnel_client = _find_executable("tunnel-client", list(TUNNEL_CLIENT_DEFAULT_PATHS))
+    dependencies["tunnel-client"] = {
+        "status": "passed" if tunnel_client else "blocked",
+        "ok": bool(tunnel_client),
+        "path": tunnel_client,
+        "required": True,
+        "requiredFor": "primary OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
+    }
+    if not tunnel_client:
+        blockers.append("dependency:missing:tunnel-client")
+
     cloudflared = _find_executable(
         "cloudflared",
         [Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"), Path(r"C:\Program Files\cloudflared\cloudflared.exe")],
     )
-    dependencies["cloudflared"] = {
+    dependencies["cloudflaredFallback"] = {
         "status": "passed" if cloudflared else ("blocked" if live_trial_mode else "not-required"),
         "ok": bool(cloudflared) or not live_trial_mode,
         "path": cloudflared,
         "required": live_trial_mode,
+        "requiredFor": "deprecated fallback-only Cloudflare quick tunnel",
     }
     if live_trial_mode and not cloudflared:
         blockers.append("dependency:missing:cloudflared")
@@ -479,6 +502,8 @@ def _next_action(blockers: list[str], *, release_handoff_path: str | None = None
         if blocker.startswith("phase2:"):
             return {"key": "mcp-phase2-status", "reason": "Final readiness builds on a passing Phase 2 gate.", "command": commands["mcpPhase2Status"]}
         if blocker.startswith("dependency:"):
+            if blocker == "dependency:missing:tunnel-client":
+                return {"key": "install-or-locate-tunnel-client", "reason": blocker, "command": commands["secureTunnelPlan"]}
             return {"key": "fix-final-readiness-dependency", "reason": blocker, "command": commands["mcpMissionControl"]}
         if blocker.startswith("environment:") or blocker.startswith("repo:"):
             return {"key": "fix-final-readiness-environment", "reason": blocker, "command": commands["mcpMissionControl"]}

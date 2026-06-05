@@ -41,6 +41,7 @@ FRESHNESS_BUDGET_SECONDS = {
 ARTIFACT_KINDS = (
     "readiness",
     "proposal-smoke",
+    "secure-tunnel-plan",
     "cloudflare-smoke",
     "transport-smoke",
     "trial-session",
@@ -55,6 +56,7 @@ ARTIFACT_KINDS = (
 DEFAULT_TIMELINE_KINDS = (
     "readiness",
     "proposal-smoke",
+    "secure-tunnel-plan",
     "cloudflare-smoke",
     "transport-smoke",
     "trial-session",
@@ -369,6 +371,14 @@ def discover_mcp_artifacts(repo_root: Path) -> tuple[dict[str, list[dict[str, An
     trial_items = [*by_kind["trial-session-ready"], *by_kind["trial-session-final"]]
     trial_items.sort(key=lambda item: (str(item.get("mtimeUtc")), str(item.get("path"))))
     by_kind["trial-session"] = trial_items
+    secure_plan_items, secure_plan_warnings = collect_json_file_artifacts(
+        repo_root,
+        TRANSPORT_SMOKE_ROOT,
+        "*secure-tunnel-plan*.json",
+        "secure-tunnel-plan",
+    )
+    by_kind["secure-tunnel-plan"] = secure_plan_items
+    warnings.extend(secure_plan_warnings)
     proof_items, proof_warnings = discover_actual_client_proofs(repo_root)
     by_kind["actual-client-proof"] = proof_items
     warnings.extend(proof_warnings)
@@ -409,10 +419,18 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
         return action("mcp-trial-readiness", "Run local MCP readiness before public or ChatGPT client work.", commands["mcpTrialReadiness"])
     if not passed(latest_artifacts.get("proposal-smoke")):
         return action("proposal-transport-smoke", "Prove guarded submit_package_proposal through local MCP transport.", commands["proposalTransportSmoke"])
-    if not passed(latest_artifacts.get("cloudflare-smoke")):
-        return action("cloudflare-tunnel-smoke", "Prove the HTTPS /mcp endpoint before ChatGPT registration.", commands["cloudflareSmoke"])
+    if not passed(latest_artifacts.get("secure-tunnel-plan")):
+        return action(
+            "secure-tunnel-plan",
+            "Prepare the OpenAI Secure MCP Tunnel plan before ChatGPT Web/Desktop connector work.",
+            commands["secureTunnelPlan"],
+        )
     if not passed(latest_artifacts.get("actual-client-proof")):
-        return action("chatgpt-trial-session", "Start a bounded public URL for actual ChatGPT Developer Mode proof.", commands["chatGptTrialSession"])
+        return action(
+            "chatgpt-secure-tunnel-proof",
+            "Use OpenAI Secure MCP Tunnel for actual ChatGPT proof; Cloudflare remains fallback-only.",
+            commands["secureTunnelPlan"],
+        )
     if latest_artifacts.get("inbox") and not latest_artifacts.get("draft"):
         return action("inbox-to-draft", "Export the latest package-proposal inbox item into an inert draft.", commands["inboxPackageDraft"])
     if latest_artifacts.get("draft") and not passed(latest_artifacts.get("dry-run")):
@@ -435,6 +453,7 @@ def standard_commands() -> dict[str, list[str]]:
         "mcpArtifactsLatest": ["scripts\\riftreader-mcp-artifacts.cmd", "--latest", "--json"],
         "mcpTrialReadiness": ["scripts\\riftreader-operator-lite.cmd", "--mcp-trial-readiness", "--json"],
         "proposalTransportSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--proposal-transport-smoke", "--json"],
+        "secureTunnelPlan": ["scripts\\riftreader-chatgpt-mcp.cmd", "--secure-tunnel-plan", "--json"],
         "cloudflareSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--cloudflare-tunnel-smoke", "--json"],
         "chatGptTrialSession": ["scripts\\riftreader-chatgpt-mcp.cmd", "--chatgpt-trial-session", "--chatgpt-session-seconds", "900", "--json"],
         "inboxLatest": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-read-latest", "--json"],
@@ -526,6 +545,7 @@ def self_test() -> dict[str, Any]:
         {"name": "standard-commands-include-compact-phase2", "pass": "mcpPhase2CompactStatus" in standard_commands()},
         {"name": "standard-commands-include-final", "pass": "mcpFinalStatus" in standard_commands()},
         {"name": "standard-commands-include-compact-final", "pass": "mcpFinalCompactStatus" in standard_commands()},
+        {"name": "standard-commands-include-secure-tunnel-plan", "pass": "secureTunnelPlan" in standard_commands()},
     ]
     ok = all(check["pass"] for check in checks)
     return {

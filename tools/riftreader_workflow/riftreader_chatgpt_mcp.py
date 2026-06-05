@@ -17,6 +17,7 @@ import json
 import os
 import queue
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -59,6 +60,10 @@ BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
     Path(r"C:\Program Files\cloudflared\cloudflared.exe"),
+)
+TUNNEL_CLIENT_DEFAULT_PATHS = (
+    Path(r"C:\Program Files\OpenAI\tunnel-client\tunnel-client.exe"),
+    Path(r"C:\Program Files (x86)\OpenAI\tunnel-client\tunnel-client.exe"),
 )
 CLOUDFLARE_QUICK_TUNNEL_PATTERN = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
 
@@ -1833,6 +1838,7 @@ def run_trial_readiness(
     allowed_origins: list[str] | None = None,
     transport: str = "streamable-http",
     transport_timeout_seconds: float = DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS,
+    tunnel_client_path: str | None = None,
     cloudflared_path: str | None = None,
 ) -> dict[str, Any]:
     stages: dict[str, Any] = {}
@@ -1869,19 +1875,24 @@ def run_trial_readiness(
         blockers.extend(stage_blockers(stage_name, stage_payload))
 
     optional_dependencies = {
-        "cloudflared": optional_executable_readiness(
-            "cloudflared",
-            lambda: resolve_cloudflared_executable(cloudflared_path),
-            required_for="optional Cloudflare quick-tunnel smoke and manual HTTPS exposure",
+        "tunnelClient": optional_executable_readiness(
+            "tunnel-client",
+            lambda: resolve_tunnel_client_executable(tunnel_client_path),
+            required_for="recommended OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
         ),
         "curl": optional_executable_readiness(
             "curl",
             resolve_curl_executable,
             required_for="optional public tunnel smoke verification",
         ),
+        "cloudflaredFallback": optional_executable_readiness(
+            "cloudflared",
+            lambda: resolve_cloudflared_executable(cloudflared_path),
+            required_for="deprecated fallback-only Cloudflare quick-tunnel smoke",
+        ),
     }
     for name, dependency in optional_dependencies.items():
-        if not dependency.get("ok"):
+        if not dependency.get("ok") and name != "cloudflaredFallback":
             warnings.append(f"{name}:{dependency.get('code') or dependency.get('status')}")
 
     status = "passed" if not blockers else "blocked"
@@ -1912,8 +1923,9 @@ def run_trial_readiness(
             "applyFlagSent": False,
         },
         "next": [
-            "If status is passed, the narrow MCP adapter is locally ready for an explicit manual HTTPS/ChatGPT Developer Mode trial.",
-            "Run --cloudflare-tunnel-smoke only as a separate explicit public-tunnel test, or start --serve and a manual tunnel for ChatGPT registration.",
+            "If status is passed, the narrow MCP adapter is locally ready for OpenAI Secure MCP Tunnel setup.",
+            "Run --secure-tunnel-plan --json for the repo-specific tunnel-client command plan.",
+            "Use Cloudflare quick-tunnel commands only as deprecated fallback/dev-only smoke tests.",
             "If status is blocked, fix the listed stage blockers before any public tunnel or ChatGPT registration attempt.",
         ],
     }
@@ -1921,6 +1933,160 @@ def run_trial_readiness(
     payload["artifactPaths"] = {"summaryJson": artifact}
     Path(config.repo_root / artifact).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return payload
+
+
+def resolve_tunnel_client_executable(value: str | None = None) -> Path:
+    candidates: list[Path] = []
+    if value:
+        candidates.append(Path(value).expanduser())
+    for found in (shutil.which("tunnel-client.exe"), shutil.which("tunnel-client")):
+        if found:
+            candidates.append(Path(found))
+    candidates.extend(TUNNEL_CLIENT_DEFAULT_PATHS)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise AdapterError(
+        "TUNNEL_CLIENT_NOT_FOUND",
+        "OpenAI tunnel-client executable was not found. Install it from Platform tunnel settings or pass --tunnel-client-path.",
+        status="failed",
+    )
+
+
+def command_line(args: list[str]) -> str:
+    if os.name == "nt":
+        return subprocess.list2cmdline(args)
+    return shlex.join(args)
+
+
+def secure_tunnel_mcp_command(config: AdapterConfig) -> str:
+    script = config.repo_root / "tools" / "riftreader_workflow" / "riftreader_chatgpt_mcp.py"
+    args = [
+        sys.executable,
+        str(script),
+        "--serve",
+        "--transport",
+        "stdio",
+        "--repo-root",
+        str(config.repo_root),
+        "--payload-root",
+        str(config.payload_root),
+        "--audit-root",
+        str(config.audit_root),
+    ]
+    return command_line(args)
+
+
+def build_secure_tunnel_plan(
+    config: AdapterConfig,
+    *,
+    profile: str = "riftreader-local-stdio",
+    tunnel_id: str | None = None,
+    tunnel_client_path: str | None = None,
+) -> dict[str, Any]:
+    tunnel_client_status = optional_executable_readiness(
+        "tunnel-client",
+        lambda: resolve_tunnel_client_executable(tunnel_client_path),
+        required_for="OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
+    )
+    tunnel_client = str(tunnel_client_status.get("path") or "tunnel-client")
+    effective_tunnel_id = tunnel_id or "<tunnel_id from Platform tunnel settings>"
+    mcp_command = secure_tunnel_mcp_command(config)
+    init_command = [
+        tunnel_client,
+        "init",
+        "--sample",
+        "sample_mcp_stdio_local",
+        "--profile",
+        profile,
+        "--tunnel-id",
+        effective_tunnel_id,
+        "--mcp-command",
+        mcp_command,
+    ]
+    doctor_command = [tunnel_client, "doctor", "--profile", profile, "--explain"]
+    run_command_args = [tunnel_client, "run", "--profile", profile]
+    payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-secure-tunnel-plan",
+        "generatedAtUtc": utc_iso(),
+        "status": "ready" if tunnel_client_status.get("ok") else "blocked",
+        "ok": bool(tunnel_client_status.get("ok")),
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "recommendedPath": "openai-secure-mcp-tunnel",
+        "deprecatedFallback": "cloudflare-quick-tunnel",
+        "repoRoot": str(config.repo_root),
+        "profile": profile,
+        "tunnelId": effective_tunnel_id,
+        "mcpCommand": mcp_command,
+        "commands": {
+            "setApiKeyCmd": 'set "CONTROL_PLANE_API_KEY=<runtime API key with Tunnels Read + Use>"',
+            "setApiKeyEnvVar": "CONTROL_PLANE_API_KEY=<runtime API key with Tunnels Read + Use>",
+            "init": init_command,
+            "doctor": doctor_command,
+            "run": run_command_args,
+        },
+        "commandLines": {
+            "init": command_line(init_command),
+            "doctor": command_line(doctor_command),
+            "run": command_line(run_command_args),
+        },
+        "openAiRequirements": {
+            "tunnelId": "Create or select one in OpenAI Platform tunnel settings.",
+            "runtimeApiKey": "CONTROL_PLANE_API_KEY principal needs Tunnels Read + Use for the target tunnel.",
+            "managerPermission": "Tunnels Read + Manage is needed only to create or edit tunnel metadata.",
+            "network": "The tunnel-client host needs outbound HTTPS to api.openai.com:443 and local reachability to the stdio MCP command.",
+            "adminHealth": "Use tunnel-client doctor plus the local /ui, /healthz, and /readyz surfaces before ChatGPT smoke testing.",
+        },
+        "chatGptConnector": {
+            "name": "rift-mcp",
+            "connectionMode": "Tunnel",
+            "toolSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
+            "notes": [
+                "Create or select the OpenAI-hosted tunnel endpoint in Platform tunnel settings.",
+                "Keep tunnel-client run healthy while creating or testing the ChatGPT connector.",
+                "In ChatGPT connector settings, choose Tunnel under Connection and select the available tunnel or paste its tunnel_id.",
+                "Do not paste a Cloudflare trycloudflare URL for the primary path.",
+            ],
+        },
+        "dependencies": {
+            "tunnelClient": tunnel_client_status,
+        },
+        "blockers": [] if tunnel_client_status.get("ok") else ["tunnel-client-not-found-or-not-configured"],
+        "warnings": [
+            "This plan does not create a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or expose broad local tools.",
+            "CONTROL_PLANE_API_KEY is intentionally shown as a placeholder; do not store or commit it.",
+            "Cloudflare quick tunnel remains fallback/dev-only and is planned for full deprecation.",
+        ],
+        "safety": {
+            **base_safety(),
+            "publicTunnelStarted": False,
+            "openAiSecureTunnelPreferred": True,
+            "cloudflareQuickTunnelDeprecated": True,
+            "mcpTransport": "stdio",
+            "chatGptRegistrationPerformed": False,
+        },
+        "docs": {
+            "openaiSecureMcpTunnel": "https://developers.openai.com/api/docs/guides/secure-mcp-tunnels",
+            "connectFromChatGpt": "https://developers.openai.com/api/docs/guides/secure-mcp-tunnels#connect-from-chatgpt",
+            "platformTunnelSettings": "https://platform.openai.com/settings/organization/tunnels",
+            "tunnelClientLatestRelease": "https://github.com/openai/tunnel-client/releases/latest",
+            "chatGptConnectorSettings": "https://chatgpt.com/#settings/Connectors",
+        },
+    }
+    return payload
+
+
+def write_secure_tunnel_plan_summary(config: AdapterConfig, payload: dict[str, Any]) -> Path:
+    generated = str(payload.get("generatedAtUtc") or utc_iso()).replace("-", "").replace(":", "")
+    safe_timestamp = generated.replace("T", "T").replace("Z", "Z")
+    output_root = config.repo_root / ".riftreader-local" / "riftreader-chatgpt-mcp" / "transport-smoke"
+    output_root.mkdir(parents=True, exist_ok=True)
+    output_path = output_root / f"{safe_timestamp}-secure-tunnel-plan.json"
+    payload["artifactPaths"] = {"summaryJson": rel(config.repo_root, output_path)}
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return output_path
 
 
 def resolve_cloudflared_executable(value: str | None = None) -> Path:
@@ -3081,14 +3247,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run compact local MCP trial-readiness checks without starting a public tunnel or ChatGPT registration.",
     )
     mode.add_argument(
+        "--secure-tunnel-plan",
+        action="store_true",
+        help="Print the OpenAI Secure MCP Tunnel command plan for ChatGPT Web/Desktop. Does not start a tunnel.",
+    )
+    mode.add_argument(
         "--cloudflare-tunnel-smoke",
         action="store_true",
-        help="Explicitly start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
+        help="Deprecated fallback: start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
     )
     mode.add_argument(
         "--chatgpt-trial-session",
         action="store_true",
-        help="Start a bounded public MCP session for manual ChatGPT Developer Mode registration, then stop it.",
+        help="Deprecated fallback: start a bounded Cloudflare public MCP session for manual ChatGPT Developer Mode registration.",
     )
     mode.add_argument("--call", choices=EXPECTED_TOOL_ORDER, help="Call one local tool handler without starting a server.")
     mode.add_argument("--serve", action="store_true", help="Start the MCP server. Does not start a tunnel.")
@@ -3120,12 +3291,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--transport-smoke-timeout-seconds", type=float, default=DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
     parser.add_argument("--cloudflare-smoke-timeout-seconds", type=float, default=DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS)
     parser.add_argument("--chatgpt-session-seconds", type=float, default=DEFAULT_CHATGPT_SESSION_SECONDS)
+    parser.add_argument("--secure-tunnel-profile", default="riftreader-local-stdio")
+    parser.add_argument("--secure-tunnel-id", default=None, help="Optional OpenAI Platform tunnel_id to include in --secure-tunnel-plan output.")
+    parser.add_argument("--tunnel-client-path", default=None, help="Optional explicit path to OpenAI tunnel-client.")
     parser.add_argument(
         "--cloudflare-smoke-origin",
         default=DEFAULT_CHATGPT_ORIGIN,
         help="Origin header to validate during --cloudflare-tunnel-smoke or --chatgpt-trial-session; defaults to ChatGPT web origin.",
     )
-    parser.add_argument("--cloudflared-path", default=None, help="Optional explicit path to cloudflared for --cloudflare-tunnel-smoke.")
+    parser.add_argument("--cloudflared-path", default=None, help="Deprecated fallback-only explicit path to cloudflared.")
     parser.add_argument("--max-inbox-mb", type=float, default=1.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     return parser
@@ -3188,8 +3362,20 @@ def main(argv: list[str] | None = None) -> int:
                 allowed_origins=args.allowed_origin,
                 transport=args.transport,
                 transport_timeout_seconds=args.transport_smoke_timeout_seconds,
+                tunnel_client_path=args.tunnel_client_path,
                 cloudflared_path=args.cloudflared_path,
             )
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 2
+        if args.secure_tunnel_plan:
+            payload = build_secure_tunnel_plan(
+                config,
+                profile=args.secure_tunnel_profile,
+                tunnel_id=args.secure_tunnel_id,
+                tunnel_client_path=args.tunnel_client_path,
+            )
+            summary_path = write_secure_tunnel_plan_summary(config, payload)
+            payload["artifactPaths"] = {"summaryJson": rel(config.repo_root, summary_path)}
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 2
         if args.cloudflare_tunnel_smoke:
