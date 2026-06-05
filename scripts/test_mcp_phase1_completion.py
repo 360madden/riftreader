@@ -84,10 +84,10 @@ def write_actual_client_proof(root: Path) -> None:
             "proof": {
                 "schemaVersion": 1,
                 "connectionMode": "openai-secure-mcp-tunnel",
-                "toolCount": 10,
+                "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                 "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "toolOutputSchemasPresent": True,
-                "toolOutputSchemaCount": 10,
+                "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                 "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "publicMcpUrl": "https://client.openai-mcp-tunnel.invalid/mcp",
                 "chatgptRegistrationSucceeded": True,
@@ -125,7 +125,7 @@ def write_legacy_actual_client_proof(root: Path) -> None:
             "status": "passed",
             "ok": True,
             "proof": {
-                "toolCount": 10,
+                "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                 "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                 "inboxId": "inbox-1",
                 "draftId": "draft-1",

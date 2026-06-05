@@ -17,6 +17,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_final_readiness as final  # noqa: E402
+from riftreader_workflow import riftreader_chatgpt_mcp as chatgpt_mcp  # noqa: E402
 
 
 def base_phase2() -> dict[str, object]:
@@ -141,6 +142,10 @@ def write_tool_surface_fixture(
 
 
 class McpFinalReadinessTests(unittest.TestCase):
+    def test_approved_tool_surface_tracks_mcp_adapter_order(self) -> None:
+        self.assertEqual(final.APPROVED_TOOL_NAMES, chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("apply_latest_package_draft", final.APPROVED_TOOL_NAMES)
+
     def test_all_pass_fixture_passes(self) -> None:
         payload = final_status()
 

@@ -177,10 +177,10 @@ class McpMissionControlTests(unittest.TestCase):
                         "status": "passed",
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
-                        "toolCount": 10,
+                        "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "toolOutputSchemasPresent": True,
-                        "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolOutputSchemaToolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                     }
                 },
@@ -205,10 +205,10 @@ class McpMissionControlTests(unittest.TestCase):
                         "status": "passed",
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
-                        "toolCount": 10,
-                        "toolNames": ["health"] * 10,
+                        "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+                        "toolNames": ["health"] * mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolOutputSchemasPresent": True,
-                        "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolOutputSchemaToolNames": "health",
                     }
                 }

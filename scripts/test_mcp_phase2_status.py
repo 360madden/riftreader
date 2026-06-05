@@ -43,10 +43,10 @@ def valid_proof() -> dict[str, object]:
         "connectionMode": "openai-secure-mcp-tunnel",
         "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 10,
+        "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": True,
-        "toolOutputSchemaCount": 10,
+        "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "health": {
             "repoRoot": ".",
@@ -269,7 +269,7 @@ class McpPhase2StatusTests(unittest.TestCase):
         proof = valid_proof()
         proof["toolCount"] = 7
 
-        self.assertIn("tool-count-not-10:7", recorder.validate_proof(proof))
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:7", recorder.validate_proof(proof))
 
 
 if __name__ == "__main__":

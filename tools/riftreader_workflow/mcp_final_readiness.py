@@ -35,6 +35,7 @@ APPROVED_TOOL_NAMES = (
     "create_package_draft_from_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
+    "apply_latest_package_draft",
     "get_workflow_control_plan",
 )
 

@@ -151,10 +151,10 @@ class McpWorkflowStateTests(unittest.TestCase):
                         "createPackageDraftSucceeded": True,
                         "dryRunSucceeded": True,
                         "publicMcpUrl": "https://client.trycloudflare.com/mcp",
-                        "toolCount": 10,
+                        "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "toolOutputSchemasPresent": True,
-                        "toolOutputSchemaCount": 10,
+                        "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                         "inboxId": "20260519T010500Z-abc",
                         "draftId": "20260519T010600Z-def",
@@ -178,10 +178,10 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertTrue(latest["inbox"]["ok"])
         self.assertEqual(latest["draft"]["draftId"], "20260519T010600Z-def")
         self.assertTrue(latest["dry-run"]["dryRun"])
-        self.assertEqual(latest["actual-client-proof"]["toolCount"], 10)
+        self.assertEqual(latest["actual-client-proof"]["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(latest["actual-client-proof"]["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertTrue(latest["actual-client-proof"]["toolOutputSchemasPresent"])
-        self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaCount"], 10)
+        self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(latest["actual-client-proof"]["connectionMode"], "openai-secure-mcp-tunnel")
         self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])

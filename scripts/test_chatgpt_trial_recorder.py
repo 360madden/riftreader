@@ -18,6 +18,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
+from riftreader_workflow import riftreader_chatgpt_mcp as chatgpt_mcp  # noqa: E402
 
 
 def make_repo(root: Path) -> None:
@@ -31,10 +32,10 @@ def valid_proof() -> dict[str, object]:
         "connectionMode": "openai-secure-mcp-tunnel",
         "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
-        "toolCount": 10,
+        "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": True,
-        "toolOutputSchemaCount": 10,
+        "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "health": {
             "repoRoot": ".",
@@ -60,15 +61,20 @@ def valid_proof() -> dict[str, object]:
 
 
 class ChatGptTrialRecorderTests(unittest.TestCase):
+    def test_expected_tool_surface_tracks_mcp_adapter_order(self) -> None:
+        self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES, chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT, len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertIn("apply_latest_package_draft", recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+
     def test_template_contains_required_fields_and_safe_defaults(self) -> None:
         payload = recorder.proof_template()
 
         for field in recorder.REQUIRED_FIELDS:
             self.assertIn(field, payload)
-        self.assertEqual(payload["toolCount"], 10)
+        self.assertEqual(payload["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertFalse(payload["toolOutputSchemasPresent"])
-        self.assertEqual(payload["toolOutputSchemaCount"], 10)
+        self.assertEqual(payload["toolOutputSchemaCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(payload["connectionMode"], "openai-secure-mcp-tunnel")
         self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
@@ -113,7 +119,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         blockers = recorder.validate_proof(proof)
 
-        self.assertIn("tool-count-not-10:7", blockers)
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:7", blockers)
 
     def test_rejects_unexpected_tool_name_set(self) -> None:
         proof = valid_proof()
@@ -125,7 +131,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
     def test_rejects_duplicate_tool_name_list(self) -> None:
         proof = valid_proof()
-        proof["toolNames"] = ["health"] * 10
+        proof["toolNames"] = ["health"] * recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT
 
         blockers = recorder.validate_proof(proof)
 
@@ -141,7 +147,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         blockers = recorder.validate_proof(proof)
 
         self.assertIn("tool-output-schemas-not-confirmed", blockers)
-        self.assertIn("tool-output-schema-count-not-10:9", blockers)
+        self.assertIn(f"tool-output-schema-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:9", blockers)
         self.assertIn("tool-output-schema-tool-names-not-expected", blockers)
 
     def test_rejects_public_fallback_url_for_secure_tunnel_mode(self) -> None:
@@ -234,7 +240,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertEqual(payload["status"], "blocked")
-        self.assertIn("tool-count-not-10:99", payload["blockers"])
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
 
 
 if __name__ == "__main__":

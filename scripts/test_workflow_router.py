@@ -17,6 +17,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_workflow_state as state  # noqa: E402
+from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
 from riftreader_workflow import workflow_router  # noqa: E402
 
 
@@ -69,7 +70,7 @@ def write_actual_proof(root: Path) -> None:
             "kind": "riftreader-chatgpt-actual-client-proof",
             "status": "passed",
             "ok": True,
-            "proof": {"toolCount": 10, "publicMcpUrl": "https://client.example/mcp"},
+            "proof": {"toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT, "publicMcpUrl": "https://client.example/mcp"},
             "blockers": [],
         },
         1_800_000_030,
