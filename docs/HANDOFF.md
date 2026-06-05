@@ -2,6 +2,26 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP Phase 1 current-proof revalidation — 2026-06-05 10:38 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1038-chatgpt-mcp-phase1-current-proof-revalidation-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP Phase 1 completion gate now revalidates
+the latest actual-client proof against the current proof recorder rules. Stale
+proof artifacts that merely have historical `status=passed` no longer make Phase
+1 complete after the Secure Tunnel and diff-preview proof contract changed.
+
+| Evidence | Result |
+|---|---|
+| Active Phase 1 gate | `tools/riftreader_workflow/mcp_phase1_completion.py`. |
+| Current proof rule source | `tools/riftreader_workflow/chatgpt_trial_recorder.py::validate_proof`. |
+| Legacy proof behavior | Old `status=passed` proof now blocks with `actual-client-proof-invalid:<rule>` if it lacks current fields. |
+| Local Phase 1 status | `scripts/riftreader-mcp-phase1.cmd --status --json` blocks as expected on stale proof missing `connectionMode` and current proof fields. |
+| Focused validation | `python -m unittest scripts.test_mcp_phase1_completion scripts.test_mcp_phase2_status scripts.test_mcp_final_readiness scripts.test_mcp_workflow_state` passed 41 tests in 8.659s. |
+| Broad MCP validation | `python -m unittest scripts.test_mcp_phase1_completion scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 179 tests in 48.076s. |
+| Final ledger | `.riftreader-local/validation-runs/20260605-103641-064539/summary.md` passed in 46.529s. |
+
 ## Latest compact handoff — ChatGPT MCP Secure Tunnel proof template — 2026-06-05 10:22 UTC
 
 A new compact handoff exists at

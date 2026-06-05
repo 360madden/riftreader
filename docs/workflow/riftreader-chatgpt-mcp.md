@@ -224,7 +224,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
 | ChatGPT Trial Recorder | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` / `--record --input proof.json --json` / `--self-test --json` | Records operator-supplied actual ChatGPT facts under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof`; defaults to `connectionMode=openai-secure-mcp-tunnel` and fails closed on unknown connection mode, Cloudflare/ngrok fallback hosts in Secure Tunnel mode, unfilled URL placeholders, tool count, repo-root redaction, inbox, package-draft creation, read-only draft review, dry-run success, and bounded `dryRun.diffPreview` proof gaps. |
 | Safe Commit Packager | `scripts\riftreader-safe-commit-packager.cmd --plan --json` | Generates explicit `git add -- <path>` checklist and commit-message draft only; `--markdown` prints a review packet; it never stages, commits, or pushes. |
-| Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus actual ChatGPT client proof and reports whether Phase 1 is complete or externally blocked. |
+| Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus the latest actual ChatGPT client proof revalidated against current proof rules, and reports whether Phase 1 is complete or externally blocked. |
 
 The shared state layer marks self-test inbox/draft artifacts, adds artifact age
 fields, indexes Secure Tunnel plan artifacts, warns on stale proof budgets, and
@@ -240,8 +240,9 @@ without running `tunnel-client`; `--trial-command` remains a deprecated
 fallback-only Cloudflare public trial command. Only `--run-readiness` and
 `--run-proposal-smoke` execute local-only validation. No helper starts a public
 tunnel by default. The Phase 1 gate intentionally reports `blocked` until an
-actual ChatGPT Developer Mode proof packet is recorded with a passing
-`actual-client-proof` artifact.
+actual ChatGPT Developer Mode proof packet is recorded and revalidates against
+the current `actual-client-proof` schema/rules; stale artifacts that merely have
+historical `status=passed` no longer complete the gate.
 
 ## Final-product Mission Control flow
 

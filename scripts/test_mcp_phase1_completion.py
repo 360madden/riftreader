@@ -81,6 +81,45 @@ def write_actual_client_proof(root: Path) -> None:
             "status": "passed",
             "ok": True,
             "proof": {
+                "schemaVersion": 1,
+                "connectionMode": "openai-secure-mcp-tunnel",
+                "toolCount": 10,
+                "publicMcpUrl": "https://client.openai-mcp-tunnel.invalid/mcp",
+                "chatgptRegistrationSucceeded": True,
+                "health": {
+                    "repoRoot": ".",
+                    "repoName": "RiftReader",
+                    "absoluteRepoRootExposed": False,
+                },
+                "templateFetched": True,
+                "submitPackageProposalSucceeded": True,
+                "inboxId": "inbox-1",
+                "listInboxSawInboxId": True,
+                "createPackageDraftSucceeded": True,
+                "draftId": "draft-1",
+                "reviewLatestPackageDraftSucceeded": True,
+                "reviewLatestPackageDraftReadOnly": True,
+                "dryRunSucceeded": True,
+                "dryRunDiffPreviewOk": True,
+                "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+                "dryRunDiffPreviewBoundedBytes": True,
+                "dryRunDiffPreviewTextLength": 195,
+                "dryRunDiffPreviewTruncated": False,
+            },
+            "blockers": [],
+        },
+        1_800_000_040,
+    )
+
+
+def write_legacy_actual_client_proof(root: Path) -> None:
+    write_json(
+        root / state.ACTUAL_CLIENT_PROOF_ROOT / "20260519-010400Z" / "proof.json",
+        {
+            "kind": "riftreader-chatgpt-actual-client-proof",
+            "status": "passed",
+            "ok": True,
+            "proof": {
                 "toolCount": 10,
                 "publicMcpUrl": "https://client.trycloudflare.com/mcp",
                 "inboxId": "inbox-1",
@@ -132,6 +171,20 @@ class McpPhase1CompletionTests(unittest.TestCase):
         self.assertTrue(payload["repoSideComplete"])
         self.assertTrue(payload["phase1Complete"])
         self.assertEqual(payload["recommendedNextAction"]["key"], "phase1-complete-handoff")
+
+    def test_phase1_blocks_legacy_passed_proof_that_fails_current_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_repo_side_artifacts(root)
+            write_legacy_actual_client_proof(root)
+
+            payload = phase1.phase1_status(root)
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertTrue(payload["repoSideComplete"])
+        self.assertFalse(payload["phase1Complete"])
+        self.assertIn("actual-client-proof-invalid:required-field-missing:connectionMode", payload["blockers"])
 
     def test_trial_session_teardown_final_does_not_invalidate_ready_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

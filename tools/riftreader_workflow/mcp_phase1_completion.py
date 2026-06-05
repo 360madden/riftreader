@@ -15,10 +15,12 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .chatgpt_trial_recorder import validate_proof
     from .common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
     from .mcp_workflow_state import build_mcp_workflow_state, passed
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.chatgpt_trial_recorder import validate_proof
     from riftreader_workflow.common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
     from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, passed
 
@@ -28,18 +30,45 @@ PHASE1_CHECKS = (
     ("proposal-smoke", "Guarded submit_package_proposal transport smoke passed"),
     ("cloudflare-smoke", "Public HTTPS /mcp smoke passed"),
     ("trial-session", "Bounded ChatGPT trial-session setup passed"),
-    ("actual-client-proof", "Actual ChatGPT client proof recorded and passed"),
+    ("actual-client-proof", "Actual ChatGPT client proof validates against current proof rules"),
 )
 REPO_SIDE_CHECKS = {"readiness", "proposal-smoke", "cloudflare-smoke", "trial-session"}
 
 
-def build_check(kind: str, label: str, latest: dict[str, Any]) -> dict[str, Any]:
+def _current_actual_client_proof_blockers(repo_root: Path, item: dict[str, Any] | None) -> list[str]:
+    if not passed(item):
+        return ["actual-client-proof-not-passed"]
+    if not isinstance(item, dict):
+        return ["actual-client-proof-artifact-missing"]
+    proof_path_value = item.get("path")
+    if not isinstance(proof_path_value, str) or not proof_path_value:
+        return ["actual-client-proof-path-missing"]
+    proof_path = repo_root / proof_path_value
+    try:
+        loaded = json.loads(proof_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - fail closed while preserving evidence.
+        return [f"actual-client-proof-json-invalid:{type(exc).__name__}:{exc}"]
+    if not isinstance(loaded, dict):
+        return ["actual-client-proof-json-not-object"]
+    proof = loaded.get("proof")
+    if not isinstance(proof, dict):
+        return ["actual-client-proof-payload-missing-proof-object"]
+    return [f"actual-client-proof-invalid:{blocker}" for blocker in validate_proof(proof)]
+
+
+def build_check(kind: str, label: str, latest: dict[str, Any], repo_root: Path | None = None) -> dict[str, Any]:
     item = latest.get(kind)
     if kind == "trial-session":
         ready_item = latest.get("trial-session-ready")
         if passed(ready_item):
             item = ready_item
-    ok = passed(item)
+    proof_rule_blockers: list[str] = []
+    if kind == "actual-client-proof":
+        if repo_root is None:
+            proof_rule_blockers = ["actual-client-proof-repo-root-missing"]
+        else:
+            proof_rule_blockers = _current_actual_client_proof_blockers(repo_root, item if isinstance(item, dict) else None)
+    ok = passed(item) and not proof_rule_blockers
     return {
         "kind": kind,
         "label": label,
@@ -48,16 +77,17 @@ def build_check(kind: str, label: str, latest: dict[str, Any]) -> dict[str, Any]
         "path": item.get("path") if isinstance(item, dict) else None,
         "artifactStatus": item.get("status") if isinstance(item, dict) else None,
         "publicMcpUrl": item.get("publicMcpUrl") if isinstance(item, dict) else None,
+        "connectionMode": item.get("connectionMode") if isinstance(item, dict) else None,
         "publicUrlExpectedExpired": bool(item.get("publicUrlExpectedExpired")) if isinstance(item, dict) else False,
         "selfTest": bool(item.get("selfTest")) if isinstance(item, dict) else False,
-        "blockers": [] if ok else [f"{kind}-not-passed"],
+        "blockers": [] if ok else proof_rule_blockers or [f"{kind}-not-passed"],
     }
 
 
 def phase1_status(repo_root: Path) -> dict[str, Any]:
     state = build_mcp_workflow_state(repo_root)
     latest = state.get("latestArtifacts") if isinstance(state.get("latestArtifacts"), dict) else {}
-    checks = [build_check(kind, label, latest) for kind, label in PHASE1_CHECKS]
+    checks = [build_check(kind, label, latest, repo_root=repo_root) for kind, label in PHASE1_CHECKS]
     blockers: list[str] = []
     for check in checks:
         if not check["ok"]:
