@@ -87,6 +87,7 @@ EXPECTED_TOOL_ORDER = (
     "create_package_draft_from_inbox",
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
+    "apply_latest_package_draft",
     "get_workflow_control_plan",
 )
 TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
@@ -99,6 +100,9 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "create_package_draft_from_inbox": frozenset({"inboxId"}),
     "review_latest_package_draft": frozenset({"operatorOnly"}),
     "dry_run_latest_package_draft": frozenset({"operatorOnly", "timeoutSeconds"}),
+    "apply_latest_package_draft": frozenset(
+        {"operatorOnly", "dryRunSummaryPath", "dryRunDiffSha256", "approvalToken", "timeoutSeconds"}
+    ),
     "get_workflow_control_plan": frozenset(),
 }
 TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
@@ -125,7 +129,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "apply-package-to-repo",
         "targetToolName": "apply_latest_package_draft",
-        "currentStatus": "not-exposed",
+        "currentStatus": "exposed-gated",
         "riskClass": "repo-source-mutation",
         "minimumGate": "explicit-operator-approval-plus-clean-reviewed-dry-run",
         "safePrecursorTools": ["review_latest_package_draft", "dry_run_latest_package_draft"],
@@ -221,16 +225,16 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 1,
-    "currentStageName": "Current baseline and proof gap",
+    "currentStage": 20,
+    "currentStageName": "Gated apply exposed locally",
     "currentTruth": (
-        "Local 10-tool MCP is validated; full readiness is blocked on fresh actual "
+        "Local 11-tool MCP is validated locally with gated apply; full readiness is blocked on fresh actual "
         "ChatGPT Web/Desktop Secure Tunnel proof and any unpushed local commits."
     ),
-    "nextStage": 2,
-    "nextStageName": "Publish current roadmap slice",
+    "nextStage": 21,
+    "nextStageName": "Apply actual-client proof",
     "phaseOrder": [
-        "prove current 10-tool Secure Tunnel product",
+        "prove current 11-tool gated-apply Secure Tunnel product",
         "add package apply with reviewed dry-run gates",
         "add local commit with safe explicit-path staging",
         "add push as separate remote-mutation gate",
@@ -242,15 +246,11 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "add end-to-end evals, dashboard, recovery, and release handoff",
     ],
     "immediateStages": [
-        {"stage": 2, "name": "Publish current roadmap slice", "status": "pending"},
-        {"stage": 3, "name": "Refresh Secure Tunnel command plan", "status": "pending"},
-        {"stage": 4, "name": "ChatGPT proof template refresh", "status": "pending"},
-        {"stage": 5, "name": "Secure Tunnel health rehearsal", "status": "pending"},
-        {"stage": 6, "name": "ChatGPT connector registration smoke", "status": "pending"},
-        {"stage": 7, "name": "Read-only ChatGPT smoke", "status": "pending"},
-        {"stage": 8, "name": "Tool identity proof", "status": "pending"},
-        {"stage": 9, "name": "Output schema proof", "status": "pending"},
-        {"stage": 10, "name": "Local proposal submit proof", "status": "pending"},
+        {"stage": 21, "name": "Apply actual-client proof", "status": "pending"},
+        {"stage": 22, "name": "Post-apply validation reporting", "status": "pending"},
+        {"stage": 23, "name": "Safe commit design spec", "status": "pending"},
+        {"stage": 24, "name": "Commit preflight helper", "status": "pending"},
+        {"stage": 25, "name": "Commit execution helper", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -262,12 +262,12 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
 APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-apply-tool-design-contract",
-    "status": "planned-not-exposed",
+    "status": "exposed-gated",
     "targetToolName": "apply_latest_package_draft",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
     "stageRange": [17, 18, 19, 20, 21, 22],
-    "currentStage": 19,
-    "exposureStatus": "not-exposed",
+    "currentStage": 20,
+    "exposureStatus": "exposed-gated",
     "preflightHelper": {
         "status": "implemented-local-only",
         "module": "tools/riftreader_workflow/package_draft_review.py",
@@ -276,7 +276,7 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "passesApplyFlag": False,
     },
     "applyBridgeHelper": {
-        "status": "implemented-local-only-not-mcp-exposed",
+        "status": "implemented-and-mcp-wrapped",
         "module": "tools/riftreader_workflow/package_draft_review.py",
         "cliMode": "--apply-latest-operator",
         "requiresApprovalToken": True,
@@ -284,7 +284,7 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "passesApplyFlagOnlyAfterApproval": True,
         "gitMutation": False,
         "providerWrites": False,
-        "mcpToolExposed": False,
+        "mcpToolExposed": True,
     },
     "argumentKeys": [
         "operatorOnly",
@@ -420,6 +420,19 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         description=(
             "Use this when the operator explicitly approves running package intake dry-run for the newest "
             "inert package draft. This never passes --apply and never mutates repo source, Git, RIFT, CE, or x64dbg."
+        ),
+        read_only=False,
+        destructive=False,
+        open_world=False,
+    ),
+    "apply_latest_package_draft": ToolSpec(
+        name="apply_latest_package_draft",
+        title="Apply Latest Package Draft",
+        description=(
+            "Use this when the local operator supplies an approval token from the local apply preflight. "
+            "This applies the latest operator package draft through the guarded package-intake helper only; it "
+            "never stages, commits, pushes, runs arbitrary shell commands, sends RIFT input, writes provider repos, "
+            "or touches CE/x64dbg."
         ),
         read_only=False,
         destructive=False,
@@ -628,6 +641,15 @@ def optional_bool(value: Any, *, field_name: str, default: bool) -> bool:
     return value
 
 
+def optional_str(value: Any, *, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise AdapterError("INVALID_STRING", f"{field_name} must be a string when supplied.")
+    stripped = value.strip()
+    return stripped or None
+
+
 def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if tool_name == "submit_package_proposal":
         proposal = arguments.get("proposal")
@@ -795,6 +817,13 @@ class RiftReaderChatGptMcpAdapter:
                 ),
                 "dry_run_latest_package_draft": lambda call_args: self.dry_run_latest_package_draft(
                     operator_only=optional_bool(call_args.get("operatorOnly"), field_name="operatorOnly", default=True),
+                    timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
+                ),
+                "apply_latest_package_draft": lambda call_args: self.apply_latest_package_draft(
+                    operator_only=optional_bool(call_args.get("operatorOnly"), field_name="operatorOnly", default=True),
+                    dry_run_summary_path=optional_str(call_args.get("dryRunSummaryPath"), field_name="dryRunSummaryPath"),
+                    dry_run_diff_sha256=optional_str(call_args.get("dryRunDiffSha256"), field_name="dryRunDiffSha256"),
+                    approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
                 ),
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
@@ -1168,6 +1197,51 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def apply_latest_package_draft(
+        self,
+        *,
+        operator_only: bool = True,
+        dry_run_summary_path: str | None = None,
+        dry_run_diff_sha256: str | None = None,
+        approval_token: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        timeout = timeout_seconds if timeout_seconds is not None else self.config.dry_run_timeout_seconds
+        payload = package_draft_review.apply_latest_package_draft_bridge(
+            self.config.repo_root,
+            approval_token=approval_token,
+            operator_only=operator_only,
+            dry_run_summary_path=dry_run_summary_path,
+            dry_run_diff_sha256=dry_run_diff_sha256,
+            timeout_seconds=timeout,
+        )
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-apply-latest-package-draft",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "applied": bool(payload.get("applied")),
+            "operatorOnly": operator_only,
+            "draftId": (payload.get("preflight") or {}).get("approvalFacts", {}).get("draftId")
+            if isinstance(payload.get("preflight"), dict)
+            else None,
+            "applyResult": payload,
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "applyFlagSent": bool((payload.get("safety") or {}).get("applyFlagSent")),
+                "repoSourceMutationExpected": bool((payload.get("safety") or {}).get("repoSourceMutationExpected")),
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
     def get_workflow_control_plan(self) -> dict[str, Any]:
         mission_payload = mcp_mission_control.mission_control(self.config.repo_root)
         commit_plan = safe_commit_packager.safe_commit_plan(self.config.repo_root)
@@ -1202,7 +1276,11 @@ class RiftReaderChatGptMcpAdapter:
                 "writeToLocalInbox": ["submit_package_proposal"],
                 "draftLocalPackage": ["create_package_draft_from_inbox"],
                 "validateLocalDraft": ["review_latest_package_draft", "dry_run_latest_package_draft"],
-                "writeBoundary": "ChatGPT-originated writes are stored only under .riftreader-local inbox/package-draft artifacts until a separate local operator step applies them.",
+                "applyApprovedDraft": ["apply_latest_package_draft"],
+                "writeBoundary": (
+                    "ChatGPT-originated proposal writes are stored only under .riftreader-local inbox/package-draft "
+                    "artifacts until apply_latest_package_draft receives a local preflight approval token."
+                ),
             },
             "missionControl": {
                 "status": mission_payload.get("status"),
@@ -1222,11 +1300,11 @@ class RiftReaderChatGptMcpAdapter:
                 "apply_latest_package_draft": APPLY_TOOL_DESIGN_CONTRACT,
             },
             "futureCapabilityPolicy": {
-                "status": "planned-not-exposed",
+                "status": "apply-exposed-gated",
                 "rule": (
                     "Future higher-power tools should be added incrementally behind explicit gates; this plan "
-                    "advertises the intended capability ladder without exposing apply, Git mutation, shell, "
-                    "live RIFT control, CE, or x64dbg endpoints yet."
+                    "now exposes apply only behind a local approval-token gate, while Git mutation, shell, "
+                    "live RIFT control, CE, and x64dbg endpoints remain unexposed."
                 ),
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
@@ -4135,6 +4213,26 @@ def create_fastmcp_server(
             {"operatorOnly": operatorOnly, "timeoutSeconds": timeoutSeconds},
         )
 
+    def apply_latest_package_draft(
+        operatorOnly: bool = True,  # noqa: N803 - MCP input name.
+        dryRunSummaryPath: str | None = None,  # noqa: N803 - MCP input name.
+        dryRunDiffSha256: str | None = None,  # noqa: N803 - MCP input name.
+        approvalToken: str | None = None,  # noqa: N803 - MCP input name.
+        timeoutSeconds: float | None = None,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this only after a local operator supplies the apply preflight approval token."""
+
+        return adapter.call_tool(
+            "apply_latest_package_draft",
+            {
+                "operatorOnly": operatorOnly,
+                "dryRunSummaryPath": dryRunSummaryPath,
+                "dryRunDiffSha256": dryRunDiffSha256,
+                "approvalToken": approvalToken,
+                "timeoutSeconds": timeoutSeconds,
+            },
+        )
+
     def get_workflow_control_plan() -> dict[str, Any]:
         """Use this when you need a read-only repo workflow control plan."""
 
@@ -4150,6 +4248,7 @@ def create_fastmcp_server(
         ("create_package_draft_from_inbox", create_package_draft_from_inbox),
         ("review_latest_package_draft", review_latest_package_draft),
         ("dry_run_latest_package_draft", dry_run_latest_package_draft),
+        ("apply_latest_package_draft", apply_latest_package_draft),
         ("get_workflow_control_plan", get_workflow_control_plan),
     ):
         register(tool_name, fn)

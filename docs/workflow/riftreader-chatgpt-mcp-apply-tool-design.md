@@ -1,6 +1,7 @@
 # ChatGPT MCP apply_latest_package_draft design
 
-Status: Stage 19 local apply bridge implemented. This does **not** expose an apply MCP tool yet.
+Status: Stage 20 MCP apply wrapper implemented. `apply_latest_package_draft`
+is exposed-gated and requires a local preflight approval token.
 
 Stage 18 local-only preflight is implemented in
 `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`.
@@ -11,7 +12,11 @@ age budget, and diff SHA-256 binding without calling package intake with
 Stage 19 local-only apply bridge is implemented in
 `tools\riftreader_workflow\package_draft_review.py --apply-latest-operator`.
 It requires the Stage 18 approval token before passing `--apply` to package
-intake and remains outside the MCP tool manifest.
+intake.
+
+Stage 20 exposes `apply_latest_package_draft` through the narrow ChatGPT MCP
+manifest. The MCP wrapper delegates to the Stage 19 bridge and blocks without
+`approvalToken`, `dryRunSummaryPath`, and `dryRunDiffSha256`.
 
 ## Purpose
 
@@ -86,6 +91,6 @@ The tool must never become arbitrary filesystem write, shell execution, Git muta
 | 17 | This design contract. |
 | 18 | Package identity and freshness gate implemented local-only. |
 | 19 | Apply dry-run-to-apply bridge helper implemented local-only. |
-| 20 | Expose `apply_latest_package_draft` as MCP tool. |
+| 20 | Expose `apply_latest_package_draft` as an approval-token-gated MCP tool. |
 | 21 | Actual-client apply proof. |
 | 22 | Post-apply validation reporting. |

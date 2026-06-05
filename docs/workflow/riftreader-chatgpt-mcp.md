@@ -1,6 +1,6 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: MVP, narrow tool-only adapter.
+Status: MVP plus gated apply tool, narrow tool-only adapter.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -18,9 +18,12 @@ The adapter is designed for this safe loop:
 4. The proposal is stored only under `.riftreader-local`.
 5. ChatGPT can create an inert package draft from a specific inbox proposal
    under `.riftreader-local` only.
-6. Operator/Codex reviews inbox and inert package drafts before any separate
-   dry-run/apply decision.
-7. ChatGPT can request a read-only workflow control plan with safe next actions,
+6. Operator/Codex reviews inbox and inert package drafts before any dry-run.
+7. ChatGPT can dry-run the latest operator package draft and receive bounded
+   package diff evidence.
+8. ChatGPT can apply only after the local operator supplies the Stage 18/19
+   approval token bound to the reviewed dry-run.
+9. ChatGPT can request a read-only workflow control plan with safe next actions,
    explicit staging/check commands, bidirectional data-transfer steps, and
    gated boundaries.
 
@@ -37,6 +40,7 @@ The adapter is designed for this safe loop:
 | `create_package_draft_from_inbox` | Guarded local write | Converts an explicit validated `inboxId` into an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`; never applies files or executes checks. |
 | `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
 | `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`; returns a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff` when available. |
+| `apply_latest_package_draft` | Approval-token gated action | Applies the latest operator package draft only through package intake after matching dry-run summary, diff SHA-256, and local approval token; never stages, commits, pushes, runs shell, sends RIFT input, writes providers, or touches CE/x64dbg. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
 
 Each tool has an explicit allowlist of accepted argument keys. Unknown wrapper
@@ -73,29 +77,30 @@ malformed result that omits the common structuredContent fields (`schemaVersion`
 ## Future capability roadmap
 
 `get_workflow_control_plan` now advertises the intended higher-power capability
-ladder while keeping those endpoints **not exposed** until their proof and
-approval gates exist. This lets ChatGPT Web/Desktop reason about next steps
-without silently gaining apply, Git, shell, live RIFT, CE, or x64dbg powers.
+ladder while keeping endpoints gated until their proof and approval gates exist.
+This lets ChatGPT Web/Desktop reason about next steps without silently gaining
+Git, shell, live RIFT, CE, or x64dbg powers.
 
 The full current-to-finished-product plan is maintained in
 `docs\workflow\riftreader-chatgpt-mcp-50-stage-plan.md` and is summarized in
 the `fullProductStagePlan` field returned by `get_workflow_control_plan`.
 The first future repo-source-mutation contract is documented in
-`docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md` and is surfaced
-only as `futureToolContracts.apply_latest_package_draft` with
-`status=planned-not-exposed`; it is not part of the MCP tool manifest. Its
+`docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md` and is surfaced as
+`futureToolContracts.apply_latest_package_draft` with `status=exposed-gated`.
+Its
 Stage 18 local-only preflight helper is
 `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`,
 which validates draft identity, dry-run freshness, and diff hash binding without
 passing `--apply`.
 Stage 19 adds `--apply-latest-operator` as a local-only bridge that requires the
-preflight approval token before it can pass `--apply` to package intake; it is
-still not exposed through MCP and it performs no Git, provider, RIFT, CE, or
+preflight approval token before it can pass `--apply` to package intake. Stage
+20 wraps that bridge as `apply_latest_package_draft`; the MCP tool still
+requires the local approval token and performs no Git, provider, RIFT, CE, or
 x64dbg action.
 
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
-| Apply latest package draft to repo | Stage 19 local bridge; not exposed | Explicit operator approval token plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
+| Apply latest package draft to repo | Stage 20 exposed-gated | Explicit operator approval token plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |
@@ -446,10 +451,10 @@ Actual-client proof packets must record the selected connection path explicitly:
 |---|---|---|
 | `connectionMode` | `openai-secure-mcp-tunnel` | Required for primary ChatGPT Web/Desktop proof. |
 | `publicMcpUrl` | OpenAI-hosted tunnel endpoint or tunnel-selected ChatGPT connector endpoint | Must be HTTPS; must not use `trycloudflare.com`, `ngrok.app`, or `ngrok-free.app` when `connectionMode=openai-secure-mcp-tunnel`. |
-| `toolNames` | Canonical 10 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 11 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `10` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 10 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `11` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 11 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Only use `connectionMode=public-https-fallback` when the operator explicitly
 selects the deprecated public HTTPS fallback lane.

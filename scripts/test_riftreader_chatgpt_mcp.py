@@ -271,10 +271,15 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["apply_latest_package_draft"]["readOnlyHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
         self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
+        self.assertEqual(
+            allowed_args_by_name["apply_latest_package_draft"],
+            ["approvalToken", "dryRunDiffSha256", "dryRunSummaryPath", "operatorOnly", "timeoutSeconds"],
+        )
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
             self.assertFalse(annotations["openWorldHint"])
@@ -661,6 +666,43 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["code"], "DRY_RUN_APPLY_FLAG_BLOCKED")
 
+    def test_apply_latest_package_draft_blocks_without_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            helper_payload = {
+                "status": "blocked",
+                "ok": False,
+                "applied": False,
+                "preflight": {"approvalFacts": {"draftId": "20260518T130000Z-bbbbbbbbbbbb"}},
+                "blockers": ["APPLY_APPROVAL_MISSING"],
+                "warnings": [],
+                "safety": {"applyFlagSent": False, "repoSourceMutationExpected": False},
+            }
+            with mock.patch.object(
+                chatgpt_mcp.package_draft_review,
+                "apply_latest_package_draft_bridge",
+                return_value=helper_payload,
+            ) as apply_bridge:
+                payload = adapter.call_tool(
+                    "apply_latest_package_draft",
+                    {
+                        "operatorOnly": True,
+                        "dryRunSummaryPath": ".riftreader-local/package-intake/example/package-intake-summary.json",
+                        "dryRunDiffSha256": "0" * 64,
+                        "timeoutSeconds": 30,
+                    },
+                )
+
+        apply_bridge.assert_called_once()
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["blockers"])
+        self.assertFalse(payload["safety"]["applyFlagSent"])
+        self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
+        assert_repo_root_not_serialized(self, root, payload)
+
     def test_invalid_operator_only_type_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -797,6 +839,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["controlMode"], "plan-only")
         self.assertIn("submit_package_proposal", payload["bidirectionalDataTransfer"]["writeToLocalInbox"])
+        self.assertIn("apply_latest_package_draft", payload["bidirectionalDataTransfer"]["applyApprovedDraft"])
         self.assertEqual(payload["safeCommitPlan"]["stageablePaths"], ["docs/example.md"])
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
@@ -804,39 +847,39 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         roadmap_by_key = {item["key"]: item for item in payload["futureCapabilityRoadmap"]}
         self.assertIn("apply-package-to-repo", roadmap_by_key)
         self.assertIn("bounded-shell-command", roadmap_by_key)
-        self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "not-exposed")
+        self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "exposed-gated")
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
-        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "planned-not-exposed")
+        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "apply-exposed-gated")
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 1)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 2)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 20)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 21)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
         )
         self.assertGreaterEqual(len(payload["fullProductStagePlan"]["immediateStages"]), 5)
         future_contract = payload["futureToolContracts"]["apply_latest_package_draft"]
-        self.assertEqual(future_contract["status"], "planned-not-exposed")
+        self.assertEqual(future_contract["status"], "exposed-gated")
         self.assertEqual(future_contract["targetToolName"], "apply_latest_package_draft")
         self.assertEqual(
             future_contract["designPath"],
             "docs/workflow/riftreader-chatgpt-mcp-apply-tool-design.md",
         )
-        self.assertEqual(future_contract["currentStage"], 19)
+        self.assertEqual(future_contract["currentStage"], 20)
         self.assertEqual(future_contract["preflightHelper"]["status"], "implemented-local-only")
         self.assertFalse(future_contract["preflightHelper"]["mutatesRepo"])
         self.assertFalse(future_contract["preflightHelper"]["passesApplyFlag"])
-        self.assertEqual(future_contract["applyBridgeHelper"]["status"], "implemented-local-only-not-mcp-exposed")
+        self.assertEqual(future_contract["applyBridgeHelper"]["status"], "implemented-and-mcp-wrapped")
         self.assertTrue(future_contract["applyBridgeHelper"]["requiresApprovalToken"])
         self.assertFalse(future_contract["applyBridgeHelper"]["gitMutation"])
-        self.assertFalse(future_contract["applyBridgeHelper"]["mcpToolExposed"])
+        self.assertTrue(future_contract["applyBridgeHelper"]["mcpToolExposed"])
         self.assertIn("dryRunDiffSha256", future_contract["argumentKeys"])
         self.assertIn("diff-hash-binding", future_contract["requiredGates"])
         self.assertIn("APPLY_DRY_RUN_HASH_MISMATCH", future_contract["failClosedBlockers"])
-        self.assertEqual(future_contract["exposureStatus"], "not-exposed")
-        self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.EXPECTED_TOOL_ORDER)
-        self.assertNotIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
+        self.assertEqual(future_contract["exposureStatus"], "exposed-gated")
+        self.assertIn("apply_latest_package_draft", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
         self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 
     def test_create_fastmcp_server_registers_tools_with_annotations(self) -> None:
