@@ -244,11 +244,15 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertEqual([item["name"] for item in manifest["tools"]], list(chatgpt_mcp.EXPECTED_TOOL_ORDER))
         annotation_by_name = {item["name"]: item["annotations"] for item in manifest["tools"]}
+        allowed_args_by_name = {item["name"]: item["allowedArgumentKeys"] for item in manifest["tools"]}
         self.assertTrue(annotation_by_name["health"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
+        self.assertEqual(allowed_args_by_name["health"], [])
+        self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
+        self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
             self.assertFalse(annotations["openWorldHint"])
@@ -565,6 +569,49 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["code"], "INVALID_ARGUMENTS")
+
+    def test_unexpected_tool_arguments_are_blocked_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+
+            payload = adapter.call_tool("health", {"ignored": True})
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], "UNEXPECTED_TOOL_ARGUMENTS")
+        self.assertEqual(payload["unexpectedKeys"], ["ignored"])
+        self.assertEqual(payload["allowedKeys"], [])
+
+    def test_submit_blocks_unexpected_wrapper_arguments_before_inbox_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+
+            payload = adapter.call_tool(
+                "submit_package_proposal",
+                {"proposal": package_proposal(), "apply": True},
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["code"], "UNEXPECTED_TOOL_ARGUMENTS")
+            self.assertIn("apply", payload["unexpectedKeys"])
+            self.assertFalse((root / ".riftreader-local" / "artifact-bridge-inbox").exists())
+
+    def test_tool_arguments_must_be_json_serializable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+
+            payload = adapter.call_tool(
+                "submit_package_proposal",
+                {"proposal": {"not_json": {Path("x")}}},
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], "TOOL_ARGUMENTS_NOT_JSON_SERIALIZABLE")
 
     def test_get_repo_status_uses_existing_status_packet_helpers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

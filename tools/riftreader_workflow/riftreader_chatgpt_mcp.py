@@ -87,6 +87,18 @@ EXPECTED_TOOL_ORDER = (
     "dry_run_latest_package_draft",
     "get_workflow_control_plan",
 )
+TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
+    "health": frozenset(),
+    "get_repo_status": frozenset(),
+    "get_latest_handoff": frozenset(),
+    "get_package_proposal_template": frozenset(),
+    "submit_package_proposal": frozenset({"proposal"}),
+    "list_inbox": frozenset(),
+    "review_latest_package_draft": frozenset({"operatorOnly"}),
+    "dry_run_latest_package_draft": frozenset({"operatorOnly", "timeoutSeconds"}),
+    "get_workflow_control_plan": frozenset(),
+}
+TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
 
 
 @dataclass(frozen=True)
@@ -374,13 +386,20 @@ def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str,
             payload = proposal.get("payload") if isinstance(proposal.get("payload"), dict) else {}
             files = payload.get("files") if isinstance(payload, dict) else None
             checks = payload.get("checks") if isinstance(payload, dict) else None
+            try:
+                proposal_size = json_size_bytes(proposal)
+                proposal_json_serializable = True
+            except (TypeError, ValueError):
+                proposal_size = None
+                proposal_json_serializable = False
             return {
                 "proposalKind": proposal.get("kind"),
                 "title": proposal.get("title"),
                 "hasBody": isinstance(proposal.get("body"), str) and bool(str(proposal.get("body")).strip()),
                 "fileCount": len(files) if isinstance(files, list) else None,
                 "checkCount": len(checks) if isinstance(checks, list) else None,
-                "jsonSizeBytes": json_size_bytes(proposal),
+                "jsonSizeBytes": proposal_size,
+                "jsonSerializable": proposal_json_serializable,
             }
         return {"proposalType": type(proposal).__name__}
     return {
@@ -388,6 +407,32 @@ def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str,
         for key, value in arguments.items()
         if isinstance(value, str | int | float | bool | type(None))
     }
+
+
+def validate_tool_arguments(tool_name: str, arguments: dict[str, Any], *, max_bytes: int) -> None:
+    allowed_keys = TOOL_ARGUMENT_KEYS.get(tool_name)
+    if allowed_keys is None:
+        raise AdapterError("TOOL_ARGUMENT_POLICY_MISSING", f"No argument policy is configured for tool: {tool_name}", status="failed")
+    unknown_keys = sorted(str(key) for key in arguments if key not in allowed_keys)
+    if unknown_keys:
+        raise AdapterError(
+            "UNEXPECTED_TOOL_ARGUMENTS",
+            "Tool arguments contained unsupported keys.",
+            extra={"unexpectedKeys": unknown_keys, "allowedKeys": sorted(allowed_keys)},
+        )
+    try:
+        actual_bytes = json_size_bytes(arguments)
+    except (TypeError, ValueError) as exc:
+        raise AdapterError(
+            "TOOL_ARGUMENTS_NOT_JSON_SERIALIZABLE",
+            f"Tool arguments must be JSON serializable: {type(exc).__name__}: {exc}",
+        ) from exc
+    if actual_bytes > max_bytes:
+        raise AdapterError(
+            "TOOL_ARGUMENTS_TOO_LARGE",
+            "Tool arguments exceeded the MCP adapter byte limit.",
+            extra={"maxBytes": max_bytes, "actualBytes": actual_bytes},
+        )
 
 
 def result_summary(result: dict[str, Any]) -> dict[str, Any]:
@@ -455,6 +500,11 @@ class RiftReaderChatGptMcpAdapter:
             return result
 
         try:
+            validate_tool_arguments(
+                tool_name,
+                args,
+                max_bytes=self.config.bridge_config.max_inbox_bytes + TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES,
+            )
             dispatch: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
                 "health": lambda _: self.health(),
                 "get_repo_status": lambda _: self.get_repo_status(),
@@ -1045,6 +1095,7 @@ def tool_manifest() -> dict[str, Any]:
                 "name": TOOL_SPECS[name].name,
                 "title": TOOL_SPECS[name].title,
                 "description": TOOL_SPECS[name].description,
+                "allowedArgumentKeys": sorted(TOOL_ARGUMENT_KEYS[name]),
                 "annotations": TOOL_SPECS[name].annotation_payload(),
             }
             for name in EXPECTED_TOOL_ORDER

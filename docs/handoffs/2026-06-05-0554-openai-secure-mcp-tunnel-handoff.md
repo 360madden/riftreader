@@ -100,12 +100,52 @@ No shell endpoint, Git mutation endpoint, tunnel-control endpoint, ChatGPT
 registration, public tunnel, live RIFT action, provider write, or debugger
 attach was added.
 
+## Latest continuation - 2026-06-05 08:14 UTC
+
+The ChatGPT Web/Desktop MCP adapter now rejects unexpected tool arguments
+fail-closed instead of silently ignoring client mistakes. This makes automated
+repo-control planning safer while preserving the same 9-tool authority surface.
+
+| Evidence | Result |
+|---|---|
+| Argument allowlist | Every exposed tool now has an explicit accepted top-level argument-key set. |
+| Manifest debug surface | `health`/tool manifest reports `allowedArgumentKeys` for client troubleshooting. |
+| Unknown wrapper args | Calls such as `health({"ignored": true})` or `submit_package_proposal(..., "apply": true)` now block before any inbox write. |
+| Non-JSON args | Non-JSON-serializable argument payloads block and are audited without logging proposal content. |
+| Focused adapter tests | `python -m unittest scripts.test_riftreader_chatgpt_mcp` passed 50 tests in `3.022s`. |
+
+No tool was added, no apply path was added, and no shell, Git, tunnel, ChatGPT
+registration, live RIFT, provider, CE, or x64dbg authority was introduced.
+
+## Latest continuation - 2026-06-05 08:23 UTC
+
+Parallel local MCP validation exposed and fixed a package-draft allocation race:
+`--self-test` and `--trial-readiness` could reserve the same self-test draft
+suffix and one path failed with `FileExistsError`. Package-draft creation now
+reserves the draft directory atomically before writing package files.
+
+| Evidence | Result |
+|---|---|
+| Root cause | `unique_package_draft_dir()` checked for a free path and created it later; concurrent validation could choose the same suffix. |
+| Fix | `reserve_unique_package_draft_dir()` now uses atomic `mkdir(..., exist_ok=False)` reservation and retries suffixes. |
+| Regression test | `test_inbox_package_draft_reserves_unique_dirs_for_parallel_creators` creates four package drafts for the same inbox item in parallel. |
+| Local tests | `python -m unittest scripts.test_local_artifact_bridge scripts.test_riftreader_chatgpt_mcp` passed 95 tests in `34.007s`. |
+| Trial readiness | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --trial-readiness --json` passed after the fix. |
+| New readiness artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T082325Z-trial-readiness.json`. |
+| New proposal smoke artifact | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260605T082325Z-proposal-transport-smoke.json`. |
+
+The failed parallel smoke did not mutate repo targets, Git, tunnel state,
+ChatGPT registration, RIFT, provider repos, CE, or x64dbg. It created only
+ignored `.riftreader-local` self-test/audit artifacts before the race was fixed.
+
 ## Code/docs changes
 
 | File | Change |
 |---|---|
-| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, `get_workflow_control_plan`, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
-| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, workflow-control-plan coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
+| `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` | Added `--secure-tunnel-plan`, env/shared-tools/repo-local `tunnel-client` discovery, stdio MCP command generation, binary SHA256/`--version` diagnostics, `get_workflow_control_plan`, strict MCP wrapper-argument allowlists, JSON tunnel plan output/artifact writing, and Cloudflare deprecation framing. |
+| `scripts/test_riftreader_chatgpt_mcp.py` | Added Secure MCP Tunnel plan coverage, command-line output coverage, ChatGPT smoke-order coverage, repo-local adminless discovery coverage, binary diagnostic coverage, workflow-control-plan coverage, strict argument allowlist coverage, and updated trial-readiness dependency assertions to prefer `tunnel-client`. |
+| `tools/riftreader_workflow/local_artifact_bridge.py` | Added atomic package-draft directory reservation so concurrent local MCP/self-test validations do not collide on the same draft suffix. |
+| `scripts/test_local_artifact_bridge.py` | Added parallel package-draft creation regression coverage. |
 | `tools/riftreader_workflow/mcp_workflow_state.py` | Added Secure Tunnel plan artifact indexing and changed MCP recommended workflow routing to prefer `--secure-tunnel-plan` before ChatGPT Web/Desktop proof. |
 | `tools/riftreader_workflow/mcp_final_readiness.py` | Added primary-path `tunnel-client` dependency gate, env/shared-tools/repo-local discovery, SHA256/`--version` binary diagnostics, and aged-out stale ephemeral Cloudflare ready URLs so stale fallback artifacts do not block the Secure Tunnel path. |
 | `tools/riftreader_workflow/mcp_mission_control.py` | Surfaced Secure Tunnel plan commands in Mission Control and proof checklist; Cloudflare trial command remains fallback-only. |

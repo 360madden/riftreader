@@ -791,6 +791,29 @@ def unique_package_draft_dir(config: BridgeConfig, inbox_id: str) -> pathlib.Pat
     return candidate
 
 
+def reserve_unique_package_draft_dir(config: BridgeConfig, inbox_id: str) -> pathlib.Path:
+    """Atomically reserve a unique package-draft directory.
+
+    ``unique_package_draft_dir`` is useful for display/planning, but checking a
+    path and creating it later is racy when two local validation flows create
+    self-test drafts at the same time. This helper makes directory creation the
+    reservation step and retries with the next suffix if another process won.
+    """
+    root = package_draft_root(config)
+    base = (root / inbox_id).resolve()
+    if not is_relative_to(base, root):
+        raise BridgeError(400, "INBOX_ID_INVALID", "Package draft ID escaped draft root.")
+    counter = 1
+    while counter <= 10_000:
+        candidate = base if counter == 1 else (root / f"{inbox_id}-{counter}")
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+            return candidate
+        except FileExistsError:
+            counter += 1
+    raise BridgeError(500, "PACKAGE_DRAFT_ID_EXHAUSTED", "Unable to reserve a unique package draft directory.")
+
+
 def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[str, Any]:
     inbox_id = latest_inbox_id(config) if inbox_id_arg == "latest" else validate_inbox_id(inbox_id_arg)
     if not inbox_id:
@@ -855,7 +878,7 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
         package_name = f"Local Inbox package proposal {inbox_id}"
     package_name = package_name.strip()[:160]
 
-    draft_dir = unique_package_draft_dir(config, inbox_id)
+    draft_dir = reserve_unique_package_draft_dir(config, inbox_id)
     package_root = draft_dir / "package"
     files_dir = package_root / "files"
     files_dir.mkdir(parents=True, exist_ok=False)

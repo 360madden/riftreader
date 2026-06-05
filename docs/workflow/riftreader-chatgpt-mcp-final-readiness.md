@@ -105,6 +105,12 @@ updates this list:
 Any extra tool is a final-readiness blocker until the contract is updated and
 tests prove the new tool stays within the safety model.
 
+Every approved tool must also enforce a strict wrapper-argument allowlist. Any
+unknown top-level argument key, non-object argument payload, non-JSON-
+serializable payload, or oversized argument payload must block before inbox,
+draft, audit-expansion, dry-run, shell, Git, tunnel, RIFT, CE, x64dbg, or
+provider side effects can occur.
+
 ## Freshness budgets
 
 | Artifact | Budget | Stale behavior |

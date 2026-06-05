@@ -816,6 +816,50 @@ class BridgeServerCase(unittest.TestCase):
         self.assertEqual(payload["validation"]["errors"], [])
         self.assertFalse((self.repo_root / "docs" / "latest-proposal.md").exists())
 
+    def test_inbox_package_draft_reserves_unique_dirs_for_parallel_creators(self) -> None:
+        message = {
+            "schemaVersion": 1,
+            "kind": "package-proposal",
+            "title": "Parallel package proposal",
+            "payload": {
+                "files": [
+                    {
+                        "target": "docs/parallel-proposal.md",
+                        "content": "# Parallel proposal\n",
+                    }
+                ]
+            },
+        }
+        stored = bridge.store_inbox_message(self.config, bridge.validate_inbox_message(message), len(bridge.json_bytes(message)))
+        barrier = threading.Barrier(4)
+        results: list[dict[str, object]] = []
+        errors: list[BaseException] = []
+        lock = threading.Lock()
+
+        def create_draft() -> None:
+            try:
+                barrier.wait(timeout=5)
+                payload = bridge.create_inbox_package_draft(self.config, stored["inboxId"])
+                with lock:
+                    results.append(payload)
+            except BaseException as exc:  # noqa: BLE001 - test records worker failures for assertion.
+                with lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=create_draft) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 4)
+        self.assertTrue(all(payload.get("ok") for payload in results))
+        draft_roots = [str(payload["draftRoot"]) for payload in results]
+        self.assertEqual(len(set(draft_roots)), 4)
+        for draft_root in draft_roots:
+            self.assertTrue((self.repo_root / draft_root / "summary.json").is_file())
+
     def test_inbox_package_draft_cli_blocks_empty_inbox(self) -> None:
         stdout = io.StringIO()
 

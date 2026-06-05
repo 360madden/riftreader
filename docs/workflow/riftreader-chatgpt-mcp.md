@@ -36,6 +36,11 @@ The adapter is designed for this safe loop:
 | `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
 
+Each tool has an explicit allowlist of accepted argument keys. Unknown wrapper
+arguments are blocked fail-closed instead of being silently ignored, and the
+`health` manifest reports each tool's `allowedArgumentKeys` for ChatGPT
+Web/Desktop client debugging.
+
 ## Hard boundaries
 
 - No arbitrary filesystem read tool.
