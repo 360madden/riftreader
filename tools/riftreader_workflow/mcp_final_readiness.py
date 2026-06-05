@@ -577,33 +577,51 @@ def _latest_release_handoff_path(repo_root: Path) -> str | None:
 
 def _next_action(blockers: list[str], *, release_handoff_path: str | None = None) -> dict[str, Any]:
     commands = standard_commands()
-    for blocker in blockers:
-        if blocker.startswith("git:dirty-worktree"):
-            return {"key": "safe-commit-plan", "reason": "Final readiness requires a clean worktree.", "command": commands["safeCommitPlan"]}
-        if blocker.startswith("ci:"):
-            return {
-                "key": "inspect-current-head-ci",
-                "reason": "Current HEAD CI is unavailable, pending, or failing.",
-                "command": ["gh", "run", "list", "--limit", "10", "--json", "databaseId,workflowName,headSha,status,conclusion,createdAt,updatedAt,event,url"],
-            }
-        if blocker.startswith("artifact:trial-readiness"):
-            return {"key": "refresh-trial-readiness", "reason": "Final readiness requires fresh local trial readiness.", "command": commands["mcpTrialReadiness"]}
-        if blocker.startswith("artifact:proposal-smoke"):
-            return {"key": "refresh-proposal-smoke", "reason": "Final readiness requires a fresh guarded proposal transport smoke.", "command": commands["proposalTransportSmoke"]}
-        if blocker.startswith("proof:"):
-            return {"key": "record-actual-client-proof", "reason": "Actual-client proof is missing, stale, or failed replay.", "command": commands["trialProofTemplate"]}
-        if blocker.startswith("phase2:"):
-            return {"key": "mcp-phase2-status", "reason": "Final readiness builds on a passing Phase 2 gate.", "command": commands["mcpPhase2Status"]}
-        if blocker.startswith("dependency:"):
-            if blocker == "dependency:missing:tunnel-client":
-                return {"key": "install-or-locate-tunnel-client", "reason": blocker, "command": commands["secureTunnelPlan"]}
-            return {"key": "fix-final-readiness-dependency", "reason": blocker, "command": commands["mcpMissionControl"]}
-        if blocker.startswith("environment:") or blocker.startswith("repo:"):
-            return {"key": "fix-final-readiness-environment", "reason": blocker, "command": commands["mcpMissionControl"]}
-        if blocker.startswith("safety:"):
-            return {"key": "inspect-mcp-safety", "reason": blocker, "command": commands["mcpTrialReadiness"]}
-        if blocker.startswith("public-session:"):
-            return {"key": "inspect-public-session-state", "reason": blocker, "command": commands["mcpMissionControl"]}
+
+    def first_by_prefix(*prefixes: str) -> str | None:
+        return next(
+            (blocker for blocker in blockers if any(blocker.startswith(prefix) for prefix in prefixes)),
+            None,
+        )
+
+    if first_by_prefix("git:dirty-worktree"):
+        return {"key": "safe-commit-plan", "reason": "Final readiness requires a clean worktree.", "command": commands["safeCommitPlan"]}
+    blocker = first_by_prefix("dependency:missing:tunnel-client")
+    if blocker:
+        return {"key": "install-or-locate-tunnel-client", "reason": blocker, "command": commands["secureTunnelPlan"]}
+    blocker = first_by_prefix("environment:", "repo:")
+    if blocker:
+        return {"key": "fix-final-readiness-environment", "reason": blocker, "command": commands["mcpMissionControl"]}
+    blocker = first_by_prefix("safety:")
+    if blocker:
+        return {"key": "inspect-mcp-safety", "reason": blocker, "command": commands["mcpTrialReadiness"]}
+    blocker = first_by_prefix("public-session:")
+    if blocker:
+        return {"key": "inspect-public-session-state", "reason": blocker, "command": commands["mcpMissionControl"]}
+    if first_by_prefix("artifact:trial-readiness"):
+        return {"key": "refresh-trial-readiness", "reason": "Final readiness requires fresh local trial readiness.", "command": commands["mcpTrialReadiness"]}
+    if first_by_prefix("artifact:proposal-smoke"):
+        return {"key": "refresh-proposal-smoke", "reason": "Final readiness requires a fresh guarded proposal transport smoke.", "command": commands["proposalTransportSmoke"]}
+    if first_by_prefix("proof:"):
+        return {"key": "record-actual-client-proof", "reason": "Actual-client proof is missing, stale, or failed replay.", "command": commands["trialProofTemplate"]}
+    if first_by_prefix("ci:"):
+        return {
+            "key": "inspect-current-head-ci",
+            "reason": "Current HEAD CI is unavailable, pending, or failing.",
+            "command": ["gh", "run", "list", "--limit", "10", "--json", "databaseId,workflowName,headSha,status,conclusion,createdAt,updatedAt,event,url"],
+        }
+    blocker = first_by_prefix("git:upstream-not-synced")
+    if blocker:
+        return {
+            "key": "request-push-approval",
+            "reason": "Final readiness requires upstream sync and current-head CI; pushing requires explicit approval.",
+            "command": ["git", "--no-pager", "status", "--short", "--branch"],
+        }
+    if first_by_prefix("phase2:"):
+        return {"key": "mcp-phase2-status", "reason": "Final readiness builds on a passing Phase 2 gate.", "command": commands["mcpPhase2Status"]}
+    blocker = first_by_prefix("dependency:")
+    if blocker:
+        return {"key": "fix-final-readiness-dependency", "reason": blocker, "command": commands["mcpMissionControl"]}
     if release_handoff_path:
         return {
             "key": "maintenance-loop",

@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP final next-action priority — 2026-06-05 10:46 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1046-chatgpt-mcp-final-next-action-priority-handoff.md`.
+
+The RiftReader ChatGPT Web/Desktop MCP final readiness gate now chooses specific
+actionable blockers before generic wrapper blockers. Proof replay failures route
+directly to actual-client proof recording instead of generic `phase2:not-ready`,
+and upstream-sync-only failures use a non-mutating approval/status action rather
+than implying an automated push.
+
+| Evidence | Result |
+|---|---|
+| Active final gate | `tools/riftreader_workflow/mcp_final_readiness.py`. |
+| Proof priority | `proof:*` blockers recommend `record-actual-client-proof` with `scripts/riftreader-chatgpt-trial-recorder.cmd --template --json`. |
+| Upstream priority | `git:upstream-not-synced:*` recommends `request-push-approval` with `git --no-pager status --short --branch`; no push command is emitted. |
+| Dirty-tree priority | Dirty worktree still recommends `safe-commit-plan` before external proof/CI work. |
+| Focused validation | `python -m unittest scripts.test_mcp_final_readiness scripts.test_mcp_phase2_status scripts.test_mcp_phase1_completion scripts.test_mcp_mission_control scripts.test_workflow_router` passed 51 tests in 11.650s. |
+| Broad MCP validation | `python -m unittest scripts.test_mcp_final_readiness scripts.test_mcp_phase1_completion scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_riftreader_chatgpt_mcp scripts.test_local_artifact_bridge scripts.test_package_draft_review` passed 181 tests in 46.618s. |
+| Final ledger | `.riftreader-local/validation-runs/20260605-104515-615980/summary.md` passed in 46.777s. |
+
 ## Latest compact handoff — ChatGPT MCP Phase 1 current-proof revalidation — 2026-06-05 10:38 UTC
 
 A new compact handoff exists at

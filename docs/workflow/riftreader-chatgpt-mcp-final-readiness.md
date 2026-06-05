@@ -220,12 +220,19 @@ Phase 6 may be considered complete when:
 | Condition | Recommended key | Command |
 |---|---|---|
 | Dirty worktree | `safe-commit-plan` | `scripts\riftreader-safe-commit-packager.cmd --plan --json` |
-| CI missing/pending/failing | `inspect-current-head-ci` | `gh run list --limit 10 --json databaseId,workflowName,headSha,status,conclusion,createdAt,updatedAt,event,url` |
+| Missing `tunnel-client` dependency | `install-or-locate-tunnel-client` | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` |
+| Environment, repo, safety, or public-session blocker | `fix-final-readiness-environment`, `inspect-mcp-safety`, or `inspect-public-session-state` | Mission Control or local readiness command; no live tunnel starts by default. |
 | Trial readiness stale | `refresh-trial-readiness` | `scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json` |
 | Proposal smoke stale | `refresh-proposal-smoke` | `scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json` |
-| Proof stale/missing | `record-actual-client-proof` | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` |
-| Final local checks pass but fresh external proof needed | `start-bounded-chatgpt-trial` | `scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 900 --json` |
+| Proof stale/missing/replay-failed | `record-actual-client-proof` | `scripts\riftreader-chatgpt-trial-recorder.cmd --template --json` |
+| CI missing/pending/failing after proof is current | `inspect-current-head-ci` | `gh run list --limit 10 --json databaseId,workflowName,headSha,status,conclusion,createdAt,updatedAt,event,url` |
+| Upstream not synced after local gates pass | `request-push-approval` | `git --no-pager status --short --branch` |
+| Generic Phase 2 blocker without a more specific blocker | `mcp-phase2-status` | `scripts\riftreader-mcp-phase2.cmd --status --json` |
 | All checks pass | `ready-for-release-handoff` | Write/update final release handoff. |
+
+When multiple blockers exist, the final gate chooses the safest specific
+operator action before generic wrapper blockers. For example, proof replay
+failures take priority over `phase2:not-ready` and current-head CI blockers.
 
 ## Phase 3 implementation acceptance criteria
 

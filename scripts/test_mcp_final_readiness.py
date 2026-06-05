@@ -197,6 +197,53 @@ class McpFinalReadinessTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("proof:stale", payload["blockers"])
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+
+    def test_proof_action_beats_generic_phase2_and_ci_blockers(self) -> None:
+        phase2 = base_phase2()
+        phase2["status"] = "blocked"
+        phase2["ok"] = False
+        phase2["ciStatus"] = {
+            "status": "blocked",
+            "ok": False,
+            "currentHead": "012345",
+            "blockers": ["ci-workflow-missing-current-head:.NET build and test"],
+        }
+        phase2["proofReplay"] = {
+            "status": "blocked",
+            "ok": False,
+            "blockers": ["required-field-missing:connectionMode"],
+            "proofFreshness": {"status": "stale"},
+        }
+
+        payload = final_status(phase2=phase2)
+
+        self.assertIn("phase2:not-ready", payload["blockers"])
+        self.assertIn("ci:missing:.NET build and test", payload["blockers"])
+        self.assertIn("proof:replay-failed:required-field-missing:connectionMode", payload["blockers"])
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+
+    def test_upstream_sync_blocker_has_non_mutating_recommendation(self) -> None:
+        overrides = ok_gate_overrides()
+        overrides["git_sync_payload"] = {
+            "status": "blocked",
+            "ok": False,
+            "blockers": ["git:upstream-not-synced:behind=0:ahead=1"],
+            "warnings": [],
+            "ahead": 1,
+            "behind": 0,
+        }
+
+        payload = final.final_readiness(
+            Path.cwd(),
+            phase2_payload=base_phase2(),
+            state_payload=base_state(),
+            **overrides,
+        )
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "request-push-approval")
+        self.assertEqual(payload["recommendedNextAction"]["command"], ["git", "--no-pager", "status", "--short", "--branch"])
 
     def test_stale_readiness_and_proposal_smoke_block_final_readiness(self) -> None:
         phase2 = base_phase2()
