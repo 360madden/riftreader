@@ -344,6 +344,15 @@ def replay_actual_client_proof(
             "dryRunSucceeded": proof.get("dryRunSucceeded") if isinstance(proof, dict) else None,
             "dryRunDiffPreviewOk": proof.get("dryRunDiffPreviewOk") if isinstance(proof, dict) else None,
             "dryRunDiffPreviewTextLength": proof.get("dryRunDiffPreviewTextLength") if isinstance(proof, dict) else None,
+            "applyLatestPackageDraftWithoutApprovalBlocked": (
+                proof.get("applyLatestPackageDraftWithoutApprovalBlocked") if isinstance(proof, dict) else None
+            ),
+            "applyLatestPackageDraftWithoutApprovalBlockers": (
+                proof.get("applyLatestPackageDraftWithoutApprovalBlockers") if isinstance(proof, dict) else None
+            ),
+            "applyLatestPackageDraftWithoutApprovalApplied": (
+                proof.get("applyLatestPackageDraftWithoutApprovalApplied") if isinstance(proof, dict) else None
+            ),
         },
         "artifactConsistency": artifact_consistency,
         "blockers": blockers,
@@ -386,6 +395,9 @@ def self_test() -> dict[str, Any]:
             "dryRunDiffPreviewBoundedBytes": True,
             "dryRunDiffPreviewTextLength": 195,
             "dryRunDiffPreviewTruncated": False,
+            "applyLatestPackageDraftWithoutApprovalBlocked": True,
+            "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+            "applyLatestPackageDraftWithoutApprovalApplied": False,
         }
     )
     checks = [{"name": "proof-rules-accept-valid-shape", "pass": blockers == []}]

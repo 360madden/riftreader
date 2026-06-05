@@ -42,6 +42,9 @@ REQUIRED_FIELDS = (
     "dryRunDiffPreviewBoundedBytes",
     "dryRunDiffPreviewTextLength",
     "dryRunDiffPreviewTruncated",
+    "applyLatestPackageDraftWithoutApprovalBlocked",
+    "applyLatestPackageDraftWithoutApprovalBlockers",
+    "applyLatestPackageDraftWithoutApprovalApplied",
 )
 EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "health",
@@ -99,6 +102,9 @@ def proof_template() -> dict[str, Any]:
         "dryRunDiffPreviewBoundedBytes": False,
         "dryRunDiffPreviewTextLength": 0,
         "dryRunDiffPreviewTruncated": False,
+        "applyLatestPackageDraftWithoutApprovalBlocked": False,
+        "applyLatestPackageDraftWithoutApprovalBlockers": [],
+        "applyLatestPackageDraftWithoutApprovalApplied": None,
         "notes": "Fill this with actual ChatGPT-side observations, then record with --record --input proof.json.",
     }
 
@@ -193,6 +199,21 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append("draft-id-missing")
     if proof.get("dryRunSucceeded") is True and not proof.get("draftId"):
         blockers.append("dry-run-succeeded-but-draft-id-missing")
+    if proof.get("applyLatestPackageDraftWithoutApprovalBlocked") is not True:
+        blockers.append("apply-latest-package-draft-without-approval-not-blocked")
+    apply_without_approval_blockers = proof.get("applyLatestPackageDraftWithoutApprovalBlockers")
+    if not isinstance(apply_without_approval_blockers, list):
+        blockers.append(
+            "apply-latest-package-draft-without-approval-blockers-not-list:"
+            f"{type(apply_without_approval_blockers).__name__}"
+        )
+    elif "APPLY_APPROVAL_MISSING" not in apply_without_approval_blockers:
+        blockers.append("apply-latest-package-draft-without-approval-missing-approval-blocker")
+    if proof.get("applyLatestPackageDraftWithoutApprovalApplied") is not False:
+        blockers.append(
+            "apply-latest-package-draft-without-approval-applied-not-false:"
+            f"{proof.get('applyLatestPackageDraftWithoutApprovalApplied')!r}"
+        )
     return blockers
 
 
@@ -223,6 +244,9 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Diff preview OK: `{proof.get('dryRunDiffPreviewOk')}`",
         f"- Diff preview text length: `{proof.get('dryRunDiffPreviewTextLength')}`",
         f"- Diff preview truncated: `{proof.get('dryRunDiffPreviewTruncated')}`",
+        f"- Apply without approval blocked: `{proof.get('applyLatestPackageDraftWithoutApprovalBlocked')}`",
+        f"- Apply without approval blockers: `{proof.get('applyLatestPackageDraftWithoutApprovalBlockers')}`",
+        f"- Apply without approval applied: `{proof.get('applyLatestPackageDraftWithoutApprovalApplied')}`",
         "",
         "## Blockers",
         "",
@@ -287,6 +311,9 @@ def self_test() -> dict[str, Any]:
             "dryRunDiffPreviewArtifactUnderPackageIntake": True,
             "dryRunDiffPreviewBoundedBytes": True,
             "dryRunDiffPreviewTextLength": 1,
+            "applyLatestPackageDraftWithoutApprovalBlocked": True,
+            "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+            "applyLatestPackageDraftWithoutApprovalApplied": False,
         }
     )
     secure_fallback_host_proof = dict(valid_proof)

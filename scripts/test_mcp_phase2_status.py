@@ -67,6 +67,9 @@ def valid_proof() -> dict[str, object]:
         "dryRunDiffPreviewTextLength": 195,
         "dryRunDiffPreviewTruncated": False,
         "dryRunSucceeded": True,
+        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+        "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+        "applyLatestPackageDraftWithoutApprovalApplied": False,
         "notes": "Observed manually in ChatGPT Developer Mode.",
     }
 

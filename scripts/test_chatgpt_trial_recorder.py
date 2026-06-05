@@ -56,6 +56,9 @@ def valid_proof() -> dict[str, object]:
         "dryRunDiffPreviewTextLength": 195,
         "dryRunDiffPreviewTruncated": False,
         "dryRunSucceeded": True,
+        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+        "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+        "applyLatestPackageDraftWithoutApprovalApplied": False,
         "notes": "Observed manually in ChatGPT Developer Mode.",
     }
 
@@ -80,6 +83,9 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
         self.assertEqual(payload["health"]["repoRoot"], ".")
         self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
+        self.assertFalse(payload["applyLatestPackageDraftWithoutApprovalBlocked"])
+        self.assertEqual(payload["applyLatestPackageDraftWithoutApprovalBlockers"], [])
+        self.assertIsNone(payload["applyLatestPackageDraftWithoutApprovalApplied"])
 
     def test_self_test_passes_without_chatgpt_or_tunnel(self) -> None:
         payload = recorder.self_test()
@@ -223,6 +229,26 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertIn("dry-run-diff-preview-bounded-bytes-not-confirmed", blockers)
         self.assertIn("dry-run-diff-preview-text-length-invalid:0", blockers)
         self.assertIn("dry-run-diff-preview-truncated-not-boolean:'no'", blockers)
+
+    def test_rejects_missing_apply_without_approval_denial_proof(self) -> None:
+        proof = valid_proof()
+        proof["applyLatestPackageDraftWithoutApprovalBlocked"] = False
+        proof["applyLatestPackageDraftWithoutApprovalBlockers"] = ["APPLY_PREFLIGHT_NOT_READY"]
+        proof["applyLatestPackageDraftWithoutApprovalApplied"] = True
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("apply-latest-package-draft-without-approval-not-blocked", blockers)
+        self.assertIn("apply-latest-package-draft-without-approval-missing-approval-blocker", blockers)
+        self.assertIn("apply-latest-package-draft-without-approval-applied-not-false:True", blockers)
+
+    def test_rejects_non_list_apply_without_approval_blockers(self) -> None:
+        proof = valid_proof()
+        proof["applyLatestPackageDraftWithoutApprovalBlockers"] = "APPLY_APPROVAL_MISSING"
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("apply-latest-package-draft-without-approval-blockers-not-list:str", blockers)
 
     def test_record_invalid_proof_returns_exit_2_in_cli(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
