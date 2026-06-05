@@ -2,6 +2,25 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP current gate — 2026-06-05 17:30 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1730-chatgpt-mcp-current-gate-handoff.md`.
+
+Current local MCP state: clean worktree, `main...origin/main [ahead 19]`, HEAD
+`8891fe889a34f7f5ce0ee0248a410235fea602c9`. Final readiness remains blocked
+because local trial-readiness/proposal-smoke artifacts are stale, actual
+ChatGPT proof is stale and missing current proof-contract fields, current-head
+CI is missing, and the branch has not been pushed.
+
+| Evidence | Result |
+|---|---|
+| Latest hardening | `8891fe8 Require ChatGPT MCP proof tool identities`. |
+| Final gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` ran read-only and returned expected blocked status. |
+| Recommended safe next action | `scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json` to refresh local-only readiness before gated proof/CI work. |
+| Gated next actions | Push for current-head CI and fresh actual ChatGPT Secure Tunnel proof both require explicit approval/operator action. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — ChatGPT MCP proof tool-identity contract — 2026-06-05 12:05 UTC
 
 A new compact handoff exists at
