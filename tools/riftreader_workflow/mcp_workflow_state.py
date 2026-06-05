@@ -137,6 +137,8 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
         "publicUrlEphemeral": ephemeral_public_url,
         "publicUrlExpectedExpired": bool(ephemeral_public_url and public_tunnel_stopped),
         "toolCount": payload.get("toolCount") or proof.get("toolCount"),
+        "toolOutputSchemasPresent": proof.get("toolOutputSchemasPresent"),
+        "toolOutputSchemaCount": proof.get("toolOutputSchemaCount"),
         "inboxId": payload.get("inboxId") or submit.get("inboxId") or draft.get("inboxId") or proof.get("inboxId"),
         "draftId": payload.get("draftId") or draft.get("draftId") or proof.get("draftId"),
         "packageName": payload.get("packageName") or draft.get("packageName"),

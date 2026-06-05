@@ -84,6 +84,8 @@ def write_actual_client_proof(root: Path) -> None:
                 "schemaVersion": 1,
                 "connectionMode": "openai-secure-mcp-tunnel",
                 "toolCount": 10,
+                "toolOutputSchemasPresent": True,
+                "toolOutputSchemaCount": 10,
                 "publicMcpUrl": "https://client.openai-mcp-tunnel.invalid/mcp",
                 "chatgptRegistrationSucceeded": True,
                 "health": {

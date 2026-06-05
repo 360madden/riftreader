@@ -332,6 +332,8 @@ def replay_actual_client_proof(
         "proofFreshness": age_payload,
         "proofSummary": {
             "toolCount": proof.get("toolCount") if isinstance(proof, dict) else None,
+            "toolOutputSchemasPresent": proof.get("toolOutputSchemasPresent") if isinstance(proof, dict) else None,
+            "toolOutputSchemaCount": proof.get("toolOutputSchemaCount") if isinstance(proof, dict) else None,
             "connectionMode": proof.get("connectionMode") if isinstance(proof, dict) else None,
             "publicMcpUrl": proof.get("publicMcpUrl") if isinstance(proof, dict) else None,
             "inboxId": proof.get("inboxId") if isinstance(proof, dict) else None,
@@ -363,6 +365,8 @@ def self_test() -> dict[str, Any]:
             "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
             "chatgptRegistrationSucceeded": True,
             "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemasPresent": True,
+            "toolOutputSchemaCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
             "templateFetched": True,
             "submitPackageProposalSucceeded": True,

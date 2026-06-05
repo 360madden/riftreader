@@ -178,6 +178,8 @@ class McpMissionControlTests(unittest.TestCase):
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
                         "toolCount": 10,
+                        "toolOutputSchemasPresent": True,
+                        "toolOutputSchemaCount": 10,
                     }
                 },
             )

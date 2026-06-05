@@ -32,6 +32,8 @@ def valid_proof() -> dict[str, object]:
         "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": 10,
+        "toolOutputSchemasPresent": True,
+        "toolOutputSchemaCount": 10,
         "health": {"repoRoot": ".", "repoName": "RiftReader", "absoluteRepoRootExposed": False},
         "templateFetched": True,
         "submitPackageProposalSucceeded": True,

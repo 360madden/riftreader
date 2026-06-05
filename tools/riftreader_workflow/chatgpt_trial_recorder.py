@@ -23,6 +23,8 @@ REQUIRED_FIELDS = (
     "publicMcpUrl",
     "chatgptRegistrationSucceeded",
     "toolCount",
+    "toolOutputSchemasPresent",
+    "toolOutputSchemaCount",
     "health",
     "templateFetched",
     "submitPackageProposalSucceeded",
@@ -59,6 +61,8 @@ def proof_template() -> dict[str, Any]:
         "publicMcpUrl": "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp",
         "chatgptRegistrationSucceeded": False,
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        "toolOutputSchemasPresent": False,
+        "toolOutputSchemaCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -106,6 +110,12 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append("public-mcp-url-not-https")
     if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
         blockers.append(f"tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolCount')!r}")
+    if proof.get("toolOutputSchemasPresent") is not True:
+        blockers.append("tool-output-schemas-not-confirmed")
+    if proof.get("toolOutputSchemaCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
+        blockers.append(
+            f"tool-output-schema-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolOutputSchemaCount')!r}"
+        )
     if health.get("repoRoot") != ".":
         blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
     if health.get("repoName") != "RiftReader":
@@ -161,6 +171,8 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Connection mode: `{proof.get('connectionMode')}`",
         f"- Public MCP URL: `{proof.get('publicMcpUrl')}`",
         f"- Tool count: `{proof.get('toolCount')}`",
+        f"- Tool output schemas present: `{proof.get('toolOutputSchemasPresent')}`",
+        f"- Tool output schema count: `{proof.get('toolOutputSchemaCount')}`",
         f"- Health repoRoot: `{health.get('repoRoot')}`",
         f"- Health repoName: `{health.get('repoName')}`",
         f"- absoluteRepoRootExposed: `{health.get('absoluteRepoRootExposed')}`",
@@ -223,6 +235,7 @@ def self_test() -> dict[str, Any]:
         {
             "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
             "chatgptRegistrationSucceeded": True,
+            "toolOutputSchemasPresent": True,
             "templateFetched": True,
             "submitPackageProposalSucceeded": True,
             "inboxId": "self-test-inbox",

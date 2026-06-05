@@ -61,6 +61,8 @@ def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
         and actual_client.get("selfTest") is not True
         and actual_client.get("chatGptRegistrationSucceeded") is True
         and actual_client.get("toolCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
+        and actual_client.get("toolOutputSchemasPresent") is True
+        and actual_client.get("toolOutputSchemaCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
     )
 
 

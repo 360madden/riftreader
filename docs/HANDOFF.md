@@ -2,6 +2,26 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP proof output-schema contract — 2026-06-05 11:54 UTC
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-05-1154-chatgpt-mcp-proof-output-schema-contract-handoff.md`.
+
+The actual ChatGPT Web/Desktop MCP proof contract now requires the operator
+proof packet to confirm that ChatGPT saw per-tool `outputSchema` contracts for
+all 10 allowlisted tools. This keeps the final Secure Tunnel proof aligned with
+the local manifest/SDK/runtime schema guardrails.
+
+| Evidence | Result |
+|---|---|
+| Proof fields | `toolOutputSchemasPresent=true` and `toolOutputSchemaCount=10` are required by `validate_proof`. |
+| Replay visibility | Proof replay and latest-artifact summaries surface output-schema proof facts. |
+| Mission Control | Final-product progress no longer treats actual-client proof as completed without output-schema proof facts. |
+| Focused validation | `python -m unittest scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase1_completion scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control` passed 43 tests in 12.325s. |
+| Broad MCP validation | `python -m unittest scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_trial_recorder scripts.test_mcp_proof_replay scripts.test_mcp_phase2_status scripts.test_mcp_workflow_state scripts.test_mcp_mission_control scripts.test_workflow_router scripts.test_mcp_final_readiness scripts.test_local_artifact_bridge scripts.test_package_draft_review scripts.test_mcp_phase1_completion` passed 186 tests in 46.540s. |
+| Targeted ledger | `.riftreader-local\validation-runs\20260605-115535-540313\summary.md` passed in 46.027s. |
+| Boundary | No public tunnel, ChatGPT registration, RIFT input, CE/x64dbg attach, provider writes, proof promotion, push, or remote mutation. |
+
 ## Latest compact handoff — ChatGPT MCP runtime result contract — 2026-06-05 11:38 UTC
 
 A new compact handoff exists at
