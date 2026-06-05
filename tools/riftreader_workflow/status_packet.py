@@ -2031,7 +2031,7 @@ def build_status_packet(
             next_action = (
                 f"A rift_x64 process is visible with PID(s) {live_target.get('livePids')}, but the {artifact_label} points "
                 f"at historical PID {live_target.get('artifactPid')} / HWND {live_target.get('artifactHwnd')}. "
-                "Keep movement blocked until the stale artifact is refreshed or the workflow is reclassified."
+                "Keep movement blocked; do not reuse stale proof until the stale artifact is refreshed or the workflow is reclassified."
             )
     elif str(movement_gate.get("status") or "").startswith("blocked-proof-anchor-"):
         next_action = (
