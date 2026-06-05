@@ -224,7 +224,7 @@ Phase 6 may be considered complete when:
 | Environment, repo, safety, or public-session blocker | `fix-final-readiness-environment`, `inspect-mcp-safety`, or `inspect-public-session-state` | Mission Control or local readiness command; no live tunnel starts by default. |
 | Trial readiness stale | `refresh-trial-readiness` | `scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json` |
 | Proposal smoke stale | `refresh-proposal-smoke` | `scripts\riftreader-chatgpt-mcp.cmd --proposal-transport-smoke --json` |
-| Proof stale/missing/replay-failed | `record-actual-client-proof` | `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json` |
+| Proof stale/missing/replay-failed | `record-actual-client-proof` | Latest fresh `--record --input <proof-input.json> --json` command when an indexed proof-input template exists; otherwise `scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json`. |
 | CI missing/pending/failing after proof is current | `inspect-current-head-ci` | `gh run list --limit 10 --json databaseId,workflowName,headSha,status,conclusion,createdAt,updatedAt,event,url` |
 | Upstream not synced after local gates pass | `request-push-approval` | `git --no-pager status --short --branch` |
 | Generic Phase 2 blocker without a more specific blocker | `mcp-phase2-status` | `scripts\riftreader-mcp-phase2.cmd --status --json` |

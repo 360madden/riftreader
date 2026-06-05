@@ -104,6 +104,9 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertEqual(proof["kind"], "riftreader-chatgpt-actual-client-proof-input")
         self.assertEqual(proof["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["recordCommand"][0], "scripts\\riftreader-chatgpt-trial-recorder.cmd")
+        self.assertEqual(payload["checkCommand"][0], "scripts\\riftreader-chatgpt-trial-recorder.cmd")
+        self.assertIn("--check-input", payload["checkCommand"])
+        self.assertIn(payload["artifactPaths"]["proofInputJson"], payload["checkCommand"])
         self.assertIn("--record", payload["recordCommand"])
         self.assertIn(payload["artifactPaths"]["proofInputJson"], payload["recordCommand"])
 
@@ -138,6 +141,45 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
             self.assertIn("Tool output schemas present", markdown)
             self.assertFalse(payload["safety"]["chatGptApiCalled"])
             self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_check_input_validates_without_writing_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            input_path = root / "proof-input.json"
+            input_path.write_text(json.dumps(valid_proof()), encoding="utf-8")
+
+            payload = recorder.check_proof_input(root, input_path)
+
+            proof_root = root / recorder.ACTUAL_CLIENT_PROOF_ROOT
+
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["blockers"], [])
+        self.assertFalse(proof_root.exists())
+        self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
+        self.assertFalse(payload["safety"]["artifactWrite"])
+        self.assertIn("--record", payload["recordCommand"])
+
+    def test_check_input_reports_blockers_without_writing_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            input_path = root / "proof-input.json"
+            proof = valid_proof()
+            proof["toolCount"] = 99
+            input_path.write_text(json.dumps(proof), encoding="utf-8")
+
+            payload = recorder.check_proof_input(root, input_path)
+
+            proof_root = root / recorder.ACTUAL_CLIENT_PROOF_ROOT
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertFalse(payload["ok"])
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
+        self.assertFalse(proof_root.exists())
+        self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
+        self.assertFalse(payload["safety"]["artifactWrite"])
 
     def test_rejects_wrong_tool_count(self) -> None:
         proof = valid_proof()
@@ -287,6 +329,27 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertEqual(payload["status"], "blocked")
         self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
+
+    def test_check_input_invalid_proof_returns_exit_2_without_recording(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            input_path = root / "proof-input.json"
+            proof = valid_proof()
+            proof["toolCount"] = 99
+            input_path.write_text(json.dumps(proof), encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = recorder.main(["--repo-root", str(root), "--check-input", "--input", str(input_path), "--json"])
+            payload = json.loads(stdout.getvalue())
+            proof_root = root / recorder.ACTUAL_CLIENT_PROOF_ROOT
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:99", payload["blockers"])
+        self.assertFalse(proof_root.exists())
+        self.assertTrue(payload["safety"]["readOnlyProofInputCheck"])
 
 
 if __name__ == "__main__":

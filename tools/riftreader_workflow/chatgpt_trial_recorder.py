@@ -128,7 +128,15 @@ def write_proof_template(repo_root: Path) -> dict[str, Any]:
         },
         "next": [
             "Fill proofInputJson with actual ChatGPT-side observations.",
+            "Check the filled proof input with the checkCommand.",
             "Record the filled proof input with the recordCommand.",
+        ],
+        "checkCommand": [
+            "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+            "--check-input",
+            "--input",
+            proof_input_rel,
+            "--json",
         ],
         "recordCommand": [
             "scripts\\riftreader-chatgpt-trial-recorder.cmd",
@@ -330,6 +338,46 @@ def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
     return record
 
 
+def check_proof_input(repo_root: Path, input_path: Path) -> dict[str, Any]:
+    """Validate proof input JSON without recording or writing artifacts."""
+
+    value = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("proof-input-not-json-object")
+    blockers = validate_proof(value)
+    status = "passed" if not blockers else "blocked"
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-chatgpt-proof-input-check",
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "passed",
+        "inputPath": rel(repo_root, input_path),
+        "blockers": blockers,
+        "warnings": [],
+        "next": [
+            "Fix blockers in the proof input JSON before recording." if blockers else "Record the checked proof input.",
+        ],
+        "recordCommand": [
+            "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+            "--record",
+            "--input",
+            rel(repo_root, input_path),
+            "--json",
+        ],
+        "safety": {
+            **safety_flags(),
+            "readOnlyProofInputCheck": True,
+            "operatorSuppliedFactsOnly": True,
+            "chatGptApiCalled": False,
+            "publicTunnelStarted": False,
+            "gitMutation": False,
+            "applyFlagSent": False,
+            "artifactWrite": False,
+        },
+    }
+
+
 def self_test() -> dict[str, Any]:
     valid_proof = proof_template()
     valid_proof.update(
@@ -406,9 +454,10 @@ def build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--template", action="store_true", help="Print proof input template JSON.")
     mode.add_argument("--write-template", action="store_true", help="Write a fillable proof input template under .riftreader-local.")
+    mode.add_argument("--check-input", action="store_true", help="Validate proof input JSON without recording artifacts.")
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
     mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
-    parser.add_argument("--input", default=None, help="Path to proof input JSON for --record.")
+    parser.add_argument("--input", default=None, help="Path to proof input JSON for --check-input or --record.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -423,6 +472,11 @@ def main(argv: list[str] | None = None) -> int:
         payload = write_proof_template(repo_root)
     elif args.self_test:
         payload = self_test()
+    elif args.check_input:
+        if not args.input:
+            print("error: --check-input requires --input proof.json", file=sys.stderr)
+            return 2
+        payload = check_proof_input(repo_root, Path(args.input))
     else:
         if not args.input:
             print("error: --record requires --input proof.json", file=sys.stderr)
