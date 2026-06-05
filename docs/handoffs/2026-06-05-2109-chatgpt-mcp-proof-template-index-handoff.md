@@ -43,8 +43,8 @@ scripts\riftreader-mcp-final.cmd --status --compact-json
 | Field | Result |
 |---|---|
 | `status` | `blocked` |
-| `currentHead` | `aa8320ad3ec37dea89250b925f11e30298b7e280` before this handoff slice |
-| `gitDirty` | `false` before this handoff slice |
+| `currentHead` | `80b7498884b15603be351ee3318eb37d5be3407f` after the Phase 1 recommendation alignment commit |
+| `gitDirty` | `false` after commit |
 | `toolSurfaceStatus` | `passed` |
 | `dependencyStatus` | `passed` |
 | `environmentStatus` | `passed` |
@@ -81,5 +81,13 @@ observations and run the emitted `recordCommand`.
 | `python -m py_compile tools\riftreader_workflow\mcp_phase1_completion.py` | Passed. |
 | `git --no-pager diff --check` | Passed. |
 | `scripts\riftreader-mcp-phase1.cmd --status --json` | Blocked as expected while dirty; recommended `safe-commit-plan` before proof work. |
+| `pre-commit run --all-files --show-diff-on-failure` | Passed. |
+| `dotnet restore .\RiftReader.slnx` | Passed. |
+| `dotnet build .\RiftReader.slnx --configuration Release --no-restore` | Passed: 0 warnings, 0 errors. |
+| `dotnet test .\RiftReader.slnx --configuration Release --no-build --verbosity normal` | Passed: 109 tests. |
+| `python -m py_compile <workflow-tools-and-script-tests>` | Passed. |
+| `python -m unittest discover -s scripts -p "test_*.py"` | Passed: 1888 tests in 446.708s. |
+| `python tools\riftreader_workflow\policy_lint.py --json validate-repo --scope changed --no-write-summary` | Passed: 0 blockers, 0 warnings. |
 
-Pre-commit still needs to be run immediately before the local commit.
+These local checks are CI-parity confidence only. They do not replace the final
+gate requirement for GitHub Actions evidence on the pushed current HEAD.
