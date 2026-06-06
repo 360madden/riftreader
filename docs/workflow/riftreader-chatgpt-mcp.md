@@ -74,6 +74,48 @@ malformed result that omits the common structuredContent fields (`schemaVersion`
   health reports the repo as `.` plus a repo name, and nested draft/dry-run
   helper fields are normalized before audit/return.
 
+## Non-Codex runtime invariant and existing launcher inventory
+
+This MCP exists so ChatGPT Web/Desktop can work with the local RiftReader repo
+when Codex is unavailable, quota-blocked, closed, or intentionally not part of
+the workflow. Do **not** treat a Codex-launched process as final acceptance proof
+for this lane.
+
+Before adding any new launcher, inspect and reuse the existing repo-owned
+scripts:
+
+| Existing script | Current role | Use / avoid rule |
+|---|---|---|
+| `scripts\riftreader-chatgpt-mcp.cmd` | Thin launcher for the narrow ChatGPT Developer Mode MCP adapter. | Use this for ChatGPT MCP self-tests, Secure Tunnel plans, local `--serve`, and explicit fallback trial sessions. Do not recreate it under a new name. |
+| `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge plus Cloudflare tunnel helper. | Related artifact bridge workflow only; do not confuse it with the narrow ChatGPT MCP adapter. |
+| `scripts\riftreader-mcp-server.cmd` | Separate RiftReader stdio MCP server helper. | Support/low-level MCP lane; do not substitute it for the ChatGPT Developer Mode adapter without a deliberate design change. |
+| `scripts\riftreader-mcp-client.cmd` | Client config/smoke helper. | Support helper only; not the user-facing ChatGPT app runtime. |
+
+Acceptance proof for "use ChatGPT without Codex" requires the runtime to be
+started by the operator outside Codex, from a normal CMD/PowerShell window or an
+equivalent user-owned process. The operator should be able to see or identify
+the expected local processes (`python.exe` for the MCP adapter and, for fallback
+public HTTPS only, `cloudflared.exe`) without relying on a Codex terminal or
+Codex quota.
+
+Wrong proof:
+
+```cmd
+REM DO NOT count this as final non-Codex proof when launched only inside Codex.
+scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --json
+```
+
+Correct non-Codex fallback/dev proof shape:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 3600 --json
+```
+
+Keep that operator-owned console open while ChatGPT connects. A saved ChatGPT app
+entry is only configuration; it does not start the local repo MCP server, does
+not start a tunnel, and does not keep an old `trycloudflare.com` URL alive.
+
 ## Future capability roadmap
 
 `get_workflow_control_plan` now advertises the intended higher-power capability
@@ -473,6 +515,11 @@ They expose a local server through a public HTTPS URL and are planned for full
 Cloudflare deprecation in this repo. Use them only when Secure MCP Tunnel is
 unavailable and the operator explicitly selects the fallback lane.
 
+Do not create new Cloudflare/ngrok wrapper scripts before checking the existing
+`scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session` mode. If that mode
+does not satisfy a new requirement, extend the existing Python-owned adapter or
+document the gap; do not fork the workflow into another near-duplicate script.
+
 For fallback public tunnels, the public hostname must still be allowlisted on
 the MCP server. Do not pass a full URL to `--allowed-host`; pass only the exact
 Host header value, such as `example.trycloudflare.com`. Pass only an exact
@@ -486,7 +533,7 @@ In ChatGPT web:
 1. Enable Developer Mode under Settings -> Apps -> Advanced settings.
 2. Open Apps/Connectors settings.
 3. Create an app/connector using the OpenAI Secure MCP Tunnel connection path.
-4. Confirm the tool list contains only the ten allowlisted RiftReader tools.
+4. Confirm the tool list contains only the 11 allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
 Suggested first prompt:

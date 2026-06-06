@@ -31,6 +31,31 @@ The default workflow is:
 
 This policy exists because direct GitHub connector writes and large pasted shell blocks have repeatedly wasted time through silent failure, blocking, partial execution, or terminal-host side effects.
 
+## ChatGPT MCP runtime rule
+
+The repo already has a narrow ChatGPT MCP adapter and launch scripts. Do not
+invent a second MCP or duplicate tunnel launcher before checking the existing
+entrypoints:
+
+| Existing entrypoint | Role |
+|---|---|
+| `scripts\riftreader-chatgpt-mcp.cmd` | Main ChatGPT Developer Mode MCP adapter wrapper. |
+| `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Prints the primary OpenAI Secure MCP Tunnel command plan without starting a tunnel. |
+| `scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 3600 --json` | Explicit fallback/dev-only no-auth Cloudflare quick-tunnel session. |
+| `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge tunnel session, related but not the narrow ChatGPT MCP adapter. |
+
+For the "ChatGPT Web/Desktop without Codex" use case, the MCP runtime must be
+started by the operator outside Codex. A Codex-launched `python.exe`,
+`cloudflared.exe`, or `tunnel-client.exe` may be useful during development, but
+it is not final proof that the workflow works when Codex is closed or quota
+blocked.
+
+A ChatGPT app/connector entry is only saved configuration. It does not start the
+local repo server or tunnel. If the existing command window is closed, the local
+MCP server stops; if a Cloudflare quick tunnel was used, the saved
+`trycloudflare.com` URL should be treated as expired and must be refreshed from a
+new operator-owned session.
+
 ## Tooling boundaries
 
 | Surface | Default role when not using Codex |

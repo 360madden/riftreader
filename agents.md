@@ -623,6 +623,20 @@ Required behavior:
 
 If the assistant needs to change docs or code, it should provide the package plus the exact extract/apply commands in chat. The user applies locally, reviews the diff, commits/pushes from PowerShell, and pastes the result for read-only verification.
 
+ChatGPT MCP runtime invariant:
+
+- The narrow ChatGPT MCP adapter and related scripts already exist; inspect
+  `scripts\riftreader-chatgpt-mcp.cmd` and
+  `docs/workflow/riftreader-chatgpt-mcp.md` before creating new launchers.
+- Do not confuse `scripts\riftreader-bridge-tunnel-session.cmd` with the narrow
+  ChatGPT MCP adapter; it is the Local Artifact Bridge tunnel lane.
+- Do not treat a Codex-launched MCP server/tunnel as final proof for the
+  non-Codex workflow. Final proof requires an operator-owned process started
+  outside Codex.
+- OpenAI Secure MCP Tunnel is the primary Web/Desktop path. Cloudflare quick
+  tunnel / `trycloudflare.com` is fallback/dev-only, ephemeral, and should not be
+  expanded into duplicate wrappers.
+
 Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
 <!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->
 
