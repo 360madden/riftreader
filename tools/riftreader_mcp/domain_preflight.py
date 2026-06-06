@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-domain-preflight-v0.1.0
+# Version: riftreader-mcp-domain-preflight-v0.1.1
 # Purpose: No-secrets domain-only readiness check for the 360madden Cloudflare MCP lane.
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any
 from tools.riftreader_mcp.config import default_repo_root, runtime_root
 
 
-VERSION = "riftreader-mcp-domain-preflight-v0.1.0"
+VERSION = "riftreader-mcp-domain-preflight-v0.1.1"
 DEFAULT_DOMAIN = "360madden.com"
 DEFAULT_HOSTNAME = "mcp.360madden.com"
 DNS_SERVER = "1.1.1.1"
@@ -96,7 +96,7 @@ def build_payload(repo: Path, *, domain: str, hostname: str) -> dict[str, Any]:
         "If Cloudflare Registrar owns the domain, do not add home-IP A records; use Zero Trust Tunnel public hostname routing.",
         "Create a Cloudflare Zero Trust Tunnel and install/run the cloudflared connector on this Windows PC.",
         "Add public hostname mcp.360madden.com with service http://127.0.0.1:8765.",
-        "Run scripts\\start_mcp_local.cmd and keep it running while testing the tunnel.",
+        "Run scripts\\start_mcp_local_background.cmd and keep it running while testing the tunnel.",
     ]
 
     return {

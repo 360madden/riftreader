@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-server-v0.1.3
+# Version: riftreader-mcp-http-server-v0.1.4
 # Purpose: Read-only local HTTP MCP server for Cloudflare-tunneled ChatGPT access.
 
 from __future__ import annotations
@@ -249,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "ok": False,
                     "status": "auth_token_not_configured",
-                    "message": "Token auth is required. Run scripts\\start_mcp_local.cmd once to create local config, or set RIFTREADER_MCP_TOKEN.",
+                    "message": "Token auth is required. Run scripts\\start_mcp_local_background.cmd once to create local config, or set RIFTREADER_MCP_TOKEN.",
                 },
                 indent=2,
             ),

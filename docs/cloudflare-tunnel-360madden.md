@@ -82,7 +82,7 @@ Do not configure Cloudflare Access in front of `mcp.360madden.com` yet unless Ch
 
    ```cmd
    cd /d "C:\RIFT MODDING\RiftReader"
-   scripts\start_mcp_local.cmd
+   scripts\start_mcp_local_background.cmd
    ```
 
 4. In Cloudflare Zero Trust, create or select a Tunnel.

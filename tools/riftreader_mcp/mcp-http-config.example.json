@@ -1,6 +1,6 @@
 {
   "version": "riftreader-mcp-http-v0.1.3",
-  "purpose": "Example only. Copy to .riftreader-local/mcp/config.json or run scripts/start_mcp_local.cmd to generate a local untracked config.",
+  "purpose": "Example only. Copy to .riftreader-local/mcp/config.json or run scripts/start_mcp_local_background.cmd to generate a local untracked config.",
   "host": "127.0.0.1",
   "port": 8765,
   "requireAuth": true,
