@@ -57,7 +57,7 @@ The local server is intentionally conservative:
 
 | Requirement | Source |
 |---|---|
-| Local MCP server running | `scripts\start_mcp_local.cmd` |
+| Local MCP server running | `scripts\start_mcp_local_background.cmd` |
 | `tunnel-client` installed | OpenAI Platform Tunnels page or `openai/tunnel-client` release |
 | `CONTROL_PLANE_TUNNEL_ID` | OpenAI Platform Tunnels management |
 | `CONTROL_PLANE_API_KEY` | Runtime API key with Tunnels Read + Use |
@@ -70,7 +70,7 @@ for tunnel CRUD workflows.
 From `C:\RIFT MODDING\RiftReader`:
 
 ```cmd
-scripts\start_mcp_local.cmd
+scripts\start_mcp_local_background.cmd
 scripts\prepare_chatgpt_mcp_tunnel_profile.cmd
 scripts\check_chatgpt_mcp_tunnel_readiness.cmd
 ```
@@ -151,7 +151,7 @@ Do not use Codex, browser, built-in web search, or any other connector for repo 
 | `tunnel-client` not found | Binary is not installed or not on PATH. | Install it or set `TUNNEL_CLIENT_EXE` to the full path. |
 | Missing `CONTROL_PLANE_TUNNEL_ID` | No OpenAI tunnel selected. | Create/select a tunnel in OpenAI Platform and set the env var. |
 | Missing `CONTROL_PLANE_API_KEY` | Runtime key is not available to the daemon. | Create a runtime key with Tunnels Read + Use and set it in the shell. |
-| Local MCP unreachable | `scripts\start_mcp_local.cmd` is not running. | Start the local server and retry. |
+| Local MCP unreachable | `scripts\start_mcp_local_background.cmd` is not running. | Start the local server and retry. |
 | `origin_rejected` | A browser-origin request is not from an allowed OpenAI/loopback origin. | Use ChatGPT/tunnel-client or add only a trusted origin in local config. |
 | Unsupported `MCP-Protocol-Version` | Client sent an unsupported MCP transport version. | Use a current ChatGPT/tunnel-client client. |
 | Tool scan shows old tools | ChatGPT uses a frozen snapshot. | Refresh/rescan the app tools in ChatGPT settings. |

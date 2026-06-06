@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-openai-tunnel-status-v0.1.0
+# Version: riftreader-mcp-openai-tunnel-status-v0.1.1
 # Purpose: Secret-safe readiness/profile helper for ChatGPT Web/Desktop via OpenAI Secure MCP Tunnel.
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from tools.riftreader_mcp.config import default_repo_root, load_config, runtime_
 from tools.riftreader_mcp.logging_util import utc_iso
 
 
-VERSION = "riftreader-mcp-openai-tunnel-status-v0.1.0"
+VERSION = "riftreader-mcp-openai-tunnel-status-v0.1.1"
 TUNNEL_ID_RE = re.compile(r"^tunnel_[0-9a-f]{32}$")
 DEFAULT_PROFILE_NAME = "riftreader-chatgpt.yaml"
 
@@ -111,7 +111,7 @@ def write_profile(repo: Path) -> dict[str, Any]:
         return {
             "ok": False,
             "status": "token_missing",
-            "message": "Local MCP token is missing; run scripts\\start_mcp_local.cmd once to initialize local config.",
+            "message": "Local MCP token is missing; run scripts\\start_mcp_local_background.cmd once to initialize local config.",
         }
     header_path.write_text(f"Bearer {cfg.token}", encoding="utf-8")
     profile.write_text(
@@ -170,13 +170,13 @@ def build_openai_tunnel_status(repo: str | Path | None = None, *, ensure_profile
     if not api_key:
         blockers.append("Set CONTROL_PLANE_API_KEY to a runtime key with Tunnels Read + Use.")
     if not cfg.token:
-        blockers.append("Initialize the local MCP bearer token with scripts\\start_mcp_local.cmd.")
+        blockers.append("Initialize the local MCP bearer token with scripts\\start_mcp_local_background.cmd.")
     if not profile.is_file():
         blockers.append("Run scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd to write the local tunnel-client profile.")
     if not header_path.is_file():
         blockers.append("Run scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd to write the local MCP auth-header file.")
     if not local_health.get("ok"):
-        blockers.append("Start the local MCP server with scripts\\start_mcp_local.cmd before running tunnel-client.")
+        blockers.append("Start the local MCP server with scripts\\start_mcp_local_background.cmd before running tunnel-client.")
     status = "ready_for_doctor" if not blockers else "blocked"
     return {
         "version": VERSION,
@@ -202,7 +202,7 @@ def build_openai_tunnel_status(repo: str | Path | None = None, *, ensure_profile
         "blockers": blockers,
         "commands": [
             "cd /d \"C:\\RIFT MODDING\\RiftReader\"",
-            "scripts\\start_mcp_local.cmd",
+            "scripts\\start_mcp_local_background.cmd",
             "set CONTROL_PLANE_TUNNEL_ID=tunnel_0123456789abcdef0123456789abcdef",
             "set CONTROL_PLANE_API_KEY=<runtime key with Tunnels Read + Use>",
             "scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd",

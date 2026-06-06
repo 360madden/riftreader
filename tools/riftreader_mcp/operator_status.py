@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.7
+# Version: riftreader-mcp-http-operator-status-v0.1.8
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.7",
+        "version": "riftreader-mcp-http-operator-status-v0.1.8",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
@@ -258,7 +258,7 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
         next_steps_text = (
             "# RiftReader MCP 360madden Operator Next Steps\n\n"
             "1. Run `scripts\\test_mcp_local.cmd` and confirm `PASS`.\n"
-            "2. Run `scripts\\start_mcp_local.cmd` and leave the server running.\n"
+                "2. Run `scripts\\start_mcp_local_background.cmd` and confirm `PASS`.\n"
             "3. Configure Cloudflare Tunnel public hostname `mcp.360madden.com` to `http://127.0.0.1:8765`.\n"
             "4. Run public verification from `docs\\cloudflare-tunnel-360madden.md`.\n"
             "5. For ChatGPT Web/Desktop, prefer `scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd` plus OpenAI Secure MCP Tunnel instead of direct public bearer-token setup.\n\n"

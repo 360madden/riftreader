@@ -134,7 +134,7 @@ Do not paste the token into GitHub, docs, screenshots, or issue comments. Use it
 
 | Symptom | Meaning | Next action |
 |---|---|---|
-| `auth_token_not_configured` | Auth is required but no token exists. | Run `scripts\start_mcp_local.cmd` once to generate local config. |
+| `auth_token_not_configured` | Auth is required but no token exists. | Run `scripts\start_mcp_local_background.cmd` once to generate local config. |
 | `auth_missing` | Request did not include bearer token. | Add `Authorization: Bearer <token>`. |
 | `auth_invalid` | Bearer token is wrong. | Recheck `.riftreader-local\mcp\config.json`. |
 | Local smoke cannot connect | Server failed to start or port is blocked. | Paste full smoke JSON output. |
