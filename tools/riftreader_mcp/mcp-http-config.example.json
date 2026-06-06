@@ -1,5 +1,5 @@
 {
-  "version": "riftreader-mcp-http-v0.1.0",
+  "version": "riftreader-mcp-http-v0.1.2",
   "purpose": "Example only. Copy to .riftreader-local/mcp/config.json or run scripts/start_mcp_local.cmd to generate a local untracked config.",
   "host": "127.0.0.1",
   "port": 8765,
@@ -9,6 +9,12 @@
     "health",
     "get_repo_status",
     "get_latest_handoff"
+  ],
+  "validateOrigin": true,
+  "allowedOrigins": [
+    "https://chatgpt.com",
+    "https://chat.openai.com",
+    "https://platform.openai.com"
   ],
   "token": "DO_NOT_COMMIT_REAL_TOKEN"
 }

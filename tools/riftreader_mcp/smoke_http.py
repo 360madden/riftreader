@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-smoke-v0.1.1
+# Version: riftreader-mcp-http-smoke-v0.1.2
 # Purpose: Local and optional public smoke tests for the RiftReader HTTP MCP adapter.
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from tools.riftreader_mcp.config import TOKEN_ENV_VAR, default_repo_root, load_config, runtime_root
+from tools.riftreader_mcp.config import PROTOCOL_VERSION, TOKEN_ENV_VAR, default_repo_root, load_config, runtime_root
 from tools.riftreader_mcp.logging_util import utc_iso, utc_stamp
 from tools.riftreader_mcp.readonly_tools import RiftReaderReadOnlyTools
 from tools.riftreader_mcp.config import McpHttpConfig
@@ -30,12 +30,23 @@ def find_free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def request_json(url: str, *, token: str, payload: dict[str, Any] | None = None, timeout: float = 5.0) -> tuple[int, dict[str, Any]]:
+def request_json(
+    url: str,
+    *,
+    token: str,
+    payload: dict[str, Any] | None = None,
+    timeout: float = 5.0,
+    extra_headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="GET" if data is None else "POST")
     req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json, text/event-stream")
+    req.add_header("MCP-Protocol-Version", PROTOCOL_VERSION)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("User-Agent", "RiftReader-MCP-Smoke/0.1")
+    for key, value in (extra_headers or {}).items():
+        req.add_header(key, value)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - operator-requested local/public smoke.
             return int(response.status), json.loads(response.read().decode("utf-8"))
@@ -48,12 +59,24 @@ def request_json(url: str, *, token: str, payload: dict[str, Any] | None = None,
         return int(exc.code), parsed
 
 
-def request_raw(url: str, *, token: str, payload: dict[str, Any] | None = None, method: str | None = None, timeout: float = 5.0) -> tuple[int, bytes, dict[str, str]]:
+def request_raw(
+    url: str,
+    *,
+    token: str,
+    payload: dict[str, Any] | None = None,
+    method: str | None = None,
+    timeout: float = 5.0,
+    extra_headers: dict[str, str] | None = None,
+) -> tuple[int, bytes, dict[str, str]]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method=method or ("GET" if data is None else "POST"))
     req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json, text/event-stream")
+    req.add_header("MCP-Protocol-Version", PROTOCOL_VERSION)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("User-Agent", "RiftReader-MCP-Smoke/0.1")
+    for key, value in (extra_headers or {}).items():
+        req.add_header(key, value)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - operator-requested local/public smoke.
             return int(response.status), response.read(), dict(response.headers.items())
@@ -102,6 +125,32 @@ def run_local_smoke(repo: Path) -> dict[str, Any]:
             except OSError:
                 time.sleep(0.25)
         checks.append({"name": "server_starts_and_health_works", "passed": bool(health and health[0] == 200), "statusCode": health[0] if health else None})
+
+        health_raw = request_raw(f"{base}/health", token=token)
+        headers_lower = {key.lower(): value for key, value in health_raw[2].items()}
+        checks.append(
+            {
+                "name": "mcp_protocol_and_security_headers_present",
+                "passed": health_raw[0] == 200
+                and headers_lower.get("mcp-protocol-version") == PROTOCOL_VERSION
+                and headers_lower.get("x-content-type-options") == "nosniff",
+                "statusCode": health_raw[0],
+            }
+        )
+
+        trusted_origin = request_json(f"{base}/health", token=token, extra_headers={"Origin": "https://chatgpt.com"})
+        checks.append({"name": "trusted_origin_allowed", "passed": trusted_origin[0] == 200, "statusCode": trusted_origin[0]})
+
+        bad_origin = request_raw(f"{base}/health", token=token, extra_headers={"Origin": "https://evil.example"})
+        checks.append({"name": "untrusted_origin_rejected", "passed": bad_origin[0] == 403, "statusCode": bad_origin[0]})
+
+        bad_protocol = request_raw(
+            base + "/mcp",
+            token=token,
+            payload={"jsonrpc": "2.0", "id": 98, "method": "tools/list"},
+            extra_headers={"MCP-Protocol-Version": "1900-01-01"},
+        )
+        checks.append({"name": "unsupported_protocol_version_rejected", "passed": bad_protocol[0] == 400, "statusCode": bad_protocol[0]})
 
         tools_list = request_json(base + "/mcp", token=token, payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [item.get("name") for item in tools_list[1].get("result", {}).get("tools", [])]
@@ -185,6 +234,10 @@ def run_public_check(public_url: str, token: str) -> dict[str, Any]:
     try:
         health = request_json(base + "/health", token=token, timeout=10)
         checks.append({"name": "public_health", "passed": health[0] == 200, "statusCode": health[0], "status": health[1].get("status")})
+        public_trusted_origin = request_json(base + "/health", token=token, timeout=10, extra_headers={"Origin": "https://chatgpt.com"})
+        checks.append({"name": "public_trusted_origin_allowed", "passed": public_trusted_origin[0] == 200, "statusCode": public_trusted_origin[0]})
+        public_bad_origin = request_raw(base + "/health", token=token, timeout=10, extra_headers={"Origin": "https://evil.example"})
+        checks.append({"name": "public_untrusted_origin_rejected", "passed": public_bad_origin[0] == 403, "statusCode": public_bad_origin[0]})
         tools = request_json(base + "/mcp", token=token, payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=10)
         tool_defs = tools[1].get("result", {}).get("tools", [])
         tool_names = [item.get("name") for item in tool_defs if isinstance(item, dict)]
@@ -268,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             public = {"publicUrl": args.public_url, "status": "blocked", "checks": [{"name": "public_token_configured", "passed": False, "status": "auth_missing"}]}
     payload = {
-        "version": "riftreader-mcp-http-smoke-v0.1.1",
+        "version": "riftreader-mcp-http-smoke-v0.1.2",
         "generatedAtUtc": utc_iso(),
         "status": "passed" if local["status"] == "passed" and (public is None or public["status"] == "passed") else "failed",
         "local": local,

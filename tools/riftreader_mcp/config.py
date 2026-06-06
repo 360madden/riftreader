@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-config-v0.1.0
+# Version: riftreader-mcp-http-config-v0.1.1
 # Purpose: Local, secret-safe configuration helpers for the RiftReader HTTP MCP adapter.
 
 from __future__ import annotations
@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "riftreader-mcp-http-v0.1.0"
+VERSION = "riftreader-mcp-http-v0.1.2"
 PROTOCOL_VERSION = "2025-06-18"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_ENABLED_TOOLS = ("health", "get_repo_status", "get_latest_handoff")
+DEFAULT_ALLOWED_ORIGINS = ("https://chatgpt.com", "https://chat.openai.com", "https://platform.openai.com")
 TOKEN_ENV_VAR = "RIFTREADER_MCP_TOKEN"
 
 
@@ -40,6 +41,8 @@ class McpHttpConfig:
     require_auth: bool = True
     expose_repo_root: bool = True
     enabled_tools: tuple[str, ...] = DEFAULT_ENABLED_TOOLS
+    validate_origin: bool = True
+    allowed_origins: tuple[str, ...] = DEFAULT_ALLOWED_ORIGINS
     token: str | None = None
     token_source: str = "missing"
 
@@ -78,6 +81,14 @@ def _enabled_tools(payload: dict[str, Any]) -> tuple[str, ...]:
     return tools or DEFAULT_ENABLED_TOOLS
 
 
+def _string_tuple(payload: dict[str, Any], key: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = payload.get(key, default)
+    if not isinstance(raw, list | tuple):
+        return default
+    values = tuple(str(item).strip().rstrip("/") for item in raw if str(item).strip())
+    return values or default
+
+
 def load_config(
     *,
     repo: str | Path | None = None,
@@ -105,6 +116,8 @@ def load_config(
         require_auth=_bool_value(payload, "requireAuth", True),
         expose_repo_root=_bool_value(payload, "exposeRepoRoot", True),
         enabled_tools=_enabled_tools(payload),
+        validate_origin=_bool_value(payload, "validateOrigin", True),
+        allowed_origins=_string_tuple(payload, "allowedOrigins", DEFAULT_ALLOWED_ORIGINS),
         token=selected_token,
         token_source=token_source,
     )
@@ -122,6 +135,8 @@ def ensure_local_config(repo: str | Path | None = None, *, force: bool = False) 
             "port": cfg.port,
             "requireAuth": cfg.require_auth,
             "enabledTools": list(cfg.enabled_tools),
+            "validateOrigin": cfg.validate_origin,
+            "allowedOrigins": list(cfg.allowed_origins),
             "tokenSource": cfg.token_source,
         }
 
@@ -134,6 +149,8 @@ def ensure_local_config(repo: str | Path | None = None, *, force: bool = False) 
         "requireAuth": True,
         "exposeRepoRoot": True,
         "enabledTools": list(DEFAULT_ENABLED_TOOLS),
+        "validateOrigin": True,
+        "allowedOrigins": list(DEFAULT_ALLOWED_ORIGINS),
         "token": secrets.token_urlsafe(32),
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -144,6 +161,8 @@ def ensure_local_config(repo: str | Path | None = None, *, force: bool = False) 
         "port": payload["port"],
         "requireAuth": payload["requireAuth"],
         "enabledTools": payload["enabledTools"],
+        "validateOrigin": payload["validateOrigin"],
+        "allowedOrigins": payload["allowedOrigins"],
         "tokenSource": "local-config",
     }
 

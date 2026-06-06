@@ -23,6 +23,7 @@ Official documentation checked:
 | OpenAI Developer mode docs | ChatGPT developer mode creates apps from remote MCP servers, supports SSE and streaming HTTP, and no longer requires `search`/`fetch` for developer-mode tools. |
 | OpenAI Secure MCP Tunnel docs | For a developer machine/private network MCP server, use Secure MCP Tunnel so ChatGPT connects through an outbound tunnel instead of a public listener. |
 | MCP 2025-06-18 spec | Tool definitions can include `outputSchema`; tool results can include `structuredContent` plus `content` for compatibility. |
+| MCP 2025-06-18 transport spec | Streamable HTTP clients should send `MCP-Protocol-Version`; local servers should validate `Origin` to defend against DNS rebinding. |
 
 ## Local tools exposed
 
@@ -36,6 +37,20 @@ Only these read-only tools are exposed by default:
 
 No arbitrary file read, write, shell, stage, commit, push, RIFT input,
 x64dbg/Cheat Engine, or Cloudflare mutation tool is exposed.
+
+## Transport hardening
+
+The local server is intentionally conservative:
+
+| Control | Behavior |
+|---|---|
+| Bind address | `127.0.0.1` only by default. |
+| Auth | Bearer token required for `/health` and `/mcp`. |
+| Origin validation | Requests with an `Origin` header are allowed only from ChatGPT/OpenAI origins or loopback origins. |
+| DNS rebinding defense | Unknown browser origins are rejected with `origin_rejected`. |
+| MCP protocol header | Responses include `MCP-Protocol-Version: 2025-06-18`; unsupported request versions are rejected. |
+| CORS | No wildcard `Access-Control-Allow-Origin`; allowed origins are echoed only when trusted. |
+| Output shape | Tool calls return both `structuredContent` and text `content`. |
 
 ## Prerequisites
 
@@ -105,6 +120,10 @@ These files are ignored by Git and must stay local.
 The profile uses `file:` references for the local MCP auth header so the bearer
 token is not placed on the command line. The helper never prints the token.
 
+The generated profile follows the current tunnel-client YAML shape for HTTP MCP
+servers: `mcp.server_urls` binds channel `main`, while `mcp.extra_headers` and
+`mcp.discovery_extra_headers` provide the local bearer-token header from a file.
+
 ## ChatGPT setup
 
 In ChatGPT Web:
@@ -132,5 +151,7 @@ Do not use Codex, browser, built-in web search, or any other connector for repo 
 | Missing `CONTROL_PLANE_TUNNEL_ID` | No OpenAI tunnel selected. | Create/select a tunnel in OpenAI Platform and set the env var. |
 | Missing `CONTROL_PLANE_API_KEY` | Runtime key is not available to the daemon. | Create a runtime key with Tunnels Read + Use and set it in the shell. |
 | Local MCP unreachable | `scripts\start_mcp_local.cmd` is not running. | Start the local server and retry. |
+| `origin_rejected` | A browser-origin request is not from an allowed OpenAI/loopback origin. | Use ChatGPT/tunnel-client or add only a trusted origin in local config. |
+| Unsupported `MCP-Protocol-Version` | Client sent an unsupported MCP transport version. | Use a current ChatGPT/tunnel-client client. |
 | Tool scan shows old tools | ChatGPT uses a frozen snapshot. | Refresh/rescan the app tools in ChatGPT settings. |
 | ChatGPT app not visible | Workspace/plan/developer-mode gate. | Check Settings > Apps and workspace app permissions. |

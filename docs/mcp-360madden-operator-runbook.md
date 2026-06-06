@@ -116,3 +116,5 @@ Do not paste the token into GitHub, docs, screenshots, or issue comments. Use it
 | Local smoke cannot connect | Server failed to start or port is blocked. | Paste full smoke JSON output. |
 | Public health fails but local smoke passes | Cloudflare tunnel/DNS route is not ready. | Follow `docs\cloudflare-tunnel-360madden.md`. |
 | `BLOCKED_DOMAIN_SETUP` | Domain was bought but DNS/tunnel route is not complete. | Finish Phase -1 in `docs\cloudflare-tunnel-360madden.md`. |
+| `origin_rejected` | Request came from an untrusted browser origin. | Use ChatGPT/tunnel-client or update only trusted local origins. |
+| Unsupported `MCP-Protocol-Version` | Client sent an unsupported MCP transport version. | Use current ChatGPT/tunnel-client or omit the header for backward-compatible default handling. |

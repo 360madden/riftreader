@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-server-v0.1.1
+# Version: riftreader-mcp-http-server-v0.1.2
 # Purpose: Read-only local HTTP MCP server for Cloudflare-tunneled ChatGPT access.
 
 from __future__ import annotations
@@ -10,11 +10,16 @@ import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import urlparse
 
 from tools.riftreader_mcp.auth import authorize, token_fingerprint
 from tools.riftreader_mcp.config import PROTOCOL_VERSION, VERSION, McpHttpConfig, ensure_local_config, load_config
 from tools.riftreader_mcp.logging_util import write_log
 from tools.riftreader_mcp.readonly_tools import ReadOnlyToolError, RiftReaderReadOnlyTools
+
+
+SUPPORTED_PROTOCOL_VERSIONS = {PROTOCOL_VERSION, "2025-03-26"}
+MCP_PROTOCOL_HEADER = "MCP-Protocol-Version"
 
 
 def json_bytes(payload: dict[str, Any]) -> bytes:
@@ -40,7 +45,7 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -48,9 +53,44 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         if allow:
             self.send_header("Allow", allow)
-        self.send_header("Cache-Control", "no-store")
+        self._send_common_headers()
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    def _send_common_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(MCP_PROTOCOL_HEADER, PROTOCOL_VERSION)
+        self.send_header("Vary", "Origin")
+        origin = self.headers.get("Origin")
+        if origin and self.server.origin_allowed(origin):
+            self.send_header("Access-Control-Allow-Origin", origin.strip().rstrip("/"))
+
+    def _origin_ok(self) -> bool:
+        origin = self.headers.get("Origin")
+        if self.server.origin_allowed(origin):
+            return True
+        write_log(self.server.config, "origin_rejected", {"path": self.path, "origin": origin, "client": self.client_address[0]})
+        self._send_json(
+            HTTPStatus.FORBIDDEN,
+            {"ok": False, "status": "origin_rejected", "message": "Origin is not allowed for this local MCP server."},
+        )
+        return False
+
+    def _protocol_version_ok(self) -> bool:
+        raw_version = self.headers.get(MCP_PROTOCOL_HEADER)
+        if not raw_version:
+            return True
+        version = raw_version.strip()
+        if version in SUPPORTED_PROTOCOL_VERSIONS:
+            return True
+        write_log(self.server.config, "protocol_version_rejected", {"path": self.path, "protocolVersion": version, "client": self.client_address[0]})
+        self._send_json(HTTPStatus.BAD_REQUEST, self.server.error_response(None, -32000, f"Unsupported {MCP_PROTOCOL_HEADER}: {version}"))
+        return False
+
+    def _transport_ok(self) -> bool:
+        return self._origin_ok() and self._protocol_version_ok()
 
     def _authorized(self) -> bool:
         result = authorize(self.server.config, self.headers)
@@ -61,13 +101,18 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         return False
 
     def do_OPTIONS(self) -> None:  # noqa: N802
+        if not self._origin_ok():
+            return
         self.send_response(HTTPStatus.NO_CONTENT)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Authorization, X-RiftReader-MCP-Token, Content-Type")
+        self._send_common_headers()
+        self.send_header("Access-Control-Allow-Headers", f"Authorization, X-RiftReader-MCP-Token, Content-Type, Accept, {MCP_PROTOCOL_HEADER}")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        if not self._transport_ok():
+            return
         if self.path.rstrip("/") == "/mcp":
             self._send_empty(HTTPStatus.METHOD_NOT_ALLOWED, allow="POST, OPTIONS")
             return
@@ -81,6 +126,8 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, payload)
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._transport_ok():
+            return
         if self.path.rstrip("/") != "/mcp":
             self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "status": "not_found", "message": "Use POST /mcp."})
             return
@@ -109,6 +156,16 @@ class RiftReaderHttpServer(ThreadingHTTPServer):
         self.config = config
         self.tools = RiftReaderReadOnlyTools(config)
 
+    def origin_allowed(self, origin: str | None) -> bool:
+        if not origin or not self.config.validate_origin:
+            return True
+        normalized = origin.strip().rstrip("/")
+        if normalized in self.config.allowed_origins:
+            return True
+        parsed = urlparse(normalized)
+        host = (parsed.hostname or "").lower()
+        return parsed.scheme in {"http", "https"} and host in {"127.0.0.1", "localhost", "::1"}
+
     @staticmethod
     def error_response(request_id: Any, code: int, message: str) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
@@ -129,7 +186,11 @@ class RiftReaderHttpServer(ThreadingHTTPServer):
                     "result": {
                         "protocolVersion": PROTOCOL_VERSION,
                         "capabilities": {"tools": {"listChanged": False}},
-                        "serverInfo": {"name": "riftreader-mcp-http", "version": VERSION},
+                        "serverInfo": {"name": "riftreader-mcp-http", "title": "RiftReader Local Repo MCP", "version": VERSION},
+                        "instructions": (
+                            "Use only the advertised read-only RiftReader tools. This server cannot write files, run shell "
+                            "commands, stage/commit/push Git changes, or interact with RIFT/game/debugger state."
+                        ),
                     },
                 }
             if method == "ping":
@@ -193,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
         "tokenConfigured": bool(config.token),
         "tokenFingerprint": token_fingerprint(config.token),
         "enabledTools": list(config.enabled_tools),
+        "originValidationEnabled": config.validate_origin,
+        "allowedOrigins": list(config.allowed_origins),
         "logs": str(config.log_root),
     }
     write_log(config, "startup", startup)

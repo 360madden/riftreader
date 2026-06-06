@@ -141,6 +141,7 @@ Do not commit the real tunnel ID, credentials path, token, or Cloudflare credent
 | Public health | `https://mcp.360madden.com/health` returns JSON when bearer token is supplied. |
 | Public MCP discovery | `POST https://mcp.360madden.com/mcp` with `tools/list` returns only `health`, `get_repo_status`, `get_latest_handoff`. |
 | ChatGPT | Pending until ChatGPT connector/developer-mode setup points at `/mcp`. |
+| Origin defense | Unknown browser `Origin` headers are rejected; server-side connector/tunnel requests without an `Origin` header continue to work. |
 
 Note: ChatGPT Web/Desktop custom app setup currently supports Tunnel,
 OAuth/No-auth style app configuration paths rather than copying this local

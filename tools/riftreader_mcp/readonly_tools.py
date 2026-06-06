@@ -209,6 +209,8 @@ class RiftReaderReadOnlyTools:
             "authRequired": self.config.require_auth,
             "tokenConfigured": bool(self.config.token),
             "tokenFingerprint": token_fingerprint(self.config.token),
+            "originValidationEnabled": self.config.validate_origin,
+            "allowedOrigins": list(self.config.allowed_origins),
             "generatedAtUtc": utc_iso(),
         }
 

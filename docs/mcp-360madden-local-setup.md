@@ -57,6 +57,7 @@ Expected startup fields:
 | `mcpUrl` | `http://127.0.0.1:8765/mcp` |
 | `authRequired` | `true` |
 | `tokenConfigured` | `true` |
+| `originValidationEnabled` | `true` |
 
 The first start creates `.riftreader-local\mcp\config.json` with a generated token. That file is ignored by Git and must not be committed.
 
@@ -68,6 +69,8 @@ The first start creates `.riftreader-local\mcp\config.json` with a generated tok
 - No router port forwarding.
 - No write tools are implemented for this HTTP endpoint.
 - No real token is committed; only `tools\riftreader_mcp\mcp-http-config.example.json` is tracked.
+- Requests with an `Origin` header are rejected unless the origin is a trusted ChatGPT/OpenAI or loopback origin.
+- MCP responses include `MCP-Protocol-Version: 2025-06-18`; unsupported protocol-version headers fail closed.
 
 ## Logs and runtime state
 

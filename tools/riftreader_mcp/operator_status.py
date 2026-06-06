@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.2
+# Version: riftreader-mcp-http-operator-status-v0.1.3
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -96,12 +96,12 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.2",
+        "version": "riftreader-mcp-http-operator-status-v0.1.3",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
             "Added a separate read-only HTTP MCP adapter for ChatGPT Web/Desktop local repo access.",
-            "Added token-gated auth, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
+            "Added token-gated auth, Origin validation, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
             "Kept the existing stdio MCP adapter intact; this slice does not add write tools or live-game integrations.",
         ],
         "filesCreatedOrModified": [
@@ -163,6 +163,9 @@ def build_status(repo: Path) -> dict[str, Any]:
         "authRequired": config.require_auth,
         "tokenConfigured": ready_local,
         "enabledTools": list(config.enabled_tools),
+        "originValidationEnabled": config.validate_origin,
+        "allowedOrigins": list(config.allowed_origins),
+        "mcpProtocolVersion": "2025-06-18",
         "repoStatus": repo_status,
         "latestHandoff": {k: latest_handoff.get(k) for k in ("status", "relativePath", "lastWriteTimeUtc")},
         "latestSmokeSummary": str(latest_smoke) if latest_smoke else None,
