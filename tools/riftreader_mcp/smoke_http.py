@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-smoke-v0.1.0
+# Version: riftreader-mcp-http-smoke-v0.1.1
 # Purpose: Local and optional public smoke tests for the RiftReader HTTP MCP adapter.
 
 from __future__ import annotations
@@ -48,6 +48,19 @@ def request_json(url: str, *, token: str, payload: dict[str, Any] | None = None,
         return int(exc.code), parsed
 
 
+def request_raw(url: str, *, token: str, payload: dict[str, Any] | None = None, method: str | None = None, timeout: float = 5.0) -> tuple[int, bytes, dict[str, str]]:
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method=method or ("GET" if data is None else "POST"))
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("User-Agent", "RiftReader-MCP-Smoke/0.1")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - operator-requested local/public smoke.
+            return int(response.status), response.read(), dict(response.headers.items())
+    except urllib.error.HTTPError as exc:
+        return int(exc.code), exc.read(), dict(exc.headers.items())
+
+
 def direct_missing_handoff_check() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="riftreader-mcp-missing-handoff-") as raw:
         repo = Path(raw)
@@ -93,6 +106,20 @@ def run_local_smoke(repo: Path) -> dict[str, Any]:
         tools_list = request_json(base + "/mcp", token=token, payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [item.get("name") for item in tools_list[1].get("result", {}).get("tools", [])]
         checks.append({"name": "tools_list_has_readonly_allowlist", "passed": set(names) == {"health", "get_repo_status", "get_latest_handoff"}, "tools": names})
+        tool_defs = tools_list[1].get("result", {}).get("tools", [])
+        checks.append(
+            {
+                "name": "tools_list_has_chatgpt_guidance_and_output_schemas",
+                "passed": all(
+                    isinstance(item, dict)
+                    and isinstance(item.get("description"), str)
+                    and "Use this when" in item["description"]
+                    and isinstance(item.get("inputSchema"), dict)
+                    and isinstance(item.get("outputSchema"), dict)
+                    for item in tool_defs
+                ),
+            }
+        )
 
         repo_status = request_json(
             base + "/mcp",
@@ -100,6 +127,15 @@ def run_local_smoke(repo: Path) -> dict[str, Any]:
             payload={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "get_repo_status", "arguments": {}}},
         )
         checks.append({"name": "get_repo_status_works", "passed": repo_status[0] == 200 and "result" in repo_status[1]})
+        repo_status_result = repo_status[1].get("result", {})
+        checks.append(
+            {
+                "name": "tool_result_has_structured_content",
+                "passed": isinstance(repo_status_result.get("structuredContent"), dict)
+                and repo_status_result["structuredContent"].get("ok") is True
+                and isinstance(repo_status_result.get("content"), list),
+            }
+        )
 
         handoff = request_json(
             base + "/mcp",
@@ -113,6 +149,19 @@ def run_local_smoke(repo: Path) -> dict[str, Any]:
 
         wrong_auth = request_json(f"{base}/health", token="wrong-token")
         checks.append({"name": "wrong_auth_fails_closed", "passed": wrong_auth[0] == 401 and wrong_auth[1].get("status") == "auth_invalid", "statusCode": wrong_auth[0]})
+
+        notification = request_raw(base + "/mcp", token=token, payload={"jsonrpc": "2.0", "method": "notifications/initialized"})
+        checks.append(
+            {
+                "name": "notification_returns_accepted_empty_body",
+                "passed": notification[0] == 202 and notification[1] == b"",
+                "statusCode": notification[0],
+                "bodyBytes": len(notification[1]),
+            }
+        )
+
+        get_mcp = request_raw(base + "/mcp", token=token)
+        checks.append({"name": "get_mcp_without_sse_is_405", "passed": get_mcp[0] == 405, "statusCode": get_mcp[0]})
 
         serialized = json.dumps({"checks": checks, "health": health[1] if health else None, "toolsList": tools_list[1]})
         checks.append({"name": "no_secret_in_smoke_output", "passed": token not in serialized})
@@ -137,7 +186,42 @@ def run_public_check(public_url: str, token: str) -> dict[str, Any]:
         health = request_json(base + "/health", token=token, timeout=10)
         checks.append({"name": "public_health", "passed": health[0] == 200, "statusCode": health[0], "status": health[1].get("status")})
         tools = request_json(base + "/mcp", token=token, payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=10)
-        checks.append({"name": "public_tools_list", "passed": tools[0] == 200 and "result" in tools[1], "statusCode": tools[0]})
+        tool_defs = tools[1].get("result", {}).get("tools", [])
+        tool_names = [item.get("name") for item in tool_defs if isinstance(item, dict)]
+        checks.append(
+            {
+                "name": "public_tools_list",
+                "passed": tools[0] == 200 and set(tool_names) == {"health", "get_repo_status", "get_latest_handoff"},
+                "statusCode": tools[0],
+                "tools": tool_names,
+            }
+        )
+        checks.append(
+            {
+                "name": "public_tools_have_chatgpt_guidance_and_output_schemas",
+                "passed": all(
+                    isinstance(item, dict)
+                    and isinstance(item.get("description"), str)
+                    and "Use this when" in item["description"]
+                    and isinstance(item.get("outputSchema"), dict)
+                    for item in tool_defs
+                ),
+            }
+        )
+        repo_status = request_json(
+            base + "/mcp",
+            token=token,
+            payload={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "get_repo_status", "arguments": {}}},
+            timeout=10,
+        )
+        repo_result = repo_status[1].get("result", {})
+        checks.append(
+            {
+                "name": "public_tool_result_has_structured_content",
+                "passed": repo_status[0] == 200 and isinstance(repo_result.get("structuredContent"), dict) and repo_result["structuredContent"].get("ok") is True,
+                "statusCode": repo_status[0],
+            }
+        )
     except Exception as exc:  # noqa: BLE001
         checks.append({"name": "public_route_reachable", "passed": False, "error": f"{type(exc).__name__}: {exc}"})
     return {"publicUrl": public_url, "status": "passed" if all(item.get("passed") for item in checks) else "failed", "checks": checks}
@@ -184,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             public = {"publicUrl": args.public_url, "status": "blocked", "checks": [{"name": "public_token_configured", "passed": False, "status": "auth_missing"}]}
     payload = {
-        "version": "riftreader-mcp-http-smoke-v0.1.0",
+        "version": "riftreader-mcp-http-smoke-v0.1.1",
         "generatedAtUtc": utc_iso(),
         "status": "passed" if local["status"] == "passed" and (public is None or public["status"] == "passed") else "failed",
         "local": local,

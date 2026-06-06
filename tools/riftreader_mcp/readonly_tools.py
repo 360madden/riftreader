@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-readonly-tools-v0.1.0
+# Version: riftreader-mcp-http-readonly-tools-v0.1.1
 # Purpose: Safe read-only RiftReader MCP tool implementations for HTTP/tunnel exposure.
 
 from __future__ import annotations
@@ -81,6 +81,7 @@ class ToolSpec:
     title: str
     description: str
     input_schema: dict[str, Any]
+    output_schema: dict[str, Any]
     handler: Callable[[dict[str, Any]], dict[str, Any]]
 
     def definition(self) -> dict[str, Any]:
@@ -89,6 +90,7 @@ class ToolSpec:
             "title": self.title,
             "description": self.description,
             "inputSchema": self.input_schema,
+            "outputSchema": self.output_schema,
             "annotations": {"readOnlyHint": True, "destructiveHint": False},
         }
 
@@ -101,25 +103,84 @@ class RiftReaderReadOnlyTools:
             "health": ToolSpec(
                 "health",
                 "RiftReader MCP health",
-                "Return safe local RiftReader MCP server health metadata.",
+                "Use this when ChatGPT needs to verify the RiftReader MCP server is reachable and see its read-only safety boundaries.",
                 {"type": "object", "properties": {}, "additionalProperties": False},
+                {
+                    "type": "object",
+                    "properties": {
+                        "ok": {"type": "boolean"},
+                        "status": {"type": "string"},
+                        "version": {"type": "string"},
+                        "repoName": {"type": "string"},
+                        "repoRoot": {"type": ["string", "null"]},
+                        "toolCount": {"type": "integer"},
+                        "enabledTools": {"type": "array", "items": {"type": "string"}},
+                        "authRequired": {"type": "boolean"},
+                        "tokenConfigured": {"type": "boolean"},
+                        "generatedAtUtc": {"type": "string"},
+                    },
+                    "required": ["ok", "status", "version", "repoName", "toolCount", "enabledTools", "generatedAtUtc"],
+                    "additionalProperties": True,
+                },
                 self.health,
             ),
             "get_repo_status": ToolSpec(
                 "get_repo_status",
                 "RiftReader repo status",
-                "Return branch, HEAD commit, dirty state, and changed-file summary. Read-only fixed git commands only.",
+                "Use this when ChatGPT needs the current local RiftReader Git branch, HEAD commit, dirty state, and changed-file summary. This runs fixed read-only git commands only; it cannot stage, commit, push, or read arbitrary files.",
                 {"type": "object", "properties": {}, "additionalProperties": False},
+                {
+                    "type": "object",
+                    "properties": {
+                        "ok": {"type": "boolean"},
+                        "repoName": {"type": "string"},
+                        "repoRoot": {"type": ["string", "null"]},
+                        "branch": {"type": "string"},
+                        "headCommit": {"type": ["string", "null"]},
+                        "headShort": {"type": ["string", "null"]},
+                        "headSubject": {"type": ["string", "null"]},
+                        "dirty": {"type": "boolean"},
+                        "changedFileCount": {"type": "integer"},
+                        "changedFiles": {"type": "array", "items": {"type": "string"}},
+                        "statusShortBranch": {"type": ["string", "null"]},
+                        "generatedAtUtc": {"type": "string"},
+                    },
+                    "required": ["ok", "repoName", "branch", "dirty", "changedFileCount", "changedFiles", "generatedAtUtc"],
+                    "additionalProperties": True,
+                },
                 self.get_repo_status,
             ),
             "get_latest_handoff": ToolSpec(
                 "get_latest_handoff",
                 "RiftReader latest handoff",
-                "Return the latest known repo-local handoff/status packet if present; handles missing files cleanly.",
+                "Use this when ChatGPT needs the newest bounded RiftReader handoff/status packet from known repo-local locations. This does not accept arbitrary paths and handles missing files cleanly.",
                 {
                     "type": "object",
-                    "properties": {"maxChars": {"type": "integer", "minimum": 1000, "maximum": 120000, "default": 40000}},
+                    "properties": {
+                        "maxChars": {
+                            "type": "integer",
+                            "minimum": 1000,
+                            "maximum": 120000,
+                            "default": 40000,
+                            "description": "Maximum characters to return from text handoff files.",
+                        }
+                    },
                     "additionalProperties": False,
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "ok": {"type": "boolean"},
+                        "status": {"type": "string", "enum": ["present", "missing"]},
+                        "message": {"type": "string"},
+                        "path": {"type": "string"},
+                        "relativePath": {"type": "string"},
+                        "lastWriteTimeUtc": {"type": "string"},
+                        "content": {},
+                        "generatedAtUtc": {"type": "string"},
+                    },
+                    "required": ["ok", "status", "generatedAtUtc"],
+                    "additionalProperties": True,
                 },
                 self.get_latest_handoff,
             ),

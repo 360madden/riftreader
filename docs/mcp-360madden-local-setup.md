@@ -1,8 +1,14 @@
 # RiftReader MCP 360madden Local Setup
 
-This is the local-only first step for:
+This is the local-only first step for the MCP server used by both paths:
 
-`ChatGPT Web -> https://mcp.360madden.com -> Cloudflare Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader`
+```text
+Preferred: ChatGPT Web/Desktop -> OpenAI Secure MCP Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader
+Fallback:  ChatGPT/API client -> https://mcp.360madden.com -> Cloudflare Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader
+```
+
+For ChatGPT Web/Desktop specifically, prefer
+`docs\chatgpt-web-mcp-secure-tunnel.md` after the local server passes smoke.
 
 The server is Python-first, binds to `127.0.0.1`, and exposes only these read-only tools by default:
 
@@ -71,3 +77,4 @@ The first start creates `.riftreader-local\mcp\config.json` with a generated tok
 | `.riftreader-local\mcp\logs\` | JSONL server logs with token redaction. |
 | `.riftreader-local\mcp\smoke\` | Smoke-test summaries. |
 | `.riftreader-local\mcp\latest\` | Operator handoff/status packet. |
+| `.riftreader-local\mcp\openai-tunnel\` | OpenAI Secure MCP Tunnel profile/status files. |

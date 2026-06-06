@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.1
+# Version: riftreader-mcp-http-operator-status-v0.1.2
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import Any
 from tools.riftreader_mcp.cloudflared_status import build_cloudflared_status
 from tools.riftreader_mcp.config import default_repo_root, load_config, local_config_path, runtime_root
 from tools.riftreader_mcp.logging_util import utc_iso
+from tools.riftreader_mcp.openai_tunnel_status import build_openai_tunnel_status
 from tools.riftreader_mcp.readonly_tools import RiftReaderReadOnlyTools
 
 
@@ -67,6 +68,7 @@ def build_status(repo: Path) -> dict[str, Any]:
     latest_dedupe_payload = read_json_or_none(latest_dedupe)
     latest_log = latest_file(runtime_root(repo) / "logs", "*.jsonl")
     cloudflared_runtime = build_cloudflared_status(repo)
+    openai_tunnel_runtime = build_openai_tunnel_status(repo, ensure_profile=False)
     ready_local = cfg_path.exists() and config.require_auth and bool(config.token)
     public_ready = bool(
         latest_public_smoke_payload
@@ -94,12 +96,12 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.1",
+        "version": "riftreader-mcp-http-operator-status-v0.1.2",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
-            "Added a separate read-only HTTP MCP adapter for Cloudflare-tunneled ChatGPT access.",
-            "Added token-gated auth, explicit tool allowlist, JSONL logging, local smoke tests, operator status output, and Cloudflare template/docs.",
+            "Added a separate read-only HTTP MCP adapter for ChatGPT Web/Desktop local repo access.",
+            "Added token-gated auth, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
             "Kept the existing stdio MCP adapter intact; this slice does not add write tools or live-game integrations.",
         ],
         "filesCreatedOrModified": [
@@ -112,23 +114,30 @@ def build_status(repo: Path) -> dict[str, Any]:
             "tools/riftreader_mcp/domain_preflight.py",
             "tools/riftreader_mcp/start_cloudflared_connector.py",
             "tools/riftreader_mcp/cloudflared_status.py",
+            "tools/riftreader_mcp/openai_tunnel_status.py",
             "tools/riftreader_mcp/operator_status.py",
             "tools/riftreader_mcp/mcp-http-config.example.json",
             "tools/riftreader_mcp/cloudflare-tunnel-360madden.example.yml",
             "scripts/check_mcp_domain_readiness.cmd",
             "scripts/check_mcp_cloudflared_service.cmd",
+            "scripts/check_chatgpt_mcp_tunnel_readiness.cmd",
+            "scripts/prepare_chatgpt_mcp_tunnel_profile.cmd",
+            "scripts/start_chatgpt_mcp_tunnel.cmd",
             "scripts/start_mcp_local.cmd",
             "scripts/test_mcp_local.cmd",
             "scripts/print_mcp_operator_status.cmd",
             "docs/mcp-360madden-local-setup.md",
             "docs/mcp-360madden-operator-runbook.md",
             "docs/cloudflare-tunnel-360madden.md",
+            "docs/chatgpt-web-mcp-secure-tunnel.md",
         ],
         "commandsForJoey": [
             "cd /d \"C:\\RIFT MODDING\\RiftReader\"",
             "scripts\\check_mcp_domain_readiness.cmd",
             "scripts\\test_mcp_local.cmd",
             "scripts\\start_mcp_local.cmd",
+            "scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd",
+            "scripts\\check_chatgpt_mcp_tunnel_readiness.cmd",
             "scripts\\check_mcp_cloudflared_service.cmd",
             "scripts\\print_mcp_operator_status.cmd",
             "python -m tools.riftreader_mcp.smoke_http --repo \"C:\\RIFT MODDING\\RiftReader\" --public-url https://mcp.360madden.com --json",
@@ -139,6 +148,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "END_RIFTREADER_MCP_DOMAIN_PREFLIGHT",
             "END_RIFTREADER_MCP_HTTP_SMOKE",
             "END_RIFTREADER_MCP_CLOUDFLARED_STATUS",
+            "END_RIFTREADER_CHATGPT_MCP_TUNNEL_STATUS",
             "END_RIFTREADER_MCP_LOCAL_TEST",
             "END_RIFTREADER_MCP_LOCAL_STARTUP_BEGIN_SERVER",
             "END_RIFTREADER_MCP_OPERATOR_STATUS_CMD",
@@ -148,6 +158,8 @@ def build_status(repo: Path) -> dict[str, Any]:
         "localServerUrl": f"http://{config.host}:{config.port}",
         "localMcpUrl": f"http://{config.host}:{config.port}/mcp",
         "publicMcpUrl": "https://mcp.360madden.com/mcp",
+        "preferredChatGptMcpMode": "openai_secure_mcp_tunnel",
+        "chatGptMcpFallbackMode": "cloudflare_public_hostname",
         "authRequired": config.require_auth,
         "tokenConfigured": ready_local,
         "enabledTools": list(config.enabled_tools),
@@ -171,6 +183,10 @@ def build_status(repo: Path) -> dict[str, Any]:
         "cloudflaredServicePid": cloudflared_runtime.get("service", {}).get("pid"),
         "cloudflaredProcessPids": cloudflared_runtime.get("processes", {}).get("pids"),
         "cloudflaredNonServicePids": cloudflared_runtime.get("processes", {}).get("nonServicePids"),
+        "openaiSecureMcpTunnelRuntime": openai_tunnel_runtime,
+        "openaiSecureMcpTunnelStatus": openai_tunnel_runtime.get("status"),
+        "openaiSecureMcpTunnelBlockers": openai_tunnel_runtime.get("blockers"),
+        "chatgptMcpTunnelProfileReadyForDoctor": openai_tunnel_runtime.get("status") == "ready_for_doctor",
         "latestLog": str(latest_log) if latest_log else None,
         "domainReady": domain_ready,
         "connectorStarted": connector_started,
@@ -183,17 +199,16 @@ def build_status(repo: Path) -> dict[str, Any]:
             "No game/RIFT process attach or memory read.",
             "No x64dbg or Cheat Engine integration.",
             "No Cloudflare credential storage.",
-            "No ChatGPT connector registration automation.",
+            "No ChatGPT connector registration automation or bearer-token transfer into ChatGPT.",
             "No Git push.",
         ],
         "blockedOn": (
-            ["ChatGPT connector setup/developer-mode registration is not performed by this repo script."]
-            if public_ready
-            else [
-                "Joey must run the local server and keep it running.",
-                "Joey must create/route the Cloudflare Tunnel public hostname mcp.360madden.com to the local service.",
-                "ChatGPT connector setup/developer-mode registration is not performed by this repo script.",
+            [
+                "Install/configure OpenAI tunnel-client prerequisites, set CONTROL_PLANE_TUNNEL_ID and CONTROL_PLANE_API_KEY, then run scripts\\start_chatgpt_mcp_tunnel.cmd.",
+                "Create the ChatGPT custom app from ChatGPT Settings > Apps using Tunnel connection mode.",
             ]
+            if openai_tunnel_runtime.get("status") != "ready_for_doctor"
+            else ["Run tunnel-client, then create/scan the ChatGPT custom app using Tunnel connection mode."]
         ),
     }
 
@@ -207,12 +222,14 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
     if payload.get("publicMcpReady"):
         next_steps_text = (
             "# RiftReader MCP 360madden Operator Next Steps\n\n"
-            "Current status: public MCP smoke passed for `https://mcp.360madden.com`.\n\n"
+            "Current status: public MCP smoke passed for `https://mcp.360madden.com`, but the preferred ChatGPT Web/Desktop path is OpenAI Secure MCP Tunnel.\n\n"
             "1. Run `scripts\\check_mcp_cloudflared_service.cmd` after any restart and confirm `status: service_only`.\n"
-            "2. Refresh the Cloudflare tunnel connector page if it still shows two connectors; stale disconnected entries can age out after cleanup.\n"
-            "3. Configure ChatGPT to use `https://mcp.360madden.com/mcp` with bearer-token auth only through a trusted setup path.\n"
-            "4. Keep `.riftreader-local\\mcp\\config.json` private and never paste the token into GitHub, docs, screenshots, or logs.\n\n"
-            "Expected markers: `PASS`, `END_RIFTREADER_MCP_HTTP_SMOKE`, `END_RIFTREADER_MCP_CLOUDFLARED_STATUS`.\n"
+            "2. Set `CONTROL_PLANE_TUNNEL_ID` and `CONTROL_PLANE_API_KEY` in the operator shell.\n"
+            "3. Run `scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd`.\n"
+            "4. Run `scripts\\start_chatgpt_mcp_tunnel.cmd` and keep the daemon running.\n"
+            "5. In ChatGPT Settings > Apps, create the custom app using Tunnel connection mode.\n"
+            "6. Keep `.riftreader-local\\mcp\\config.json` private and never paste the token into ChatGPT, GitHub, docs, screenshots, or logs.\n\n"
+            "Expected markers: `PASS`, `END_RIFTREADER_MCP_HTTP_SMOKE`, `END_RIFTREADER_MCP_CLOUDFLARED_STATUS`, `END_RIFTREADER_CHATGPT_MCP_TUNNEL_STATUS`.\n"
         )
     else:
         next_steps_text = (
@@ -221,7 +238,7 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
             "2. Run `scripts\\start_mcp_local.cmd` and leave the server running.\n"
             "3. Configure Cloudflare Tunnel public hostname `mcp.360madden.com` to `http://127.0.0.1:8765`.\n"
             "4. Run public verification from `docs\\cloudflare-tunnel-360madden.md`.\n"
-            "5. Only after public verification, configure ChatGPT to use `https://mcp.360madden.com/mcp` with bearer-token auth.\n\n"
+            "5. For ChatGPT Web/Desktop, prefer `scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd` plus OpenAI Secure MCP Tunnel instead of direct public bearer-token setup.\n\n"
             "Expected markers: `PASS`, `END_RIFTREADER_MCP_HTTP_SMOKE`, and `status: listening` from the server startup JSON.\n"
         )
     next_steps.write_text(next_steps_text, encoding="utf-8")

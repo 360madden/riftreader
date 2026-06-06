@@ -70,6 +70,32 @@ END_RIFTREADER_MCP_CLOUDFLARED_STATUS_CMD
 If it reports `duplicate_processes`, keep the Windows service and stop only the
 extra non-service `cloudflared.exe` process. Do not delete the Cloudflare tunnel.
 
+## 3b. Prepare ChatGPT Web/Desktop Secure MCP Tunnel
+
+This is now the preferred ChatGPT Web/Desktop path.
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\prepare_chatgpt_mcp_tunnel_profile.cmd
+scripts\check_chatgpt_mcp_tunnel_readiness.cmd
+```
+
+If the output is `BLOCKED`, read the listed blockers. Common missing
+prerequisites are `tunnel-client`, `CONTROL_PLANE_TUNNEL_ID`, and
+`CONTROL_PLANE_API_KEY`.
+
+Once those exist:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+set CONTROL_PLANE_TUNNEL_ID=tunnel_0123456789abcdef0123456789abcdef
+set CONTROL_PLANE_API_KEY=<runtime key with Tunnels Read + Use>
+scripts\start_chatgpt_mcp_tunnel.cmd
+```
+
+Then create the custom app in ChatGPT Settings > Apps using **Tunnel**
+connection mode. Do not paste the local bearer token into ChatGPT.
+
 ## 4. Token handling
 
 The local token lives in:

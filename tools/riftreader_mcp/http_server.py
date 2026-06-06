@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-server-v0.1.0
+# Version: riftreader-mcp-http-server-v0.1.1
 # Purpose: Read-only local HTTP MCP server for Cloudflare-tunneled ChatGPT access.
 
 from __future__ import annotations
@@ -22,8 +22,11 @@ def json_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def mcp_text_result(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
-    text = payload if isinstance(payload, str) else json.dumps(payload, indent=2, ensure_ascii=False)
-    return {"content": [{"type": "text", "text": text}], "isError": bool(is_error)}
+    text = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    result: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": bool(is_error)}
+    if isinstance(payload, dict):
+        result["structuredContent"] = payload
+    return result
 
 
 class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
@@ -41,6 +44,14 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_empty(self, status: int, *, allow: str | None = None) -> None:
+        self.send_response(status)
+        if allow:
+            self.send_header("Allow", allow)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _authorized(self) -> bool:
         result = authorize(self.server.config, self.headers)
         if result.ok:
@@ -57,6 +68,9 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path.rstrip("/") == "/mcp":
+            self._send_empty(HTTPStatus.METHOD_NOT_ALLOWED, allow="POST, OPTIONS")
+            return
         if self.path.rstrip("/") not in {"/health", "/healthz"}:
             self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "status": "not_found", "message": "Use /health or POST /mcp."})
             return
@@ -80,7 +94,7 @@ class RiftReaderHttpMcpHandler(BaseHTTPRequestHandler):
                 raise ValueError("JSON-RPC request must be an object.")
             response = self.server.handle_jsonrpc(request)
             if response is None:
-                self._send_json(HTTPStatus.ACCEPTED, {"ok": True, "status": "notification_accepted"})
+                self._send_empty(HTTPStatus.ACCEPTED)
             else:
                 self._send_json(HTTPStatus.OK, response)
         except json.JSONDecodeError as exc:

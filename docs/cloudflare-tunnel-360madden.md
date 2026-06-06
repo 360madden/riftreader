@@ -1,8 +1,13 @@
 # Cloudflare Tunnel Plan for `mcp.360madden.com`
 
-Use this for:
+Use this for the public fallback route:
 
 `https://mcp.360madden.com -> Cloudflare Tunnel -> http://127.0.0.1:8765`
+
+For ChatGPT Web/Desktop local repo access, prefer
+`docs\chatgpt-web-mcp-secure-tunnel.md` when OpenAI Secure MCP Tunnel is
+available. That path keeps the local MCP server private and avoids relying on a
+public MCP endpoint.
 
 This plan assumes Joey owns `360madden.com` in Cloudflare and stays on a free Cloudflare account. It does not require router port forwarding or a raw external IP.
 
@@ -136,6 +141,11 @@ Do not commit the real tunnel ID, credentials path, token, or Cloudflare credent
 | Public health | `https://mcp.360madden.com/health` returns JSON when bearer token is supplied. |
 | Public MCP discovery | `POST https://mcp.360madden.com/mcp` with `tools/list` returns only `health`, `get_repo_status`, `get_latest_handoff`. |
 | ChatGPT | Pending until ChatGPT connector/developer-mode setup points at `/mcp`. |
+
+Note: ChatGPT Web/Desktop custom app setup currently supports Tunnel,
+OAuth/No-auth style app configuration paths rather than copying this local
+bearer token directly into ChatGPT. Keep the bearer token local; use OpenAI
+Secure MCP Tunnel with tunnel-client static MCP headers when possible.
 
 ## Duplicate connector IDs
 
