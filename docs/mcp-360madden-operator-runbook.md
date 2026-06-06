@@ -128,7 +128,11 @@ The local token lives in:
 .riftreader-local\mcp\config.json
 ```
 
-Do not paste the token into GitHub, docs, screenshots, or issue comments. Use it only as the bearer token for the Cloudflare/ChatGPT MCP connection.
+Do not paste the token into ChatGPT chats, GitHub, docs, screenshots, or issue
+comments. Use it only through local trusted paths: smoke tests, local curl-style
+diagnostics, or the Secure MCP Tunnel profile/header file. The public Cloudflare
+route is diagnostic-only for direct ChatGPT setup unless the server is changed to
+OAuth/noauth.
 
 ## 5. Failure meanings
 

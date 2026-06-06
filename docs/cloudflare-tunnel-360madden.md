@@ -19,6 +19,7 @@ Context7 documentation checked:
 |---|---|
 | `/cloudflare/cloudflare-docs` | Cloudflare Tunnel maps a public hostname to a local service, with ingress catch-all `http_status:404`; dashboard routes create DNS records to the tunnel. |
 | `/modelcontextprotocol/modelcontextprotocol` | MCP uses `tools/list` for discovery and `tools/call` for tool execution over JSON-RPC. |
+| [OpenAI Apps SDK auth docs](https://developers.openai.com/apps-sdk/build/auth) | Authenticated ChatGPT Apps MCP servers should use OAuth; ChatGPT does not present arbitrary custom API keys/static bearer tokens for app auth. |
 
 ## Local service target
 
@@ -140,13 +141,15 @@ Do not commit the real tunnel ID, credentials path, token, or Cloudflare credent
 | Tunnel route | Public hostname routes to `http://127.0.0.1:8765`. |
 | Public health | `https://mcp.360madden.com/health` returns JSON when bearer token is supplied. |
 | Public MCP discovery | `POST https://mcp.360madden.com/mcp` with `tools/list` returns only `health`, `get_repo_status`, `get_latest_handoff`. |
-| ChatGPT | Pending until ChatGPT connector/developer-mode setup points at `/mcp`. |
+| ChatGPT | Pending until ChatGPT connector/developer-mode setup uses OpenAI Secure MCP Tunnel, OAuth, or noauth. The static-bearer public route is diagnostic-only for direct ChatGPT setup. |
 | Origin defense | Unknown browser `Origin` headers are rejected; server-side connector/tunnel requests without an `Origin` header continue to work. |
 
-Note: ChatGPT Web/Desktop custom app setup currently supports Tunnel,
-OAuth/No-auth style app configuration paths rather than copying this local
-bearer token directly into ChatGPT. Keep the bearer token local; use OpenAI
-Secure MCP Tunnel with tunnel-client static MCP headers when possible.
+Note: Public Cloudflare smoke proves DNS, tunnel routing, auth enforcement, and
+tool discovery through `mcp.360madden.com`. It does not by itself make the app
+ChatGPT-ready while the public endpoint still requires this repo's static bearer
+token. Keep the bearer token local; use OpenAI Secure MCP Tunnel with
+tunnel-client static MCP headers, or implement OAuth/noauth before treating the
+public hostname as a direct ChatGPT app route.
 
 ## Duplicate connector IDs
 

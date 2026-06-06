@@ -4,11 +4,13 @@ This is the local-only first step for the MCP server used by both paths:
 
 ```text
 Preferred: ChatGPT Web/Desktop -> OpenAI Secure MCP Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader
-Fallback:  ChatGPT/API client -> https://mcp.360madden.com -> Cloudflare Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader
+Diagnostic fallback: Bearer-capable API client -> https://mcp.360madden.com -> Cloudflare Tunnel -> local RiftReader MCP server -> C:\RIFT MODDING\RiftReader
 ```
 
 For ChatGPT Web/Desktop specifically, prefer
 `docs\chatgpt-web-mcp-secure-tunnel.md` after the local server passes smoke.
+The public Cloudflare hostname is useful for diagnostics, but it is not marked
+direct-ChatGPT-ready while this server requires a local static bearer token.
 
 The server is Python-first, binds to `127.0.0.1`, and exposes only these read-only tools by default:
 

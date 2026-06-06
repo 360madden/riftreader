@@ -21,7 +21,8 @@ Official documentation checked:
 | Source | Relevant point |
 |---|---|
 | OpenAI Developer mode docs | ChatGPT developer mode creates apps from remote MCP servers, supports SSE and streaming HTTP, and no longer requires `search`/`fetch` for developer-mode tools. |
-| OpenAI Secure MCP Tunnel docs | For a developer machine/private network MCP server, use Secure MCP Tunnel so ChatGPT connects through an outbound tunnel instead of a public listener. |
+| [OpenAI Apps SDK auth docs](https://developers.openai.com/apps-sdk/build/auth) | Authenticated ChatGPT Apps MCP servers should use OAuth; ChatGPT does not present arbitrary custom API keys/static bearer tokens for app auth. |
+| OpenAI Secure MCP Tunnel docs | For this local static-bearer server, use Secure MCP Tunnel so tunnel-client can supply the local auth header without exposing it to ChatGPT chats, docs, or logs. |
 | MCP 2025-06-18 spec | Tool definitions can include `outputSchema`; tool results can include `structuredContent` plus `content` for compatibility. |
 | MCP 2025-06-18 transport spec | Streamable HTTP clients should send `MCP-Protocol-Version`; local servers should validate `Origin` to defend against DNS rebinding. |
 
