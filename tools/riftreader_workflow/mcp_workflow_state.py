@@ -34,6 +34,7 @@ PACKAGE_INTAKE_ROOT = Path(".riftreader-local") / "package-intake"
 FRESHNESS_BUDGET_SECONDS = {
     "readiness": 6 * 60 * 60,
     "proposal-smoke": 6 * 60 * 60,
+    "manual-public-ip-plan": 24 * 60 * 60,
     "cloudflare-smoke": 24 * 60 * 60,
     "trial-session": 24 * 60 * 60,
     "proof-input-template": 24 * 60 * 60,
@@ -43,6 +44,7 @@ FRESHNESS_BUDGET_SECONDS = {
 ARTIFACT_KINDS = (
     "readiness",
     "proposal-smoke",
+    "manual-public-ip-plan",
     "secure-tunnel-plan",
     "cloudflare-smoke",
     "transport-smoke",
@@ -59,6 +61,7 @@ ARTIFACT_KINDS = (
 DEFAULT_TIMELINE_KINDS = (
     "readiness",
     "proposal-smoke",
+    "manual-public-ip-plan",
     "secure-tunnel-plan",
     "cloudflare-smoke",
     "transport-smoke",
@@ -386,6 +389,7 @@ def discover_mcp_artifacts(repo_root: Path) -> tuple[dict[str, list[dict[str, An
     patterns = {
         "readiness": "*-trial-readiness.json",
         "proposal-smoke": "*-proposal-transport-smoke.json",
+        "manual-public-ip-plan": "*-manual-public-ip-plan.json",
         "cloudflare-smoke": "*-cloudflare-tunnel-smoke.json",
         "transport-smoke": "*-transport-smoke.json",
         "trial-session-ready": "*-chatgpt-trial-session-ready.json",
@@ -451,20 +455,20 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
         return action("mcp-trial-readiness", "Run local MCP readiness before public or ChatGPT client work.", commands["mcpTrialReadiness"])
     if not passed(latest_artifacts.get("proposal-smoke")):
         return action("proposal-transport-smoke", "Prove guarded submit_package_proposal through local MCP transport.", commands["proposalTransportSmoke"])
-    if not passed(latest_artifacts.get("secure-tunnel-plan")):
+    if not passed(latest_artifacts.get("manual-public-ip-plan")):
         return action(
-            "secure-tunnel-plan",
-            "Prepare the OpenAI Secure MCP Tunnel plan before ChatGPT Web/Desktop connector work.",
-            commands["secureTunnelPlan"],
+            "manual-public-ip-plan",
+            "Prepare the manual external-IP Server URL plan before ChatGPT Web/Desktop connector work.",
+            commands["manualPublicIpPlan"],
         )
     if not passed(latest_artifacts.get("actual-client-proof")):
         template_action = proof_input_template_next_action(latest_artifacts)
         if template_action["command"] != commands["trialProofTemplate"]:
             return template_action
         return action(
-            "chatgpt-secure-tunnel-proof",
-            "Use OpenAI Secure MCP Tunnel for actual ChatGPT proof; Cloudflare remains fallback-only.",
-            commands["secureTunnelPlan"],
+            "chatgpt-manual-public-ip-proof",
+            "Use the operator-managed manual external-IP Server URL for actual ChatGPT proof; OpenAI Secure MCP Tunnel and Cloudflare are retired.",
+            commands["manualPublicIpPlan"],
         )
     if latest_artifacts.get("inbox") and not latest_artifacts.get("draft"):
         return action("inbox-to-draft", "Export the latest package-proposal inbox item into an inert draft.", commands["inboxPackageDraft"])
@@ -488,9 +492,10 @@ def standard_commands() -> dict[str, list[str]]:
         "mcpArtifactsLatest": ["scripts\\riftreader-mcp-artifacts.cmd", "--latest", "--json"],
         "mcpTrialReadiness": ["scripts\\riftreader-operator-lite.cmd", "--mcp-trial-readiness", "--json"],
         "proposalTransportSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--proposal-transport-smoke", "--json"],
-        "secureTunnelPlan": ["scripts\\riftreader-chatgpt-mcp.cmd", "--secure-tunnel-plan", "--json"],
-        "cloudflareSmoke": ["scripts\\riftreader-chatgpt-mcp.cmd", "--cloudflare-tunnel-smoke", "--json"],
-        "chatGptTrialSession": ["scripts\\riftreader-chatgpt-mcp.cmd", "--chatgpt-trial-session", "--chatgpt-session-seconds", "900", "--json"],
+        "manualPublicIpPlan": ["scripts\\riftreader-chatgpt-mcp.cmd", "--manual-public-ip-plan", "--json"],
+        "secureTunnelPlanRetired": ["scripts\\riftreader-chatgpt-mcp.cmd", "--secure-tunnel-plan", "--json"],
+        "cloudflareSmokeRetired": ["scripts\\riftreader-chatgpt-mcp.cmd", "--cloudflare-tunnel-smoke", "--json"],
+        "chatGptTrialSessionRetired": ["scripts\\riftreader-chatgpt-mcp.cmd", "--chatgpt-trial-session", "--chatgpt-session-seconds", "900", "--json"],
         "inboxLatest": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-read-latest", "--json"],
         "inboxPackageDraft": ["scripts\\riftreader-local-artifact-bridge.cmd", "--inbox-package-draft", "--json"],
         "latestDraft": ["scripts\\riftreader-package-draft-review.cmd", "--latest", "--json"],
@@ -612,7 +617,7 @@ def self_test() -> dict[str, Any]:
         {"name": "standard-commands-include-compact-phase2", "pass": "mcpPhase2CompactStatus" in standard_commands()},
         {"name": "standard-commands-include-final", "pass": "mcpFinalStatus" in standard_commands()},
         {"name": "standard-commands-include-compact-final", "pass": "mcpFinalCompactStatus" in standard_commands()},
-        {"name": "standard-commands-include-secure-tunnel-plan", "pass": "secureTunnelPlan" in standard_commands()},
+        {"name": "standard-commands-include-manual-public-ip-plan", "pass": "manualPublicIpPlan" in standard_commands()},
     ]
     ok = all(check["pass"] for check in checks)
     return {

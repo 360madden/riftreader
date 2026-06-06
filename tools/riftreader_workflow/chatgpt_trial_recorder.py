@@ -60,15 +60,15 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "get_workflow_control_plan",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+MANUAL_PUBLIC_IP_CONNECTION_MODE = "manual-public-ip"
 SECURE_TUNNEL_CONNECTION_MODE = "openai-secure-mcp-tunnel"
 PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE = "public-https-fallback"
 ALLOWED_CONNECTION_MODES = frozenset(
     {
-        SECURE_TUNNEL_CONNECTION_MODE,
-        PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE,
+        MANUAL_PUBLIC_IP_CONNECTION_MODE,
     }
 )
-PUBLIC_FALLBACK_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.app")
+RETIRED_TUNNEL_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.app")
 PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 
 
@@ -76,8 +76,8 @@ def proof_template() -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-actual-client-proof-input",
-        "connectionMode": SECURE_TUNNEL_CONNECTION_MODE,
-        "publicMcpUrl": "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp",
+        "connectionMode": MANUAL_PUBLIC_IP_CONNECTION_MODE,
+        "publicMcpUrl": "https://<current-external-ip>/mcp",
         "chatgptRegistrationSucceeded": False,
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -186,11 +186,8 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
     connection_mode = proof.get("connectionMode")
     if connection_mode not in ALLOWED_CONNECTION_MODES:
         blockers.append(f"connection-mode-invalid:{connection_mode!r}")
-    if (
-        connection_mode == SECURE_TUNNEL_CONNECTION_MODE
-        and any(marker in public_url.lower() for marker in PUBLIC_FALLBACK_HOST_MARKERS)
-    ):
-        blockers.append("secure-tunnel-proof-url-uses-public-fallback-host")
+    if any(marker in public_url.lower() for marker in RETIRED_TUNNEL_HOST_MARKERS):
+        blockers.append("manual-public-ip-proof-url-uses-retired-tunnel-host")
     if "<" in public_url or ">" in public_url:
         blockers.append("public-mcp-url-placeholder")
     if not public_url.startswith("https://"):
@@ -424,7 +421,7 @@ def self_test() -> dict[str, Any]:
     valid_proof = proof_template()
     valid_proof.update(
         {
-            "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
+            "publicMcpUrl": "https://203.0.113.10/mcp",
             "chatgptRegistrationSucceeded": True,
             "toolOutputSchemasPresent": True,
             "templateFetched": True,
@@ -445,12 +442,12 @@ def self_test() -> dict[str, Any]:
             "applyLatestPackageDraftWithoutApprovalApplied": False,
         }
     )
-    secure_fallback_host_proof = dict(valid_proof)
-    secure_fallback_host_proof["publicMcpUrl"] = "https://example.trycloudflare.com/mcp"
-    explicit_fallback_proof = dict(secure_fallback_host_proof)
-    explicit_fallback_proof["connectionMode"] = PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE
+    retired_tunnel_host_proof = dict(valid_proof)
+    retired_tunnel_host_proof["publicMcpUrl"] = "https://example.trycloudflare.com/mcp"
+    retired_secure_mode_proof = dict(valid_proof)
+    retired_secure_mode_proof["connectionMode"] = SECURE_TUNNEL_CONNECTION_MODE
     placeholder_proof = dict(valid_proof)
-    placeholder_proof["publicMcpUrl"] = "https://<secure-mcp-tunnel-selected-in-chatgpt>/mcp"
+    placeholder_proof["publicMcpUrl"] = "https://<current-external-ip>/mcp"
 
     checks = [
         {
@@ -458,16 +455,16 @@ def self_test() -> dict[str, Any]:
             "pass": all(field in proof_template() for field in REQUIRED_FIELDS),
         },
         {
-            "name": "secure-tunnel-valid-shape-passes",
+            "name": "manual-public-ip-valid-shape-passes",
             "pass": validate_proof(valid_proof) == [],
         },
         {
-            "name": "secure-tunnel-blocks-public-fallback-host",
-            "pass": "secure-tunnel-proof-url-uses-public-fallback-host" in validate_proof(secure_fallback_host_proof),
+            "name": "manual-public-ip-blocks-retired-tunnel-host",
+            "pass": "manual-public-ip-proof-url-uses-retired-tunnel-host" in validate_proof(retired_tunnel_host_proof),
         },
         {
-            "name": "explicit-public-fallback-host-allowed",
-            "pass": "secure-tunnel-proof-url-uses-public-fallback-host" not in validate_proof(explicit_fallback_proof),
+            "name": "retired-secure-tunnel-mode-blocked",
+            "pass": f"connection-mode-invalid:{SECURE_TUNNEL_CONNECTION_MODE!r}" in validate_proof(retired_secure_mode_proof),
         },
         {
             "name": "placeholder-url-blocked",

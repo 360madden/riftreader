@@ -29,8 +29,8 @@ def write_json(path: Path, payload: dict[str, object], mtime: int = 1_800_000_00
 def valid_proof() -> dict[str, object]:
     return {
         "schemaVersion": 1,
-        "connectionMode": "openai-secure-mcp-tunnel",
-        "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
+        "connectionMode": "manual-public-ip",
+        "publicMcpUrl": "https://203.0.113.10/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),

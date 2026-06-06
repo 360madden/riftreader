@@ -229,12 +229,12 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "currentStageName": "Gated apply exposed locally",
     "currentTruth": (
         "Local 11-tool MCP is validated locally with gated apply; full readiness is blocked on fresh actual "
-        "ChatGPT Web/Desktop Secure Tunnel proof and any unpushed local commits."
+        "ChatGPT Web/Desktop manual public-IP proof and any unpushed local commits."
     ),
     "nextStage": 21,
     "nextStageName": "Apply actual-client proof",
     "phaseOrder": [
-        "prove current 11-tool gated-apply Secure Tunnel product",
+        "prove current 11-tool gated-apply manual public-IP product",
         "add package apply with reviewed dry-run gates",
         "add local commit with safe explicit-path staging",
         "add push as separate remote-mutation gate",
@@ -2848,24 +2848,14 @@ def run_trial_readiness(
         blockers.extend(stage_blockers(stage_name, stage_payload))
 
     optional_dependencies = {
-        "tunnelClient": optional_executable_readiness(
-            "tunnel-client",
-            lambda: resolve_tunnel_client_executable(tunnel_client_path),
-            required_for="recommended OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
-        ),
         "curl": optional_executable_readiness(
             "curl",
             resolve_curl_executable,
-            required_for="optional public tunnel smoke verification",
-        ),
-        "cloudflaredFallback": optional_executable_readiness(
-            "cloudflared",
-            lambda: resolve_cloudflared_executable(cloudflared_path),
-            required_for="deprecated fallback-only Cloudflare quick-tunnel smoke",
+            required_for="optional manual public-IP reachability verification",
         ),
     }
     for name, dependency in optional_dependencies.items():
-        if not dependency.get("ok") and name != "cloudflaredFallback":
+        if not dependency.get("ok"):
             warnings.append(f"{name}:{dependency.get('code') or dependency.get('status')}")
 
     status = "passed" if not blockers else "blocked"
@@ -2896,10 +2886,10 @@ def run_trial_readiness(
             "applyFlagSent": False,
         },
         "next": [
-            "If status is passed, the narrow MCP adapter is locally ready for OpenAI Secure MCP Tunnel setup.",
-            "Run --secure-tunnel-plan --json for the repo-specific tunnel-client command plan.",
-            "Use Cloudflare quick-tunnel commands only as deprecated fallback/dev-only smoke tests.",
-            "If status is blocked, fix the listed stage blockers before any public tunnel or ChatGPT registration attempt.",
+            "If status is passed, the narrow MCP adapter is locally ready for the manual external-IP Server URL path.",
+            "Run --manual-public-ip-plan --public-mcp-host <current-external-ip-or-host> --json for the repo-specific operator plan.",
+            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not fallback paths.",
+            "If status is blocked, fix the listed stage blockers before any public-IP ChatGPT registration attempt.",
         ],
     }
     artifact = write_smoke_artifact(config, payload, prefix="trial-readiness")
@@ -3069,8 +3059,8 @@ def build_secure_tunnel_plan(
         "ok": not blockers,
         "service": SERVER_NAME,
         "version": VERSION,
-        "recommendedPath": "openai-secure-mcp-tunnel",
-        "deprecatedFallback": "cloudflare-quick-tunnel",
+        "recommendedPath": "retired-openai-secure-mcp-tunnel",
+        "deprecatedFallback": "none",
         "repoRoot": str(config.repo_root),
         "profile": profile,
         "tunnelId": effective_tunnel_id,
@@ -3104,12 +3094,12 @@ def build_secure_tunnel_plan(
         "chatGptConnector": {
             "name": "rift-mcp",
             "connectionMode": "Tunnel",
+            "retired": True,
+            "notFallback": True,
             "toolSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
             "notes": [
-                "Create or select the OpenAI-hosted tunnel endpoint in Platform tunnel settings.",
-                "Keep tunnel-client run healthy while creating or testing the ChatGPT connector.",
-                "In ChatGPT connector settings, choose Tunnel under Connection and select the available tunnel or paste its tunnel_id.",
-                "Do not paste a Cloudflare trycloudflare URL for the primary path.",
+                "This path is retired for the RiftReader ChatGPT Web/Desktop lane and is not a fallback.",
+                "Use --manual-public-ip-plan for the active Server URL path.",
             ],
         },
         "dependencies": {
@@ -3119,14 +3109,14 @@ def build_secure_tunnel_plan(
         "warnings": [
             "This plan does not create a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or expose broad local tools.",
             "CONTROL_PLANE_API_KEY is intentionally shown as a placeholder; do not store or commit it.",
-            "Cloudflare quick tunnel remains fallback/dev-only and is planned for full deprecation.",
+            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not fallback paths.",
         ],
         "safety": {
             **base_safety(),
             "publicTunnelStarted": False,
-            "openAiSecureTunnelPreferred": True,
+            "openAiSecureTunnelRetired": True,
             "credentialPlaceholderOnly": True,
-            "cloudflareQuickTunnelDeprecated": True,
+            "cloudflareTunnelRetired": True,
             "mcpTransport": "stdio",
             "chatGptRegistrationPerformed": False,
         },
@@ -3155,14 +3145,132 @@ def repo_script_command(config: AdapterConfig, script_name: str, args: list[str]
     return [str(config.repo_root / "scripts" / script_name), *args]
 
 
-def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float = 3600.0) -> dict[str, Any]:
-    """Return a plan-only non-Codex launch packet without starting a server or tunnel."""
-    session_seconds_int = int(session_seconds)
-    secure_plan_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--secure-tunnel-plan", "--json"])
-    fallback_trial_command = repo_script_command(
+MANUAL_PUBLIC_IP_PLACEHOLDER = "CURRENT_EXTERNAL_IP_OR_DDNS_HOST"
+
+
+def normalize_manual_public_mcp_host(value: str | None) -> tuple[str, bool]:
+    candidate = (value or "").strip()
+    if not candidate or candidate == MANUAL_PUBLIC_IP_PLACEHOLDER:
+        return MANUAL_PUBLIC_IP_PLACEHOLDER, True
+    return validate_public_host_value(candidate, field_name="public MCP host"), False
+
+
+def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str | None = None) -> dict[str, Any]:
+    """Return a plan-only packet for the operator-managed external-IP MCP route."""
+    public_host, placeholder = normalize_manual_public_mcp_host(public_mcp_host)
+    public_url = f"https://{public_host}/mcp"
+    allowed_host = "<current-external-ip-or-host>" if placeholder else public_host
+    local_serve_command = repo_script_command(
         config,
         "riftreader-chatgpt-mcp.cmd",
-        ["--chatgpt-trial-session", "--chatgpt-session-seconds", str(session_seconds_int), "--json"],
+        [
+            "--serve",
+            "--host",
+            DEFAULT_HOST,
+            "--port",
+            str(DEFAULT_PORT),
+            "--transport",
+            "streamable-http",
+            "--allowed-host",
+            allowed_host,
+            "--allowed-origin",
+            DEFAULT_CHATGPT_ORIGIN,
+        ],
+    )
+    payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-manual-public-ip-plan",
+        "generatedAtUtc": utc_iso(),
+        "status": "ready-template" if placeholder else "ready",
+        "ok": True,
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "repoRoot": str(config.repo_root),
+        "activePath": {
+            "key": "manual-public-ip",
+            "connectionMode": "Server URL",
+            "chatGptAuthentication": "No Authentication",
+            "publicMcpUrl": public_url,
+            "operatorMustEditChatGptAppWhenIpChanges": True,
+            "why": "Chosen current path: operator manually pastes the current external IP URL into ChatGPT and updates it only if the residential IP changes.",
+        },
+        "operatorInputs": {
+            "publicMcpHost": public_host,
+            "publicMcpHostPlaceholder": placeholder,
+            "chatGptServerUrl": public_url,
+            "routerPortForward": "TCP 443 on the gateway -> HTTPS reverse proxy on this PC.",
+            "reverseProxyTarget": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
+        },
+        "localRuntime": {
+            "mcpServerCommand": local_serve_command,
+            "mcpServerCommandLine": command_line(local_serve_command),
+            "mcpServerBindsLoopbackOnly": True,
+            "expectedProcessesWhenRunning": ["python.exe", "caddy.exe-or-nginx.exe-or-other-https-reverse-proxy"],
+            "notes": [
+                "Keep the repo MCP server bound to 127.0.0.1; expose it through a local HTTPS reverse proxy rather than binding the adapter directly to the LAN/WAN.",
+                "The reverse proxy must present a trusted HTTPS endpoint to ChatGPT and forward /mcp to the loopback MCP server.",
+                "If using a raw IP, TLS/certificate handling may be harder than with a DDNS/domain hostname.",
+            ],
+        },
+        "manualNetworkChecklist": [
+            "Confirm the router WAN IPv4 is a real public address and not CGNAT.",
+            "Forward TCP 443 from the router/gateway to this PC's HTTPS reverse proxy.",
+            "Allow the reverse proxy through Windows Firewall.",
+            "Start the local MCP server outside Codex and keep that console/process running.",
+            "Start the HTTPS reverse proxy outside Codex and keep that process running.",
+            "Create or edit the ChatGPT custom MCP app with the printed HTTPS Server URL and No Authentication.",
+            "If the residential IP changes, paste the new HTTPS IP URL into the ChatGPT custom MCP app settings.",
+        ],
+        "retiredPaths": {
+            "openAiSecureMcpTunnel": {
+                "retired": True,
+                "notFallback": True,
+                "reason": "User-selected no-OpenAI-API-key workflow; do not route new work through tunnel-client.",
+            },
+            "cloudflareTunnel": {
+                "retired": True,
+                "notFallback": True,
+                "reason": "User-selected manual external-IP workflow; do not route new work through cloudflared or trycloudflare.",
+            },
+        },
+        "doNotUse": [
+            "Do not create duplicate launcher scripts before extending scripts\\riftreader-chatgpt-mcp.cmd.",
+            "Do not start tunnel-client for this lane.",
+            "Do not start cloudflared or rely on trycloudflare.com for this lane.",
+            "Do not count a Codex-launched server/proxy as final non-Codex acceptance proof.",
+            "Do not expose write, shell, Git mutation, RIFT input, CE, or x64dbg tools on a public No Auth endpoint.",
+        ],
+        "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
+        "warnings": [
+            "This plan does not start a server, start a reverse proxy, configure the router, create certificates, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "Manual external-IP mode is intentionally simple but public. Keep the first exposed MCP tool surface narrow and low-risk.",
+            "A raw external IP can change; the operator accepts manual ChatGPT app URL edits when that happens.",
+        ],
+        "blockers": [],
+        "safety": {
+            **base_safety(),
+            "operatorOwnedRuntimeRequired": True,
+            "codexLaunchedRuntimeAcceptedAsProof": False,
+            "persistentServerStarted": False,
+            "publicTunnelStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "manualPublicIpPreferred": True,
+            "openAiSecureTunnelRetired": True,
+            "cloudflareTunnelRetired": True,
+            "planOnly": True,
+        },
+    }
+    return payload
+
+
+def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float = 3600.0) -> dict[str, Any]:
+    """Return a plan-only non-Codex launch packet without starting a server or tunnel."""
+    manual_public_ip_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--manual-public-ip-plan", "--json"])
+    retired_secure_plan_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--secure-tunnel-plan", "--json"])
+    retired_cloudflare_trial_command = repo_script_command(
+        config,
+        "riftreader-chatgpt-mcp.cmd",
+        ["--chatgpt-trial-session", "--chatgpt-session-seconds", str(int(session_seconds)), "--json"],
     )
     local_serve_command = repo_script_command(
         config,
@@ -3191,23 +3299,28 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "mcpClient": "scripts\\riftreader-mcp-client.cmd",
         },
         "recommendedPath": {
-            "key": "openai-secure-mcp-tunnel",
-            "command": secure_plan_command,
-            "commandLine": command_line(secure_plan_command),
-            "why": "Primary Web/Desktop path; does not expose a public trycloudflare/ngrok URL.",
+            "key": "manual-public-ip",
+            "command": manual_public_ip_command,
+            "commandLine": command_line(manual_public_ip_command),
+            "why": "Current selected Web/Desktop path: paste the operator's current external IP HTTPS Server URL into ChatGPT and update it manually if the IP changes.",
             "startsRuntime": False,
             "requiresOperatorRunAfterPlan": True,
         },
-        "fallbackNoAuthDevPath": {
-            "key": "cloudflare-quick-tunnel",
-            "command": fallback_trial_command,
-            "commandLine": command_line(fallback_trial_command),
-            "sessionSeconds": session_seconds_int,
-            "authorization": "No Authentication",
-            "why": "Fallback/dev-only path for ease of use. The printed trycloudflare URL is ephemeral and must be refreshed each session.",
-            "startsRuntimeWhenOperatorRunsIt": True,
-            "expectedProcessesWhenRunning": ["python.exe", "cloudflared.exe"],
-            "keepConsoleOpen": True,
+        "retiredPaths": {
+            "openAiSecureMcpTunnel": {
+                "key": "openai-secure-mcp-tunnel",
+                "command": retired_secure_plan_command,
+                "commandLine": command_line(retired_secure_plan_command),
+                "retired": True,
+                "notFallback": True,
+            },
+            "cloudflareQuickTunnel": {
+                "key": "cloudflare-quick-tunnel",
+                "command": retired_cloudflare_trial_command,
+                "commandLine": command_line(retired_cloudflare_trial_command),
+                "retired": True,
+                "notFallback": True,
+            },
         },
         "localOnlyServePath": {
             "key": "loopback-streamable-http",
@@ -3221,9 +3334,9 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
         "doNotUse": [
             "Do not create duplicate launcher scripts before extending scripts\\riftreader-chatgpt-mcp.cmd.",
             "Do not confuse scripts\\riftreader-bridge-tunnel-session.cmd with the narrow ChatGPT MCP adapter.",
-            "Do not treat old trycloudflare.com URLs as durable; they expire when the fallback session ends.",
+            "Do not treat old trycloudflare.com URLs as active or backup endpoints.",
             "Do not count a Codex-launched server/tunnel as final non-Codex acceptance proof.",
-            "Do not expand Cloudflare/ngrok fallback into the primary workflow.",
+            "Do not start tunnel-client or cloudflared for this lane unless a future explicit policy reverses this retirement.",
         ],
         "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
         "docs": {
@@ -3232,8 +3345,8 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "finalReadiness": "docs\\workflow\\riftreader-chatgpt-mcp-final-readiness.md",
         },
         "warnings": [
-            "This plan does not start a server, start a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
-            "Cloudflare quick tunnel is fallback/dev-only and no-auth by operator choice; do not use it as a durable production endpoint.",
+            "This plan does not start a server, start a reverse proxy, configure a router, create credentials, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not backups.",
         ],
         "blockers": [],
         "safety": {
@@ -3243,8 +3356,9 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "persistentServerStarted": False,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
-            "cloudflareQuickTunnelDeprecated": True,
-            "openAiSecureTunnelPreferred": True,
+            "manualPublicIpPreferred": True,
+            "cloudflareTunnelRetired": True,
+            "openAiSecureTunnelRetired": True,
             "planOnly": True,
         },
     }
@@ -4615,7 +4729,12 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--secure-tunnel-plan",
         action="store_true",
-        help="Print the OpenAI Secure MCP Tunnel command plan for ChatGPT Web/Desktop. Does not start a tunnel.",
+        help="Retired: OpenAI Secure MCP Tunnel is no longer a RiftReader ChatGPT Web/Desktop fallback path.",
+    )
+    mode.add_argument(
+        "--manual-public-ip-plan",
+        action="store_true",
+        help="Print the active manual external-IP Server URL plan. Does not start a server or configure networking.",
     )
     mode.add_argument(
         "--operator-launch-plan",
@@ -4625,12 +4744,12 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--cloudflare-tunnel-smoke",
         action="store_true",
-        help="Deprecated fallback: start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
+        help="Retired: Cloudflare quick tunnels are no longer a RiftReader ChatGPT Web/Desktop fallback path.",
     )
     mode.add_argument(
         "--chatgpt-trial-session",
         action="store_true",
-        help="Deprecated fallback: start a bounded Cloudflare public MCP session for manual ChatGPT Developer Mode registration.",
+        help="Retired: bounded Cloudflare public MCP sessions are no longer a RiftReader ChatGPT Web/Desktop fallback path.",
     )
     mode.add_argument("--call", choices=EXPECTED_TOOL_ORDER, help="Call one local tool handler without starting a server.")
     mode.add_argument("--serve", action="store_true", help="Start the MCP server. Does not start a tunnel.")
@@ -4666,11 +4785,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--secure-tunnel-id", default=None, help="Optional OpenAI Platform tunnel_id to include in --secure-tunnel-plan output.")
     parser.add_argument("--tunnel-client-path", default=None, help="Optional explicit path to OpenAI tunnel-client.")
     parser.add_argument(
+        "--public-mcp-host",
+        default=MANUAL_PUBLIC_IP_PLACEHOLDER,
+        help="Bare current external IP or public hostname for --manual-public-ip-plan; do not include scheme or path.",
+    )
+    parser.add_argument(
         "--cloudflare-smoke-origin",
         default=DEFAULT_CHATGPT_ORIGIN,
         help="Origin header to validate during --cloudflare-tunnel-smoke or --chatgpt-trial-session; defaults to ChatGPT web origin.",
     )
-    parser.add_argument("--cloudflared-path", default=None, help="Deprecated fallback-only explicit path to cloudflared.")
+    parser.add_argument("--cloudflared-path", default=None, help="Retired Cloudflare path option; retained only for historical argument compatibility.")
     parser.add_argument("--max-inbox-mb", type=float, default=1.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     return parser
@@ -4739,14 +4863,23 @@ def main(argv: list[str] | None = None) -> int:
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 2
         if args.secure_tunnel_plan:
-            payload = build_secure_tunnel_plan(
-                config,
-                profile=args.secure_tunnel_profile,
-                tunnel_id=args.secure_tunnel_id,
-                tunnel_client_path=args.tunnel_client_path,
+            payload = blocked_payload(
+                "RETIRED_TRANSPORT_PATH",
+                "OpenAI Secure MCP Tunnel is retired for the RiftReader ChatGPT Web/Desktop lane; use --manual-public-ip-plan.",
+                kind="riftreader-chatgpt-mcp-retired-transport-path",
+                status="blocked",
+                extra={
+                    "retiredPath": "openai-secure-mcp-tunnel",
+                    "replacement": "--manual-public-ip-plan",
+                    "notFallback": True,
+                },
             )
-            summary_path = write_secure_tunnel_plan_summary(config, payload)
-            payload["artifactPaths"] = {"summaryJson": rel(config.repo_root, summary_path)}
+            print_payload(payload, json_mode=args.json)
+            return 2
+        if args.manual_public_ip_plan:
+            payload = build_manual_public_ip_plan(config, public_mcp_host=args.public_mcp_host)
+            artifact = write_smoke_artifact(config, payload, prefix="manual-public-ip-plan")
+            payload["artifactPaths"] = {"summaryJson": artifact}
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 2
         if args.operator_launch_plan:
@@ -4756,26 +4889,33 @@ def main(argv: list[str] | None = None) -> int:
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 2
         if args.cloudflare_tunnel_smoke:
-            payload = run_cloudflare_tunnel_smoke_test(
-                config,
-                host=args.host,
-                timeout_seconds=args.cloudflare_smoke_timeout_seconds,
-                cloudflared_path=args.cloudflared_path,
-                origin=args.cloudflare_smoke_origin,
+            payload = blocked_payload(
+                "RETIRED_TRANSPORT_PATH",
+                "Cloudflare quick tunnel smoke is retired for the RiftReader ChatGPT Web/Desktop lane; use --manual-public-ip-plan.",
+                kind="riftreader-chatgpt-mcp-retired-transport-path",
+                status="blocked",
+                extra={
+                    "retiredPath": "cloudflare-quick-tunnel-smoke",
+                    "replacement": "--manual-public-ip-plan",
+                    "notFallback": True,
+                },
             )
             print_payload(payload, json_mode=args.json)
-            return 0 if payload.get("ok") else 1
+            return 2
         if args.chatgpt_trial_session:
-            payload = run_chatgpt_trial_session(
-                config,
-                host=args.host,
-                session_seconds=args.chatgpt_session_seconds,
-                verify_timeout_seconds=args.cloudflare_smoke_timeout_seconds,
-                cloudflared_path=args.cloudflared_path,
-                origin=args.cloudflare_smoke_origin,
+            payload = blocked_payload(
+                "RETIRED_TRANSPORT_PATH",
+                "Cloudflare ChatGPT trial sessions are retired for the RiftReader ChatGPT Web/Desktop lane; use --manual-public-ip-plan.",
+                kind="riftreader-chatgpt-mcp-retired-transport-path",
+                status="blocked",
+                extra={
+                    "retiredPath": "cloudflare-chatgpt-trial-session",
+                    "replacement": "--manual-public-ip-plan",
+                    "notFallback": True,
+                },
             )
             print_payload(payload, json_mode=args.json)
-            return 0 if payload.get("ok") else 1
+            return 2
         if args.call:
             adapter = RiftReaderChatGptMcpAdapter(config)
             payload = adapter.call_tool(args.call, load_arguments_json(args.arguments_json))

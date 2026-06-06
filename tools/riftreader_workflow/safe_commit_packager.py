@@ -73,7 +73,7 @@ def safe_commit_plan(repo_root: Path) -> dict[str, Any]:
         "latestValidationArtifacts": {
             "readiness": (state.get("latestArtifacts") or {}).get("readiness"),
             "proposalSmoke": (state.get("latestArtifacts") or {}).get("proposal-smoke"),
-            "cloudflareSmoke": (state.get("latestArtifacts") or {}).get("cloudflare-smoke"),
+            "manualPublicIpPlan": (state.get("latestArtifacts") or {}).get("manual-public-ip-plan"),
             "actualClientProof": (state.get("latestArtifacts") or {}).get("actual-client-proof"),
         },
         "warnings": git_state.get("warnings") or [],

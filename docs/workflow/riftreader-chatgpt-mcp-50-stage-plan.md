@@ -1,12 +1,12 @@
 # RiftReader ChatGPT MCP 50-stage finished-product plan
 
-Status: living plan from current Secure Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
+Status: living plan from current manual external-IP proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 20 — gated apply exposed locally**. The local 11-tool MCP is validated locally, current branch is ahead locally, and final readiness is blocked on fresh actual ChatGPT Web/Desktop Secure Tunnel proof.
+Current stage: **Stage 20 — gated apply exposed locally**. The local 11-tool MCP is validated locally, current branch is ahead locally, and final readiness is blocked on fresh actual ChatGPT Web/Desktop manual external-IP proof.
 
 ## Operating rules
 
-- Keep OpenAI Secure MCP Tunnel as the primary ChatGPT Web/Desktop path; public HTTPS fallback remains dev-only.
+- Keep manual external-IP Server URL as the primary ChatGPT Web/Desktop path; OpenAI Secure MCP Tunnel and Cloudflare tunnels are retired, not backups.
 - Do not expose higher-power endpoints until their design, tests, proof, and approval gates exist.
 - Expand in this order: proof current product, apply, local commit, push, bounded commands, provider writes, live RIFT read/control, debugger/CE, auth/roles, eval/dashboard/release.
 - Every mutating tool must return explicit safety truth: Git mutation, provider writes, input/movement, public tunnel, CE/x64dbg, and apply flags.
@@ -22,10 +22,10 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 11-tool M
 |---:|---|---|---|---|
 | 1 | Current baseline and proof gap | Capture current truth: clean local repo, branch ahead locally, local MCP readiness passed, final gate blocked on actual ChatGPT proof. | Baseline doc and control-plan summary reflect exact current blockers. | current |
 | 2 | Publish current roadmap slice | Push the current roadmap/control-plan commits and wait for current-head CI. | Origin and CI are green for the roadmap baseline. | pending |
-| 3 | Refresh Secure Tunnel command plan | Regenerate the OpenAI Secure MCP Tunnel plan with current tunnel-client binary and exact stdio command. | Fresh secure-tunnel-plan artifact with no blockers. | pending |
+| 3 | Refresh manual public-IP command plan | Regenerate the manual external-IP Server URL plan with current external IP and exact loopback MCP serve command. | Fresh manual-public-ip-plan artifact with no blockers. | pending |
 | 4 | ChatGPT proof template refresh | Generate the current actual-client proof template and verify all required fields are visible. | Template includes connectionMode, tool names, output-schema proof, draft/review/dry-run fields. | pending |
-| 5 | Secure Tunnel health rehearsal | Run tunnel-client doctor/run health checks without broad repo mutation or public fallback. | Tunnel client is healthy, ready, and associated with the intended workspace. | pending |
-| 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the Secure Tunnel endpoint using no-auth and the narrow MCP app. | ChatGPT can discover the app without Cloudflare/ngrok. | pending |
+| 5 | Manual public-IP network rehearsal | Run router/reverse-proxy reachability checks without broad repo mutation or retired tunnel fallback. | Manual public-IP HTTPS endpoint is reachable and forwards to the loopback MCP server. | pending |
+| 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the manual external-IP Server URL using no-auth and the narrow MCP app. | ChatGPT can discover the app without OpenAI Secure MCP Tunnel, Cloudflare, or ngrok. | pending |
 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, and get_workflow_control_plan. | Proof records read-only calls, redaction, safety flags, and no unexpected tools. | pending |
 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 11 tools. | Proof replay passes exact tool identity checks. | pending |
 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 11 tools. | Proof replay passes output-schema count and tool-name checks. | pending |
@@ -76,10 +76,10 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 11-tool M
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
 | 1 | 2 | Publish current roadmap slice | Push the current roadmap/control-plan commits and wait for current-head CI. |
-| 2 | 3 | Refresh Secure Tunnel command plan | Regenerate the OpenAI Secure MCP Tunnel plan with current tunnel-client binary and exact stdio command. |
+| 2 | 3 | Refresh manual public-IP command plan | Regenerate the manual external-IP Server URL plan with current external IP and exact loopback MCP serve command. |
 | 3 | 4 | ChatGPT proof template refresh | Generate the current actual-client proof template and verify all required fields are visible. |
-| 4 | 5 | Secure Tunnel health rehearsal | Run tunnel-client doctor/run health checks without broad repo mutation or public fallback. |
-| 5 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the Secure Tunnel endpoint using no-auth and the narrow MCP app. |
+| 4 | 5 | Manual public-IP network rehearsal | Run router/reverse-proxy reachability checks without broad repo mutation or retired tunnel fallback. |
+| 5 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the manual external-IP Server URL using no-auth and the narrow MCP app. |
 | 6 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, and get_workflow_control_plan. |
 | 7 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 10 tools. |
 | 8 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 10 tools. |
@@ -93,4 +93,3 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 11-tool M
 4. `push_current_branch` stays separate from commit because it mutates remote state.
 5. `run_bounded_repo_command` must be allowlist-only, never arbitrary shell.
 6. Live RIFT and debugger/CE tools come last because they have the highest blast radius.
-

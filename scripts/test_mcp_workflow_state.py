@@ -143,7 +143,7 @@ class McpWorkflowStateTests(unittest.TestCase):
                     "status": "passed",
                     "ok": True,
                     "proof": {
-                        "connectionMode": "openai-secure-mcp-tunnel",
+                        "connectionMode": "manual-public-ip",
                         "chatgptRegistrationSucceeded": True,
                         "templateFetched": True,
                         "submitPackageProposalSucceeded": True,
@@ -198,7 +198,7 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertTrue(latest["actual-client-proof"]["toolOutputSchemasPresent"])
         self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
-        self.assertEqual(latest["actual-client-proof"]["connectionMode"], "openai-secure-mcp-tunnel")
+        self.assertEqual(latest["actual-client-proof"]["connectionMode"], "manual-public-ip")
         self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["templateFetched"])
         self.assertTrue(latest["actual-client-proof"]["submitPackageProposalSucceeded"])

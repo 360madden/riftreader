@@ -633,9 +633,10 @@ ChatGPT MCP runtime invariant:
 - Do not treat a Codex-launched MCP server/tunnel as final proof for the
   non-Codex workflow. Final proof requires an operator-owned process started
   outside Codex.
-- OpenAI Secure MCP Tunnel is the primary Web/Desktop path. Cloudflare quick
-  tunnel / `trycloudflare.com` is fallback/dev-only, ephemeral, and should not be
-  expanded into duplicate wrappers.
+- Manual external-IP Server URL is the primary Web/Desktop path for this lane.
+  OpenAI Secure MCP Tunnel and Cloudflare/`trycloudflare.com` tunnels are retired
+  here and must not be treated as backups unless a future explicit policy reverses
+  that decision.
 
 Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
 <!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->

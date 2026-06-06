@@ -388,49 +388,22 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
     if not gh:
         blockers.append("dependency:missing:gh")
 
-    tunnel_client_candidates = [
-        *(Path(value).expanduser() for value in (
-            os.environ.get("TUNNEL_CLIENT_PATH"),
-            os.environ.get("OPENAI_TUNNEL_CLIENT_PATH"),
-            os.environ.get("TUNNEL_CLIENT"),
-            os.environ.get("OPENAI_TUNNEL_CLIENT"),
-        ) if value),
-        repo_root / ".riftreader-local" / "tools" / "openai" / "tunnel-client" / "tunnel-client.exe",
-        repo_root / ".riftreader-local" / "tools" / "tunnel-client" / "tunnel-client.exe",
-        *TUNNEL_CLIENT_DEFAULT_PATHS,
-    ]
-    tunnel_client = _find_executable("tunnel-client", tunnel_client_candidates)
-    tunnel_client_diagnostics = _tunnel_client_binary_diagnostics(tunnel_client, repo_root) if tunnel_client else None
-    tunnel_client_ok = bool(tunnel_client) and bool(tunnel_client_diagnostics and tunnel_client_diagnostics.get("ok"))
     dependencies["tunnel-client"] = {
-        "status": "passed" if tunnel_client_ok else "blocked",
-        "ok": tunnel_client_ok,
-        "path": tunnel_client,
-        "required": True,
-        "requiredFor": "primary OpenAI Secure MCP Tunnel ChatGPT Web/Desktop path",
-        "binaryDiagnostics": tunnel_client_diagnostics,
+        "status": "retired",
+        "ok": True,
+        "path": None,
+        "required": False,
+        "requiredFor": "retired OpenAI Secure MCP Tunnel path; not a backup for the manual public-IP lane",
+        "binaryDiagnostics": None,
     }
-    if not tunnel_client:
-        blockers.append("dependency:missing:tunnel-client")
-    elif not tunnel_client_ok:
-        blockers.extend(
-            f"dependency:{blocker}"
-            for blocker in (tunnel_client_diagnostics or {}).get("blockers") or ["tunnel-client-diagnostics-failed"]
-        )
 
-    cloudflared = _find_executable(
-        "cloudflared",
-        [Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"), Path(r"C:\Program Files\cloudflared\cloudflared.exe")],
-    )
     dependencies["cloudflaredFallback"] = {
-        "status": "passed" if cloudflared else ("blocked" if live_trial_mode else "not-required"),
-        "ok": bool(cloudflared) or not live_trial_mode,
-        "path": cloudflared,
-        "required": live_trial_mode,
-        "requiredFor": "deprecated fallback-only Cloudflare quick tunnel",
+        "status": "retired",
+        "ok": True,
+        "path": None,
+        "required": False,
+        "requiredFor": "retired Cloudflare tunnel path; not a backup for the manual public-IP lane",
     }
-    if live_trial_mode and not cloudflared:
-        blockers.append("dependency:missing:cloudflared")
 
     curl = _find_executable("curl")
     dependencies["curl"] = {
@@ -592,9 +565,6 @@ def _next_action(
 
     if first_by_prefix("git:dirty-worktree"):
         return {"key": "safe-commit-plan", "reason": "Final readiness requires a clean worktree.", "command": commands["safeCommitPlan"]}
-    blocker = first_by_prefix("dependency:missing:tunnel-client")
-    if blocker:
-        return {"key": "install-or-locate-tunnel-client", "reason": blocker, "command": commands["secureTunnelPlan"]}
     blocker = first_by_prefix("environment:", "repo:")
     if blocker:
         return {"key": "fix-final-readiness-environment", "reason": blocker, "command": commands["mcpMissionControl"]}

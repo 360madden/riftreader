@@ -33,10 +33,10 @@ def ranked_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
         add("mcp-trial-readiness", "P0", "No passing local MCP trial-readiness artifact is available.", "mcpTrialReadiness")
     if not passed(latest.get("proposal-smoke")):
         add("proposal-transport-smoke", "P0", "No passing guarded proposal transport smoke artifact is available.", "proposalTransportSmoke")
-    if not passed(latest.get("cloudflare-smoke")):
-        add("cloudflare-tunnel-smoke", "P1", "No passing public HTTPS /mcp smoke artifact is available.", "cloudflareSmoke")
+    if not passed(latest.get("manual-public-ip-plan")):
+        add("manual-public-ip-plan", "P1", "No manual external-IP Server URL plan artifact is available.", "manualPublicIpPlan")
     if not passed(latest.get("actual-client-proof")):
-        add("chatgpt-trial-session", "P1", "Actual ChatGPT client proof has not been recorded.", "chatGptTrialSession")
+        add("chatgpt-manual-public-ip-proof", "P1", "Actual ChatGPT client proof has not been recorded.", "manualPublicIpPlan")
     if latest.get("inbox") and not latest.get("draft"):
         add("inbox-to-draft", "P1", "Inbox proposal exists but no inert draft is discovered.", "inboxPackageDraft")
     if latest.get("draft") and not passed(latest.get("dry-run")):

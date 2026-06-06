@@ -109,7 +109,6 @@ def build_final_product_progress(
     environment_passed = final_status.get("environmentStatus") == "passed"
     tool_surface_passed = final_status.get("toolSurfaceStatus") == "passed"
     public_session_passed = final_status.get("publicSessionStatus") == "passed"
-    secure_tunnel_dependency_passed = (final_status.get("requiredDependencies") or {}).get("tunnel-client") == "passed"
     proof_replay_passed = final_status.get("proofReplayStatus") == "passed"
     proof_fresh = final_status.get("proofFreshnessStatus") == "fresh"
     latest_artifacts = latest_artifacts if isinstance(latest_artifacts, dict) else {}
@@ -156,12 +155,12 @@ def build_final_product_progress(
         ),
         phase_row(
             7,
-            "Fresh real ChatGPT Secure Tunnel proof",
-            "completed" if phase7_completed else ("ready" if final_ok and public_session_passed and secure_tunnel_dependency_passed else "pending"),
+            "Fresh real ChatGPT manual public-IP proof",
+            "completed" if phase7_completed else ("ready" if final_ok and public_session_passed else "pending"),
             (
-                "Fresh repo-owned actual-client proof is recorded through OpenAI Secure MCP Tunnel, replayed, and not self-test."
+                "Fresh repo-owned actual-client proof is recorded through the operator-managed manual external-IP Server URL, replayed, and not self-test."
                 if phase7_completed
-                else "OpenAI Secure MCP Tunnel proof remains explicit-only; Mission Control prints commands but starts no tunnel."
+                else "Manual external-IP proof remains explicit-only; Mission Control prints commands but starts no server or reverse proxy."
             ),
         ),
         phase_row(
@@ -185,9 +184,9 @@ def build_final_product_progress(
         }
     elif next_phase and next_phase["phase"] == 7 and final_ok:
         recommended = {
-            "key": "prepare-secure-tunnel-chatgpt-proof",
-            "reason": "Local final gate passes; the next external proof should use OpenAI Secure MCP Tunnel.",
-            "command": commands["secureTunnelPlan"],
+            "key": "prepare-manual-public-ip-chatgpt-proof",
+            "reason": "Local final gate passes; the next external proof should use the operator-managed manual external-IP Server URL path.",
+            "command": commands["manualPublicIpPlan"],
         }
     elif next_phase is None:
         recommended = {
@@ -214,8 +213,9 @@ def build_final_product_progress(
         "releaseHandoffPath": release_handoff_path,
         "actualClientProofCompleted": actual_client_proof_completed,
         "externalTrialExplicitOnly": True,
-        "recommendedConnection": "openai-secure-mcp-tunnel",
-        "cloudflareFallbackOnly": True,
+        "recommendedConnection": "manual-public-ip",
+        "openAiSecureTunnelRetired": True,
+        "cloudflareTunnelRetired": True,
         "publicTunnelStarted": False,
         "chatGptRegistrationPerformed": False,
     }
@@ -299,9 +299,7 @@ def mission_control(repo_root: Path) -> dict[str, Any]:
         "pasteSafeCommands": {
             "readiness": commands["mcpTrialReadiness"],
             "proposalSmoke": commands["proposalTransportSmoke"],
-            "secureTunnelPlan": commands["secureTunnelPlan"],
-            "publicSmoke": commands["cloudflareSmoke"],
-            "trialSession": commands["chatGptTrialSession"],
+            "manualPublicIpPlan": commands["manualPublicIpPlan"],
             "trialProofTemplate": commands["trialProofTemplate"],
             "phase2Status": commands["mcpPhase2Status"],
             "phase2CompactStatus": commands["mcpPhase2CompactStatus"],
@@ -331,17 +329,18 @@ def trial_command_payload(repo_root: Path) -> dict[str, Any]:
         "schemaVersion": 1,
         "kind": "riftreader-mcp-mission-control-trial-command",
         "generatedAtUtc": utc_iso(),
-        "status": "ready",
-        "ok": True,
-        "command": commands["chatGptTrialSession"],
+        "status": "blocked",
+        "ok": False,
+        "command": commands["chatGptTrialSessionRetired"],
         "notes": [
-            "This command starts a bounded public tunnel only when the operator runs it explicitly.",
-            "Use the printed publicMcpUrl in ChatGPT Developer Mode while the command is still running.",
+            "Cloudflare ChatGPT trial sessions are retired for this repo lane and are not a fallback path.",
+            "Use the manual-public-IP plan command instead.",
         ],
         "safety": {
             **safety_flags(),
             "publicTunnelStarted": False,
             "commandDisplayedOnly": True,
+            "cloudflareTunnelRetired": True,
         },
     }
 
@@ -352,20 +351,43 @@ def secure_tunnel_plan_payload(repo_root: Path) -> dict[str, Any]:
         "schemaVersion": 1,
         "kind": "riftreader-mcp-mission-control-secure-tunnel-plan-command",
         "generatedAtUtc": utc_iso(),
-        "status": "ready",
-        "ok": True,
-        "command": commands["secureTunnelPlan"],
+        "status": "blocked",
+        "ok": False,
+        "command": commands["secureTunnelPlanRetired"],
         "notes": [
-            "This prints the OpenAI Secure MCP Tunnel plan and writes a local ignored plan artifact.",
-            "It does not start tunnel-client, create credentials, register ChatGPT, mutate Git, send RIFT input, or expose broad tools.",
-            "Cloudflare quick tunnel remains fallback-only.",
+            "OpenAI Secure MCP Tunnel is retired for this repo lane and is not a fallback path.",
+            "Use the manual-public-IP plan command instead.",
         ],
         "safety": {
             **safety_flags(),
             "publicTunnelStarted": False,
             "commandDisplayedOnly": True,
-            "openAiSecureTunnelPreferred": True,
-            "cloudflareFallbackOnly": True,
+            "openAiSecureTunnelRetired": True,
+            "cloudflareTunnelRetired": True,
+        },
+    }
+
+
+def manual_public_ip_plan_payload(repo_root: Path) -> dict[str, Any]:
+    commands = standard_commands()
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-mcp-mission-control-manual-public-ip-plan-command",
+        "generatedAtUtc": utc_iso(),
+        "status": "ready",
+        "ok": True,
+        "command": commands["manualPublicIpPlan"],
+        "notes": [
+            "This prints the active manual external-IP Server URL plan without starting the MCP server, reverse proxy, or router configuration.",
+            "Run the printed plan outside Codex with --public-mcp-host set to the current external IP or public hostname.",
+        ],
+        "safety": {
+            **safety_flags(),
+            "publicTunnelStarted": False,
+            "commandDisplayedOnly": True,
+            "manualPublicIpPreferred": True,
+            "openAiSecureTunnelRetired": True,
+            "cloudflareTunnelRetired": True,
         },
     }
 
@@ -426,7 +448,7 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
                 f"- Environment: `{final_status.get('environmentStatus')}`",
                 f"- Tool surface: `{final_status.get('toolSurfaceStatus')}`",
                 f"- Dependencies: `{final_status.get('dependencyStatus')}`",
-                f"- Secure Tunnel client: `{secure_tunnel_client.get('status')}`"
+                f"- Retired Secure Tunnel client: `{secure_tunnel_client.get('status')}`"
                 f" / diagnostics `{secure_tunnel_client.get('binaryDiagnosticsStatus')}`",
                 f"- Public session: `{final_status.get('publicSessionStatus')}`",
                 f"- Next: `{final_action.get('key')}`",
@@ -477,16 +499,15 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
             f"  - `{' '.join(commands.get('readiness') or [])}`",
             "- [ ] Run guarded proposal transport smoke if the final gate reports stale proposal smoke.",
             f"  - `{' '.join(commands.get('proposalSmoke') or [])}`",
-            "- [ ] Print the OpenAI Secure MCP Tunnel plan before ChatGPT Web/Desktop connector work.",
-            f"  - `{' '.join(commands.get('secureTunnelPlan') or [])}`",
-            "- [ ] Use Cloudflare public smoke only as deprecated fallback/dev-only verification.",
-            f"  - `{' '.join(commands.get('publicSmoke') or [])}`",
+            "- [ ] Print the manual external-IP Server URL plan before ChatGPT Web/Desktop connector work.",
+            f"  - `{' '.join(commands.get('manualPublicIpPlan') or [])}`",
+            "- [ ] Do not use OpenAI Secure MCP Tunnel or Cloudflare tunnel commands as backups; both are retired for this lane.",
             "",
-            "## Explicit ChatGPT Secure Tunnel proof",
+            "## Explicit ChatGPT manual public-IP proof",
             "",
-            "- [ ] Print the Secure Tunnel plan command without running tunnel-client.",
-            "  - `scripts\\riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json`",
-            "- [ ] Install/configure OpenAI `tunnel-client`, then run the printed `init`, `doctor`, and `run` commands outside Mission Control.",
+            "- [ ] Print the manual public-IP plan command without starting the server or reverse proxy.",
+            "  - `scripts\\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json`",
+            "- [ ] Start the local MCP server and HTTPS reverse proxy outside Codex, then configure router forwarding to that proxy.",
             "- [ ] Generate the current proof template before the ChatGPT-side run.",
             f"  - `{' '.join(commands.get('trialProofTemplate') or [])}`",
             f"- [ ] In ChatGPT Developer Mode, confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
@@ -567,8 +588,9 @@ def build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--run-readiness", action="store_true", help="Run local MCP trial-readiness only.")
     mode.add_argument("--run-proposal-smoke", action="store_true", help="Run local proposal transport smoke only.")
-    mode.add_argument("--secure-tunnel-plan", action="store_true", help="Print Secure MCP Tunnel plan command without starting tunnel-client.")
-    mode.add_argument("--trial-command", action="store_true", help="Print bounded ChatGPT trial-session command without running it.")
+    mode.add_argument("--manual-public-ip-plan", action="store_true", help="Print the active manual external-IP plan command.")
+    mode.add_argument("--secure-tunnel-plan", action="store_true", help="Retired: Secure MCP Tunnel is no longer a fallback path.")
+    mode.add_argument("--trial-command", action="store_true", help="Retired: Cloudflare ChatGPT trial sessions are no longer a fallback path.")
     mode.add_argument("--summary-md", action="store_true", help="Print a Markdown mission-control summary.")
     mode.add_argument("--checklist-md", action="store_true", help="Print a Markdown actual-client proof checklist.")
     parser.add_argument("--repo-root", default=None)
@@ -583,6 +605,8 @@ def main(argv: list[str] | None = None) -> int:
         payload = run_local_action(repo_root, "mcpTrialReadiness", "run-readiness")
     elif args.run_proposal_smoke:
         payload = run_local_action(repo_root, "proposalTransportSmoke", "run-proposal-smoke")
+    elif args.manual_public_ip_plan:
+        payload = manual_public_ip_plan_payload(repo_root)
     elif args.secure_tunnel_plan:
         payload = secure_tunnel_plan_payload(repo_root)
     elif args.trial_command:

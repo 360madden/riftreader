@@ -372,8 +372,8 @@ def self_test() -> dict[str, Any]:
     blockers = validate_proof(
         {
             "schemaVersion": 1,
-            "connectionMode": "openai-secure-mcp-tunnel",
-            "publicMcpUrl": "https://example.openai-mcp-tunnel.invalid/mcp",
+            "connectionMode": "manual-public-ip",
+            "publicMcpUrl": "https://203.0.113.10/mcp",
             "chatgptRegistrationSucceeded": True,
             "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),

@@ -47,7 +47,8 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "riftreader-mcp-mission-control")
         self.assertIn("readiness", payload["pasteSafeCommands"])
         self.assertIn("proposalSmoke", payload["pasteSafeCommands"])
-        self.assertIn("trialSession", payload["pasteSafeCommands"])
+        self.assertIn("manualPublicIpPlan", payload["pasteSafeCommands"])
+        self.assertNotIn("trialSession", payload["pasteSafeCommands"])
         self.assertIn("trialProofTemplate", payload["pasteSafeCommands"])
         self.assertIn("phase2Status", payload["pasteSafeCommands"])
         self.assertIn("phase2CompactStatus", payload["pasteSafeCommands"])
@@ -134,7 +135,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertEqual(payload["rankedActions"][0]["key"], "record-actual-client-proof")
         self.assertIn("proof:replay-failed:required-field-missing:connectionMode", payload["blockers"])
 
-    def test_trial_command_displays_bounded_public_trial_command_only(self) -> None:
+    def test_trial_command_reports_cloudflare_trial_path_retired(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_repo(root)
@@ -142,8 +143,10 @@ class McpMissionControlTests(unittest.TestCase):
             payload = mission.trial_command_payload(root)
 
         self.assertEqual(payload["kind"], "riftreader-mcp-mission-control-trial-command")
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
         self.assertIn("--chatgpt-trial-session", payload["command"])
-        self.assertIn("--chatgpt-session-seconds", payload["command"])
+        self.assertTrue(payload["safety"]["cloudflareTunnelRetired"])
         self.assertTrue(payload["safety"]["commandDisplayedOnly"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
 
@@ -276,7 +279,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
-    def test_cli_trial_command_json(self) -> None:
+    def test_cli_trial_command_json_reports_retired_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_repo(root)
@@ -286,8 +289,9 @@ class McpMissionControlTests(unittest.TestCase):
                 exit_code = mission.main(["--repo-root", str(root), "--trial-command", "--json"])
             payload = json.loads(stdout.getvalue())
 
-        self.assertEqual(exit_code, 0)
+        self.assertEqual(exit_code, 2)
         self.assertEqual(payload["kind"], "riftreader-mcp-mission-control-trial-command")
+        self.assertTrue(payload["safety"]["cloudflareTunnelRetired"])
 
     def test_markdown_summary_and_checklist_are_generated_from_dashboard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -302,12 +306,12 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Final product progress", summary)
         self.assertIn("Current-head CI", summary)
         self.assertIn("Final readiness", summary)
-        self.assertIn("Secure Tunnel client", summary)
+        self.assertIn("Retired Secure Tunnel client", summary)
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
         self.assertIn("Local final gate", checklist)
-        self.assertIn("Explicit ChatGPT Secure Tunnel proof", checklist)
-        self.assertIn("riftreader-mcp-mission-control.cmd --secure-tunnel-plan --json", checklist)
+        self.assertIn("Explicit ChatGPT manual public-IP proof", checklist)
+        self.assertIn("riftreader-chatgpt-mcp.cmd --manual-public-ip-plan", checklist)
         self.assertIn("riftreader-chatgpt-trial-recorder.cmd --write-template --json", checklist)
         self.assertIn("Confirm output schemas are present", checklist)
         self.assertIn("get_package_proposal_template", checklist)

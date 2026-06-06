@@ -78,21 +78,11 @@ def ok_gate_overrides() -> dict[str, dict[str, object]]:
                 "mcp-sdk": {"status": "passed", "required": True},
                 "gh": {"status": "passed", "required": True},
                 "tunnel-client": {
-                    "status": "passed",
+                    "status": "retired",
                     "ok": True,
-                    "required": True,
-                    "path": "C:\\RIFT MODDING\\Tools\\OpenAI\\tunnel-client\\tunnel-client.exe",
-                    "binaryDiagnostics": {
-                        "status": "passed",
-                        "ok": True,
-                        "sha256": "b" * 64,
-                        "blockers": [],
-                        "versionProbe": {
-                            "ok": True,
-                            "exitCode": 0,
-                            "stdoutPreview": "0.0.9-test",
-                        },
-                    },
+                    "required": False,
+                    "path": None,
+                    "binaryDiagnostics": None,
                 },
             },
         },
@@ -352,7 +342,7 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertEqual(len(diagnostics["sha256"]), 64)
         self.assertTrue(diagnostics["versionProbe"]["ok"])
 
-    def test_dependency_preflight_blocks_when_tunnel_client_version_probe_fails(self) -> None:
+    def test_dependency_preflight_marks_tunnel_client_retired_not_required(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             with (
@@ -370,8 +360,9 @@ class McpFinalReadinessTests(unittest.TestCase):
             ):
                 payload = final.dependency_preflight(root)
 
-        self.assertEqual(payload["dependencies"]["tunnel-client"]["status"], "blocked")
-        self.assertIn("dependency:tunnel-client-version-probe-failed", payload["blockers"])
+        self.assertEqual(payload["dependencies"]["tunnel-client"]["status"], "retired")
+        self.assertFalse(payload["dependencies"]["tunnel-client"]["required"])
+        self.assertNotIn("dependency:tunnel-client-version-probe-failed", payload["blockers"])
 
     def test_unsafe_tool_surface_blocks_final_readiness(self) -> None:
         overrides = ok_gate_overrides()
@@ -515,10 +506,9 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertEqual(compact["status"], "passed")
         self.assertEqual(compact["phase2Status"], "passed")
         self.assertEqual(compact["dependencyStatus"], "passed")
-        self.assertEqual(compact["requiredDependencies"]["tunnel-client"], "passed")
-        self.assertEqual(compact["secureTunnelClient"]["binaryDiagnosticsStatus"], "passed")
-        self.assertEqual(compact["secureTunnelClient"]["sha256"], "b" * 64)
-        self.assertEqual(compact["secureTunnelClient"]["version"], "0.0.9-test")
+        self.assertNotIn("tunnel-client", compact["requiredDependencies"])
+        self.assertEqual(compact["secureTunnelClient"]["status"], "retired")
+        self.assertIsNone(compact["secureTunnelClient"]["binaryDiagnosticsStatus"])
         self.assertEqual(compact["environmentStatus"], "passed")
         self.assertIn("recommendedNextAction", compact)
 

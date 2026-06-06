@@ -82,7 +82,7 @@ def write_proof_input_template(root: Path) -> None:
             "schemaVersion": 1,
             "status": "ready",
             "ok": True,
-            "connectionMode": "openai-secure-mcp-tunnel",
+            "connectionMode": "manual-public-ip",
             "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
             "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
@@ -101,7 +101,7 @@ def write_actual_client_proof(root: Path) -> None:
             "ok": True,
             "proof": {
                 "schemaVersion": 1,
-                "connectionMode": "openai-secure-mcp-tunnel",
+                "connectionMode": "manual-public-ip",
                 "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                 "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "toolOutputSchemasPresent": True,
