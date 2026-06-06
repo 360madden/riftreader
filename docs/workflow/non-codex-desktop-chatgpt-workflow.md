@@ -40,6 +40,7 @@ entrypoints:
 | Existing entrypoint | Role |
 |---|---|
 | `scripts\riftreader-chatgpt-mcp.cmd` | Main ChatGPT Developer Mode MCP adapter wrapper. |
+| `scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json` | Plan-only inventory of the existing non-Codex operator-owned launch commands. It does not start a server or tunnel. |
 | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Prints the primary OpenAI Secure MCP Tunnel command plan without starting a tunnel. |
 | `scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 3600 --json` | Explicit fallback/dev-only no-auth Cloudflare quick-tunnel session. |
 | `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge tunnel session, related but not the narrow ChatGPT MCP adapter. |

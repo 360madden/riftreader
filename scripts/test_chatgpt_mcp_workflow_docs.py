@@ -17,6 +17,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")
         self.assertIn("Non-Codex runtime invariant and existing launcher inventory", text)
         self.assertIn("scripts\\riftreader-chatgpt-mcp.cmd", text)
+        self.assertIn("--operator-launch-plan", text)
         self.assertIn("scripts\\riftreader-bridge-tunnel-session.cmd", text)
         self.assertIn("Do not recreate it under a new name", text)
         self.assertIn("do not fork the workflow into another near-duplicate script", text)
@@ -31,6 +32,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
     def test_non_codex_policy_blocks_codex_owned_runtime_as_final_proof(self) -> None:
         text = self.read_doc("docs/workflow/non-codex-desktop-chatgpt-workflow.md")
         self.assertIn("ChatGPT MCP runtime rule", text)
+        self.assertIn("scripts\\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json", text)
         self.assertIn("the MCP runtime must be", text)
         self.assertIn("started by the operator outside Codex", text)
         self.assertIn("A Codex-launched", text)

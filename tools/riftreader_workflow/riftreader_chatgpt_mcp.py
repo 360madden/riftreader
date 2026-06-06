@@ -3151,6 +3151,106 @@ def build_secure_tunnel_plan(
     return payload
 
 
+def repo_script_command(config: AdapterConfig, script_name: str, args: list[str]) -> list[str]:
+    return [str(config.repo_root / "scripts" / script_name), *args]
+
+
+def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float = 3600.0) -> dict[str, Any]:
+    """Return a plan-only non-Codex launch packet without starting a server or tunnel."""
+    session_seconds_int = int(session_seconds)
+    secure_plan_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--secure-tunnel-plan", "--json"])
+    fallback_trial_command = repo_script_command(
+        config,
+        "riftreader-chatgpt-mcp.cmd",
+        ["--chatgpt-trial-session", "--chatgpt-session-seconds", str(session_seconds_int), "--json"],
+    )
+    local_serve_command = repo_script_command(
+        config,
+        "riftreader-chatgpt-mcp.cmd",
+        ["--serve", "--host", DEFAULT_HOST, "--port", str(DEFAULT_PORT), "--transport", "streamable-http"],
+    )
+    payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-operator-launch-plan",
+        "generatedAtUtc": utc_iso(),
+        "status": "ready",
+        "ok": True,
+        "service": SERVER_NAME,
+        "version": VERSION,
+        "purpose": "Plan-only operator-owned non-Codex ChatGPT Web/Desktop MCP launch guidance.",
+        "nonCodexInvariant": {
+            "operatorOwnedRuntimeRequired": True,
+            "codexLaunchedRuntimeIsFinalProof": False,
+            "savedChatGptAppStartsLocalServer": False,
+            "existingLaunchersMustBeReused": True,
+        },
+        "existingEntrypoints": {
+            "chatgptMcpWrapper": "scripts\\riftreader-chatgpt-mcp.cmd",
+            "artifactBridgeTunnel": "scripts\\riftreader-bridge-tunnel-session.cmd",
+            "mcpServer": "scripts\\riftreader-mcp-server.cmd",
+            "mcpClient": "scripts\\riftreader-mcp-client.cmd",
+        },
+        "recommendedPath": {
+            "key": "openai-secure-mcp-tunnel",
+            "command": secure_plan_command,
+            "commandLine": command_line(secure_plan_command),
+            "why": "Primary Web/Desktop path; does not expose a public trycloudflare/ngrok URL.",
+            "startsRuntime": False,
+            "requiresOperatorRunAfterPlan": True,
+        },
+        "fallbackNoAuthDevPath": {
+            "key": "cloudflare-quick-tunnel",
+            "command": fallback_trial_command,
+            "commandLine": command_line(fallback_trial_command),
+            "sessionSeconds": session_seconds_int,
+            "authorization": "No Authentication",
+            "why": "Fallback/dev-only path for ease of use. The printed trycloudflare URL is ephemeral and must be refreshed each session.",
+            "startsRuntimeWhenOperatorRunsIt": True,
+            "expectedProcessesWhenRunning": ["python.exe", "cloudflared.exe"],
+            "keepConsoleOpen": True,
+        },
+        "localOnlyServePath": {
+            "key": "loopback-streamable-http",
+            "command": local_serve_command,
+            "commandLine": command_line(local_serve_command),
+            "endpoint": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
+            "why": "Local-only development server. ChatGPT Web/Desktop still needs a supported HTTPS tunnel to reach it.",
+            "startsRuntimeWhenOperatorRunsIt": True,
+            "expectedProcessesWhenRunning": ["python.exe"],
+        },
+        "doNotUse": [
+            "Do not create duplicate launcher scripts before extending scripts\\riftreader-chatgpt-mcp.cmd.",
+            "Do not confuse scripts\\riftreader-bridge-tunnel-session.cmd with the narrow ChatGPT MCP adapter.",
+            "Do not treat old trycloudflare.com URLs as durable; they expire when the fallback session ends.",
+            "Do not count a Codex-launched server/tunnel as final non-Codex acceptance proof.",
+            "Do not expand Cloudflare/ngrok fallback into the primary workflow.",
+        ],
+        "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
+        "docs": {
+            "mcpWorkflow": "docs\\workflow\\riftreader-chatgpt-mcp.md",
+            "nonCodexWorkflow": "docs\\workflow\\non-codex-desktop-chatgpt-workflow.md",
+            "finalReadiness": "docs\\workflow\\riftreader-chatgpt-mcp-final-readiness.md",
+        },
+        "warnings": [
+            "This plan does not start a server, start a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "Cloudflare quick tunnel is fallback/dev-only and no-auth by operator choice; do not use it as a durable production endpoint.",
+        ],
+        "blockers": [],
+        "safety": {
+            **base_safety(),
+            "operatorOwnedRuntimeRequired": True,
+            "codexLaunchedRuntimeAcceptedAsProof": False,
+            "persistentServerStarted": False,
+            "publicTunnelStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "cloudflareQuickTunnelDeprecated": True,
+            "openAiSecureTunnelPreferred": True,
+            "planOnly": True,
+        },
+    }
+    return payload
+
+
 def write_secure_tunnel_plan_summary(config: AdapterConfig, payload: dict[str, Any]) -> Path:
     generated = str(payload.get("generatedAtUtc") or utc_iso()).replace("-", "").replace(":", "")
     safe_timestamp = generated.replace("T", "T").replace("Z", "Z")
@@ -4518,6 +4618,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the OpenAI Secure MCP Tunnel command plan for ChatGPT Web/Desktop. Does not start a tunnel.",
     )
     mode.add_argument(
+        "--operator-launch-plan",
+        action="store_true",
+        help="Print non-Codex operator-owned launch guidance using existing scripts. Does not start a server or tunnel.",
+    )
+    mode.add_argument(
         "--cloudflare-tunnel-smoke",
         action="store_true",
         help="Deprecated fallback: start a temporary Cloudflare quick tunnel, smoke test the public /mcp URL, then stop it.",
@@ -4642,6 +4747,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             summary_path = write_secure_tunnel_plan_summary(config, payload)
             payload["artifactPaths"] = {"summaryJson": rel(config.repo_root, summary_path)}
+            print_payload(payload, json_mode=args.json)
+            return 0 if payload.get("ok") else 2
+        if args.operator_launch_plan:
+            payload = build_operator_launch_plan(config, session_seconds=args.chatgpt_session_seconds)
+            artifact = write_smoke_artifact(config, payload, prefix="operator-launch-plan")
+            payload["artifactPaths"] = {"summaryJson": artifact}
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 2
         if args.cloudflare_tunnel_smoke:

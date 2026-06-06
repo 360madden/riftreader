@@ -116,6 +116,19 @@ Keep that operator-owned console open while ChatGPT connects. A saved ChatGPT ap
 entry is only configuration; it does not start the local repo MCP server, does
 not start a tunnel, and does not keep an old `trycloudflare.com` URL alive.
 
+Plan-only helper for this invariant:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json
+```
+
+`--operator-launch-plan` does not start a server, start a tunnel, register
+ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg. It prints the existing
+operator-owned commands, the expected visible processes, and the "do not use"
+list so future sessions do not recreate the launcher or confuse the artifact
+bridge tunnel with the narrow ChatGPT MCP adapter.
+
 ## Future capability roadmap
 
 `get_workflow_control_plan` now advertises the intended higher-power capability
@@ -436,6 +449,14 @@ RUN THIS:
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json
+```
+
+If you only need to decide which existing non-Codex command to run, use the
+plan-only launcher inventory first:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+.\scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json
 ```
 
 The plan prints the exact local stdio MCP command for `tunnel-client`. If the

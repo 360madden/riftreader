@@ -1926,6 +1926,32 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("tunnel-client-version-probe-failed", payload["blockers"])
 
+    def test_operator_launch_plan_reuses_existing_scripts_without_starting_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            config = chatgpt_mcp.make_adapter_config(root)
+            payload = chatgpt_mcp.build_operator_launch_plan(config, session_seconds=3600)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["kind"], "riftreader-chatgpt-mcp-operator-launch-plan")
+        self.assertTrue(payload["nonCodexInvariant"]["operatorOwnedRuntimeRequired"])
+        self.assertFalse(payload["nonCodexInvariant"]["codexLaunchedRuntimeIsFinalProof"])
+        self.assertFalse(payload["nonCodexInvariant"]["savedChatGptAppStartsLocalServer"])
+        self.assertEqual(payload["existingEntrypoints"]["chatgptMcpWrapper"], "scripts\\riftreader-chatgpt-mcp.cmd")
+        self.assertEqual(payload["recommendedPath"]["key"], "openai-secure-mcp-tunnel")
+        self.assertFalse(payload["recommendedPath"]["startsRuntime"])
+        self.assertEqual(payload["fallbackNoAuthDevPath"]["key"], "cloudflare-quick-tunnel")
+        self.assertEqual(payload["fallbackNoAuthDevPath"]["authorization"], "No Authentication")
+        self.assertEqual(payload["fallbackNoAuthDevPath"]["sessionSeconds"], 3600)
+        self.assertIn("--chatgpt-trial-session", payload["fallbackNoAuthDevPath"]["command"])
+        self.assertIn("cloudflared.exe", payload["fallbackNoAuthDevPath"]["expectedProcessesWhenRunning"])
+        self.assertTrue(payload["safety"]["planOnly"])
+        self.assertFalse(payload["safety"]["publicTunnelStarted"])
+        self.assertFalse(payload["safety"]["persistentServerStarted"])
+        self.assertIn("health", payload["chatGptSmokeOrder"])
+        self.assertTrue(any("duplicate launcher" in item for item in payload["doNotUse"]))
+
     def test_secure_tunnel_plan_redacts_secret_like_tunnel_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -2056,6 +2082,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertIn("--trial-readiness", help_text)
         self.assertIn("--secure-tunnel-plan", help_text)
+        self.assertIn("--operator-launch-plan", help_text)
         self.assertIn("--proposal-transport-smoke", help_text)
         self.assertIn("--chatgpt-trial-session", help_text)
         self.assertTrue(args.chatgpt_trial_session)
