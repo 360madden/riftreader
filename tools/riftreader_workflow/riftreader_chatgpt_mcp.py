@@ -67,6 +67,7 @@ MAX_HANDOFF_BYTES = 512 * 1024
 MAX_DRY_RUN_DIFF_PREVIEW_BYTES = 16 * 1024
 WORKFLOW_CONTROL_LIST_LIMIT = 5
 WORKFLOW_CONTROL_TEXT_LIMIT = 160
+WORKFLOW_CONTROL_MINIFIED_BYTES_TARGET = 8 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
@@ -146,6 +147,22 @@ def compact_safety_flags(safety: Any) -> dict[str, Any]:
     return {key: safety.get(key) for key in keys if key in safety}
 
 
+def compact_workflow_safety(safety: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "readOnlyControlPlan",
+        "planOnly",
+        "shellExecutionEndpoint",
+        "gitMutation",
+        "tunnelControl",
+        "providerWrites",
+        "inputSent",
+        "movementSent",
+        "noCheatEngine",
+        "x64dbgAttach",
+    )
+    return {key: safety.get(key) for key in keys if key in safety}
+
+
 def compact_tunnel_client_status(tunnel_client: Any) -> dict[str, Any]:
     if not isinstance(tunnel_client, dict):
         return {}
@@ -171,13 +188,10 @@ def compact_final_status(final_status: dict[str, Any]) -> dict[str, Any]:
         "ciStatus": final_status.get("ciStatus"),
         "proofReplayStatus": final_status.get("proofReplayStatus"),
         "proofFreshnessStatus": final_status.get("proofFreshnessStatus"),
-        "artifactFreshnessStatus": final_status.get("artifactFreshnessStatus"),
         "upstreamStatus": final_status.get("upstreamStatus"),
         "phase2Status": final_status.get("phase2Status"),
         "recommendedNextAction": final_status.get("recommendedNextAction"),
         "secureTunnelClient": compact_tunnel_client_status(final_status.get("secureTunnelClient")),
-        "publicSessionStatus": final_status.get("publicSessionStatus"),
-        "releaseHandoffPath": final_status.get("releaseHandoffPath"),
         "blockerCount": len(all_blockers),
         "warningCount": final_status.get("warningCount", len(all_warnings)),
         "safety": compact_safety_flags(final_status.get("safety")),
@@ -198,7 +212,6 @@ def compact_final_product_progress(progress: Any) -> dict[str, Any]:
         "recommendedConnection": progress.get("recommendedConnection"),
         "recommendedNextAction": progress.get("recommendedNextAction"),
         "nextPhase": progress.get("nextPhase"),
-        "releaseHandoffPath": progress.get("releaseHandoffPath"),
         "actualClientProofCompleted": progress.get("actualClientProofCompleted"),
         "chatGptRegistrationPerformed": progress.get("chatGptRegistrationPerformed"),
         "publicTunnelStarted": progress.get("publicTunnelStarted"),
@@ -221,7 +234,6 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
         "currentTruth": stage_plan.get("currentTruth"),
         "immediateStages": limited_list(stage_plan.get("immediateStages")),
         "phaseOrderCount": len(phase_order),
-        "phaseOrderPreview": phase_order[:WORKFLOW_CONTROL_LIST_LIMIT],
     }
 
 
@@ -234,9 +246,7 @@ def compact_future_capability_roadmap(roadmap: list[dict[str, Any]]) -> list[dic
                 "currentStatus": item.get("currentStatus"),
                 "riskClass": item.get("riskClass"),
                 "targetToolName": item.get("targetToolName"),
-                "minimumGate": item.get("minimumGate"),
                 "safePrecursorTools": item.get("safePrecursorTools") or [],
-                "requiredSafeguardCount": len(item.get("requiredSafeguards") or []),
             }
         )
     return compact
@@ -245,23 +255,28 @@ def compact_future_capability_roadmap(roadmap: list[dict[str, Any]]) -> list[dic
 def compact_apply_tool_contract(contract: dict[str, Any]) -> dict[str, Any]:
     required_gates = contract.get("requiredGates") if isinstance(contract.get("requiredGates"), list) else []
     fail_closed = contract.get("failClosedBlockers") if isinstance(contract.get("failClosedBlockers"), list) else []
+    required_gate_preview = [gate for gate in required_gates if gate == "diff-hash-binding"]
+    fail_closed_preview = [blocker for blocker in fail_closed if blocker == "APPLY_DRY_RUN_HASH_MISMATCH"]
     return {
-        "schemaVersion": contract.get("schemaVersion"),
-        "kind": contract.get("kind"),
         "status": contract.get("status"),
         "targetToolName": contract.get("targetToolName"),
         "designPath": contract.get("designPath"),
         "currentStage": contract.get("currentStage"),
-        "stageRange": contract.get("stageRange"),
         "exposureStatus": contract.get("exposureStatus"),
         "argumentKeys": contract.get("argumentKeys") or [],
         "requiredGateCount": len(required_gates),
-        "requiredGates": required_gates,
+        "requiredGates": required_gate_preview,
         "failClosedBlockerCount": len(fail_closed),
-        "failClosedBlockers": fail_closed,
+        "failClosedBlockers": fail_closed_preview,
         "requiredPrecursorTools": contract.get("requiredPrecursorTools") or [],
-        "preflightHelper": contract.get("preflightHelper"),
-        "applyBridgeHelper": contract.get("applyBridgeHelper"),
+        "preflightHelper": {
+            key: (contract.get("preflightHelper") or {}).get(key)
+            for key in ("status", "mutatesRepo", "passesApplyFlag")
+        },
+        "applyBridgeHelper": {
+            key: (contract.get("applyBridgeHelper") or {}).get(key)
+            for key in ("status", "requiresApprovalToken", "gitMutation", "mcpToolExposed")
+        },
     }
 
 
@@ -283,11 +298,6 @@ def compact_ranked_actions(actions: Any) -> list[dict[str, Any]]:
 
 def compact_safe_commit_plan(commit_plan: dict[str, Any]) -> dict[str, Any]:
     stageable_paths = commit_plan.get("stageablePaths") if isinstance(commit_plan.get("stageablePaths"), list) else []
-    add_commands = (
-        commit_plan.get("pasteSafeGitAddCommands")
-        if isinstance(commit_plan.get("pasteSafeGitAddCommands"), list)
-        else []
-    )
     validation_commands = (
         commit_plan.get("validationCommandsBeforeCommit")
         if isinstance(commit_plan.get("validationCommandsBeforeCommit"), list)
@@ -297,11 +307,8 @@ def compact_safe_commit_plan(commit_plan: dict[str, Any]) -> dict[str, Any]:
         "status": commit_plan.get("status"),
         "stageablePathCount": len(stageable_paths),
         "stageablePaths": stageable_paths[:WORKFLOW_CONTROL_LIST_LIMIT],
-        "pasteSafeGitAddCommandCount": len(add_commands),
-        "pasteSafeGitAddCommands": add_commands[:WORKFLOW_CONTROL_LIST_LIMIT],
         "draftCommitMessage": commit_plan.get("draftCommitMessage"),
         "validationCommandCount": len(validation_commands),
-        "validationCommandsBeforeCommit": validation_commands[:WORKFLOW_CONTROL_LIST_LIMIT],
         "containsGitAddDot": commit_plan.get("containsGitAddDot"),
         "safety": commit_plan.get("safety"),
     }
@@ -1460,6 +1467,7 @@ class RiftReaderChatGptMcpAdapter:
                 "status": "compact",
                 "reason": "Keep ChatGPT Web/Desktop MCP responses small enough for reliable tool transport.",
                 "listLimit": WORKFLOW_CONTROL_LIST_LIMIT,
+                "minifiedBytesTarget": WORKFLOW_CONTROL_MINIFIED_BYTES_TARGET,
                 "localCliSmokeCommand": "python tools\\riftreader_workflow\\riftreader_chatgpt_mcp.py --call get_workflow_control_plan --json",
             },
             "bidirectionalDataTransfer": {
@@ -1487,12 +1495,8 @@ class RiftReaderChatGptMcpAdapter:
                 "operatorNextAction": operator_next,
                 "finalStatus": compact_final_status(final_status),
                 "finalProductProgress": compact_final_product_progress(mission_payload.get("finalProductProgress")),
-                "pasteSafeCommandKeys": sorted((mission_payload.get("pasteSafeCommands") or {}).keys()),
-                "rankedActions": compact_ranked_actions(mission_payload.get("rankedActions")),
                 "warningCount": len(mission_warnings),
-                "warnings": compact_text_list(mission_warnings, limit=3),
                 "blockerCount": len(mission_blockers),
-                "blockers": compact_text_list(mission_blockers, limit=3),
             },
             "safeCommitPlan": safe_commit,
             "fullProductStagePlan": compact_stage_plan(FULL_PRODUCT_STAGE_PLAN),
@@ -1502,11 +1506,6 @@ class RiftReaderChatGptMcpAdapter:
             },
             "futureCapabilityPolicy": {
                 "status": "apply-exposed-gated",
-                "rule": (
-                    "Future higher-power tools should be added incrementally behind explicit gates; this plan "
-                    "now exposes apply only behind a local approval-token gate, while Git mutation, shell, "
-                    "live RIFT control, CE, and x64dbg endpoints remain unexposed."
-                ),
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -1532,15 +1531,12 @@ class RiftReaderChatGptMcpAdapter:
             "blockers": [],
             "warnings": [],
             "safety": {
-                **base_safety(),
+                **compact_workflow_safety(base_safety()),
                 "readOnlyControlPlan": True,
                 "planOnly": True,
                 "shellExecutionEndpoint": False,
                 "gitMutation": False,
                 "tunnelControl": False,
-                "chatGptRegistrationPerformed": False,
-                "applyFlagSent": False,
-                "repoSourceMutationExpected": False,
             },
         }
 

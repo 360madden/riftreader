@@ -884,6 +884,62 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
         self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 
+    def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            mission_payload = {
+                "status": "blocked",
+                "ok": False,
+                "operatorNextAction": {"key": "safe-next", "command": ["scripts\\x.cmd", "--json"]},
+                "finalStatus": {
+                    "status": "blocked",
+                    "ok": False,
+                    "secureTunnelClient": {"status": "retired", "ok": True, "blockers": []},
+                    "blockers": [f"proof:large-blocker-{index}-" + ("x" * 120) for index in range(50)],
+                    "warnings": [f"artifact:large-warning-{index}-" + ("y" * 120) for index in range(50)],
+                    "safety": {"gitMutation": False, "providerWrites": False, "inputSent": False},
+                },
+                "finalProductProgress": {
+                    "status": "blocked",
+                    "completedPhaseCount": 4,
+                    "totalPhaseCount": 8,
+                    "phases": [
+                        {"phase": index, "name": f"Phase {index}", "status": "pending", "evidence": "z" * 120}
+                        for index in range(20)
+                    ],
+                },
+                "pasteSafeCommands": {f"cmd-{index}": ["scripts\\x.cmd", "--json"] for index in range(20)},
+                "rankedActions": [
+                    {"key": f"action-{index}", "priority": "P1", "reason": "r" * 200, "command": ["scripts\\x.cmd"]}
+                    for index in range(20)
+                ],
+                "warnings": [f"mission-warning-{index}-" + ("w" * 120) for index in range(50)],
+                "blockers": [f"mission-blocker-{index}-" + ("b" * 120) for index in range(50)],
+            }
+            commit_plan = {
+                "status": "ready",
+                "stageablePaths": [f"docs/example-{index}.md" for index in range(30)],
+                "pasteSafeGitAddCommands": [f'git add -- "docs/example-{index}.md"' for index in range(30)],
+                "draftCommitMessage": "Update docs",
+                "validationCommandsBeforeCommit": ["python -m unittest scripts.test_riftreader_chatgpt_mcp"] * 20,
+                "containsGitAddDot": False,
+                "safety": {"planOnly": True, "gitMutation": False},
+            }
+            with (
+                mock.patch.object(chatgpt_mcp.mcp_mission_control, "mission_control", return_value=mission_payload),
+                mock.patch.object(chatgpt_mcp.safe_commit_packager, "safe_commit_plan", return_value=commit_plan),
+            ):
+                payload = adapter.call_tool("get_workflow_control_plan", {})
+
+        minified_size = len(json.dumps(payload, separators=(",", ":")))
+        self.assertLessEqual(minified_size, chatgpt_mcp.WORKFLOW_CONTROL_MINIFIED_BYTES_TARGET)
+        self.assertEqual(payload["responseCompaction"]["status"], "compact")
+        self.assertEqual(payload["missionControl"]["blockerCount"], 50)
+        self.assertNotIn("blockers", payload["missionControl"])
+        self.assertLessEqual(len(payload["safeCommitPlan"]["stageablePaths"]), chatgpt_mcp.WORKFLOW_CONTROL_LIST_LIMIT)
+
     def test_create_fastmcp_server_registers_tools_with_annotations(self) -> None:
         class FakeAnnotations:
             def __init__(self, *, readOnlyHint: bool, destructiveHint: bool, openWorldHint: bool) -> None:  # noqa: N803
