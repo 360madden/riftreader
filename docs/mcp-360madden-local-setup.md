@@ -48,6 +48,19 @@ Start the local server:
 scripts\start_mcp_local.cmd
 ```
 
+For normal background lifecycle control after the first start, use:
+
+```cmd
+scripts\check_mcp_local_server.cmd
+scripts\restart_mcp_local.cmd
+scripts\stop_mcp_local.cmd
+```
+
+These commands use the Python controller
+`tools\riftreader_mcp\local_server_control.py`, write JSON summaries under
+`.riftreader-local\mcp\server\`, and refuse to stop a listener unless its
+command line matches the repo-local ChatGPT Web/Desktop HTTP MCP server.
+
 Expected startup fields:
 
 | Field | Expected value |
@@ -80,6 +93,7 @@ The first start creates `.riftreader-local\mcp\config.json` with a generated tok
 |---|---|
 | `.riftreader-local\mcp\config.json` | Local untracked auth/config. |
 | `.riftreader-local\mcp\logs\` | JSONL server logs with token redaction. |
+| `.riftreader-local\mcp\server\` | Local server start/control summaries and stdout/stderr logs. |
 | `.riftreader-local\mcp\smoke\` | Smoke-test summaries. |
 | `.riftreader-local\mcp\latest\` | Operator handoff/status packet. |
 | `.riftreader-local\mcp\openai-tunnel\` | OpenAI Secure MCP Tunnel profile/status files. |

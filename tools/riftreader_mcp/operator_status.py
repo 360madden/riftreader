@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.4
+# Version: riftreader-mcp-http-operator-status-v0.1.5
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -97,12 +97,13 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.4",
+        "version": "riftreader-mcp-http-operator-status-v0.1.5",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
             "Added a separate read-only HTTP MCP adapter for ChatGPT Web/Desktop local repo access.",
             "Added token-gated auth, Origin validation, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
+            "Added fail-closed local server status/restart/stop helpers for the ChatGPT Web/Desktop HTTP MCP process.",
             "Kept the existing stdio MCP adapter intact; this slice does not add write tools or live-game integrations.",
         ],
         "filesCreatedOrModified": [
@@ -116,17 +117,22 @@ def build_status(repo: Path) -> dict[str, Any]:
             "tools/riftreader_mcp/start_cloudflared_connector.py",
             "tools/riftreader_mcp/cloudflared_status.py",
             "tools/riftreader_mcp/openai_tunnel_status.py",
+            "tools/riftreader_mcp/local_server_control.py",
             "tools/riftreader_mcp/operator_status.py",
             "tools/riftreader_mcp/mcp-http-config.example.json",
             "tools/riftreader_mcp/cloudflare-tunnel-360madden.example.yml",
             "scripts/check_mcp_domain_readiness.cmd",
+            "scripts/check_mcp_local_server.cmd",
             "scripts/check_mcp_cloudflared_service.cmd",
             "scripts/check_chatgpt_mcp_tunnel_readiness.cmd",
             "scripts/prepare_chatgpt_mcp_tunnel_profile.cmd",
             "scripts/start_chatgpt_mcp_tunnel.cmd",
             "scripts/start_mcp_local.cmd",
+            "scripts/restart_mcp_local.cmd",
+            "scripts/stop_mcp_local.cmd",
             "scripts/test_mcp_local.cmd",
             "scripts/print_mcp_operator_status.cmd",
+            "scripts/test_riftreader_mcp_http_server.py",
             "docs/mcp-360madden-local-setup.md",
             "docs/mcp-360madden-operator-runbook.md",
             "docs/cloudflare-tunnel-360madden.md",
@@ -137,6 +143,8 @@ def build_status(repo: Path) -> dict[str, Any]:
             "scripts\\check_mcp_domain_readiness.cmd",
             "scripts\\test_mcp_local.cmd",
             "scripts\\start_mcp_local.cmd",
+            "scripts\\check_mcp_local_server.cmd",
+            "scripts\\restart_mcp_local.cmd",
             "scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd",
             "scripts\\check_chatgpt_mcp_tunnel_readiness.cmd",
             "scripts\\check_mcp_cloudflared_service.cmd",
@@ -152,6 +160,9 @@ def build_status(repo: Path) -> dict[str, Any]:
             "END_RIFTREADER_CHATGPT_MCP_TUNNEL_STATUS",
             "END_RIFTREADER_MCP_LOCAL_TEST",
             "END_RIFTREADER_MCP_LOCAL_STARTUP_BEGIN_SERVER",
+            "END_RIFTREADER_MCP_LOCAL_SERVER_CONTROL",
+            "END_RIFTREADER_MCP_LOCAL_SERVER_STATUS_CMD",
+            "END_RIFTREADER_MCP_LOCAL_RESTART_CMD",
             "END_RIFTREADER_MCP_OPERATOR_STATUS_CMD",
         ],
         "localConfigPath": str(cfg_path),

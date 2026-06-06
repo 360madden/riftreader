@@ -37,6 +37,18 @@ scripts\start_mcp_local.cmd
 
 Leave this window open. The server listens only on `127.0.0.1:8765`.
 
+For background status/restart/stop without keeping a start window open:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\check_mcp_local_server.cmd
+scripts\restart_mcp_local.cmd
+scripts\stop_mcp_local.cmd
+```
+
+The restart/stop helpers fail closed if `127.0.0.1:8765` is owned by anything
+other than the repo-local ChatGPT Web/Desktop HTTP MCP server.
+
 ## 3. Print status packet
 
 ```cmd
@@ -114,6 +126,7 @@ Do not paste the token into GitHub, docs, screenshots, or issue comments. Use it
 | `auth_missing` | Request did not include bearer token. | Add `Authorization: Bearer <token>`. |
 | `auth_invalid` | Bearer token is wrong. | Recheck `.riftreader-local\mcp\config.json`. |
 | Local smoke cannot connect | Server failed to start or port is blocked. | Paste full smoke JSON output. |
+| `blocked_foreign_listener` | Port `127.0.0.1:8765` is owned by an unexpected process. | Do not kill it blindly; inspect the JSON process details first. |
 | Public health fails but local smoke passes | Cloudflare tunnel/DNS route is not ready. | Follow `docs\cloudflare-tunnel-360madden.md`. |
 | `BLOCKED_DOMAIN_SETUP` | Domain was bought but DNS/tunnel route is not complete. | Finish Phase -1 in `docs\cloudflare-tunnel-360madden.md`. |
 | `origin_rejected` | Request came from an untrusted browser origin. | Use ChatGPT/tunnel-client or update only trusted local origins. |
