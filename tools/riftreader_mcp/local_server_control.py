@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-local-server-control-v0.1.1
+# Version: riftreader-mcp-local-server-control-v0.1.2
 # Purpose: Safe local lifecycle control for the ChatGPT Web/Desktop HTTP MCP server.
 
 from __future__ import annotations
@@ -18,20 +18,31 @@ from tools.riftreader_mcp.auth import token_fingerprint
 from tools.riftreader_mcp.config import PROTOCOL_VERSION, default_repo_root, ensure_local_config, load_config, runtime_root
 from tools.riftreader_mcp.logging_util import utc_iso, utc_stamp
 
-VERSION = "riftreader-mcp-local-server-control-v0.1.1"
+VERSION = "riftreader-mcp-local-server-control-v0.1.2"
 END_MARKER = "END_RIFTREADER_MCP_LOCAL_SERVER_CONTROL"
 SERVER_MODULE = "tools.riftreader_mcp.http_server"
 
 
-def powershell_json(script: str, *, timeout_seconds: int = 10) -> dict[str, Any]:
-    proc = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout_seconds,
-        check=False,
-    )
+def powershell_json(script: str, *, timeout_seconds: int = 20) -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "exitCode": None,
+            "stdout": str(exc.stdout or "")[:4000],
+            "stderr": str(exc.stderr or "")[:4000],
+            "timedOut": True,
+            "timeoutSeconds": timeout_seconds,
+            "payload": None,
+        }
     stdout = proc.stdout.strip()
     payload: Any = None
     if stdout:
@@ -44,6 +55,7 @@ def powershell_json(script: str, *, timeout_seconds: int = 10) -> dict[str, Any]
         "exitCode": proc.returncode,
         "stdout": stdout[:4000],
         "stderr": proc.stderr.strip()[:4000],
+        "timedOut": False,
         "payload": payload,
     }
 
@@ -69,7 +81,7 @@ if ($null -eq $conn) {{
     payload = result.get("payload")
     if not isinstance(payload, dict):
         return {"exists": False, "query": result, "queryFailed": True}
-    payload["query"] = {"ok": result["ok"], "exitCode": result["exitCode"], "stderr": result["stderr"]}
+    payload["query"] = {"ok": result["ok"], "exitCode": result["exitCode"], "stderr": result["stderr"], "timedOut": result.get("timedOut", False)}
     return payload
 
 
@@ -95,7 +107,7 @@ if ($null -eq $proc) {{
     payload = result.get("payload")
     if not isinstance(payload, dict):
         return {"exists": False, "pid": pid, "query": result, "queryFailed": True}
-    payload["query"] = {"ok": result["ok"], "exitCode": result["exitCode"], "stderr": result["stderr"]}
+    payload["query"] = {"ok": result["ok"], "exitCode": result["exitCode"], "stderr": result["stderr"], "timedOut": result.get("timedOut", False)}
     return payload
 
 
@@ -131,10 +143,26 @@ def health_check(host: str, port: int, token: str | None) -> dict[str, Any]:
 def control_status(repo: Path) -> dict[str, Any]:
     config = load_config(repo=repo)
     listener = find_listener(config.host, config.port)
-    process = process_info(listener.get("owningProcess") if listener.get("exists") else None)
-    matches = bool(listener.get("exists") and process.get("exists") and is_server_process(process, repo))
-    health = health_check(config.host, config.port, config.token) if matches else {"ok": False, "status": "not_checked"}
-    status = "running" if matches and health.get("ok") else "foreign_listener" if listener.get("exists") and not matches else "not_running"
+    listener_query_failed = bool(listener.get("queryFailed") or listener.get("query", {}).get("timedOut"))
+    if listener_query_failed:
+        process = {"exists": False, "querySkipped": True}
+        matches = False
+        health = {"ok": False, "status": "not_checked_listener_query_failed"}
+        status = "blocked_listener_query_failed"
+    else:
+        process = process_info(listener.get("owningProcess") if listener.get("exists") else None)
+        process_query_failed = bool(process.get("queryFailed") or process.get("query", {}).get("timedOut"))
+        matches = bool(listener.get("exists") and process.get("exists") and is_server_process(process, repo))
+        health = health_check(config.host, config.port, config.token) if matches else {"ok": False, "status": "not_checked"}
+        status = (
+            "running"
+            if matches and health.get("ok")
+            else "blocked_process_query_failed"
+            if process_query_failed
+            else "foreign_listener"
+            if listener.get("exists") and not matches
+            else "not_running"
+        )
     return {
         "version": VERSION,
         "generatedAtUtc": utc_iso(),

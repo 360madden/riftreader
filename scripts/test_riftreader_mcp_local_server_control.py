@@ -7,12 +7,14 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.riftreader_mcp.local_server_control import is_server_process, normalize_for_match  # noqa: E402
+from tools.riftreader_mcp.config import McpHttpConfig  # noqa: E402
+from tools.riftreader_mcp.local_server_control import control_status, is_server_process, normalize_for_match  # noqa: E402
 
 
 class RiftReaderMcpLocalServerControlTests(unittest.TestCase):
@@ -51,6 +53,38 @@ class RiftReaderMcpLocalServerControlTests(unittest.TestCase):
         }
 
         self.assertFalse(is_server_process(process, repo))
+
+    def test_control_status_blocks_cleanly_on_listener_query_timeout(self) -> None:
+        repo = Path("C:/RIFT MODDING/RiftReader")
+        config = McpHttpConfig(repo_root=repo, token="unit-test-token")
+        listener = {"exists": False, "queryFailed": True, "query": {"timedOut": True}}
+
+        with (
+            patch("tools.riftreader_mcp.local_server_control.load_config", return_value=config),
+            patch("tools.riftreader_mcp.local_server_control.find_listener", return_value=listener),
+        ):
+            status = control_status(repo)
+
+        self.assertEqual(status["status"], "blocked_listener_query_failed")
+        self.assertEqual(status["process"], {"exists": False, "querySkipped": True})
+        self.assertEqual(status["health"]["status"], "not_checked_listener_query_failed")
+
+    def test_control_status_blocks_cleanly_on_process_query_timeout(self) -> None:
+        repo = Path("C:/RIFT MODDING/RiftReader")
+        config = McpHttpConfig(repo_root=repo, token="unit-test-token")
+        listener = {"exists": True, "owningProcess": 1234, "query": {"timedOut": False}}
+        process = {"exists": False, "queryFailed": True, "query": {"timedOut": True}}
+
+        with (
+            patch("tools.riftreader_mcp.local_server_control.load_config", return_value=config),
+            patch("tools.riftreader_mcp.local_server_control.find_listener", return_value=listener),
+            patch("tools.riftreader_mcp.local_server_control.process_info", return_value=process),
+        ):
+            status = control_status(repo)
+
+        self.assertEqual(status["status"], "blocked_process_query_failed")
+        self.assertEqual(status["process"], process)
+        self.assertEqual(status["health"]["status"], "not_checked")
 
 
 if __name__ == "__main__":
