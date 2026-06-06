@@ -3935,6 +3935,7 @@ def run_chatgpt_trial_session(
     public_host: str | None = None
     curl_resolve_ip: str | None = None
     client_result: dict[str, Any] = {"responses": []}
+    resolved_diagnostic_client_result: dict[str, Any] = {"responses": []}
     blockers: list[str] = []
     ready = False
     ready_artifact: str | None = None
@@ -4013,14 +4014,15 @@ def run_chatgpt_trial_session(
                     )
                 if curl_resolve_ip is None:
                     curl_resolve_ip = resolve_ipv4_for_curl(public_host)
+                # ChatGPT will use ordinary public DNS, not curl's
+                # ``--resolve`` escape hatch.  The manual registration URL is
+                # only useful if the same no-resolve path succeeds here.
                 client_result = cloudflare_smoke_client_result(
                     curl_executable=curl_executable,
                     url=f"{public_url}/mcp",
                     timeout_seconds=min(10.0, max(2.0, verify_timeout_seconds / 6)),
                     temp_dir=temp_dir,
                     origin=public_origin,
-                    resolve_host=public_host,
-                    resolve_ip=curl_resolve_ip,
                     include_proposal_submit=True,
                 )
                 last_blockers = verify_cloudflare_smoke_client_result(client_result)
@@ -4028,6 +4030,23 @@ def run_chatgpt_trial_session(
                     ready = True
                     ready_at_utc = utc_iso()
                     break
+                if curl_resolve_ip:
+                    resolved_diagnostic_client_result = cloudflare_smoke_client_result(
+                        curl_executable=curl_executable,
+                        url=f"{public_url}/mcp",
+                        timeout_seconds=min(10.0, max(2.0, verify_timeout_seconds / 6)),
+                        temp_dir=temp_dir,
+                        origin=public_origin,
+                        resolve_host=public_host,
+                        resolve_ip=curl_resolve_ip,
+                        include_proposal_submit=False,
+                    )
+                    resolved_blockers = verify_cloudflare_smoke_client_result(resolved_diagnostic_client_result)
+                    if not resolved_blockers:
+                        last_blockers = [
+                            "public-dns-path-failed-while-curl-resolve-path-passed",
+                            *last_blockers,
+                        ]
                 last_blockers = last_blockers or ["chatgpt-session-public-verify-not-ready"]
                 time.sleep(2.0)
             if not ready:
@@ -4049,6 +4068,8 @@ def run_chatgpt_trial_session(
                     "host": host,
                     "port": port,
                     "sessionSeconds": session_seconds,
+                    "curlResolveIp": curl_resolve_ip,
+                    "publicDnsVerified": True,
                     "registration": {
                         "chatGptDeveloperMode": True,
                         "mcpUrl": f"{public_url}/mcp",
@@ -4147,6 +4168,7 @@ def run_chatgpt_trial_session(
         "heldSeconds": round(held_seconds, 3),
         "verifyTimeoutSeconds": verify_timeout_seconds,
         "client": client_result,
+        "resolvedDiagnosticClient": resolved_diagnostic_client_result,
         "commands": {
             "cloudflared": {"args": tunnel_command, "cwd": str(config.repo_root)},
             "server": {"args": server_command, "cwd": str(config.repo_root)},

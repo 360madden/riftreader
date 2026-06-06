@@ -2030,17 +2030,22 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 payload = chatgpt_mcp.run_chatgpt_trial_session(config, session_seconds=0)
                 ready_exists = (root / payload["artifactPaths"]["readyJson"]).is_file()
                 summary_exists = (root / payload["artifactPaths"]["summaryJson"]).is_file()
+                ready_payload = json.loads((root / payload["artifactPaths"]["readyJson"]).read_text(encoding="utf-8"))
 
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["ready"])
         self.assertEqual(payload["publicMcpUrl"], "https://example.trycloudflare.com/mcp")
         self.assertEqual(payload["registration"]["authentication"], "No Authentication")
         self.assertEqual(payload["registration"]["firstToolToCall"], "health")
+        self.assertTrue(payload["client"])
+        self.assertTrue(ready_payload["publicDnsVerified"])
         self.assertTrue(payload["safety"]["serverStopped"])
         self.assertTrue(payload["safety"]["publicTunnelStopped"])
         self.assertTrue(ready_exists)
         self.assertTrue(summary_exists)
         self.assertTrue(cloudflare_client.call_args.kwargs["include_proposal_submit"])
+        self.assertIsNone(cloudflare_client.call_args.kwargs.get("resolve_host"))
+        self.assertIsNone(cloudflare_client.call_args.kwargs.get("resolve_ip"))
 
     def test_parser_exposes_trial_modes(self) -> None:
         help_text = chatgpt_mcp.build_parser().format_help()
