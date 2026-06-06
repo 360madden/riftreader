@@ -46,7 +46,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 SERVER_NAME = "riftreader_chatgpt_mcp"
 DEFAULT_PAYLOAD_ROOT = Path("artifacts") / "chatgpt-payloads"
 DEFAULT_AUDIT_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "audit"
@@ -68,6 +68,7 @@ MAX_DRY_RUN_DIFF_PREVIEW_BYTES = 16 * 1024
 WORKFLOW_CONTROL_LIST_LIMIT = 5
 WORKFLOW_CONTROL_TEXT_LIMIT = 160
 WORKFLOW_CONTROL_MINIFIED_BYTES_TARGET = 8 * 1024
+WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET = 3 * 1024
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
@@ -84,6 +85,7 @@ EXPECTED_TOOL_ORDER = (
     "health",
     "get_repo_status",
     "get_latest_handoff",
+    "get_workflow_control_summary",
     "get_package_proposal_template",
     "submit_package_proposal",
     "list_inbox",
@@ -97,6 +99,7 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "health": frozenset(),
     "get_repo_status": frozenset(),
     "get_latest_handoff": frozenset(),
+    "get_workflow_control_summary": frozenset(),
     "get_package_proposal_template": frozenset(),
     "submit_package_proposal": frozenset({"proposal"}),
     "list_inbox": frozenset(),
@@ -434,13 +437,14 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "currentStage": 20,
     "currentStageName": "Gated apply exposed locally",
     "currentTruth": (
-        "Local 11-tool MCP is validated locally with gated apply; full readiness is blocked on fresh actual "
-        "ChatGPT Web/Desktop manual public-IP proof and any unpushed local commits."
+        "Local 12-tool MCP is validated locally with gated apply and a compact workflow-control summary; "
+        "full readiness is blocked on fresh actual ChatGPT Web/Desktop manual public-IP proof and any "
+        "unpushed local commits."
     ),
     "nextStage": 21,
     "nextStageName": "Apply actual-client proof",
     "phaseOrder": [
-        "prove current 11-tool gated-apply manual public-IP product",
+        "prove current 12-tool gated-apply manual public-IP product",
         "add package apply with reviewed dry-run gates",
         "add local commit with safe explicit-path staging",
         "add push as separate remote-mutation gate",
@@ -558,6 +562,17 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         description=(
             "Use this when you need the newest repo-owned handoff text from docs/handoffs only. "
             "This tool never reads arbitrary filesystem paths."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_workflow_control_summary": ToolSpec(
+        name="get_workflow_control_summary",
+        title="Get Compact Workflow Control Summary",
+        description=(
+            "Use this when ChatGPT needs the smallest safe workflow-control summary or when "
+            "get_workflow_control_plan is too large or slow for the current MCP transport."
         ),
         read_only=True,
         destructive=False,
@@ -1014,6 +1029,7 @@ class RiftReaderChatGptMcpAdapter:
                 "health": lambda _: self.health(),
                 "get_repo_status": lambda _: self.get_repo_status(),
                 "get_latest_handoff": lambda _: self.get_latest_handoff(),
+                "get_workflow_control_summary": lambda _: self.get_workflow_control_summary(),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
                 "list_inbox": lambda _: self.list_inbox(),
@@ -1448,6 +1464,77 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def get_workflow_control_summary(self) -> dict[str, Any]:
+        """Return the smallest read-only workflow-control packet for ChatGPT MCP transport."""
+
+        safe_read_sequence = [
+            "health",
+            "get_repo_status",
+            "get_latest_handoff",
+            "get_workflow_control_summary",
+        ]
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-workflow-control-summary",
+            "generatedAtUtc": utc_iso(),
+            "status": "passed",
+            "ok": True,
+            "controlMode": "summary-only",
+            "responseCompaction": {
+                "status": "minimal",
+                "reason": "Dedicated fallback for MCP clients that time out on the full workflow-control plan.",
+                "minifiedBytesTarget": WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET,
+                "fullPlanTool": "get_workflow_control_plan",
+            },
+            "currentProduct": {
+                "service": SERVER_NAME,
+                "version": VERSION,
+                "toolCount": len(EXPECTED_TOOL_ORDER),
+                "currentStage": FULL_PRODUCT_STAGE_PLAN["currentStage"],
+                "currentStageName": FULL_PRODUCT_STAGE_PLAN["currentStageName"],
+                "nextStage": FULL_PRODUCT_STAGE_PLAN["nextStage"],
+                "nextStageName": FULL_PRODUCT_STAGE_PLAN["nextStageName"],
+                "primaryProofPath": "manual-public-ip-server-url-no-auth",
+                "readiness": "blocked-on-fresh-actual-chatgpt-web-desktop-proof",
+            },
+            "safeReadSequence": safe_read_sequence,
+            "transportFallback": {
+                "ifFullPlanTimesOut": (
+                    "Use this summary plus get_repo_status and get_latest_handoff instead of "
+                    "get_workflow_control_plan."
+                ),
+                "localCliSmokeCommand": (
+                    "python tools\\riftreader_workflow\\riftreader_chatgpt_mcp.py "
+                    "--call get_workflow_control_summary --json"
+                ),
+            },
+            "gatedActions": [
+                "apply-package-to-repo",
+                "commit-local-slice",
+                "git-push",
+                "bounded-shell-command",
+                "live-rift-input-or-movement",
+                "x64dbg-or-cheat-engine",
+                "proof-promotion-or-current-truth-update",
+            ],
+            "recommendedNextAction": (
+                "First call health, get_repo_status, and get_latest_handoff; call get_workflow_control_plan only "
+                "when larger plan detail is needed and the MCP transport is stable."
+            ),
+            "blockers": [],
+            "warnings": [
+                "Summary omits Mission Control and safe-commit detail by design; use get_workflow_control_plan for full detail.",
+            ],
+            "safety": {
+                **compact_workflow_safety(base_safety()),
+                "readOnlyControlSummary": True,
+                "planOnly": True,
+                "shellExecutionEndpoint": False,
+                "gitMutation": False,
+                "tunnelControl": False,
+            },
+        }
+
     def get_workflow_control_plan(self) -> dict[str, Any]:
         mission_payload = mcp_mission_control.mission_control(self.config.repo_root)
         commit_plan = safe_commit_packager.safe_commit_plan(self.config.repo_root)
@@ -1475,6 +1562,7 @@ class RiftReaderChatGptMcpAdapter:
                     "health",
                     "get_repo_status",
                     "get_latest_handoff",
+                    "get_workflow_control_summary",
                     "get_workflow_control_plan",
                     "get_package_proposal_template",
                     "list_inbox",
@@ -4509,7 +4597,7 @@ def run_chatgpt_trial_session(
                         "In ChatGPT web, enable Developer mode under Settings -> Apps -> Advanced settings.",
                         "Create an app from this remote MCP URL while this session is still running.",
                         "Use No Authentication and streamable HTTP if prompted.",
-                        "In a Developer Mode conversation, first call health and confirm the 11-tool surface.",
+                        "In a Developer Mode conversation, first call health and confirm the 12-tool surface.",
                         "For Stage 21 proof, call apply_latest_package_draft without approval and confirm APPLY_APPROVAL_MISSING.",
                     ],
                 }
@@ -4798,6 +4886,11 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_latest_handoff", {})
 
+    def get_workflow_control_summary() -> dict[str, Any]:
+        """Use this when you need the smallest read-only repo workflow control summary."""
+
+        return adapter.call_tool("get_workflow_control_summary", {})
+
     def get_package_proposal_template() -> dict[str, Any]:
         """Use this when you need the guarded package-proposal JSON template."""
 
@@ -4868,6 +4961,7 @@ def create_fastmcp_server(
         ("health", health),
         ("get_repo_status", get_repo_status),
         ("get_latest_handoff", get_latest_handoff),
+        ("get_workflow_control_summary", get_workflow_control_summary),
         ("get_package_proposal_template", get_package_proposal_template),
         ("submit_package_proposal", submit_package_proposal),
         ("list_inbox", list_inbox),

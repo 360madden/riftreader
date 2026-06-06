@@ -29,6 +29,7 @@ APPROVED_TOOL_NAMES = (
     "health",
     "get_repo_status",
     "get_latest_handoff",
+    "get_workflow_control_summary",
     "get_package_proposal_template",
     "submit_package_proposal",
     "list_inbox",

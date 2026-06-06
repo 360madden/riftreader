@@ -267,12 +267,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         output_schema_by_name = {item["name"]: item["outputSchema"] for item in manifest["tools"]}
         self.assertTrue(annotation_by_name["health"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_workflow_control_summary"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["apply_latest_package_draft"]["readOnlyHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
+        self.assertEqual(allowed_args_by_name["get_workflow_control_summary"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
         self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
@@ -804,6 +806,31 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["compact"], compact)
         build.assert_called_once()
+
+    def test_get_workflow_control_summary_is_tiny_transport_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with (
+                mock.patch.object(chatgpt_mcp.mcp_mission_control, "mission_control") as mission_control,
+                mock.patch.object(chatgpt_mcp.safe_commit_packager, "safe_commit_plan") as safe_commit_plan,
+            ):
+                payload = adapter.call_tool("get_workflow_control_summary", {})
+
+        minified_size = len(json.dumps(payload, separators=(",", ":")))
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["controlMode"], "summary-only")
+        self.assertEqual(payload["currentProduct"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertEqual(payload["responseCompaction"]["minifiedBytesTarget"], chatgpt_mcp.WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET)
+        self.assertIn("get_workflow_control_summary", payload["safeReadSequence"])
+        self.assertIn("get_workflow_control_plan", payload["transportFallback"]["ifFullPlanTimesOut"])
+        self.assertLessEqual(minified_size, chatgpt_mcp.WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET)
+        self.assertTrue(payload["safety"]["readOnlyControlSummary"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
+        mission_control.assert_not_called()
+        safe_commit_plan.assert_not_called()
 
     def test_get_workflow_control_plan_is_plan_only_and_surfaces_safe_commit_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

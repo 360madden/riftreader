@@ -34,6 +34,7 @@ The adapter is designed for this safe loop:
 | `health` | Read-only | Returns server status, redacted repo identity, version, tool manifest, and safety flags. |
 | `get_repo_status` | Read-only | Returns compact repo/workflow truth using existing status helper logic. |
 | `get_latest_handoff` | Read-only | Reads only the newest Markdown file under `docs/handoffs`. |
+| `get_workflow_control_summary` | Read-only | Returns the smallest safe workflow-control summary for MCP clients that time out on the full plan. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
@@ -133,10 +134,11 @@ bridge tunnel with the narrow ChatGPT MCP adapter.
 
 ## Future capability roadmap
 
-`get_workflow_control_plan` now advertises the intended higher-power capability
-ladder while keeping endpoints gated until their proof and approval gates exist.
-This lets ChatGPT Web/Desktop reason about next steps without silently gaining
-Git, shell, live RIFT, CE, or x64dbg powers.
+`get_workflow_control_summary` is the transport-safe first workflow-control
+call; `get_workflow_control_plan` advertises the intended higher-power
+capability ladder while keeping endpoints gated until their proof and approval
+gates exist. This lets ChatGPT Web/Desktop reason about next steps without
+silently gaining Git, shell, live RIFT, CE, or x64dbg powers.
 
 The full current-to-finished-product plan is maintained in
 `docs\workflow\riftreader-chatgpt-mcp-50-stage-plan.md` and is summarized in
@@ -457,10 +459,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `manual-public-ip` | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://<current-external-ip>/mcp` or an operator-owned equivalent hostname | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 11 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 12 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `11` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 11 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `12` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 12 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 
@@ -484,7 +486,7 @@ In ChatGPT web:
 2. Open Apps/Connectors settings.
 3. Create an app/connector using **Server URL** and
    `https://<current-external-ip>/mcp`.
-4. Confirm the tool list contains only the 11 allowlisted RiftReader tools.
+4. Confirm the tool list contains only the 12 allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
 Suggested first prompt:
