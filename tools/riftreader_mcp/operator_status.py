@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.3
+# Version: riftreader-mcp-http-operator-status-v0.1.4
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.riftreader_mcp.cloudflared_status import build_cloudflared_status
-from tools.riftreader_mcp.config import default_repo_root, load_config, local_config_path, runtime_root
+from tools.riftreader_mcp.config import ADAPTER_KIND, ADAPTER_PURPOSE, default_repo_root, load_config, local_config_path, runtime_root
 from tools.riftreader_mcp.logging_util import utc_iso
 from tools.riftreader_mcp.openai_tunnel_status import build_openai_tunnel_status
 from tools.riftreader_mcp.readonly_tools import RiftReaderReadOnlyTools
@@ -84,8 +84,9 @@ def build_status(repo: Path) -> dict[str, Any]:
     )
     known_risks = [
         "A bearer token must be copied only through trusted operator setup paths; it is intentionally not printed by smoke tests.",
-        "The repo branch is ahead of origin; no push was performed by this workflow.",
     ]
+    if "ahead" in str(repo_status.get("statusShortBranch", "")):
+        known_risks.append("The repo branch is ahead of origin; no push was performed by this workflow.")
     if cloudflared_runtime.get("status") == "duplicate_processes":
         known_risks.append("Cloudflared has duplicate local processes; keep the Windows service and stop detached duplicates.")
     elif cloudflared_runtime.get("status") == "detached_only":
@@ -96,7 +97,7 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.3",
+        "version": "riftreader-mcp-http-operator-status-v0.1.4",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
@@ -158,6 +159,9 @@ def build_status(repo: Path) -> dict[str, Any]:
         "localServerUrl": f"http://{config.host}:{config.port}",
         "localMcpUrl": f"http://{config.host}:{config.port}/mcp",
         "publicMcpUrl": "https://mcp.360madden.com/mcp",
+        "adapterKind": ADAPTER_KIND,
+        "adapterPurpose": ADAPTER_PURPOSE,
+        "codexStdioAdapter": False,
         "preferredChatGptMcpMode": "openai_secure_mcp_tunnel",
         "chatGptMcpFallbackMode": "cloudflare_public_hostname",
         "authRequired": config.require_auth,

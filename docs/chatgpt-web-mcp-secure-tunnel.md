@@ -50,6 +50,7 @@ The local server is intentionally conservative:
 | DNS rebinding defense | Unknown browser origins are rejected with `origin_rejected`. |
 | MCP protocol header | Responses include `MCP-Protocol-Version: 2025-06-18`; unsupported request versions are rejected. |
 | CORS | No wildcard `Access-Control-Allow-Origin`; allowed origins are echoed only when trusted. |
+| Adapter identity | `health` and `initialize` identify this lane as `chatgpt-web-desktop-http`, not the Codex/stdio adapter. |
 | Output shape | Tool calls return both `structuredContent` and text `content`. |
 
 ## Prerequisites

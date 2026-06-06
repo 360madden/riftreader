@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-config-v0.1.1
+# Version: riftreader-mcp-http-config-v0.1.2
 # Purpose: Local, secret-safe configuration helpers for the RiftReader HTTP MCP adapter.
 
 from __future__ import annotations
@@ -12,8 +12,10 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "riftreader-mcp-http-v0.1.2"
+VERSION = "riftreader-mcp-http-v0.1.3"
 PROTOCOL_VERSION = "2025-06-18"
+ADAPTER_KIND = "chatgpt-web-desktop-http"
+ADAPTER_PURPOSE = "ChatGPT Web/Desktop read-only local repo access"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_ENABLED_TOOLS = ("health", "get_repo_status", "get_latest_handoff")

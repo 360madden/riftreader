@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-readonly-tools-v0.1.1
+# Version: riftreader-mcp-http-readonly-tools-v0.1.2
 # Purpose: Safe read-only RiftReader MCP tool implementations for HTTP/tunnel exposure.
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from tools.riftreader_mcp.auth import token_fingerprint
-from tools.riftreader_mcp.config import McpHttpConfig, VERSION
+from tools.riftreader_mcp.config import ADAPTER_KIND, ADAPTER_PURPOSE, McpHttpConfig, VERSION
 from tools.riftreader_mcp.logging_util import utc_iso
 
 
@@ -201,6 +201,9 @@ class RiftReaderReadOnlyTools:
             "ok": True,
             "status": "ok",
             "version": VERSION,
+            "adapterKind": ADAPTER_KIND,
+            "adapterPurpose": ADAPTER_PURPOSE,
+            "codexStdioAdapter": False,
             "repoName": self.repo.name,
             "repoRoot": str(self.repo) if self.config.expose_repo_root else None,
             "repoRootExposedIntentionally": bool(self.config.expose_repo_root),

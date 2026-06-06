@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-server-v0.1.2
+# Version: riftreader-mcp-http-server-v0.1.3
 # Purpose: Read-only local HTTP MCP server for Cloudflare-tunneled ChatGPT access.
 
 from __future__ import annotations
@@ -13,7 +13,15 @@ from typing import Any
 from urllib.parse import urlparse
 
 from tools.riftreader_mcp.auth import authorize, token_fingerprint
-from tools.riftreader_mcp.config import PROTOCOL_VERSION, VERSION, McpHttpConfig, ensure_local_config, load_config
+from tools.riftreader_mcp.config import (
+    ADAPTER_KIND,
+    ADAPTER_PURPOSE,
+    PROTOCOL_VERSION,
+    VERSION,
+    McpHttpConfig,
+    ensure_local_config,
+    load_config,
+)
 from tools.riftreader_mcp.logging_util import write_log
 from tools.riftreader_mcp.readonly_tools import ReadOnlyToolError, RiftReaderReadOnlyTools
 
@@ -186,9 +194,16 @@ class RiftReaderHttpServer(ThreadingHTTPServer):
                     "result": {
                         "protocolVersion": PROTOCOL_VERSION,
                         "capabilities": {"tools": {"listChanged": False}},
-                        "serverInfo": {"name": "riftreader-mcp-http", "title": "RiftReader Local Repo MCP", "version": VERSION},
+                        "serverInfo": {
+                            "name": "riftreader-mcp-http",
+                            "title": "RiftReader Local Repo MCP",
+                            "version": VERSION,
+                            "adapterKind": ADAPTER_KIND,
+                            "adapterPurpose": ADAPTER_PURPOSE,
+                        },
                         "instructions": (
-                            "Use only the advertised read-only RiftReader tools. This server cannot write files, run shell "
+                            "Use only the advertised read-only RiftReader tools from this ChatGPT Web/Desktop HTTP adapter. "
+                            "Do not treat it as the older Codex/stdio adapter. This server cannot write files, run shell "
                             "commands, stage/commit/push Git changes, or interact with RIFT/game/debugger state."
                         ),
                     },

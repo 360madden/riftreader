@@ -58,6 +58,7 @@ Expected startup fields:
 | `authRequired` | `true` |
 | `tokenConfigured` | `true` |
 | `originValidationEnabled` | `true` |
+| `adapterKind` | `chatgpt-web-desktop-http` |
 
 The first start creates `.riftreader-local\mcp\config.json` with a generated token. That file is ignored by Git and must not be committed.
 
@@ -71,6 +72,7 @@ The first start creates `.riftreader-local\mcp\config.json` with a generated tok
 - No real token is committed; only `tools\riftreader_mcp\mcp-http-config.example.json` is tracked.
 - Requests with an `Origin` header are rejected unless the origin is a trusted ChatGPT/OpenAI or loopback origin.
 - MCP responses include `MCP-Protocol-Version: 2025-06-18`; unsupported protocol-version headers fail closed.
+- `health` and MCP `initialize` identify this as the ChatGPT Web/Desktop HTTP lane, not the Codex/stdio MCP adapter.
 
 ## Logs and runtime state
 
