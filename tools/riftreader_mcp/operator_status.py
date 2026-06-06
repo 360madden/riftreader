@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.6
+# Version: riftreader-mcp-http-operator-status-v0.1.7
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -97,13 +97,13 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.6",
+        "version": "riftreader-mcp-http-operator-status-v0.1.7",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
             "Added a separate read-only HTTP MCP adapter for ChatGPT Web/Desktop local repo access.",
             "Added token-gated auth, Origin validation, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
-            "Added fail-closed local server status/restart/stop helpers for the ChatGPT Web/Desktop HTTP MCP process.",
+            "Added fail-closed local server background start/status/restart/stop helpers for the ChatGPT Web/Desktop HTTP MCP process.",
             "Kept the existing stdio MCP adapter intact; this slice does not add write tools or live-game integrations.",
         ],
         "filesCreatedOrModified": [
@@ -128,6 +128,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "scripts/prepare_chatgpt_mcp_tunnel_profile.cmd",
             "scripts/start_chatgpt_mcp_tunnel.cmd",
             "scripts/start_mcp_local.cmd",
+            "scripts/start_mcp_local_background.cmd",
             "scripts/restart_mcp_local.cmd",
             "scripts/stop_mcp_local.cmd",
             "scripts/test_mcp_local.cmd",
@@ -143,6 +144,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "cd /d \"C:\\RIFT MODDING\\RiftReader\"",
             "scripts\\check_mcp_domain_readiness.cmd",
             "scripts\\test_mcp_local.cmd",
+            "scripts\\start_mcp_local_background.cmd",
             "scripts\\start_mcp_local.cmd",
             "scripts\\check_mcp_local_server.cmd",
             "scripts\\restart_mcp_local.cmd",
@@ -162,6 +164,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "END_RIFTREADER_CHATGPT_MCP_TUNNEL_STATUS",
             "END_RIFTREADER_MCP_LOCAL_TEST",
             "END_RIFTREADER_MCP_LOCAL_STARTUP_BEGIN_SERVER",
+            "END_RIFTREADER_MCP_LOCAL_BACKGROUND_START_CMD",
             "END_RIFTREADER_MCP_LOCAL_SERVER_CONTROL",
             "END_RIFTREADER_MCP_LOCAL_SERVER_STATUS_CMD",
             "END_RIFTREADER_MCP_LOCAL_RESTART_CMD",

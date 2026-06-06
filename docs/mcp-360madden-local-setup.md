@@ -42,15 +42,16 @@ END_RIFTREADER_MCP_HTTP_SMOKE
 END_RIFTREADER_MCP_LOCAL_TEST
 ```
 
-Start the local server:
+Start the local server in the foreground:
 
 ```cmd
 scripts\start_mcp_local.cmd
 ```
 
-For normal background lifecycle control after the first start, use:
+For normal background lifecycle control, use:
 
 ```cmd
+scripts\start_mcp_local_background.cmd
 scripts\check_mcp_local_server.cmd
 scripts\restart_mcp_local.cmd
 scripts\stop_mcp_local.cmd
@@ -59,7 +60,9 @@ scripts\stop_mcp_local.cmd
 These commands use the Python controller
 `tools\riftreader_mcp\local_server_control.py`, write JSON summaries under
 `.riftreader-local\mcp\server\`, and refuse to stop a listener unless its
-command line matches the repo-local ChatGPT Web/Desktop HTTP MCP server.
+command line matches the repo-local ChatGPT Web/Desktop HTTP MCP server. The
+background start helper creates `.riftreader-local\mcp\config.json` on first
+run without printing the token.
 
 Expected startup fields:
 

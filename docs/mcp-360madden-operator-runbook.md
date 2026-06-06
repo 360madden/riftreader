@@ -30,12 +30,22 @@ END_RIFTREADER_MCP_LOCAL_TEST
 
 ## 2. Start the local server
 
+Preferred background start:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\start_mcp_local_background.cmd
+```
+
+Compatibility foreground start:
+
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
 scripts\start_mcp_local.cmd
 ```
 
-Leave this window open. The server listens only on `127.0.0.1:8765`.
+If using foreground start, leave that window open. The server listens only on
+`127.0.0.1:8765`.
 
 For background status/restart/stop without keeping a start window open:
 
@@ -46,8 +56,10 @@ scripts\restart_mcp_local.cmd
 scripts\stop_mcp_local.cmd
 ```
 
-The restart/stop helpers fail closed if `127.0.0.1:8765` is owned by anything
-other than the repo-local ChatGPT Web/Desktop HTTP MCP server.
+The background start helper creates `.riftreader-local\mcp\config.json` on first
+run without printing the token. The restart/stop helpers fail closed if
+`127.0.0.1:8765` is owned by anything other than the repo-local ChatGPT
+Web/Desktop HTTP MCP server.
 
 ## 3. Print status packet
 

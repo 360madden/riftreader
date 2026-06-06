@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-local-server-control-v0.1.0
+# Version: riftreader-mcp-local-server-control-v0.1.1
 # Purpose: Safe local lifecycle control for the ChatGPT Web/Desktop HTTP MCP server.
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from tools.riftreader_mcp.auth import token_fingerprint
-from tools.riftreader_mcp.config import PROTOCOL_VERSION, default_repo_root, load_config, runtime_root
+from tools.riftreader_mcp.config import PROTOCOL_VERSION, default_repo_root, ensure_local_config, load_config, runtime_root
 from tools.riftreader_mcp.logging_util import utc_iso, utc_stamp
 
-VERSION = "riftreader-mcp-local-server-control-v0.1.0"
+VERSION = "riftreader-mcp-local-server-control-v0.1.1"
 END_MARKER = "END_RIFTREADER_MCP_LOCAL_SERVER_CONTROL"
 SERVER_MODULE = "tools.riftreader_mcp.http_server"
 
@@ -202,6 +202,10 @@ def start_server(repo: Path, *, dry_run: bool = False) -> dict[str, Any]:
             "dryRun": dry_run,
             "blockers": ["listener-process-does-not-match-riftreader-http-mcp-server"],
         }
+    config_setup = None
+    if not dry_run:
+        config_setup = ensure_local_config(repo)
+        before = control_status(repo)
     stdout_path, stderr_path = server_log_paths(repo)
     command = [sys.executable, "-m", SERVER_MODULE, "--repo", str(repo), "--json"]
     if dry_run:
@@ -213,6 +217,7 @@ def start_server(repo: Path, *, dry_run: bool = False) -> dict[str, Any]:
             "command": command,
             "stdout": str(stdout_path),
             "stderr": str(stderr_path),
+            "wouldEnsureLocalConfig": True,
         }
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open("w", encoding="utf-8") as stderr:
@@ -234,6 +239,7 @@ def start_server(repo: Path, *, dry_run: bool = False) -> dict[str, Any]:
         "command": command,
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
+        "configSetup": config_setup,
     }
 
 
