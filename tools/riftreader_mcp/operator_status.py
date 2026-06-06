@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-mcp-http-operator-status-v0.1.5
+# Version: riftreader-mcp-http-operator-status-v0.1.6
 # Purpose: Print and write an operator-facing status packet for the 360madden MCP lane.
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def build_status(repo: Path) -> dict[str, Any]:
         known_risks.append("Cloudflare dashboard may briefly show a stale disconnected connector after duplicate-process cleanup.")
 
     return {
-        "version": "riftreader-mcp-http-operator-status-v0.1.5",
+        "version": "riftreader-mcp-http-operator-status-v0.1.6",
         "generatedAtUtc": utc_iso(),
         "repo": str(repo),
         "whatChanged": [
@@ -133,6 +133,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "scripts/test_mcp_local.cmd",
             "scripts/print_mcp_operator_status.cmd",
             "scripts/test_riftreader_mcp_http_server.py",
+            "scripts/test_riftreader_mcp_local_server_control.py",
             "docs/mcp-360madden-local-setup.md",
             "docs/mcp-360madden-operator-runbook.md",
             "docs/cloudflare-tunnel-360madden.md",
@@ -145,6 +146,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "scripts\\start_mcp_local.cmd",
             "scripts\\check_mcp_local_server.cmd",
             "scripts\\restart_mcp_local.cmd",
+            "scripts\\stop_mcp_local.cmd",
             "scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd",
             "scripts\\check_chatgpt_mcp_tunnel_readiness.cmd",
             "scripts\\check_mcp_cloudflared_service.cmd",
@@ -163,6 +165,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "END_RIFTREADER_MCP_LOCAL_SERVER_CONTROL",
             "END_RIFTREADER_MCP_LOCAL_SERVER_STATUS_CMD",
             "END_RIFTREADER_MCP_LOCAL_RESTART_CMD",
+            "END_RIFTREADER_MCP_LOCAL_STOP_CMD",
             "END_RIFTREADER_MCP_OPERATOR_STATUS_CMD",
         ],
         "localConfigPath": str(cfg_path),
@@ -236,7 +239,6 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     summary = out_dir / "summary.json"
     next_steps = out_dir / "operator-next-steps.md"
-    summary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if payload.get("publicMcpReady"):
         next_steps_text = (
             "# RiftReader MCP 360madden Operator Next Steps\n\n"
@@ -260,6 +262,14 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
             "Expected markers: `PASS`, `END_RIFTREADER_MCP_HTTP_SMOKE`, and `status: listening` from the server startup JSON.\n"
         )
     next_steps.write_text(next_steps_text, encoding="utf-8")
+    payload["summaryJson"] = str(summary)
+    payload["operatorNextSteps"] = str(next_steps)
+    payload["latestHandoff"] = {
+        "status": "present",
+        "relativePath": next_steps.relative_to(repo).as_posix(),
+        "lastWriteTimeUtc": utc_iso(),
+    }
+    summary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return summary, next_steps
 
 
