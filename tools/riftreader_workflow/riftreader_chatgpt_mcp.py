@@ -3493,6 +3493,8 @@ def repo_script_command(config: AdapterConfig, script_name: str, args: list[str]
 
 MANUAL_PUBLIC_IP_PLACEHOLDER = "CURRENT_EXTERNAL_IP_OR_DDNS_HOST"
 DEFAULT_DOMAIN_PUBLIC_MCP_HOST = "mcp.360madden.com"
+DEFAULT_CLOUDFLARE_NAMED_TUNNEL = "riftreader-mcp-360madden"
+DEFAULT_CLOUDFLARE_BIC_RULE = "Disable BIC for RiftReader MCP endpoint"
 
 
 def normalize_manual_public_mcp_host(value: str | None) -> tuple[str, bool]:
@@ -3503,10 +3505,18 @@ def normalize_manual_public_mcp_host(value: str | None) -> tuple[str, bool]:
 
 
 def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str | None = None) -> dict[str, Any]:
-    """Return a plan-only packet for the operator-managed public-host MCP route."""
+    """Return a plan-only packet for the operator-managed public-host MCP route.
+
+    The CLI flag name is kept for compatibility with existing workflow callers,
+    but the canonical route for ``mcp.360madden.com`` is now the persistent
+    Cloudflare named Tunnel. The old Caddy/router/direct-public-IP path is
+    represented as deprecated legacy context only.
+    """
     public_host, placeholder = normalize_manual_public_mcp_host(public_mcp_host)
     public_url = f"https://{public_host}/mcp"
     allowed_host = "<current-external-ip-or-host>" if placeholder else public_host
+    is_canonical_domain = (not placeholder) and public_host.lower() == DEFAULT_DOMAIN_PUBLIC_MCP_HOST
+    route_key = "cloudflare-named-tunnel" if is_canonical_domain else "legacy-public-host"
     local_serve_command = repo_script_command(
         config,
         "riftreader-chatgpt-mcp.cmd",
@@ -3534,44 +3544,50 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
         "version": VERSION,
         "repoRoot": str(config.repo_root),
         "activePath": {
-            "key": "manual-public-ip",
+            "key": route_key,
+            "legacyCliAlias": "--manual-public-ip-plan",
             "publicHostKind": "placeholder" if placeholder else ("raw-ip" if re.fullmatch(r"(?:\d{1,3}\.){3}\d{1,3}", public_host) else "domain-or-ddns-host"),
             "connectionMode": "Server URL",
             "chatGptAuthentication": "No Authentication",
             "publicMcpUrl": public_url,
-            "operatorMustEditChatGptAppWhenIpChanges": True,
-            "why": "Chosen current path: operator pastes the current public HTTPS Server URL into ChatGPT. With a stable domain/DDNS host, ChatGPT does not need edits unless the hostname or route changes.",
+            "operatorMustEditChatGptAppWhenIpChanges": not is_canonical_domain,
+            "why": (
+                "Canonical current path: ChatGPT uses the stable domain Server URL routed by the persistent "
+                f"Cloudflare named Tunnel {DEFAULT_CLOUDFLARE_NAMED_TUNNEL} to the loopback MCP server."
+                if is_canonical_domain
+                else "Legacy public-host template retained for compatibility only; prefer mcp.360madden.com through the persistent Cloudflare named Tunnel."
+            ),
         },
         "operatorInputs": {
             "publicMcpHost": public_host,
             "publicMcpHostPlaceholder": placeholder,
             "chatGptServerUrl": public_url,
-            "routerPortForward": "TCP 443 on the gateway -> HTTPS reverse proxy on this PC.",
+            "cloudflareTunnelName": DEFAULT_CLOUDFLARE_NAMED_TUNNEL,
+            "cloudflarePublishedApplicationRoute": f"{DEFAULT_DOMAIN_PUBLIC_MCP_HOST} -> http://{DEFAULT_HOST}:{DEFAULT_PORT}",
+            "cloudflareBrowserIntegrityRule": DEFAULT_CLOUDFLARE_BIC_RULE,
             "reverseProxyTarget": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
+            "deprecatedRouterPortForward": "Deprecated legacy path: TCP 443 on the gateway -> local HTTPS reverse proxy.",
         },
         "localRuntime": {
             "mcpServerCommand": local_serve_command,
             "mcpServerCommandLine": command_line(local_serve_command),
             "mcpServerBindsLoopbackOnly": True,
-            "expectedProcessesWhenRunning": ["python.exe", "caddy.exe-or-nginx.exe-or-other-https-reverse-proxy"],
+            "expectedProcessesWhenRunning": ["python.exe", "cloudflared.exe-or-Cloudflared-Windows-service"],
             "notes": [
-                "Keep the repo MCP server bound to 127.0.0.1; expose it through a local HTTPS reverse proxy rather than binding the adapter directly to the LAN/WAN.",
-                "The reverse proxy must present a trusted HTTPS endpoint to ChatGPT and forward /mcp to the loopback MCP server.",
-                "If using a raw IP, TLS/certificate handling may be harder than with a DDNS/domain hostname.",
-                "For the domain lane, the reverse proxy target is still the local repo MCP server at http://127.0.0.1:8770/mcp.",
+                "Keep the repo MCP server bound to 127.0.0.1; the persistent Cloudflare named Tunnel is the public bridge.",
+                f"The Cloudflare published application for {DEFAULT_DOMAIN_PUBLIC_MCP_HOST} must target http://{DEFAULT_HOST}:{DEFAULT_PORT}.",
+                "The ChatGPT Server URL remains https://mcp.360madden.com/mcp and uses No Authentication.",
+                "The old Caddy/router/direct-public-IP path is deprecated legacy context; do not recreate it for this lane.",
             ],
         },
         "manualNetworkChecklist": [
-            "Confirm the router WAN IPv4 is a real public address and not CGNAT.",
-            "Confirm the public host resolves to the route that can reach this PC's HTTPS reverse proxy.",
-            "For mcp.360madden.com, fix Cloudflare DNS/proxy/WAF rules so /mcp and ACME challenges are not blocked before reaching the reverse proxy.",
-            "Forward TCP 443 from the router/gateway to this PC's HTTPS reverse proxy.",
-            "Forward TCP 80 as well when Caddy is expected to complete HTTP-01 certificate issuance.",
-            "Allow the reverse proxy through Windows Firewall.",
             "Start the local MCP server outside Codex and keep that console/process running.",
-            "Start the HTTPS reverse proxy outside Codex and keep that process running.",
-            "Create or edit the ChatGPT custom MCP app with the printed HTTPS Server URL and No Authentication.",
-            "If using a raw residential IP and it changes, paste the new HTTPS URL into the ChatGPT custom MCP app settings.",
+            f"Confirm the Cloudflared Windows service for named tunnel {DEFAULT_CLOUDFLARE_NAMED_TUNNEL} is running.",
+            f"Confirm Cloudflare Tunnel public hostname {DEFAULT_DOMAIN_PUBLIC_MCP_HOST} targets http://{DEFAULT_HOST}:{DEFAULT_PORT}.",
+            f"Confirm Cloudflare DNS for {DEFAULT_DOMAIN_PUBLIC_MCP_HOST} points to the tunnel hostname and remains proxied.",
+            f"Confirm the scoped Cloudflare Configuration Rule '{DEFAULT_CLOUDFLARE_BIC_RULE}' disables Browser Integrity Check for /mcp*.",
+            "Create or edit the ChatGPT custom MCP app with https://mcp.360madden.com/mcp and No Authentication.",
+            "Run scripts\\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json and require MCP initialize HTTP 200.",
         ],
         "retiredPaths": {
             "openAiSecureMcpTunnel": {
@@ -3579,24 +3595,30 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
                 "notFallback": True,
                 "reason": "User-selected no-OpenAI-API-key workflow; do not route new work through tunnel-client.",
             },
-            "cloudflareTunnel": {
+            "cloudflareQuickTunnel": {
                 "retired": True,
                 "notFallback": True,
-                "reason": "User-selected public-host Server URL workflow; do not route new work through cloudflared or trycloudflare.",
+                "reason": "Ad hoc trycloudflare.com quick tunnels are not the stable ChatGPT Web/Desktop MCP route.",
+            },
+            "caddyRouter": {
+                "deprecated": True,
+                "notFallback": True,
+                "reason": "The active route is the persistent Cloudflare named Tunnel; local Caddy/router forwarding is legacy and should not be recreated.",
             },
         },
         "doNotUse": [
             "Do not create duplicate launcher scripts before extending scripts\\riftreader-chatgpt-mcp.cmd.",
             "Do not start tunnel-client for this lane.",
-            "Do not start cloudflared or rely on trycloudflare.com for this lane.",
+            "Do not start ad hoc trycloudflare.com quick tunnels for this lane.",
+            "Do not use Caddy/router/direct-public-IP forwarding as the default public proof route.",
             "Do not count a Codex-launched server/proxy as final non-Codex acceptance proof.",
             "Do not expose write, shell, Git mutation, RIFT input, CE, or x64dbg tools on a public No Auth endpoint.",
         ],
         "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
         "warnings": [
-            "This plan does not start a server, start a reverse proxy, configure the router, create certificates, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "This plan does not start a server, start cloudflared, edit Cloudflare, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
             "The public-host Server URL mode is intentionally simple but public. Keep the first exposed MCP tool surface narrow and low-risk.",
-            "A raw external IP can change; using a stable domain/DDNS host avoids routine ChatGPT Server URL edits but still requires working DNS/proxy/router prerequisites.",
+            "The Caddy/router/direct-public-IP path is deprecated; do not revive it unless a future explicit cleanup plan reverses this policy.",
         ],
         "blockers": [],
         "safety": {
@@ -3606,9 +3628,12 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
             "persistentServerStarted": False,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
-            "manualPublicIpPreferred": True,
+            "manualPublicIpPreferred": False,
+            "cloudflareNamedTunnelPreferred": True,
             "openAiSecureTunnelRetired": True,
-            "cloudflareTunnelRetired": True,
+            "cloudflareQuickTunnelRetired": True,
+            "cloudflareTunnelRetired": False,
+            "caddyRouterDeprecated": True,
             "planOnly": True,
         },
     }
@@ -3617,7 +3642,7 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
 
 def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float = 3600.0) -> dict[str, Any]:
     """Return a plan-only non-Codex launch packet without starting a server or tunnel."""
-    manual_public_ip_command = repo_script_command(
+    cloudflare_named_tunnel_plan_command = repo_script_command(
         config,
         "riftreader-chatgpt-mcp.cmd",
         ["--manual-public-ip-plan", "--public-mcp-host", DEFAULT_DOMAIN_PUBLIC_MCP_HOST, "--json"],
@@ -3655,20 +3680,21 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "mcpClient": "scripts\\riftreader-mcp-client.cmd",
         },
         "recommendedPath": {
-            "key": "manual-public-ip",
-            "command": manual_public_ip_command,
-            "commandLine": command_line(manual_public_ip_command),
+            "key": "cloudflare-named-tunnel",
+            "legacyCliAlias": "--manual-public-ip-plan",
+            "command": cloudflare_named_tunnel_plan_command,
+            "commandLine": command_line(cloudflare_named_tunnel_plan_command),
             "defaultPublicHost": DEFAULT_DOMAIN_PUBLIC_MCP_HOST,
-            "why": "Current selected Web/Desktop path: use the operator-owned public HTTPS Server URL, preferably the stable domain mcp.360madden.com, and keep the local MCP server plus HTTPS reverse proxy running outside Codex.",
+            "why": f"Current selected Web/Desktop path: use https://{DEFAULT_DOMAIN_PUBLIC_MCP_HOST}/mcp through persistent Cloudflare named Tunnel {DEFAULT_CLOUDFLARE_NAMED_TUNNEL}, targeting http://{DEFAULT_HOST}:{DEFAULT_PORT}.",
             "startsRuntime": False,
             "requiresOperatorRunAfterPlan": True,
         },
         "prerequisiteChain": [
             "Operator-owned local MCP server process: scripts\\riftreader-chatgpt-mcp.cmd --serve ...",
-            "Operator-owned HTTPS reverse proxy process such as Caddy/nginx listening on TCP 443.",
-            "DNS/public-host route resolves to the reverse proxy path for mcp.360madden.com.",
-            "Router/firewall forwards TCP 443, and TCP 80 if Caddy ACME HTTP-01 is used.",
-            "Cloudflare or any edge proxy must not block /mcp, MCP initialize, or certificate challenges.",
+            f"Persistent Cloudflare named Tunnel {DEFAULT_CLOUDFLARE_NAMED_TUNNEL} is healthy on this PC.",
+            f"Cloudflare published application route maps {DEFAULT_DOMAIN_PUBLIC_MCP_HOST} to http://{DEFAULT_HOST}:{DEFAULT_PORT}.",
+            f"Cloudflare DNS for {DEFAULT_DOMAIN_PUBLIC_MCP_HOST} points to the tunnel hostname and remains proxied.",
+            f"Scoped Cloudflare Configuration Rule '{DEFAULT_CLOUDFLARE_BIC_RULE}' disables Browser Integrity Check for /mcp*.",
             "ChatGPT Web/Desktop Developer Mode app uses Server URL https://mcp.360madden.com/mcp with No Authentication.",
         ],
         "retiredPaths": {
@@ -3692,7 +3718,7 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "command": local_serve_command,
             "commandLine": command_line(local_serve_command),
             "endpoint": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
-            "why": "Local-only development server. ChatGPT Web/Desktop still needs a public HTTPS Server URL routed through the operator-owned reverse proxy to reach it.",
+            "why": "Local-only development server. ChatGPT Web/Desktop reaches it through the persistent Cloudflare named Tunnel public hostname.",
             "startsRuntimeWhenOperatorRunsIt": True,
             "expectedProcessesWhenRunning": ["python.exe"],
         },
@@ -3701,7 +3727,8 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "Do not confuse scripts\\riftreader-bridge-tunnel-session.cmd with the narrow ChatGPT MCP adapter.",
             "Do not treat old trycloudflare.com URLs as active or backup endpoints.",
             "Do not count a Codex-launched server/tunnel as final non-Codex acceptance proof.",
-            "Do not start tunnel-client or cloudflared for this lane unless a future explicit policy reverses this retirement.",
+            "Do not use Caddy/router/direct-public-IP forwarding as the default public proof route.",
+            "Do not start tunnel-client or ad hoc trycloudflare quick tunnels for this lane.",
         ],
         "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
         "docs": {
@@ -3710,8 +3737,8 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "finalReadiness": "docs\\workflow\\riftreader-chatgpt-mcp-final-readiness.md",
         },
         "warnings": [
-            "This plan does not start a server, start a reverse proxy, configure a router, create credentials, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
-            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not backups.",
+            "This plan does not start a server, start cloudflared, edit Cloudflare, create credentials, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
+            "OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and the Caddy/router route are not backups.",
         ],
         "blockers": [],
         "safety": {
@@ -3721,8 +3748,11 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "persistentServerStarted": False,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
-            "manualPublicIpPreferred": True,
-            "cloudflareTunnelRetired": True,
+            "manualPublicIpPreferred": False,
+            "cloudflareNamedTunnelPreferred": True,
+            "cloudflareTunnelRetired": False,
+            "cloudflareQuickTunnelRetired": True,
+            "caddyRouterDeprecated": True,
             "openAiSecureTunnelRetired": True,
             "planOnly": True,
         },

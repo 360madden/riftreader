@@ -5,5 +5,5 @@ credentials-file: C:\Users\YOUR_USER\.cloudflared\YOUR-TUNNEL-ID.json
 
 ingress:
   - hostname: mcp.360madden.com
-    service: http://127.0.0.1:8765
+    service: http://127.0.0.1:8770
   - service: http_status:404

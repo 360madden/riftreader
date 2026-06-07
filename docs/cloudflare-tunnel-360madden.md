@@ -1,115 +1,102 @@
-# Cloudflare Tunnel Plan for `mcp.360madden.com`
+# Cloudflare named Tunnel route for `mcp.360madden.com`
 
-Use this for the public fallback route:
+This is the **canonical public route** for the RiftReader ChatGPT Web/Desktop
+Developer Mode MCP adapter:
 
-`https://mcp.360madden.com -> Cloudflare Tunnel -> http://127.0.0.1:8765`
+```text
+ChatGPT Web/Desktop
+-> https://mcp.360madden.com/mcp
+-> Cloudflare proxied DNS
+-> Cloudflare Tunnel riftreader-mcp-360madden
+-> cloudflared Windows service on this PC
+-> http://127.0.0.1:8770/mcp
+-> scripts\riftreader-chatgpt-mcp.cmd
+```
 
-For ChatGPT Web/Desktop local repo access, prefer
-`docs\chatgpt-web-mcp-secure-tunnel.md` when OpenAI Secure MCP Tunnel is
-available. That path keeps the local MCP server private and avoids relying on a
-public MCP endpoint.
-
-This plan assumes Joey owns `360madden.com` in Cloudflare and stays on a free Cloudflare account. It does not require router port forwarding or a raw external IP.
-
-If Joey only bought the domain and did not configure anything beyond basic security, start at **Phase -1** below. That is not a blocker; it just means the domain/tunnel route is not ready yet.
+Do **not** recreate the old Caddy/router/direct-public-IP route for this lane.
+It is deprecated legacy context, not a fallback. OpenAI Secure MCP Tunnel and
+ad hoc `trycloudflare.com` quick tunnels also remain retired for this repo lane.
 
 Context7 documentation checked:
 
 | Source | Relevant point |
 |---|---|
-| `/cloudflare/cloudflare-docs` | Cloudflare Tunnel maps a public hostname to a local service, with ingress catch-all `http_status:404`; dashboard routes create DNS records to the tunnel. |
-| `/modelcontextprotocol/modelcontextprotocol` | MCP uses `tools/list` for discovery and `tools/call` for tool execution over JSON-RPC. |
-| [OpenAI Apps SDK auth docs](https://developers.openai.com/apps-sdk/build/auth) | Authenticated ChatGPT Apps MCP servers should use OAuth; ChatGPT does not present arbitrary custom API keys/static bearer tokens for app auth. |
+| `/cloudflare/cloudflare-docs` | Cloudflare Tunnel public hostnames map a domain to a local service behind `cloudflared`; dashboard routes create DNS records to the tunnel hostname. |
+| `/cloudflare/cloudflare-docs` | Cloudflare Configuration Rules can disable Browser Integrity Check for matched URI paths, such as an API/MCP path. |
 
-## Local service target
+## Current route contract
 
-| Field | Value |
+| Field | Required value |
 |---|---|
-| Local service | `http://127.0.0.1:8765` |
 | Public hostname | `mcp.360madden.com` |
-| MCP endpoint | `https://mcp.360madden.com/mcp` |
-| Health endpoint | `https://mcp.360madden.com/health` |
-| Auth | Bearer token from `.riftreader-local\mcp\config.json` |
+| ChatGPT Server URL | `https://mcp.360madden.com/mcp` |
+| ChatGPT auth | `No Authentication` |
+| Expected ChatGPT app name | `rift-mcp` |
+| Local MCP adapter | `http://127.0.0.1:8770/mcp` |
+| Tunnel name | `riftreader-mcp-360madden` |
+| Cloudflare published application service | `http://127.0.0.1:8770` |
+| Required scoped security rule | `Disable BIC for RiftReader MCP endpoint` |
 
-## Phase -1: domain-only bootstrap
+The local adapter still binds loopback only. Public exposure is provided by the
+persistent named Cloudflare Tunnel, not by opening inbound router ports.
 
-Run this first when the domain has only been purchased:
+## Operator-owned runtime
+
+Start the repo MCP adapter outside Codex and leave it running:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-scripts\check_mcp_domain_readiness.cmd
+scripts\riftreader-chatgpt-mcp.cmd --serve --tool-profile public-read-only --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
 ```
 
-Expected result when the domain is not fully configured yet:
+Then confirm the Cloudflared Windows service is healthy:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\check_mcp_cloudflared_service.cmd
+```
+
+## Cloudflare dashboard requirements
+
+| Area | Required setting |
+|---|---|
+| Tunnel | Persistent named tunnel `riftreader-mcp-360madden`; do not create duplicate quick tunnels. |
+| Connector | `cloudflared` is installed/running on this Windows PC, preferably as the `Cloudflared` service. |
+| Public hostname | `mcp.360madden.com`. |
+| Service target | `http://127.0.0.1:8770` (not `8765`). |
+| DNS | Cloudflare-managed/proxied tunnel DNS record; no home-IP A record for `mcp.360madden.com`. |
+| Browser Integrity Check | Scoped Configuration Rule disables BIC for `https://mcp.360madden.com/mcp*`. |
+| Access/OAuth | Not enabled for Phase 0 read-only proof; ChatGPT app uses `No Authentication`. |
+
+The rule name currently used is:
 
 ```text
-BLOCKED_DOMAIN_SETUP
-END_RIFTREADER_MCP_DOMAIN_PREFLIGHT
+Disable BIC for RiftReader MCP endpoint
 ```
 
-That means the local repo/server can still be prepared, but Cloudflare DNS/Tunnel setup is still pending.
+## Repo diagnostics
 
-In the Cloudflare dashboard, confirm:
-
-| Check | What Joey should see/do |
-|---|---|
-| Domain zone | `360madden.com` exists in Cloudflare Websites/DNS and is active. |
-| Nameservers | Public NS records should be Cloudflare nameservers. If the domain was bought through Cloudflare Registrar, this is normally already handled. |
-| No home-IP A record | Do not point `mcp.360madden.com` at the home/router IP. |
-| Zero Trust | Open Cloudflare Zero Trust and create/select an account/team if prompted. |
-| Tunnel | Create a Cloudflare Tunnel for this Windows PC. |
-| Connector | Install/run `cloudflared` connector on this PC using the token/command Cloudflare provides. |
-| Public hostname | Add `mcp.360madden.com` and route it to `http://127.0.0.1:8765`. |
-
-Do not configure Cloudflare Access in front of `mcp.360madden.com` yet unless ChatGPT is known to support the chosen Access flow. The repo MCP server already requires bearer-token auth.
-
-## Dashboard/manual steps
-
-1. Run domain readiness:
-
-   ```cmd
-   cd /d "C:\RIFT MODDING\RiftReader"
-   scripts\check_mcp_domain_readiness.cmd
-   ```
-
-2. Run local smoke:
-
-   ```cmd
-   cd /d "C:\RIFT MODDING\RiftReader"
-   scripts\test_mcp_local.cmd
-   ```
-
-3. Start local server and leave it running:
-
-   ```cmd
-   cd /d "C:\RIFT MODDING\RiftReader"
-   scripts\start_mcp_local_background.cmd
-   ```
-
-4. In Cloudflare Zero Trust, create or select a Tunnel.
-5. Add a public hostname:
-
-   | Field | Value |
-   |---|---|
-   | Subdomain | `mcp` |
-   | Domain | `360madden.com` |
-   | Service type | `HTTP` |
-   | Service URL | `127.0.0.1:8765` |
-
-6. Confirm Cloudflare created/routes DNS for `mcp.360madden.com`.
-7. Test public health with bearer-token auth.
-8. Later, configure ChatGPT to use `https://mcp.360madden.com/mcp`.
-
-Public route smoke command after the tunnel is configured:
+Run the repo-owned public smoke:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-python -m tools.riftreader_mcp.smoke_http --public-url https://mcp.360madden.com --json
+scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json
 ```
 
-This reads the token from `RIFTREADER_MCP_TOKEN` or `.riftreader-local\mcp\config.json` and does not print the token.
+Passing public smoke requires:
 
-## Locally-managed `cloudflared` template
+| Check | Expected |
+|---|---|
+| Local backend | `127.0.0.1:8770` reachable. |
+| DNS | `mcp.360madden.com` resolves publicly. |
+| Public TCP 443 | Reachable through Cloudflare. |
+| MCP initialize | HTTP 200 MCP JSON using protocol/header `2025-06-18`. |
+| Server identity | `serverInfo.name = riftreader_chatgpt_mcp`. |
+
+Failures such as HTTP `403`, `404`, `421`, `502`, or non-MCP JSON are blockers,
+even when the HTTP client itself exits normally.
+
+## Locally managed `cloudflared` template
 
 Tracked example only:
 
@@ -125,57 +112,41 @@ credentials-file: C:\Users\YOUR_USER\.cloudflared\YOUR-TUNNEL-ID.json
 
 ingress:
   - hostname: mcp.360madden.com
-    service: http://127.0.0.1:8765
+    service: http://127.0.0.1:8770
   - service: http_status:404
 ```
 
-Do not commit the real tunnel ID, credentials path, token, or Cloudflare credentials.
+Do not commit the real tunnel ID, credentials path, token, or Cloudflare
+credentials.
+
+## Deprecated route guardrails
+
+| Deprecated/retired path | Rule |
+|---|---|
+| Caddy/router/direct-public-IP route | Deprecated legacy path. Do not recreate as a default or fallback. |
+| TCP 443/80 router forwarding | Not required for the canonical route. Do not add new docs that require it. |
+| Local Caddy/nginx reverse proxy | Not part of the canonical route. Any generated Caddyfile is legacy evidence only. |
+| `trycloudflare.com` quick tunnel | Retired; not stable enough for the ChatGPT app Server URL. |
+| OpenAI Secure MCP Tunnel | Retired for this no-OpenAI-API-key lane unless explicitly reauthorized. |
 
 ## Verification checklist
 
 | Check | Expected |
 |---|---|
-| Local smoke | `scripts\test_mcp_local.cmd` prints `PASS`. |
-| Local server | Startup JSON says `status: listening`. |
-| DNS/hostname | `mcp.360madden.com` exists in Cloudflare. |
-| Tunnel route | Public hostname routes to `http://127.0.0.1:8765`. |
-| Public health | `https://mcp.360madden.com/health` returns JSON when bearer token is supplied. |
-| Public MCP discovery | `POST https://mcp.360madden.com/mcp` with `tools/list` returns only `health`, `get_repo_status`, `get_latest_handoff`. |
-| ChatGPT | Pending until ChatGPT connector/developer-mode setup uses OpenAI Secure MCP Tunnel, OAuth, or noauth. The static-bearer public route is diagnostic-only for direct ChatGPT setup. |
-| Origin defense | Unknown browser `Origin` headers are rejected; server-side connector/tunnel requests without an `Origin` header continue to work. |
-
-Note: Public Cloudflare smoke proves DNS, tunnel routing, auth enforcement, and
-tool discovery through `mcp.360madden.com`. It does not by itself make the app
-ChatGPT-ready while the public endpoint still requires this repo's static bearer
-token. Keep the bearer token local; use OpenAI Secure MCP Tunnel with
-tunnel-client static MCP headers, or implement OAuth/noauth before treating the
-public hostname as a direct ChatGPT app route.
-
-## Duplicate connector IDs
-
-Two connector IDs for one tunnel usually means two local `cloudflared` instances
-are connected to the same tunnel. That can happen if the Windows service is
-installed manually and a second foreground/detached connector is also started.
-
-Preferred steady state for this Windows PC:
-
-| Check | Expected |
-|---|---|
-| Service | Windows service `Cloudflared` is running. |
-| Extra processes | No non-service `cloudflared.exe` process remains. |
-| Status command | `scripts\check_mcp_cloudflared_service.cmd` reports `status: service_only`. |
-
-If the Cloudflare dashboard briefly still shows an old second connector after
-the duplicate process was stopped, refresh the page or wait for the stale entry
-to age out. Do not delete the tunnel for this condition.
+| Local adapter | `scripts\riftreader-chatgpt-mcp.cmd --serve ... --port 8770` is running outside Codex. |
+| Cloudflared service | `scripts\check_mcp_cloudflared_service.cmd` reports the persistent service healthy. |
+| Tunnel route | Cloudflare published application maps `mcp.360madden.com` to `http://127.0.0.1:8770`. |
+| BIC rule | Scoped rule disables Browser Integrity Check for `/mcp*`. |
+| Public smoke | `scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json` passes. |
+| ChatGPT | Developer Mode app `rift-mcp` uses Server URL `https://mcp.360madden.com/mcp` and `No Authentication`. |
 
 ## Failure triage
 
 | Failure | Meaning |
 |---|---|
-| Local smoke fails | Local server/package issue. Fix before Cloudflare. |
-| Local passes, public connection refused/timeout | Tunnel is down or not connected. |
-| Public 404 | Cloudflare hostname/ingress route is wrong or catch-all matched. |
-| Public 401 `auth_missing` | Route works; bearer token was not sent. |
-| Public 401 `auth_invalid` | Route works; bearer token is wrong. |
-| ChatGPT cannot see tools but public `tools/list` works | ChatGPT connector setup is pending/misconfigured, not a local server failure. |
+| Local backend unreachable | Repo MCP adapter is not running or is on the wrong port. |
+| Public 404 | Tunnel public hostname/path is wrong or catch-all route matched. |
+| Public 403 / Error 1010 | Cloudflare security setting is still blocking `/mcp`; recheck the scoped BIC-off rule and bot/security settings. |
+| Public 502 | Cloudflare reached the tunnel but the local service target is stopped or wrong. |
+| Public 421 | Adapter allowed-host does not include `mcp.360madden.com`. |
+| ChatGPT cannot see tools but public initialize works | ChatGPT app configuration/proof step is pending; recheck Server URL and No Authentication. |

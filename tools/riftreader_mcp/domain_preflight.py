@@ -95,7 +95,7 @@ def build_payload(repo: Path, *, domain: str, hostname: str) -> dict[str, Any]:
         "Confirm 360madden.com is an active zone in Cloudflare.",
         "If Cloudflare Registrar owns the domain, do not add home-IP A records; use Zero Trust Tunnel public hostname routing.",
         "Create a Cloudflare Zero Trust Tunnel and install/run the cloudflared connector on this Windows PC.",
-        "Add public hostname mcp.360madden.com with service http://127.0.0.1:8765.",
+        "Add public hostname mcp.360madden.com with service http://127.0.0.1:8770.",
         "Run scripts\\start_mcp_local_background.cmd and keep it running while testing the tunnel.",
     ]
 

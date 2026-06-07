@@ -43,9 +43,11 @@ class FakeResponse:
 
 
 class McpDomainDiagnosticsTests(unittest.TestCase):
-    def test_caddyfile_routes_domain_mcp_to_local_backend(self) -> None:
+    def test_legacy_caddyfile_routes_domain_mcp_to_local_backend(self) -> None:
         text = diag.caddyfile_text("mcp.360madden.com")
 
+        self.assertIn("Legacy/deprecated", text)
+        self.assertIn("Cloudflare named Tunnel", text)
         self.assertIn("mcp.360madden.com", text)
         self.assertIn("@mcp path /mcp", text)
         self.assertIn("reverse_proxy @mcp http://127.0.0.1:8770", text)
@@ -87,6 +89,47 @@ class McpDomainDiagnosticsTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["blockers"], [])
+
+    def test_collect_diagnostics_marks_cloudflare_tunnel_active_and_caddy_deprecated(self) -> None:
+        fake_owner_443 = {
+            "status": "blocked",
+            "ok": False,
+            "port": 443,
+            "listeners": [{"protocol": "TCP", "local": "0.0.0.0:443", "foreign": "0.0.0.0:0", "state": "LISTENING", "pid": "123"}],
+            "processes": [{"pid": "123", "imageName": "not-caddy.exe"}],
+            "blockers": ["tcp-443-owner-not-caddy"],
+        }
+        with (
+            mock.patch.object(diag, "check_dns", return_value={"status": "passed", "ok": True, "host": "mcp.360madden.com", "addresses": ["203.0.113.1"]}),
+            mock.patch.object(diag, "_socket_connect", side_effect=[
+                {"ok": True, "host": "127.0.0.1", "port": 8770},
+                {"ok": True, "host": "mcp.360madden.com", "port": 443},
+            ]),
+            mock.patch.object(
+                diag,
+                "check_windows_port_owner",
+                side_effect=[
+                    {"status": "passed", "ok": True, "port": 8770, "listeners": [], "processes": [], "blockers": []},
+                    fake_owner_443,
+                ],
+            ),
+            mock.patch.object(
+                diag,
+                "smoke_public_initialize",
+                return_value={"status": "passed", "ok": True, "blockers": [], "serverInfo": {"name": "riftreader_chatgpt_mcp"}},
+            ),
+        ):
+            payload = diag.collect_domain_diagnostics(REPO_ROOT, public_host="mcp.360madden.com")
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["activeRoute"]["key"], "cloudflare-named-tunnel")
+        self.assertEqual(payload["activeRoute"]["expectedTunnelName"], "riftreader-mcp-360madden")
+        self.assertEqual(payload["activeRoute"]["expectedPublishedApplicationService"], "http://127.0.0.1:8770")
+        self.assertTrue(payload["caddy"]["deprecated"])
+        self.assertFalse(payload["caddy"]["activeRouteUsesCaddy"])
+        self.assertTrue(payload["safety"]["caddyRouterDeprecated"])
+        self.assertNotIn("tcp-443-owner-not-caddy", payload["blockers"])
+        self.assertTrue(any("legacy-tcp-443-owner-not-caddy" in item for item in payload["warnings"]))
 
 
 if __name__ == "__main__":

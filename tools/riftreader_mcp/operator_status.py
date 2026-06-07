@@ -97,7 +97,7 @@ def build_blockers(
         blockers.append("Run tunnel-client, then create/scan the ChatGPT custom app using Tunnel connection mode.")
     if public_ready and auth_required:
         blockers.append(
-            "Public Cloudflare hostname is smoke-ready for diagnostics, but direct ChatGPT app setup is "
+            "Public Cloudflare named Tunnel hostname is smoke-ready for ChatGPT Web/Desktop MCP setup, but proof is "
             "not marked ready while it still depends on static bearer-token auth."
         )
     blockers.append("Actual ChatGPT Web/Desktop app proof has not been recorded yet.")
@@ -175,7 +175,7 @@ def build_status(repo: Path) -> dict[str, Any]:
             "Added a separate read-only HTTP MCP adapter for ChatGPT Web/Desktop local repo access.",
             "Added token-gated auth, Origin validation, explicit tool allowlist, structured tool results, JSONL logging, local/public smoke tests, operator status output, and Cloudflare/OpenAI tunnel docs.",
             "Added fail-closed local server background start/status/restart/stop helpers for the ChatGPT Web/Desktop HTTP MCP process.",
-            "Clarified that the Cloudflare public hostname is diagnostic-only for direct ChatGPT setup while static bearer-token auth is required.",
+            "Clarified that the Cloudflare named Tunnel hostname is the canonical ChatGPT Web/Desktop MCP route for the narrow No Authentication adapter.",
             "Kept the existing stdio MCP adapter intact; this slice does not add write tools or live-game integrations.",
         ],
         "filesCreatedOrModified": [
@@ -330,7 +330,7 @@ def write_latest(repo: Path, payload: dict[str, Any]) -> tuple[Path, Path]:
             "# RiftReader MCP 360madden Operator Next Steps\n\n"
             "1. Run `scripts\\test_mcp_local.cmd` and confirm `PASS`.\n"
                 "2. Run `scripts\\start_mcp_local_background.cmd` and confirm `PASS`.\n"
-            "3. Configure Cloudflare Tunnel public hostname `mcp.360madden.com` to `http://127.0.0.1:8765`.\n"
+            "3. Configure Cloudflare Tunnel public hostname `mcp.360madden.com` to `http://127.0.0.1:8770`.\n"
             "4. Run public verification from `docs\\cloudflare-tunnel-360madden.md`.\n"
             "5. For ChatGPT Web/Desktop, prefer `scripts\\prepare_chatgpt_mcp_tunnel_profile.cmd` plus OpenAI Secure MCP Tunnel instead of direct public bearer-token setup.\n\n"
             "Expected markers: `PASS`, `END_RIFTREADER_MCP_HTTP_SMOKE`, and `status: listening` from the server startup JSON.\n"

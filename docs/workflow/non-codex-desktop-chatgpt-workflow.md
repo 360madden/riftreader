@@ -41,23 +41,24 @@ entrypoints:
 |---|---|
 | `scripts\riftreader-chatgpt-mcp.cmd` | Main ChatGPT Developer Mode MCP adapter wrapper. |
 | `scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json` | Plan-only inventory of the existing non-Codex operator-owned launch commands. It does not start a server or tunnel. |
-| `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json` | Prints the active manual external-IP Server URL plan. It does not start the MCP server, reverse proxy, or router configuration. |
+| `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json` | Prints the active Cloudflare named Tunnel Server URL plan. The legacy flag name is retained for compatibility; it does not start the MCP server, start Cloudflared, or edit Cloudflare. |
 | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Retired OpenAI Secure MCP Tunnel path; not a backup. |
 | `scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 3600 --json` | Retired Cloudflare quick-tunnel path; not a backup. |
 | `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge tunnel session, related but not the narrow ChatGPT MCP adapter. |
 
 For the "ChatGPT Web/Desktop without Codex" use case, the MCP runtime must be
 started by the operator outside Codex. A Codex-launched `python.exe`,
-reverse-proxy process, `cloudflared.exe`, or `tunnel-client.exe` is not final
+`cloudflared.exe`, reverse-proxy process, or `tunnel-client.exe` is not final
 proof that the workflow works when Codex is closed or quota blocked. The current
-selected path is manual external IP: ChatGPT's saved custom MCP app points to
-`https://<current-external-ip>/mcp`, the operator edits that Server URL only when
-the residential IP changes, and the local repo still runs its own MCP server.
+selected path is stable public-host Server URL through the persistent Cloudflare
+named Tunnel `riftreader-mcp-360madden`: ChatGPT's saved custom MCP app points to
+`https://mcp.360madden.com/mcp`, the Cloudflare published application targets
+`http://127.0.0.1:8770`, and the local repo still runs its own MCP server.
 
 A ChatGPT app/connector entry is only saved configuration. It does not start the
-local repo server or reverse proxy. If the existing command window is closed, the
-local MCP server stops. Do not use old `trycloudflare.com` or OpenAI
-`tunnel-client` setup notes as backups for this lane.
+local repo server or Cloudflared. If the existing command window is closed, the
+local MCP server stops. Do not use old `trycloudflare.com`, Caddy/router, or
+OpenAI `tunnel-client` setup notes as backups for this lane.
 
 ## Tooling boundaries
 

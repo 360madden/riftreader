@@ -22,15 +22,18 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Do not recreate it under a new name", text)
         self.assertIn("do not fork the workflow into another near-duplicate script", text)
 
-    def test_mcp_doc_preserves_public_host_domain_and_retired_tunnel_paths(self) -> None:
+    def test_mcp_doc_preserves_cloudflare_named_tunnel_route_and_deprecated_legacy_paths(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")
         self.assertIn("public-host/domain Server URL", text)
         self.assertIn("--manual-public-ip-plan --public-mcp-host mcp.360madden.com --json", text)
         self.assertIn("https://mcp.360madden.com/mcp", text)
-        self.assertIn("Fix Cloudflare DNS/proxy/WAF rules", text)
-        self.assertIn("manual-public-ip", text)
+        self.assertIn("Cloudflare named Tunnel", text)
+        self.assertIn("riftreader-mcp-360madden", text)
+        self.assertIn("http://127.0.0.1:8770", text)
+        self.assertIn("Caddy/router/direct public-IP route", text)
+        self.assertIn("deprecated", text)
         self.assertIn("OpenAI Secure MCP Tunnel", text)
-        self.assertIn("not backup paths", text)
+        self.assertIn("not backups", text)
         self.assertIn("trycloudflare.com", text)
 
     def test_non_codex_policy_blocks_codex_owned_runtime_as_final_proof(self) -> None:
@@ -38,6 +41,8 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("ChatGPT MCP runtime rule", text)
         self.assertIn("scripts\\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json", text)
         self.assertIn("--manual-public-ip-plan", text)
+        self.assertIn("Cloudflare named Tunnel", text)
+        self.assertIn("riftreader-mcp-360madden", text)
         self.assertIn("the MCP runtime must be", text)
         self.assertIn("started by the operator outside Codex", text)
         self.assertIn("A Codex-launched", text)

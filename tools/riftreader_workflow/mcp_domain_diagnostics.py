@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Domain/proxy diagnostics for the RiftReader ChatGPT Web/Desktop MCP route.
 
-This helper is intentionally status-only. It does not start Caddy, edit router
-state, register ChatGPT, mutate Git, send RIFT input, or expose a control
-endpoint. Generated Caddyfile plans and diagnostic summaries are written only
-under ``.riftreader-local``.
+This helper is intentionally status-only. It does not start cloudflared or
+Caddy, edit router/Cloudflare state, register ChatGPT, mutate Git, send RIFT
+input, or expose a control endpoint. The canonical route is the persistent
+Cloudflare named Tunnel; generated Caddyfile text is legacy/deprecated
+compatibility evidence only and is written only under ``.riftreader-local``.
 """
 
 from __future__ import annotations
@@ -25,11 +26,23 @@ from urllib.request import Request, urlopen
 
 try:
     from .common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
-    from .riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, SERVER_NAME
+    from .riftreader_chatgpt_mcp import (
+        DEFAULT_CLOUDFLARE_BIC_RULE,
+        DEFAULT_CLOUDFLARE_NAMED_TUNNEL,
+        DEFAULT_HOST,
+        DEFAULT_PORT,
+        SERVER_NAME,
+    )
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
-    from riftreader_workflow.riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, SERVER_NAME
+    from riftreader_workflow.riftreader_chatgpt_mcp import (
+        DEFAULT_CLOUDFLARE_BIC_RULE,
+        DEFAULT_CLOUDFLARE_NAMED_TUNNEL,
+        DEFAULT_HOST,
+        DEFAULT_PORT,
+        SERVER_NAME,
+    )
 
 
 SCHEMA_VERSION = 1
@@ -46,6 +59,9 @@ def public_mcp_url(public_host: str, public_path: str = DEFAULT_PUBLIC_PATH) -> 
 
 def caddyfile_text(public_host: str, backend_host: str = DEFAULT_HOST, backend_port: int = DEFAULT_PORT) -> str:
     return (
+        "# Legacy/deprecated RiftReader MCP Caddy/router route.\n"
+        "# The canonical public route is Cloudflare named Tunnel "
+        f"{DEFAULT_CLOUDFLARE_NAMED_TUNNEL} -> http://{backend_host}:{backend_port}.\n"
         f"{public_host} {{\n"
         "    encode zstd gzip\n"
         "    @mcp path /mcp\n"
@@ -291,9 +307,12 @@ def collect_domain_diagnostics(
     if not tcp443_connect.get("ok"):
         blockers.append("public-tcp-443-not-reachable")
     if tcp443_owner.get("listeners") and not tcp443_owner.get("ok"):
-        blockers.extend(tcp443_owner.get("blockers") or [])
+        warnings.extend(
+            f"legacy-{blocker}; ignored for canonical Cloudflare named Tunnel route"
+            for blocker in (tcp443_owner.get("blockers") or [])
+        )
     elif not tcp443_owner.get("listeners"):
-        warnings.append("tcp-443-owner-not-local-or-not-visible; this is normal when 443 terminates off-host")
+        warnings.append("tcp-443-owner-not-local-or-not-visible; this is normal for the Cloudflare named Tunnel route")
     if run_public_smoke and not public_smoke.get("ok"):
         blockers.extend(public_smoke.get("blockers") or ["public-mcp-smoke-failed"])
     status = "passed" if not blockers else "blocked"
@@ -305,14 +324,26 @@ def collect_domain_diagnostics(
         "ok": not blockers,
         "publicMcpUrl": url,
         "publicHost": public_host,
+        "activeRoute": {
+            "key": "cloudflare-named-tunnel",
+            "publicHost": public_host,
+            "publicMcpUrl": url,
+            "expectedTunnelName": DEFAULT_CLOUDFLARE_NAMED_TUNNEL,
+            "expectedPublishedApplicationService": f"http://{backend_host}:{backend_port}",
+            "expectedCloudflareBrowserIntegrityRule": DEFAULT_CLOUDFLARE_BIC_RULE,
+            "legacyCaddyRouterDeprecated": True,
+        },
         "backend": {"host": backend_host, "port": backend_port, "connect": backend_connect, "owner": backend_owner},
         "dns": dns,
         "tcp443": {"connect": tcp443_connect, "owner": tcp443_owner},
         "caddy": {
+            "deprecated": True,
+            "activeRouteUsesCaddy": False,
             "expectedProcessName": "caddy.exe",
             "generatedCaddyfile": rel(repo_root, caddyfile),
             "installedCaddyfile": rel(repo_root, repo_root / "Caddyfile") if (repo_root / "Caddyfile").exists() else None,
             "writeCaddyfileRequested": write_caddyfile,
+            "reason": "Legacy compatibility artifact only; current public route uses Cloudflare named Tunnel.",
         },
         "publicSmoke": public_smoke,
         "blockers": blockers,
@@ -328,6 +359,8 @@ def collect_domain_diagnostics(
             "serverStarted": False,
             "caddyStarted": False,
             "routerConfigured": False,
+            "cloudflareNamedTunnelExpected": True,
+            "caddyRouterDeprecated": True,
             "chatGptRegistrationPerformed": False,
             "publicSmokeOnly": run_public_smoke,
             "writesUnderRiftreaderLocalOnly": True,

@@ -1,3 +1,29 @@
+# 2026-06-07 — Cloudflare named Tunnel canonical route update
+
+Current public MCP route is **Cloudflare named Tunnel**, not Caddy/router:
+
+```text
+ChatGPT Web/Desktop
+-> https://mcp.360madden.com/mcp
+-> Cloudflare proxied DNS
+-> Cloudflare Tunnel riftreader-mcp-360madden
+-> cloudflared Windows service
+-> http://127.0.0.1:8770/mcp
+-> RiftReader ChatGPT MCP adapter
+```
+
+| Item | Current truth |
+|---|---|
+| Public smoke | `scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json` passed on `2026-06-07T22:37:12Z`. |
+| Latest proof artifact | `.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics\20260607-223711Z\summary.json`. |
+| Server identity | `serverInfo.name=riftreader_chatgpt_mcp`, version `1.27.1`, HTTP 200. |
+| Cloudflare route | Named tunnel `riftreader-mcp-360madden`, published application target `http://127.0.0.1:8770`. |
+| Cloudflare security rule | `Disable BIC for RiftReader MCP endpoint` disables Browser Integrity Check for `/mcp*`. |
+| Deprecated route | Caddy/router/direct-public-IP route is legacy and must not be recreated as a fallback. |
+| Still retired | OpenAI Secure MCP Tunnel and `trycloudflare.com` quick tunnels. |
+
+---
+
 # RiftReader Handoff — 2026-05-30
 
 **Compact re-entry doc.** Read this first when returning to the project.

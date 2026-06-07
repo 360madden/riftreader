@@ -633,12 +633,14 @@ ChatGPT MCP runtime invariant:
 - Do not treat a Codex-launched MCP server/tunnel as final proof for the
   non-Codex workflow. Final proof requires an operator-owned process started
   outside Codex.
-- Manual public-host Server URL is the primary Web/Desktop path for this lane.
+- Stable public-host Server URL is the primary Web/Desktop path for this lane.
   The current stable target is `https://mcp.360madden.com/mcp`, routed through
-  an operator-owned local reverse proxy to the loopback MCP server. OpenAI
-  Secure MCP Tunnel and Cloudflare/`trycloudflare.com` quick tunnels are retired
-  here and must not be treated as backups unless a future explicit policy reverses
-  that decision.
+  the persistent Cloudflare named Tunnel `riftreader-mcp-360madden` to the
+  loopback MCP server at `http://127.0.0.1:8770`. The old
+  Caddy/router/direct-public-IP route is deprecated legacy context, not a
+  fallback. OpenAI Secure MCP Tunnel and `trycloudflare.com` quick tunnels remain
+  retired paths, not backups, unless a future explicit policy reverses that
+  decision.
 
 Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
 <!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->
