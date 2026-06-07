@@ -394,7 +394,7 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
         "ok": True,
         "path": None,
         "required": False,
-        "requiredFor": "retired OpenAI Secure MCP Tunnel path; not a backup for the manual public-IP lane",
+        "requiredFor": "retired OpenAI Secure MCP Tunnel path; not a backup for the Cloudflare named Tunnel lane",
         "binaryDiagnostics": None,
     }
 
@@ -403,7 +403,7 @@ def dependency_preflight(repo_root: Path, *, live_trial_mode: bool = False) -> d
         "ok": True,
         "path": None,
         "required": False,
-        "requiredFor": "retired Cloudflare tunnel path; not a backup for the manual public-IP lane",
+        "requiredFor": "retired Cloudflare quick-tunnel path; not a backup for the Cloudflare named Tunnel lane",
     }
 
     curl = _find_executable("curl")

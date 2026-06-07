@@ -3197,7 +3197,7 @@ def run_trial_readiness(
         "curl": optional_executable_readiness(
             "curl",
             resolve_curl_executable,
-            required_for="optional manual public-IP reachability verification",
+            required_for="optional Cloudflare named Tunnel reachability verification",
         ),
     }
     for name, dependency in optional_dependencies.items():

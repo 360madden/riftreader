@@ -334,7 +334,7 @@ def trial_command_payload(repo_root: Path) -> dict[str, Any]:
         "command": commands["chatGptTrialSessionRetired"],
         "notes": [
             "Cloudflare ChatGPT trial sessions are retired for this repo lane and are not a fallback path.",
-            "Use the manual-public-IP plan command instead.",
+            "Use the Cloudflare named Tunnel plan command instead.",
         ],
         "safety": {
             **safety_flags(),
@@ -356,7 +356,7 @@ def secure_tunnel_plan_payload(repo_root: Path) -> dict[str, Any]:
         "command": commands["secureTunnelPlanRetired"],
         "notes": [
             "OpenAI Secure MCP Tunnel is retired for this repo lane and is not a fallback path.",
-            "Use the manual-public-IP plan command instead.",
+            "Use the Cloudflare named Tunnel plan command instead.",
         ],
         "safety": {
             **safety_flags(),

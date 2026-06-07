@@ -156,7 +156,7 @@ scripts:
 
 | Existing script | Current role | Use / avoid rule |
 |---|---|---|
-| `scripts\riftreader-chatgpt-mcp.cmd` | Thin launcher for the narrow ChatGPT Developer Mode MCP adapter. | Use this for ChatGPT MCP self-tests, the active manual public-IP plan, and local `--serve`. Do not recreate it under a new name. |
+| `scripts\riftreader-chatgpt-mcp.cmd` | Thin launcher for the narrow ChatGPT Developer Mode MCP adapter. | Use this for ChatGPT MCP self-tests, the active Cloudflare named Tunnel plan, and local `--serve`. Do not recreate it under a new name. |
 | `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge plus historical Cloudflare tunnel helper. | Related artifact bridge workflow only; do not confuse it with the narrow ChatGPT MCP adapter or use it as a ChatGPT MCP backup. |
 | `scripts\riftreader-mcp-server.cmd` | Separate RiftReader stdio MCP server helper. | Support/low-level MCP lane; do not substitute it for the ChatGPT Developer Mode adapter without a deliberate design change. |
 | `scripts\riftreader-mcp-client.cmd` | Client config/smoke helper. | Support helper only; not the user-facing ChatGPT app runtime. |
@@ -391,7 +391,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Phase 1 Completion Gate | `scripts\riftreader-mcp-phase1.cmd --status --json` | Evaluates repo-side readiness plus the latest actual ChatGPT client proof revalidated against current proof rules, and reports whether Phase 1 is complete or externally blocked. |
 
 The shared state layer marks self-test inbox/draft artifacts, adds artifact age
-fields, indexes manual public-IP plan artifacts, warns on stale proof budgets,
+fields, indexes legacy `manual-public-ip-plan` artifacts whose current active path is Cloudflare named Tunnel, warns on stale proof budgets,
 and labels stopped or aged-out historical ephemeral public URLs as
 expected-expired. The final gate also checks loopback port allocation, default
 serve-port availability, retired tunnel dependency state, and whether
@@ -580,7 +580,7 @@ in this turn.
 - ChatGPT Developer Mode creates apps from remote MCP servers and supports SSE
   and streaming HTTP.
 - ChatGPT Developer Mode supports OAuth, No Authentication, and Mixed
-  Authentication. The current RiftReader manual public-IP lane uses No
+  Authentication. The current RiftReader Cloudflare named Tunnel lane uses No
   Authentication by operator choice.
 - ChatGPT Developer Mode supports MCP tools, including read and write tools, but
   write actions require careful review; read-only detection respects
