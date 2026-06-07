@@ -29,8 +29,8 @@ def make_repo(root: Path) -> None:
 def valid_proof() -> dict[str, object]:
     return {
         "schemaVersion": 1,
-        "connectionMode": "manual-public-ip",
-        "publicMcpUrl": "https://203.0.113.10/mcp",
+        "connectionMode": "cloudflare-named-tunnel",
+        "publicMcpUrl": "https://mcp.360madden.com/mcp",
         "chatgptRegistrationSucceeded": True,
         "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -80,7 +80,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertFalse(payload["toolOutputSchemasPresent"])
         self.assertEqual(payload["toolOutputSchemaCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
-        self.assertEqual(payload["connectionMode"], "manual-public-ip")
+        self.assertEqual(payload["connectionMode"], "cloudflare-named-tunnel")
         self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
         self.assertEqual(payload["health"]["repoRoot"], ".")
         self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
@@ -320,7 +320,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         blockers = recorder.validate_proof(proof)
 
-        self.assertIn("manual-public-ip-proof-url-uses-retired-tunnel-host", blockers)
+        self.assertIn("proof-url-uses-retired-tunnel-host", blockers)
 
     def test_rejects_retired_public_fallback_mode(self) -> None:
         proof = valid_proof()
@@ -330,7 +330,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         blockers = recorder.validate_proof(proof)
 
         self.assertIn("connection-mode-invalid:'public-https-fallback'", blockers)
-        self.assertIn("manual-public-ip-proof-url-uses-retired-tunnel-host", blockers)
+        self.assertIn("proof-url-uses-retired-tunnel-host", blockers)
 
     def test_rejects_unknown_connection_mode(self) -> None:
         proof = valid_proof()

@@ -58,7 +58,7 @@ def state_with_proof_input_template() -> dict[str, object]:
             "status": "ready",
             "ok": True,
             "artifactAgeSeconds": 120,
-            "connectionMode": "manual-public-ip",
+            "connectionMode": "cloudflare-named-tunnel",
             "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
             "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,

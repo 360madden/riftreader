@@ -1,12 +1,12 @@
 # RiftReader ChatGPT MCP 50-stage finished-product plan
 
-Status: living plan from current manual external-IP proof gap to full ChatGPT Web/Desktop MCP product.
+Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 20 — gated apply exposed locally**. The local 12-tool MCP is validated locally, current branch is ahead locally, and final readiness is blocked on fresh actual ChatGPT Web/Desktop manual external-IP proof.
+Current stage: **Stage 20 — gated apply exposed locally**. The local 12-tool MCP is validated locally, final readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and current-head CI for any latest local slice.
 
 ## Operating rules
 
-- Keep manual external-IP Server URL as the primary ChatGPT Web/Desktop path; OpenAI Secure MCP Tunnel and Cloudflare tunnels are retired, not backups.
+- Keep `https://mcp.360madden.com/mcp` through the persistent Cloudflare named Tunnel as the primary ChatGPT Web/Desktop Server URL; OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router are retired, not backups.
 - Do not expose higher-power endpoints until their design, tests, proof, and approval gates exist.
 - Expand in this order: proof current product, apply, local commit, push, bounded commands, provider writes, live RIFT read/control, debugger/CE, auth/roles, eval/dashboard/release.
 - Every mutating tool must return explicit safety truth: Git mutation, provider writes, input/movement, public tunnel, CE/x64dbg, and apply flags.
@@ -22,10 +22,10 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 12-tool M
 |---:|---|---|---|---|
 | 1 | Current baseline and proof gap | Capture current truth: clean local repo, branch ahead locally, local MCP readiness passed, final gate blocked on actual ChatGPT proof. | Baseline doc and control-plan summary reflect exact current blockers. | current |
 | 2 | Publish current roadmap slice | Push the current roadmap/control-plan commits and wait for current-head CI. | Origin and CI are green for the roadmap baseline. | pending |
-| 3 | Refresh manual public-IP command plan | Regenerate the manual external-IP Server URL plan with current external IP and exact loopback MCP serve command. | Fresh manual-public-ip-plan artifact with no blockers. | pending |
+| 3 | Refresh Cloudflare named Tunnel command plan | Regenerate the Cloudflare named Tunnel Server URL plan for `mcp.360madden.com` and the exact loopback MCP serve command. | Fresh legacy `manual-public-ip-plan` artifact whose active path is `cloudflare-named-tunnel` with no blockers. | pending |
 | 4 | ChatGPT proof template refresh | Generate the current actual-client proof template and verify all required fields are visible. | Template includes connectionMode, tool names, output-schema proof, draft/review/dry-run fields. | pending |
-| 5 | Manual public-IP network rehearsal | Run router/reverse-proxy reachability checks without broad repo mutation or retired tunnel fallback. | Manual public-IP HTTPS endpoint is reachable and forwards to the loopback MCP server. | pending |
-| 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the manual external-IP Server URL using no-auth and the narrow MCP app. | ChatGPT can discover the app without OpenAI Secure MCP Tunnel, Cloudflare, or ngrok. | pending |
+| 5 | Cloudflare named Tunnel network rehearsal | Verify local loopback MCP, Cloudflared service health, public domain initialize, and no retired tunnel/Caddy fallback without broad repo mutation. | `https://mcp.360madden.com/mcp` is reachable through Cloudflare and forwards to the loopback MCP server. | pending |
+| 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to `https://mcp.360madden.com/mcp` using No Authentication and the narrow MCP app. | ChatGPT can discover the app without OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, Caddy/router, or ngrok. | pending |
 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, get_workflow_control_summary, and get_workflow_control_plan when transport allows. | Proof records read-only calls, redaction, safety flags, and no unexpected tools. | pending |
 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 12 tools. | Proof replay passes exact tool identity checks. | pending |
 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 12 tools. | Proof replay passes output-schema count and tool-name checks. | pending |
@@ -35,7 +35,7 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 12-tool M
 | 13 | Draft review proof | From ChatGPT, review the latest operator draft without applying it. | Review returns package summary, blockers, and read-only safety flags. | pending |
 | 14 | Dry-run diff proof | From ChatGPT, run dry_run_latest_package_draft and receive bounded diffPreview. | Proof records bounded bytes, text length, truncation boolean, and package-intake path confinement. | pending |
 | 15 | Final gate pass for current 12-tool product | Replay proof and rerun final gate after CI/current proof are fresh. | Final gate passes for current gated-apply ChatGPT MCP product. | pending |
-| 16 | Release handoff for current product | Create and commit a compact handoff for the proven 12-tool manual public-IP product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
+| 16 | Release handoff for current product | Create and commit a compact handoff for the proven 12-tool Cloudflare named Tunnel product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
 | 17 | Apply-tool design spec | Design apply_latest_package_draft with exact inputs, approval copy, dry-run hash binding, and fail-closed states. | Design doc exists, control-plan metadata is surfaced, and tests prove the gated tool behavior. | complete-local |
 | 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | complete-local |
 | 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper blocks missing/mismatched approval tokens and only passes `--apply` after preflight approval. | complete-local |
@@ -76,10 +76,10 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 12-tool M
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
 | 1 | 2 | Publish current roadmap slice | Push the current roadmap/control-plan commits and wait for current-head CI. |
-| 2 | 3 | Refresh manual public-IP command plan | Regenerate the manual external-IP Server URL plan with current external IP and exact loopback MCP serve command. |
+| 2 | 3 | Refresh Cloudflare named Tunnel command plan | Regenerate the Cloudflare named Tunnel Server URL plan for `mcp.360madden.com` and the exact loopback MCP serve command. |
 | 3 | 4 | ChatGPT proof template refresh | Generate the current actual-client proof template and verify all required fields are visible. |
-| 4 | 5 | Manual public-IP network rehearsal | Run router/reverse-proxy reachability checks without broad repo mutation or retired tunnel fallback. |
-| 5 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to the manual external-IP Server URL using no-auth and the narrow MCP app. |
+| 4 | 5 | Cloudflare named Tunnel network rehearsal | Verify local loopback MCP, Cloudflared service health, public domain initialize, and no retired tunnel/Caddy fallback without broad repo mutation. |
+| 5 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to `https://mcp.360madden.com/mcp` using No Authentication and the narrow MCP app. |
 | 6 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, get_workflow_control_summary, and get_workflow_control_plan when transport allows. |
 | 7 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 12 tools. |
 | 8 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 12 tools. |

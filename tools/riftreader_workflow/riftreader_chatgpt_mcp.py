@@ -461,13 +461,13 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "currentStageName": "Gated apply exposed locally",
     "currentTruth": (
         "Local 12-tool MCP is validated locally with gated apply and a compact workflow-control summary; "
-        "full readiness is blocked on fresh actual ChatGPT Web/Desktop manual public-IP proof and any "
+        "full readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and any "
         "unpushed local commits."
     ),
     "nextStage": 21,
     "nextStageName": "Apply actual-client proof",
     "phaseOrder": [
-        "prove current 12-tool gated-apply manual public-IP product",
+        "prove current 12-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
         "add local commit with safe explicit-path staging",
         "add push as separate remote-mutation gate",
@@ -3232,9 +3232,9 @@ def run_trial_readiness(
             "applyFlagSent": False,
         },
         "next": [
-            "If status is passed, the narrow MCP adapter is locally ready for the manual external-IP Server URL path.",
-            "Run --manual-public-ip-plan --public-mcp-host <current-external-ip-or-host> --json for the repo-specific operator plan.",
-            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not fallback paths.",
+            "If status is passed, the narrow MCP adapter is locally ready for the Cloudflare named Tunnel Server URL path.",
+            "Run --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json for the repo-specific operator plan.",
+            "OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router paths are retired for this repo lane and are not fallback paths.",
             "If status is blocked, fix the listed stage blockers before any public-IP ChatGPT registration attempt.",
         ],
     }
@@ -3455,7 +3455,7 @@ def build_secure_tunnel_plan(
         "warnings": [
             "This plan does not create a tunnel, create credentials, register ChatGPT, mutate Git, send RIFT input, or expose broad local tools.",
             "CONTROL_PLANE_API_KEY is intentionally shown as a placeholder; do not store or commit it.",
-            "OpenAI Secure MCP Tunnel and Cloudflare tunnel paths are retired for this repo lane and are not fallback paths.",
+            "OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router paths are retired for this repo lane and are not fallback paths.",
         ],
         "safety": {
             **base_safety(),
@@ -5141,7 +5141,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--manual-public-ip-plan",
         action="store_true",
-        help="Print the active manual external-IP Server URL plan. Does not start a server or configure networking.",
+        help="Print the active Cloudflare named Tunnel Server URL plan. Does not start a server or configure networking.",
     )
     mode.add_argument(
         "--operator-launch-plan",
@@ -5203,7 +5203,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--public-mcp-host",
         default=MANUAL_PUBLIC_IP_PLACEHOLDER,
-        help="Bare current external IP or public hostname for --manual-public-ip-plan; do not include scheme or path.",
+        help="Bare public hostname for --manual-public-ip-plan; use mcp.360madden.com for the canonical Cloudflare named Tunnel route. Do not include scheme or path.",
     )
     parser.add_argument(
         "--cloudflare-smoke-origin",

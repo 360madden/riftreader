@@ -72,7 +72,7 @@ The Phase 3 final gate should emit JSON with at least these top-level fields:
 | Upstream sync | Local branch has an upstream and is neither ahead nor behind when final-ready is claimed. | `git:upstream-not-synced` |
 | Current-head CI | Required GitHub workflows for current HEAD are completed and successful. | `ci:missing`, `ci:not-completed`, `ci:failed` |
 | Phase 2 gate | `scripts\riftreader-mcp-phase2.cmd --status --json` returns `status=passed`. | `phase2:not-ready` |
-| Actual-client proof replay | Latest actual-client proof exists and replays with required proof rules, including `connectionMode=manual-public-ip`, no retired tunnel host, draft review, and bounded `dryRun.diffPreview` confirmation. | `proof:missing`, `proof:replay-failed` |
+| Actual-client proof replay | Latest actual-client proof exists and replays with required proof rules, including `connectionMode=cloudflare-named-tunnel`, `publicMcpUrl=https://mcp.360madden.com/mcp`, no retired tunnel host, draft review, and bounded `dryRun.diffPreview` confirmation. | `proof:missing`, `proof:replay-failed` |
 | Proof freshness | Latest proof age is within the final proof freshness budget. | `proof:stale` |
 | Trial readiness freshness | Latest trial-readiness artifact exists and is fresh. | `artifact:trial-readiness-stale` |
 | Proposal smoke freshness | Latest proposal transport smoke exists and is fresh. | `artifact:proposal-smoke-stale` |
@@ -201,8 +201,8 @@ Phase 6 may be considered complete when:
    submit, inbox list, inert draft creation, draft review, dry-run, and bounded
    `dryRun.diffPreview`, with no public tunnel, ChatGPT registration, Git
    mutation, RIFT input, CE, x64dbg, package apply, or provider write.
-6. A fresh actual-client proof records `connectionMode=manual-public-ip`,
-   avoids Cloudflare/ngrok/OpenAI tunnel hosts in the retired tunnel lanes, and records the same
+6. A fresh actual-client proof records `connectionMode=cloudflare-named-tunnel`,
+   uses `publicMcpUrl=https://mcp.360madden.com/mcp`, avoids retired tunnel hosts, and records the same
    review and bounded `dryRun.diffPreview` facts using the current proof
    template.
 

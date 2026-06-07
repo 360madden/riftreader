@@ -155,12 +155,12 @@ def build_final_product_progress(
         ),
         phase_row(
             7,
-            "Fresh real ChatGPT manual public-IP proof",
+            "Fresh real ChatGPT Cloudflare named Tunnel proof",
             "completed" if phase7_completed else ("ready" if final_ok and public_session_passed else "pending"),
             (
-                "Fresh repo-owned actual-client proof is recorded through the operator-managed manual external-IP Server URL, replayed, and not self-test."
+                "Fresh repo-owned actual-client proof is recorded through the operator-managed Cloudflare named Tunnel Server URL, replayed, and not self-test."
                 if phase7_completed
-                else "Manual external-IP proof remains explicit-only; Mission Control prints commands but starts no server or reverse proxy."
+                else "Cloudflare named Tunnel proof remains explicit-only; Mission Control prints commands but starts no server, cloudflared connector, or reverse proxy."
             ),
         ),
         phase_row(
@@ -185,7 +185,7 @@ def build_final_product_progress(
     elif next_phase and next_phase["phase"] == 7 and final_ok:
         recommended = {
             "key": "prepare-manual-public-ip-chatgpt-proof",
-            "reason": "Local final gate passes; the next external proof should use the operator-managed manual external-IP Server URL path.",
+            "reason": "Local final gate passes; the next external proof should use the operator-managed Cloudflare named Tunnel Server URL path.",
             "command": commands["manualPublicIpPlan"],
         }
     elif next_phase is None:
@@ -378,8 +378,8 @@ def manual_public_ip_plan_payload(repo_root: Path) -> dict[str, Any]:
         "ok": True,
         "command": commands["manualPublicIpPlan"],
         "notes": [
-            "This prints the active manual external-IP Server URL plan without starting the MCP server, reverse proxy, or router configuration.",
-            "Run the printed plan outside Codex with --public-mcp-host set to the current external IP or public hostname.",
+            "This prints the active Cloudflare named Tunnel Server URL plan without starting the MCP server, cloudflared connector, reverse proxy, or router configuration.",
+            "Run the printed plan outside Codex with --public-mcp-host mcp.360madden.com for the canonical route.",
         ],
         "safety": {
             **safety_flags(),
@@ -499,15 +499,15 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
             f"  - `{' '.join(commands.get('readiness') or [])}`",
             "- [ ] Run guarded proposal transport smoke if the final gate reports stale proposal smoke.",
             f"  - `{' '.join(commands.get('proposalSmoke') or [])}`",
-            "- [ ] Print the manual external-IP Server URL plan before ChatGPT Web/Desktop connector work.",
+            "- [ ] Print the Cloudflare named Tunnel Server URL plan before ChatGPT Web/Desktop connector work.",
             f"  - `{' '.join(commands.get('manualPublicIpPlan') or [])}`",
-            "- [ ] Do not use OpenAI Secure MCP Tunnel or Cloudflare tunnel commands as backups; both are retired for this lane.",
+            "- [ ] Do not use OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, or Caddy/router commands as backups; all are retired for this lane.",
             "",
-            "## Explicit ChatGPT manual public-IP proof",
+            "## Explicit ChatGPT Cloudflare named Tunnel proof",
             "",
-            "- [ ] Print the manual public-IP plan command without starting the server or reverse proxy.",
-            "  - `scripts\\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json`",
-            "- [ ] Start the local MCP server and HTTPS reverse proxy outside Codex, then configure router forwarding to that proxy.",
+            "- [ ] Print the Cloudflare named Tunnel plan command without starting the server, cloudflared connector, or reverse proxy.",
+            "  - `scripts\\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json`",
+            "- [ ] Start the local MCP server outside Codex and keep the Cloudflared Windows service healthy; do not recreate Caddy/router forwarding.",
             "- [ ] Generate the current proof template before the ChatGPT-side run.",
             f"  - `{' '.join(commands.get('trialProofTemplate') or [])}`",
             f"- [ ] In ChatGPT Developer Mode, confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
@@ -588,7 +588,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--run-readiness", action="store_true", help="Run local MCP trial-readiness only.")
     mode.add_argument("--run-proposal-smoke", action="store_true", help="Run local proposal transport smoke only.")
-    mode.add_argument("--manual-public-ip-plan", action="store_true", help="Print the active manual external-IP plan command.")
+    mode.add_argument("--manual-public-ip-plan", action="store_true", help="Print the active Cloudflare named Tunnel plan command.")
     mode.add_argument("--secure-tunnel-plan", action="store_true", help="Retired: Secure MCP Tunnel is no longer a fallback path.")
     mode.add_argument("--trial-command", action="store_true", help="Retired: Cloudflare ChatGPT trial sessions are no longer a fallback path.")
     mode.add_argument("--summary-md", action="store_true", help="Print a Markdown mission-control summary.")

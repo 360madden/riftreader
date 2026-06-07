@@ -310,7 +310,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Latest artifacts", summary)
         self.assertIn("RiftReader MCP Proof Checklist", checklist)
         self.assertIn("Local final gate", checklist)
-        self.assertIn("Explicit ChatGPT manual public-IP proof", checklist)
+        self.assertIn("Explicit ChatGPT Cloudflare named Tunnel proof", checklist)
         self.assertIn("riftreader-chatgpt-mcp.cmd --manual-public-ip-plan", checklist)
         self.assertIn("riftreader-chatgpt-trial-recorder.cmd --write-template --json", checklist)
         self.assertIn("Confirm output schemas are present", checklist)

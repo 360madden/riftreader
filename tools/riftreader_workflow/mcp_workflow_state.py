@@ -40,7 +40,7 @@ FRESHNESS_BUDGET_SECONDS = {
     "proof-input-template": 24 * 60 * 60,
     "actual-client-proof": 24 * 60 * 60,
 }
-CURRENT_PROOF_INPUT_CONNECTION_MODE = "manual-public-ip"
+CURRENT_PROOF_INPUT_CONNECTION_MODE = "cloudflare-named-tunnel"
 CURRENT_PROOF_INPUT_TOOL_COUNT = 12
 CURRENT_PROOF_INPUT_REQUIRED_TOOLS = frozenset(
     {
@@ -466,7 +466,7 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
     if not passed(latest_artifacts.get("manual-public-ip-plan")):
         return action(
             "manual-public-ip-plan",
-            "Prepare the manual external-IP Server URL plan before ChatGPT Web/Desktop connector work.",
+            "Prepare the Cloudflare named Tunnel Server URL plan before ChatGPT Web/Desktop connector work.",
             commands["manualPublicIpPlan"],
         )
     if not passed(latest_artifacts.get("actual-client-proof")):
@@ -475,7 +475,7 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
             return template_action
         return action(
             "chatgpt-manual-public-ip-proof",
-            "Use the operator-managed manual external-IP Server URL for actual ChatGPT proof; OpenAI Secure MCP Tunnel and Cloudflare are retired.",
+            "Use the operator-managed Cloudflare named Tunnel Server URL for actual ChatGPT proof; OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router are retired.",
             commands["manualPublicIpPlan"],
         )
     if latest_artifacts.get("inbox") and not latest_artifacts.get("draft"):

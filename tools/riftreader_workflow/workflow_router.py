@@ -34,7 +34,7 @@ def ranked_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
     if not passed(latest.get("proposal-smoke")):
         add("proposal-transport-smoke", "P0", "No passing guarded proposal transport smoke artifact is available.", "proposalTransportSmoke")
     if not passed(latest.get("manual-public-ip-plan")):
-        add("manual-public-ip-plan", "P1", "No manual external-IP Server URL plan artifact is available.", "manualPublicIpPlan")
+        add("manual-public-ip-plan", "P1", "No Cloudflare named Tunnel Server URL plan artifact is available.", "manualPublicIpPlan")
     if not passed(latest.get("actual-client-proof")):
         add("chatgpt-manual-public-ip-proof", "P1", "Actual ChatGPT client proof has not been recorded.", "manualPublicIpPlan")
     if latest.get("inbox") and not latest.get("draft"):

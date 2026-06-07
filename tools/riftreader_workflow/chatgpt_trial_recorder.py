@@ -73,13 +73,16 @@ FINAL_12_TOOL_PROOF_MODE = "final-12-tool"
 DOMAIN_READ_ONLY_PROOF_MODE = "domain-read-only"
 ALLOWED_PROOF_MODES = (FINAL_12_TOOL_PROOF_MODE, DOMAIN_READ_ONLY_PROOF_MODE)
 MANUAL_PUBLIC_IP_CONNECTION_MODE = "manual-public-ip"
+CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE = "cloudflare-named-tunnel"
+CANONICAL_PUBLIC_MCP_URL = "https://mcp.360madden.com/mcp"
 SECURE_TUNNEL_CONNECTION_MODE = "openai-secure-mcp-tunnel"
 PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE = "public-https-fallback"
 ALLOWED_CONNECTION_MODES = frozenset(
     {
-        MANUAL_PUBLIC_IP_CONNECTION_MODE,
+        CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE,
     }
 )
+RETIRED_TUNNEL_HOST_BLOCKER = "proof-url-uses-retired-tunnel-host"
 RETIRED_TUNNEL_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.app")
 PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 
@@ -91,8 +94,8 @@ def proof_template(proof_mode: str = FINAL_12_TOOL_PROOF_MODE) -> dict[str, Any]
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-actual-client-proof-input",
         "proofMode": FINAL_12_TOOL_PROOF_MODE,
-        "connectionMode": MANUAL_PUBLIC_IP_CONNECTION_MODE,
-        "publicMcpUrl": "https://<current-external-ip>/mcp",
+        "connectionMode": CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE,
+        "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
         "chatgptRegistrationSucceeded": False,
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -130,8 +133,8 @@ def domain_read_only_proof_template() -> dict[str, Any]:
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-domain-read-only-proof-input",
         "proofMode": DOMAIN_READ_ONLY_PROOF_MODE,
-        "connectionMode": MANUAL_PUBLIC_IP_CONNECTION_MODE,
-        "publicMcpUrl": "https://mcp.360madden.com/mcp",
+        "connectionMode": CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE,
+        "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
         "chatgptAppCreated": False,
         "authentication": "No Authentication",
         "toolCount": EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT,
@@ -259,8 +262,8 @@ def validate_domain_read_only_proof(proof: dict[str, Any]) -> list[str]:
     if connection_mode not in ALLOWED_CONNECTION_MODES:
         blockers.append(f"connection-mode-invalid:{connection_mode!r}")
     if any(marker in public_url.lower() for marker in RETIRED_TUNNEL_HOST_MARKERS):
-        blockers.append("manual-public-ip-proof-url-uses-retired-tunnel-host")
-    if public_url != "https://mcp.360madden.com/mcp":
+        blockers.append(RETIRED_TUNNEL_HOST_BLOCKER)
+    if public_url != CANONICAL_PUBLIC_MCP_URL:
         blockers.append(f"public-mcp-url-not-domain-route:{public_url!r}")
     if proof.get("authentication") != "No Authentication":
         blockers.append(f"authentication-not-no-authentication:{proof.get('authentication')!r}")
@@ -305,9 +308,11 @@ def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
     if connection_mode not in ALLOWED_CONNECTION_MODES:
         blockers.append(f"connection-mode-invalid:{connection_mode!r}")
     if any(marker in public_url.lower() for marker in RETIRED_TUNNEL_HOST_MARKERS):
-        blockers.append("manual-public-ip-proof-url-uses-retired-tunnel-host")
+        blockers.append(RETIRED_TUNNEL_HOST_BLOCKER)
     if "<" in public_url or ">" in public_url:
         blockers.append("public-mcp-url-placeholder")
+    elif public_url != CANONICAL_PUBLIC_MCP_URL:
+        blockers.append(f"public-mcp-url-not-domain-route:{public_url!r}")
     if not public_url.startswith("https://"):
         blockers.append("public-mcp-url-not-https")
     if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
@@ -548,7 +553,7 @@ def self_test() -> dict[str, Any]:
     valid_proof = proof_template()
     valid_proof.update(
         {
-            "publicMcpUrl": "https://203.0.113.10/mcp",
+            "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
             "chatgptRegistrationSucceeded": True,
             "toolOutputSchemasPresent": True,
             "templateFetched": True,
@@ -594,12 +599,12 @@ def self_test() -> dict[str, Any]:
             "pass": all(field in proof_template() for field in REQUIRED_FIELDS),
         },
         {
-            "name": "manual-public-ip-valid-shape-passes",
+            "name": "cloudflare-named-tunnel-valid-shape-passes",
             "pass": validate_proof(valid_proof) == [],
         },
         {
-            "name": "manual-public-ip-blocks-retired-tunnel-host",
-            "pass": "manual-public-ip-proof-url-uses-retired-tunnel-host" in validate_proof(retired_tunnel_host_proof),
+            "name": "cloudflare-named-tunnel-blocks-retired-tunnel-host",
+            "pass": RETIRED_TUNNEL_HOST_BLOCKER in validate_proof(retired_tunnel_host_proof),
         },
         {
             "name": "retired-secure-tunnel-mode-blocked",
