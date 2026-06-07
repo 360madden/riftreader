@@ -78,7 +78,7 @@ def check_dns(public_host: str) -> dict[str, Any]:
         return {"status": "failed", "ok": False, "host": public_host, "addresses": [], "error": f"{type(exc).__name__}:{exc}"}
 
 
-def _run(args: list[str], timeout_seconds: float = 5.0) -> dict[str, Any]:
+def _run(args: list[str], timeout_seconds: float = 5.0, stdout_limit: int | None = 8000) -> dict[str, Any]:
     try:
         completed = subprocess.run(
             args,
@@ -88,11 +88,12 @@ def _run(args: list[str], timeout_seconds: float = 5.0) -> dict[str, Any]:
             text=True,
             timeout=timeout_seconds,
         )
+        stdout = completed.stdout if stdout_limit is None else completed.stdout[-stdout_limit:]
         return {
             "args": args,
             "exitCode": completed.returncode,
             "ok": completed.returncode == 0,
-            "stdout": completed.stdout[-8000:],
+            "stdout": stdout,
             "stderr": completed.stderr[-4000:],
         }
     except Exception as exc:  # noqa: BLE001 - diagnostics must capture platform gaps.
@@ -100,7 +101,11 @@ def _run(args: list[str], timeout_seconds: float = 5.0) -> dict[str, Any]:
 
 
 def check_windows_port_owner(port: int) -> dict[str, Any]:
-    netstat = _run(["netstat", "-ano", "-p", "tcp"])
+    # Keep full netstat output for parsing. On busy desktops the listener rows
+    # can be near the top of the output, and trimming before parsing can create
+    # a false "listener missing" diagnostic even when a direct TCP connect
+    # succeeds.
+    netstat = _run(["netstat", "-ano", "-p", "tcp"], stdout_limit=None)
     rows: list[dict[str, Any]] = []
     pids: set[str] = set()
     if netstat.get("ok"):
