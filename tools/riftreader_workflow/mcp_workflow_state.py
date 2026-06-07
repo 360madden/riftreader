@@ -40,6 +40,14 @@ FRESHNESS_BUDGET_SECONDS = {
     "proof-input-template": 24 * 60 * 60,
     "actual-client-proof": 24 * 60 * 60,
 }
+CURRENT_PROOF_INPUT_CONNECTION_MODE = "manual-public-ip"
+CURRENT_PROOF_INPUT_TOOL_COUNT = 12
+CURRENT_PROOF_INPUT_REQUIRED_TOOLS = frozenset(
+    {
+        "get_workflow_control_summary",
+        "apply_latest_package_draft",
+    }
+)
 
 ARTIFACT_KINDS = (
     "readiness",
@@ -507,12 +515,26 @@ def standard_commands() -> dict[str, list[str]]:
 
 
 def proof_input_template_check_command(item: dict[str, Any] | None) -> list[str] | None:
-    """Return the read-only check command for a ready, fresh proof-input template."""
+    """Return the read-only check command for a ready, fresh current proof-input template."""
 
     if not passed(item):
         return None
     age_seconds = item.get("artifactAgeSeconds")
     if not isinstance(age_seconds, int) or age_seconds > FRESHNESS_BUDGET_SECONDS["proof-input-template"]:
+        return None
+    if item.get("connectionMode") != CURRENT_PROOF_INPUT_CONNECTION_MODE:
+        return None
+    if item.get("toolCount") != CURRENT_PROOF_INPUT_TOOL_COUNT:
+        return None
+    if item.get("toolOutputSchemaCount") != CURRENT_PROOF_INPUT_TOOL_COUNT:
+        return None
+    tool_names = item.get("toolNames")
+    output_schema_tool_names = item.get("toolOutputSchemaToolNames")
+    if not isinstance(tool_names, list) or not CURRENT_PROOF_INPUT_REQUIRED_TOOLS.issubset(set(tool_names)):
+        return None
+    if not isinstance(output_schema_tool_names, list) or not CURRENT_PROOF_INPUT_REQUIRED_TOOLS.issubset(
+        set(output_schema_tool_names)
+    ):
         return None
     artifact_paths = item.get("artifactPaths") if isinstance(item.get("artifactPaths"), dict) else {}
     proof_input = artifact_paths.get("proofInputJson") or item.get("path")

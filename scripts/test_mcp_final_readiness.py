@@ -16,6 +16,7 @@ TOOLS_ROOT = REPO_ROOT / "tools"
 if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
+from riftreader_workflow import chatgpt_trial_recorder as recorder  # noqa: E402
 from riftreader_workflow import mcp_final_readiness as final  # noqa: E402
 from riftreader_workflow import riftreader_chatgpt_mcp as chatgpt_mcp  # noqa: E402
 
@@ -57,11 +58,24 @@ def state_with_proof_input_template() -> dict[str, object]:
             "status": "ready",
             "ok": True,
             "artifactAgeSeconds": 120,
+            "connectionMode": "manual-public-ip",
+            "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
             "artifactPaths": {
                 "proofInputJson": ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json"
             },
         }
     }
+    return payload
+
+
+def state_with_stale_shape_proof_input_template() -> dict[str, object]:
+    payload = state_with_proof_input_template()
+    template = payload["latestArtifacts"]["proof-input-template"]  # type: ignore[index]
+    template["connectionMode"] = "openai-secure-mcp-tunnel"  # type: ignore[index]
+    template["toolCount"] = recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT - 1  # type: ignore[index]
     return payload
 
 
@@ -254,6 +268,23 @@ class McpFinalReadinessTests(unittest.TestCase):
                 ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
                 "--json",
             ],
+        )
+
+    def test_proof_action_ignores_stale_shape_latest_template(self) -> None:
+        phase2 = base_phase2()
+        phase2["proofReplay"] = {
+            "status": "blocked",
+            "ok": False,
+            "blockers": ["required-field-missing:connectionMode"],
+            "proofFreshness": {"status": "stale"},
+        }
+
+        payload = final_status(phase2=phase2, state=state_with_stale_shape_proof_input_template())
+
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
+        self.assertEqual(
+            payload["recommendedNextAction"]["command"],
+            ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
         )
 
     def test_upstream_sync_blocker_has_non_mutating_recommendation(self) -> None:

@@ -520,6 +520,7 @@ in this turn.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `'python' is not recognized` from a `.cmd` helper | The launcher shell cannot find Python on `PATH`, or a direct embedded-Python run spawned a child `.cmd` without the normal user PATH. | Run the repo `.cmd` helpers from a normal CMD/terminal where `where python` resolves, or invoke the underlying `tools\riftreader_workflow\*.py` module with an explicit Python executable for diagnostics. |
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
 | `RETIRED_TRANSPORT_PATH` | A retired Secure MCP Tunnel or Cloudflare command was called. | Use `--manual-public-ip-plan --public-mcp-host <current-external-ip> --json`. |
 | ChatGPT cannot reach external IP | Router forwarding, Windows Firewall, HTTPS reverse proxy, TLS, CGNAT, or ISP port blocking is preventing inbound access. | Verify WAN IP/public IP match, forward TCP 443 to the reverse proxy, allow firewall, and confirm the HTTPS endpoint externally. |

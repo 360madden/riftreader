@@ -2,6 +2,28 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP 12-tool current proof gate — 2026-06-06 20:58 EDT
+
+A new compact handoff exists at
+`docs/handoffs/2026-06-06-2058-chatgpt-mcp-12tool-current-proof-gate-handoff.md`.
+
+The ChatGPT Web/Desktop MCP lane is now aligned to the current 12-tool
+manual-public-IP proof contract. Fresh proof-input templates must match
+`connectionMode=manual-public-ip`, `toolCount=12`, output-schema count `12`,
+and include `get_workflow_control_summary` plus gated
+`apply_latest_package_draft` before final/Phase 1 gates recommend checking that
+file. Old 11-tool or Secure Tunnel-mode templates route back to writing a fresh
+template.
+
+| Evidence | Result |
+|---|---|
+| Current template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260607-005424Z\proof-input.json` is 12-tool/manual-public-IP. |
+| Manual public-IP plan | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260607T005441Z-manual-public-ip-plan.json` used `https://173.54.133.37/mcp` and did not start a server/tunnel. |
+| Local readiness | `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260607T005601Z-trial-readiness.json` passed locally with 12-tool loopback transport smoke and unapproved apply denial. |
+| Recommended proof action | Fill the fresh template with actual ChatGPT observations, then run its emitted `--check-input` and `--record` commands. |
+| Boundary | No public tunnel, ChatGPT registration, approved package apply, RIFT input, CE/x64dbg, provider writes, or push was performed while creating this handoff. |
+
+
 ## Latest compact handoff — ChatGPT MCP current gate — 2026-06-05 17:30 UTC
 
 A new compact handoff exists at
