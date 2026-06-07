@@ -4,8 +4,8 @@
 This helper is intentionally status-only. It does not start cloudflared or
 Caddy, edit router/Cloudflare state, register ChatGPT, mutate Git, send RIFT
 input, or expose a control endpoint. The canonical route is the persistent
-Cloudflare named Tunnel; generated Caddyfile text is legacy/deprecated
-compatibility evidence only and is written only under ``.riftreader-local``.
+Cloudflare named Tunnel; legacy Caddyfile text is deprecated compatibility
+evidence only and is written only when explicitly requested.
 """
 
 from __future__ import annotations
@@ -285,7 +285,10 @@ def collect_domain_diagnostics(
 ) -> dict[str, Any]:
     output_dir = timestamped_output_dir(repo_root / DEFAULT_OUTPUT_ROOT)
     caddyfile = output_dir / "Caddyfile"
-    caddyfile.write_text(caddyfile_text(public_host, backend_host, backend_port), encoding="utf-8")
+    caddyfile_rel = None
+    if write_caddyfile:
+        caddyfile.write_text(caddyfile_text(public_host, backend_host, backend_port), encoding="utf-8")
+        caddyfile_rel = rel(repo_root, caddyfile)
     url = public_mcp_url(public_host)
     dns = check_dns(public_host)
     backend_connect = _socket_connect(backend_host, backend_port, min(timeout_seconds, 5.0))
@@ -340,10 +343,10 @@ def collect_domain_diagnostics(
             "deprecated": True,
             "activeRouteUsesCaddy": False,
             "expectedProcessName": "caddy.exe",
-            "generatedCaddyfile": rel(repo_root, caddyfile),
+            "generatedCaddyfile": caddyfile_rel,
             "installedCaddyfile": rel(repo_root, repo_root / "Caddyfile") if (repo_root / "Caddyfile").exists() else None,
             "writeCaddyfileRequested": write_caddyfile,
-            "reason": "Legacy compatibility artifact only; current public route uses Cloudflare named Tunnel.",
+            "reason": "Legacy compatibility artifact only; current public route uses Cloudflare named Tunnel. Caddyfile generation is opt-in.",
         },
         "publicSmoke": public_smoke,
         "blockers": blockers,
@@ -351,7 +354,7 @@ def collect_domain_diagnostics(
         "artifacts": {
             "summaryJson": rel(repo_root, output_dir / "summary.json"),
             "summaryMarkdown": rel(repo_root, output_dir / "summary.md"),
-            "generatedCaddyfile": rel(repo_root, caddyfile),
+            "generatedCaddyfile": caddyfile_rel,
         },
         "safety": {
             **safety_flags(),
@@ -401,6 +404,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backend-port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
     parser.add_argument("--skip-public-smoke", action="store_true")
+    parser.add_argument(
+        "--write-legacy-caddyfile",
+        action="store_true",
+        help="Opt in to writing the deprecated Caddy/router compatibility Caddyfile under .riftreader-local.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -414,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         backend_host=args.backend_host,
         backend_port=args.backend_port,
         timeout_seconds=args.timeout_seconds,
+        write_caddyfile=args.write_legacy_caddyfile,
         run_public_smoke=not args.skip_public_smoke,
     )
     print(json.dumps(payload, indent=2, sort_keys=True))

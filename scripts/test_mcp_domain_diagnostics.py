@@ -127,9 +127,47 @@ class McpDomainDiagnosticsTests(unittest.TestCase):
         self.assertEqual(payload["activeRoute"]["expectedPublishedApplicationService"], "http://127.0.0.1:8770")
         self.assertTrue(payload["caddy"]["deprecated"])
         self.assertFalse(payload["caddy"]["activeRouteUsesCaddy"])
+        self.assertIsNone(payload["caddy"]["generatedCaddyfile"])
+        self.assertIsNone(payload["artifacts"]["generatedCaddyfile"])
         self.assertTrue(payload["safety"]["caddyRouterDeprecated"])
         self.assertNotIn("tcp-443-owner-not-caddy", payload["blockers"])
         self.assertTrue(any("legacy-tcp-443-owner-not-caddy" in item for item in payload["warnings"]))
+
+    def test_collect_diagnostics_writes_legacy_caddyfile_only_when_requested(self) -> None:
+        with (
+            mock.patch.object(
+                diag,
+                "check_dns",
+                return_value={"status": "passed", "ok": True, "host": "mcp.360madden.com", "addresses": ["203.0.113.1"]},
+            ),
+            mock.patch.object(
+                diag,
+                "_socket_connect",
+                side_effect=[
+                    {"ok": True, "host": "127.0.0.1", "port": 8770},
+                    {"ok": True, "host": "mcp.360madden.com", "port": 443},
+                ],
+            ),
+            mock.patch.object(
+                diag,
+                "check_windows_port_owner",
+                side_effect=[
+                    {"status": "passed", "ok": True, "port": 8770, "listeners": [], "processes": [], "blockers": []},
+                    {"status": "passed", "ok": True, "port": 443, "listeners": [], "processes": [], "blockers": []},
+                ],
+            ),
+            mock.patch.object(
+                diag,
+                "smoke_public_initialize",
+                return_value={"status": "passed", "ok": True, "blockers": [], "serverInfo": {"name": "riftreader_chatgpt_mcp"}},
+            ),
+        ):
+            payload = diag.collect_domain_diagnostics(REPO_ROOT, public_host="mcp.360madden.com", write_caddyfile=True)
+
+        caddyfile = payload["artifacts"]["generatedCaddyfile"]
+        self.assertIsNotNone(caddyfile)
+        self.assertTrue((REPO_ROOT / caddyfile).is_file())
+        self.assertTrue(payload["caddy"]["writeCaddyfileRequested"])
 
 
 if __name__ == "__main__":

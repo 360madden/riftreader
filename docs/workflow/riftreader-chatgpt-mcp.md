@@ -113,10 +113,10 @@ The helper writes JSON/Markdown summaries under
 `.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics`, checks the local
 backend, DNS, public TCP 443 reachability, and performs a real MCP `initialize`
 smoke with protocol/header `2025-06-18`. HTTP `502`, `403`, `404`, `421`, and
-non-MCP JSON are failures even if the HTTP client exits normally. If it writes
-Caddyfile text, that file is **legacy/deprecated compatibility evidence only**;
-the canonical public route is the persistent Cloudflare named Tunnel
-`riftreader-mcp-360madden`.
+non-MCP JSON are failures even if the HTTP client exits normally. It does **not**
+write legacy Caddyfile text by default; `--write-legacy-caddyfile` is an
+opt-in compatibility artifact only. The canonical public route is the
+persistent Cloudflare named Tunnel `riftreader-mcp-360madden`.
 
 Start the status-only localhost dashboard with:
 

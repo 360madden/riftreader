@@ -38,6 +38,7 @@ ChatGPT Web/Desktop
 | Mission Control / router text | Operator-facing recommendations now say Cloudflare named Tunnel, not manual external-IP/Caddy/router. |
 | Docs | Current workflow, final readiness, and 50-stage plan now match Cloudflare named Tunnel as the canonical route. |
 | Tests | MCP proof, phase, mission-control, workflow-state, and docs tests were updated for the Cloudflare proof contract. |
+| Domain diagnostics | Legacy Caddyfile generation is no longer default; use `--write-legacy-caddyfile` only for explicit compatibility evidence. |
 
 ## Validation and CI
 
