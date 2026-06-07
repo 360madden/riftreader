@@ -2,6 +2,25 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP domain prerequisite context — 2026-06-07 16:55 EDT
+
+A new compact handoff exists at
+docs/handoffs/2026-06-07-1655-chatgpt-mcp-domain-prereq-context-handoff.md.
+
+The ChatGPT Web/Desktop MCP lane has been realigned around the full prerequisite
+chain instead of treating repo code or a saved ChatGPT app as sufficient. The
+current target remains `https://mcp.360madden.com/mcp` with `No Authentication`,
+routed through an operator-owned local HTTPS reverse proxy to the operator-owned
+local MCP server on `127.0.0.1:8770`. Final proof still requires actual
+ChatGPT Web/Desktop observations from operator-owned processes outside Codex.
+
+| Evidence | Result |
+|---|---|
+| Operator plan | `scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json` now defaults to `mcp.360madden.com` and emits the prerequisite chain. |
+| Public-host plan | `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json` classifies the host as `domain-or-ddns-host` and lists Cloudflare/Caddy/router prerequisites. |
+| Docs/policy | `AGENTS.md` and `docs\workflow\riftreader-chatgpt-mcp.md` now describe the public-host/domain Server URL lane and distinguish retired quick tunnels from the domain/DNS route. |
+| Current blocker | Public domain smoke remains blocked by Cloudflare `403 Error 1010`; Caddy ACME logs show Cloudflare-intercepted challenge failures. |
+| Boundary | No Cloudflare/router/firewall settings, ChatGPT app registration, RIFT input, CE/x64dbg, provider writes, or proof recording were performed. |
 ## Latest compact handoff — ChatGPT MCP domain read-only dashboard — 2026-06-07 15:25 EDT
 
 A new compact handoff exists at

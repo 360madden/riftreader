@@ -22,10 +22,12 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Do not recreate it under a new name", text)
         self.assertIn("do not fork the workflow into another near-duplicate script", text)
 
-    def test_mcp_doc_preserves_manual_public_ip_and_retired_tunnel_paths(self) -> None:
+    def test_mcp_doc_preserves_public_host_domain_and_retired_tunnel_paths(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")
-        self.assertIn("manual external-IP Server URL", text)
-        self.assertIn("--manual-public-ip-plan --public-mcp-host <current-external-ip> --json", text)
+        self.assertIn("public-host/domain Server URL", text)
+        self.assertIn("--manual-public-ip-plan --public-mcp-host mcp.360madden.com --json", text)
+        self.assertIn("https://mcp.360madden.com/mcp", text)
+        self.assertIn("Fix Cloudflare DNS/proxy/WAF rules", text)
         self.assertIn("manual-public-ip", text)
         self.assertIn("OpenAI Secure MCP Tunnel", text)
         self.assertIn("not backup paths", text)

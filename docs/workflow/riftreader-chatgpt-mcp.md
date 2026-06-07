@@ -172,18 +172,18 @@ REM DO NOT count this as final non-Codex proof when launched only inside Codex.
 scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --json
 ```
 
-Correct non-Codex manual external-IP proof shape:
+Correct non-Codex public-host/domain proof shape:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json
-scripts\riftreader-chatgpt-mcp.cmd --serve --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host <current-external-ip> --allowed-origin https://chatgpt.com
+scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json
+scripts\riftreader-chatgpt-mcp.cmd --serve --tool-profile public-read-only --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
 ```
 
 Keep that operator-owned console open while ChatGPT connects. A saved ChatGPT app
 entry is only configuration; it does not start the local repo MCP server, does
-not start the HTTPS reverse proxy, and does not update the Server URL when the
-residential IP changes.
+not start Caddy/nginx, does not configure Cloudflare/router/firewall, and does
+not update the Server URL if the public host changes.
 
 Plan-only helper for this invariant:
 
@@ -331,16 +331,16 @@ validation, including one synthetic package proposal. It does not start a
 public tunnel, reverse proxy, register ChatGPT, serve persistently, apply package content,
 mutate Git, send RIFT input, or attach CE/x64dbg.
 
-Manual external-IP command plan:
+Manual public-host/domain command plan:
 
 RUN THIS:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json
+.\scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json
 ```
 
-This prints the repo-specific manual external-IP Server URL plan for the local
+This prints the repo-specific public-host/domain Server URL plan for the local
 RiftReader MCP adapter. It does not start the MCP server, start a reverse proxy,
 configure a router, create certificates, register ChatGPT, mutate Git, send RIFT
 input, or expose broad local tools. The JSON includes both argument arrays and
@@ -376,7 +376,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 | Helper | Command | Default behavior |
 |---|---|---|
 | MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
-| Manual Public-IP Plan | `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json` | Writes an ignored local plan artifact and prints the active Server URL, loopback MCP serve command, router/reverse-proxy checklist, retired-path warnings, and first ChatGPT smoke order. |
+| Manual Public-Host Plan | `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json` | Writes an ignored local plan artifact and prints the active Server URL, loopback MCP serve command, router/reverse-proxy checklist, retired-path warnings, and first ChatGPT smoke order. |
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, retired tunnel dependency state, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/proof-input-template/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
 | Workflow Router | `scripts\riftreader-workflow-router.cmd --mcp --json` | Emits one recommended next action plus ranked alternatives from local artifacts and dirty state. |
@@ -477,13 +477,15 @@ Local MCP endpoint:
 http://127.0.0.1:8770/mcp
 ```
 
-## ChatGPT Web/Desktop route: manual external-IP Server URL
+## ChatGPT Web/Desktop route: public-host/domain Server URL
 
 ChatGPT Developer Mode needs an HTTPS-reachable MCP endpoint. The current
-RiftReader path is now **manual external IP**, not OpenAI Secure MCP Tunnel and
-not Cloudflare. The operator starts the local MCP server and local HTTPS reverse
-proxy outside Codex, forwards router TCP 443 to that reverse proxy, then pastes
-the current external-IP URL into the ChatGPT custom MCP app.
+RiftReader path is now **public-host/domain Server URL**:
+`https://mcp.360madden.com/mcp`, not OpenAI Secure MCP Tunnel and not a
+`trycloudflare.com` quick tunnel. The
+operator starts the local MCP server and local HTTPS reverse proxy outside
+Codex, ensures DNS/Cloudflare/router/firewall route the domain to that reverse
+proxy, then uses the domain Server URL in the ChatGPT custom MCP app.
 
 Primary local plan command:
 
@@ -491,7 +493,7 @@ RUN THIS:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-.\scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host <current-external-ip> --json
+.\scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json
 ```
 
 If you only need to decide which existing non-Codex command to run, use the
@@ -511,20 +513,22 @@ ChatGPT.
 Manual network checklist:
 
 1. Confirm the router WAN IPv4 is a real public address and not CGNAT.
-2. Forward TCP 443 from the router/gateway to this PC's HTTPS reverse proxy.
-3. Allow the reverse proxy through Windows Firewall.
-4. Start the local MCP server outside Codex.
-5. Start the HTTPS reverse proxy outside Codex.
-6. In ChatGPT, configure the custom MCP app Server URL as
-   `https://<current-external-ip>/mcp` and Authentication as **No Auth**.
-7. If the residential IP changes, manually edit the ChatGPT app Server URL.
+2. Confirm `mcp.360madden.com` resolves to the public route that can reach this PC's HTTPS reverse proxy.
+3. Fix Cloudflare DNS/proxy/WAF rules so `/mcp`, MCP initialize, and Caddy certificate challenges are not blocked before reaching the reverse proxy.
+4. Forward TCP 443 from the router/gateway to this PC's HTTPS reverse proxy.
+5. Forward TCP 80 too when Caddy is expected to complete HTTP-01 certificate issuance.
+6. Allow the reverse proxy through Windows Firewall.
+7. Start the local MCP server outside Codex.
+8. Start the HTTPS reverse proxy outside Codex.
+9. In ChatGPT, configure the custom MCP app Server URL as `https://mcp.360madden.com/mcp` and Authentication as **No Authentication**.
+10. If the public hostname/route changes, manually edit the ChatGPT app Server URL.
 
 Current active proof packets must record the selected connection path explicitly:
 
 | Field | Primary value | Rule |
 |---|---|---|
 | `connectionMode` | `manual-public-ip` | Required for the active ChatGPT Web/Desktop proof lane. |
-| `publicMcpUrl` | `https://<current-external-ip>/mcp` or an operator-owned equivalent hostname | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
+| `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
 | `toolNames` | Canonical 12 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
 | `toolOutputSchemaCount` | `12` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
@@ -540,7 +544,7 @@ Retired paths are not backups:
 
 For public Server URL mode, the public Host header must still be allowlisted on
 the MCP server. Do not pass a full URL to `--allowed-host`; pass only the exact
-Host header value, such as `98.51.100.10` or `example.duckdns.org`. Pass only an
+Host header value, such as `mcp.360madden.com`. Pass only an
 exact origin to `--allowed-origin`, such as `https://chatgpt.com`; do not include
 a path, query, fragment, credentials, or wildcard.
 
@@ -551,7 +555,7 @@ In ChatGPT web:
 1. Enable Developer Mode under Settings -> Apps -> Advanced settings.
 2. Open Apps/Connectors settings.
 3. Create an app/connector using **Server URL** and
-   `https://<current-external-ip>/mcp`.
+   `https://mcp.360madden.com/mcp`.
 4. Confirm the tool list contains only the 12 allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
@@ -574,11 +578,12 @@ in this turn.
   write actions require careful review; read-only detection respects
   `readOnlyHint`.
 - ChatGPT local development needs an HTTPS-reachable MCP endpoint. The active
-  RiftReader route is manual external IP through ChatGPT **Server URL**.
-- OpenAI Secure MCP Tunnel and Cloudflare tunnels are retired for this lane and
-  are not backup paths.
+  RiftReader route is the public-host/domain Server URL
+  `https://mcp.360madden.com/mcp`.
+- OpenAI Secure MCP Tunnel and Cloudflare quick tunnels are retired for this
+  lane and are not backup paths.
 - ChatGPT connector setup should choose **Server URL** under Connection and use
-  the current external-IP HTTPS URL.
+  `https://mcp.360madden.com/mcp`.
 - Current Python MCP SDK examples use `from mcp.server.fastmcp import FastMCP`
   and `mcp.run(transport="streamable-http")`.
 
@@ -588,8 +593,8 @@ in this turn.
 |---|---|---|
 | `'python' is not recognized` from a `.cmd` helper | The launcher shell cannot find Python on `PATH`, or a direct embedded-Python run spawned a child `.cmd` without the normal user PATH. | Run the repo `.cmd` helpers from a normal CMD/terminal where `where python` resolves, or invoke the underlying `tools\riftreader_workflow\*.py` module with an explicit Python executable for diagnostics. |
 | `MCP_PYTHON_SDK_MISSING` | Python `mcp` package is not installed. | Install `mcp[cli]` before `--serve`. |
-| `RETIRED_TRANSPORT_PATH` | A retired Secure MCP Tunnel or Cloudflare command was called. | Use `--manual-public-ip-plan --public-mcp-host <current-external-ip> --json`. |
-| ChatGPT cannot reach external IP | Router forwarding, Windows Firewall, HTTPS reverse proxy, TLS, CGNAT, or ISP port blocking is preventing inbound access. | Verify WAN IP/public IP match, forward TCP 443 to the reverse proxy, allow firewall, and confirm the HTTPS endpoint externally. |
+| `RETIRED_TRANSPORT_PATH` | A retired Secure MCP Tunnel or Cloudflare quick-tunnel command was called. | Use `--manual-public-ip-plan --public-mcp-host mcp.360madden.com --json`. |
+| ChatGPT cannot reach `mcp.360madden.com` | DNS, Cloudflare, router forwarding, Windows Firewall, HTTPS reverse proxy, TLS, CGNAT, or ISP port blocking is preventing inbound access. | Verify DNS, Cloudflare/WAF bypass for `/mcp`, WAN IP/public IP match, TCP 443 forwarding to the reverse proxy, firewall allowance, and external HTTPS reachability. |
 | HTTP `421 Misdirected Request` through public Server URL | The public Host header is not allowlisted. | Restart `--serve` with `--allowed-host <bare-public-host>` and, for ChatGPT, `--allowed-origin https://chatgpt.com`. |
 | HTTP `403 Forbidden` through a tunnel | The request has an `Origin` header not in `allowed_origins`. | Restart `--serve` with `--allowed-origin https://chatgpt.com` or the exact origin being tested. |
 | ChatGPT cannot connect | Server URL is missing `/mcp`, not HTTPS, unreachable, or the local server/reverse proxy is stopped. | Restart the local MCP server and reverse proxy, then refresh/reconnect the ChatGPT app. |

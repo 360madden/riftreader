@@ -3492,6 +3492,7 @@ def repo_script_command(config: AdapterConfig, script_name: str, args: list[str]
 
 
 MANUAL_PUBLIC_IP_PLACEHOLDER = "CURRENT_EXTERNAL_IP_OR_DDNS_HOST"
+DEFAULT_DOMAIN_PUBLIC_MCP_HOST = "mcp.360madden.com"
 
 
 def normalize_manual_public_mcp_host(value: str | None) -> tuple[str, bool]:
@@ -3502,7 +3503,7 @@ def normalize_manual_public_mcp_host(value: str | None) -> tuple[str, bool]:
 
 
 def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str | None = None) -> dict[str, Any]:
-    """Return a plan-only packet for the operator-managed external-IP MCP route."""
+    """Return a plan-only packet for the operator-managed public-host MCP route."""
     public_host, placeholder = normalize_manual_public_mcp_host(public_mcp_host)
     public_url = f"https://{public_host}/mcp"
     allowed_host = "<current-external-ip-or-host>" if placeholder else public_host
@@ -3534,11 +3535,12 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
         "repoRoot": str(config.repo_root),
         "activePath": {
             "key": "manual-public-ip",
+            "publicHostKind": "placeholder" if placeholder else ("raw-ip" if re.fullmatch(r"(?:\d{1,3}\.){3}\d{1,3}", public_host) else "domain-or-ddns-host"),
             "connectionMode": "Server URL",
             "chatGptAuthentication": "No Authentication",
             "publicMcpUrl": public_url,
             "operatorMustEditChatGptAppWhenIpChanges": True,
-            "why": "Chosen current path: operator manually pastes the current external IP URL into ChatGPT and updates it only if the residential IP changes.",
+            "why": "Chosen current path: operator pastes the current public HTTPS Server URL into ChatGPT. With a stable domain/DDNS host, ChatGPT does not need edits unless the hostname or route changes.",
         },
         "operatorInputs": {
             "publicMcpHost": public_host,
@@ -3556,16 +3558,20 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
                 "Keep the repo MCP server bound to 127.0.0.1; expose it through a local HTTPS reverse proxy rather than binding the adapter directly to the LAN/WAN.",
                 "The reverse proxy must present a trusted HTTPS endpoint to ChatGPT and forward /mcp to the loopback MCP server.",
                 "If using a raw IP, TLS/certificate handling may be harder than with a DDNS/domain hostname.",
+                "For the domain lane, the reverse proxy target is still the local repo MCP server at http://127.0.0.1:8770/mcp.",
             ],
         },
         "manualNetworkChecklist": [
             "Confirm the router WAN IPv4 is a real public address and not CGNAT.",
+            "Confirm the public host resolves to the route that can reach this PC's HTTPS reverse proxy.",
+            "For mcp.360madden.com, fix Cloudflare DNS/proxy/WAF rules so /mcp and ACME challenges are not blocked before reaching the reverse proxy.",
             "Forward TCP 443 from the router/gateway to this PC's HTTPS reverse proxy.",
+            "Forward TCP 80 as well when Caddy is expected to complete HTTP-01 certificate issuance.",
             "Allow the reverse proxy through Windows Firewall.",
             "Start the local MCP server outside Codex and keep that console/process running.",
             "Start the HTTPS reverse proxy outside Codex and keep that process running.",
             "Create or edit the ChatGPT custom MCP app with the printed HTTPS Server URL and No Authentication.",
-            "If the residential IP changes, paste the new HTTPS IP URL into the ChatGPT custom MCP app settings.",
+            "If using a raw residential IP and it changes, paste the new HTTPS URL into the ChatGPT custom MCP app settings.",
         ],
         "retiredPaths": {
             "openAiSecureMcpTunnel": {
@@ -3576,7 +3582,7 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
             "cloudflareTunnel": {
                 "retired": True,
                 "notFallback": True,
-                "reason": "User-selected manual external-IP workflow; do not route new work through cloudflared or trycloudflare.",
+                "reason": "User-selected public-host Server URL workflow; do not route new work through cloudflared or trycloudflare.",
             },
         },
         "doNotUse": [
@@ -3589,8 +3595,8 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
         "chatGptSmokeOrder": ["health", "get_repo_status", "get_latest_handoff"],
         "warnings": [
             "This plan does not start a server, start a reverse proxy, configure the router, create certificates, register ChatGPT, mutate Git, send RIFT input, or attach CE/x64dbg.",
-            "Manual external-IP mode is intentionally simple but public. Keep the first exposed MCP tool surface narrow and low-risk.",
-            "A raw external IP can change; the operator accepts manual ChatGPT app URL edits when that happens.",
+            "The public-host Server URL mode is intentionally simple but public. Keep the first exposed MCP tool surface narrow and low-risk.",
+            "A raw external IP can change; using a stable domain/DDNS host avoids routine ChatGPT Server URL edits but still requires working DNS/proxy/router prerequisites.",
         ],
         "blockers": [],
         "safety": {
@@ -3611,7 +3617,11 @@ def build_manual_public_ip_plan(config: AdapterConfig, *, public_mcp_host: str |
 
 def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float = 3600.0) -> dict[str, Any]:
     """Return a plan-only non-Codex launch packet without starting a server or tunnel."""
-    manual_public_ip_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--manual-public-ip-plan", "--json"])
+    manual_public_ip_command = repo_script_command(
+        config,
+        "riftreader-chatgpt-mcp.cmd",
+        ["--manual-public-ip-plan", "--public-mcp-host", DEFAULT_DOMAIN_PUBLIC_MCP_HOST, "--json"],
+    )
     retired_secure_plan_command = repo_script_command(config, "riftreader-chatgpt-mcp.cmd", ["--secure-tunnel-plan", "--json"])
     retired_cloudflare_trial_command = repo_script_command(
         config,
@@ -3648,10 +3658,19 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "key": "manual-public-ip",
             "command": manual_public_ip_command,
             "commandLine": command_line(manual_public_ip_command),
-            "why": "Current selected Web/Desktop path: paste the operator's current external IP HTTPS Server URL into ChatGPT and update it manually if the IP changes.",
+            "defaultPublicHost": DEFAULT_DOMAIN_PUBLIC_MCP_HOST,
+            "why": "Current selected Web/Desktop path: use the operator-owned public HTTPS Server URL, preferably the stable domain mcp.360madden.com, and keep the local MCP server plus HTTPS reverse proxy running outside Codex.",
             "startsRuntime": False,
             "requiresOperatorRunAfterPlan": True,
         },
+        "prerequisiteChain": [
+            "Operator-owned local MCP server process: scripts\\riftreader-chatgpt-mcp.cmd --serve ...",
+            "Operator-owned HTTPS reverse proxy process such as Caddy/nginx listening on TCP 443.",
+            "DNS/public-host route resolves to the reverse proxy path for mcp.360madden.com.",
+            "Router/firewall forwards TCP 443, and TCP 80 if Caddy ACME HTTP-01 is used.",
+            "Cloudflare or any edge proxy must not block /mcp, MCP initialize, or certificate challenges.",
+            "ChatGPT Web/Desktop Developer Mode app uses Server URL https://mcp.360madden.com/mcp with No Authentication.",
+        ],
         "retiredPaths": {
             "openAiSecureMcpTunnel": {
                 "key": "openai-secure-mcp-tunnel",
@@ -3673,7 +3692,7 @@ def build_operator_launch_plan(config: AdapterConfig, *, session_seconds: float 
             "command": local_serve_command,
             "commandLine": command_line(local_serve_command),
             "endpoint": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
-            "why": "Local-only development server. ChatGPT Web/Desktop still needs a supported HTTPS tunnel to reach it.",
+            "why": "Local-only development server. ChatGPT Web/Desktop still needs a public HTTPS Server URL routed through the operator-owned reverse proxy to reach it.",
             "startsRuntimeWhenOperatorRunsIt": True,
             "expectedProcessesWhenRunning": ["python.exe"],
         },
