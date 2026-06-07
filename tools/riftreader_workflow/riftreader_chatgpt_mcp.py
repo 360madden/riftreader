@@ -95,6 +95,16 @@ EXPECTED_TOOL_ORDER = (
     "apply_latest_package_draft",
     "get_workflow_control_plan",
 )
+PUBLIC_READ_ONLY_TOOL_ORDER = (
+    "health",
+    "get_repo_status",
+    "get_latest_handoff",
+    "get_workflow_control_summary",
+    "get_workflow_control_plan",
+)
+TOOL_PROFILE_FULL = "full"
+TOOL_PROFILE_PUBLIC_READ_ONLY = "public-read-only"
+TOOL_PROFILES = (TOOL_PROFILE_FULL, TOOL_PROFILE_PUBLIC_READ_ONLY)
 TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "health": frozenset(),
     "get_repo_status": frozenset(),
@@ -112,6 +122,19 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_workflow_control_plan": frozenset(),
 }
 TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
+
+
+def tool_order_for_profile(tool_profile: str = TOOL_PROFILE_FULL) -> tuple[str, ...]:
+    if tool_profile == TOOL_PROFILE_FULL:
+        return EXPECTED_TOOL_ORDER
+    if tool_profile == TOOL_PROFILE_PUBLIC_READ_ONLY:
+        return PUBLIC_READ_ONLY_TOOL_ORDER
+    raise AdapterError(
+        "TOOL_PROFILE_INVALID",
+        f"Unknown MCP tool profile: {tool_profile!r}.",
+        status="failed",
+        extra={"toolProfile": tool_profile, "allowedProfiles": list(TOOL_PROFILES)},
+    )
 
 
 def limited_list(value: Any, *, limit: int = WORKFLOW_CONTROL_LIST_LIMIT) -> list[Any]:
@@ -681,6 +704,7 @@ class AdapterConfig:
     audit_root: Path
     bridge_config: bridge.BridgeConfig
     dry_run_timeout_seconds: float = DEFAULT_DRY_RUN_TIMEOUT_SECONDS
+    tool_profile: str = TOOL_PROFILE_FULL
 
 
 class AdapterError(Exception):
@@ -1018,6 +1042,15 @@ class RiftReaderChatGptMcpAdapter:
             result = redact_repo_paths(result, self.config.repo_root)
             self.write_audit(tool_name, summarize_tool_input(tool_name, args), result)
             return result
+        if tool_name not in tool_order_for_profile(self.config.tool_profile):
+            result = blocked_payload(
+                "TOOL_NOT_EXPOSED_IN_PROFILE",
+                f"Tool is not exposed by active profile {self.config.tool_profile}: {tool_name}",
+                kind="riftreader-chatgpt-mcp-tool-result",
+            )
+            result = redact_repo_paths(result, self.config.repo_root)
+            self.write_audit(tool_name, summarize_tool_input(tool_name, args), result)
+            return result
 
         try:
             validate_tool_arguments(
@@ -1089,6 +1122,8 @@ class RiftReaderChatGptMcpAdapter:
         return result
 
     def health(self) -> dict[str, Any]:
+        tool_profile = self.config.tool_profile
+        tool_order = tool_order_for_profile(tool_profile)
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-health",
@@ -1102,12 +1137,15 @@ class RiftReaderChatGptMcpAdapter:
             "repoRootRelative": rel(self.config.repo_root, self.config.repo_root),
             "payloadRoot": rel(self.config.repo_root, self.config.payload_root),
             "auditRoot": rel(self.config.repo_root, self.config.audit_root),
-            "toolCount": len(TOOL_SPECS),
-            "tools": tool_manifest()["tools"],
+            "toolProfile": tool_profile,
+            "toolCount": len(tool_order),
+            "tools": tool_manifest(tool_profile)["tools"],
             "safety": {
                 **base_safety(),
                 "auditUnderDotRiftReaderLocal": is_relative_to(self.config.audit_root, self.config.repo_root / ".riftreader-local"),
                 "absoluteRepoRootExposed": False,
+                "publicReadOnlyProfile": tool_profile == TOOL_PROFILE_PUBLIC_READ_ONLY,
+                "writeLikeToolsExposed": any(not TOOL_SPECS[name].read_only for name in tool_order),
             },
             "warnings": [
                 "ChatGPT Developer Mode requires an HTTPS-reachable /mcp endpoint; use a tunnel manually only when testing.",
@@ -1904,12 +1942,14 @@ def compact_dry_run_payload(repo_root: Path, payload: dict[str, Any]) -> dict[st
     }
 
 
-def tool_manifest() -> dict[str, Any]:
+def tool_manifest(tool_profile: str = TOOL_PROFILE_FULL) -> dict[str, Any]:
+    tool_order = tool_order_for_profile(tool_profile)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-tool-manifest",
         "service": SERVER_NAME,
         "version": VERSION,
+        "toolProfile": tool_profile,
         "generatedAtUtc": utc_iso(),
         "status": "passed",
         "ok": True,
@@ -1922,9 +1962,13 @@ def tool_manifest() -> dict[str, Any]:
                 "annotations": TOOL_SPECS[name].annotation_payload(),
                 "outputSchema": tool_output_schema(name),
             }
-            for name in EXPECTED_TOOL_ORDER
+            for name in tool_order
         ],
-        "safety": base_safety(),
+        "safety": {
+            **base_safety(),
+            "publicReadOnlyProfile": tool_profile == TOOL_PROFILE_PUBLIC_READ_ONLY,
+            "writeLikeToolsExposed": any(not TOOL_SPECS[name].read_only for name in tool_order),
+        },
     }
 
 
@@ -2151,7 +2195,7 @@ def list_registered_sdk_tools(server: Any) -> list[Any]:
     )
 
 
-def verify_registered_sdk_tools(server: Any) -> list[dict[str, Any]]:
+def verify_registered_sdk_tools(server: Any, *, tool_profile: str = TOOL_PROFILE_FULL) -> list[dict[str, Any]]:
     registered_tools = list_registered_sdk_tools(server)
     summaries: list[dict[str, Any]] = []
     blockers: list[str] = []
@@ -2161,7 +2205,7 @@ def verify_registered_sdk_tools(server: Any) -> list[dict[str, Any]]:
         if isinstance(name, str):
             by_name[name] = tool
     actual_names = list(by_name.keys())
-    expected_names = list(EXPECTED_TOOL_ORDER)
+    expected_names = list(tool_order_for_profile(tool_profile))
     if actual_names != expected_names:
         blockers.append(f"tool-order-or-set-mismatch:actual={actual_names!r}:expected={expected_names!r}")
 
@@ -2326,6 +2370,7 @@ def validate_sdk_registration(
     port: int = DEFAULT_PORT,
     allowed_hosts: list[str] | None = None,
     allowed_origins: list[str] | None = None,
+    tool_profile: str = TOOL_PROFILE_FULL,
 ) -> dict[str, Any]:
     if host != DEFAULT_HOST:
         raise AdapterError(
@@ -2344,8 +2389,10 @@ def validate_sdk_registration(
         port=port,
         allowed_hosts=normalize_allowed_hosts(allowed_hosts),
         allowed_origins=normalize_allowed_origins(allowed_origins),
+        tool_profile=tool_profile,
     )
-    registered_tools = verify_registered_sdk_tools(server)
+    registered_tools = verify_registered_sdk_tools(server, tool_profile=tool_profile)
+    tool_order = tool_order_for_profile(tool_profile)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-sdk-registration-validation",
@@ -2354,9 +2401,10 @@ def validate_sdk_registration(
         "ok": True,
         "service": SERVER_NAME,
         "version": VERSION,
+        "toolProfile": tool_profile,
         "serverClass": type(server).__name__,
-        "toolCount": len(EXPECTED_TOOL_ORDER),
-        "tools": tool_manifest()["tools"],
+        "toolCount": len(tool_order),
+        "tools": tool_manifest(tool_profile)["tools"],
         "registeredTools": registered_tools,
         "allowedHosts": normalize_allowed_hosts(allowed_hosts),
         "allowedOrigins": normalize_allowed_origins(allowed_origins),
@@ -2476,9 +2524,9 @@ async def run_transport_client_with_retry(
     )
 
 
-def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
+def verify_transport_smoke_result(client_result: dict[str, Any], *, tool_profile: str = TOOL_PROFILE_FULL) -> list[str]:
     blockers: list[str] = []
-    expected_names = list(EXPECTED_TOOL_ORDER)
+    expected_names = list(tool_order_for_profile(tool_profile))
     if client_result.get("toolNames") != expected_names:
         blockers.append(f"tool-order-or-set-mismatch:actual={client_result.get('toolNames')!r}:expected={expected_names!r}")
     if client_result.get("healthIsError") is True:
@@ -2489,8 +2537,10 @@ def verify_transport_smoke_result(client_result: dict[str, Any]) -> list[str]:
     else:
         if health.get("service") != SERVER_NAME:
             blockers.append(f"health-service-mismatch:{health.get('service')!r}")
-        if health.get("toolCount") != len(EXPECTED_TOOL_ORDER):
+        if health.get("toolCount") != len(expected_names):
             blockers.append(f"health-tool-count-mismatch:{health.get('toolCount')!r}")
+        if health.get("toolProfile") not in (tool_profile, None):
+            blockers.append(f"health-tool-profile-mismatch:{health.get('toolProfile')!r}")
         if health.get("repoRoot") != ".":
             blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
         safety = health.get("safety") if isinstance(health.get("safety"), dict) else {}
@@ -2625,6 +2675,7 @@ def run_transport_smoke_test(
     transport: str = "streamable-http",
     timeout_seconds: float = DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS,
     include_proposal_submit: bool = False,
+    tool_profile: str = TOOL_PROFILE_FULL,
 ) -> dict[str, Any]:
     if host != DEFAULT_HOST:
         raise AdapterError(
@@ -2646,6 +2697,13 @@ def run_transport_smoke_test(
             "Transport smoke timeout must be > 0 and <= 120 seconds.",
             status="failed",
             extra={"timeoutSeconds": timeout_seconds},
+        )
+    if include_proposal_submit and tool_profile != TOOL_PROFILE_FULL:
+        raise AdapterError(
+            "PROPOSAL_SMOKE_REQUIRES_FULL_TOOL_PROFILE",
+            "Proposal transport smoke requires the full 12-tool profile.",
+            status="failed",
+            extra={"toolProfile": tool_profile},
         )
 
     sdk_path_additions = ensure_mcp_sdk_available(config.repo_root)
@@ -2669,6 +2727,8 @@ def run_transport_smoke_test(
         "--audit-root",
         str(config.audit_root),
     ]
+    if tool_profile != TOOL_PROFILE_FULL:
+        command.extend(["--tool-profile", tool_profile])
     env = os.environ.copy()
     env["PYTHONPATH"] = build_child_pythonpath(config, env)
 
@@ -2693,7 +2753,7 @@ def run_transport_smoke_test(
                 package_proposal=self_test_package_proposal() if include_proposal_submit else None,
             )
         )
-        blockers = verify_transport_smoke_result(client_result)
+        blockers = verify_transport_smoke_result(client_result, tool_profile=tool_profile)
         status = "passed" if not blockers else "failed"
         ok = not blockers
     finally:
@@ -2724,6 +2784,7 @@ def run_transport_smoke_test(
         "ok": ok,
         "service": SERVER_NAME,
         "version": VERSION,
+        "toolProfile": tool_profile,
         "url": url,
         "host": host,
         "port": port,
@@ -4731,6 +4792,7 @@ def create_fastmcp_server(
     port: int,
     allowed_hosts: list[str] | None = None,
     allowed_origins: list[str] | None = None,
+    tool_profile: str = TOOL_PROFILE_FULL,
 ):
     try:
         from mcp.server.fastmcp import FastMCP
@@ -4811,6 +4873,8 @@ def create_fastmcp_server(
 
     public_allowed_hosts = normalize_allowed_hosts(allowed_hosts)
     public_allowed_origins = normalize_allowed_origins(allowed_origins)
+    tool_order = tool_order_for_profile(tool_profile)
+    adapter.config.tool_profile = tool_profile
     transport_security = None
     if public_allowed_hosts or public_allowed_origins:
         transport_security = TransportSecuritySettings(
@@ -4822,9 +4886,11 @@ def create_fastmcp_server(
     mcp = FastMCP(
         SERVER_NAME,
         instructions=(
-            "Narrow RiftReader Desktop ChatGPT MCP adapter. Use only the exposed allowlisted tools. "
+            "Narrow RiftReader MCP adapter for ChatGPT Web/Desktop Developer Mode only. "
+            "This is not ChatGPT Codex and not a broad local MCP proxy. Use only the exposed allowlisted tools. "
             "Do not ask this server for shell, arbitrary filesystem, Git mutation, RIFT input, CE, x64dbg, "
-            "or tunnel control; those tools are intentionally absent."
+            "or tunnel control; those tools are intentionally absent. "
+            f"Active tool profile: {tool_profile}."
         ),
         host=host,
         port=port,
@@ -4957,21 +5023,22 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_workflow_control_plan", {})
 
-    for tool_name, fn in (
-        ("health", health),
-        ("get_repo_status", get_repo_status),
-        ("get_latest_handoff", get_latest_handoff),
-        ("get_workflow_control_summary", get_workflow_control_summary),
-        ("get_package_proposal_template", get_package_proposal_template),
-        ("submit_package_proposal", submit_package_proposal),
-        ("list_inbox", list_inbox),
-        ("create_package_draft_from_inbox", create_package_draft_from_inbox),
-        ("review_latest_package_draft", review_latest_package_draft),
-        ("dry_run_latest_package_draft", dry_run_latest_package_draft),
-        ("apply_latest_package_draft", apply_latest_package_draft),
-        ("get_workflow_control_plan", get_workflow_control_plan),
-    ):
-        register(tool_name, fn)
+    handlers = {
+        "health": health,
+        "get_repo_status": get_repo_status,
+        "get_latest_handoff": get_latest_handoff,
+        "get_workflow_control_summary": get_workflow_control_summary,
+        "get_package_proposal_template": get_package_proposal_template,
+        "submit_package_proposal": submit_package_proposal,
+        "list_inbox": list_inbox,
+        "create_package_draft_from_inbox": create_package_draft_from_inbox,
+        "review_latest_package_draft": review_latest_package_draft,
+        "dry_run_latest_package_draft": dry_run_latest_package_draft,
+        "apply_latest_package_draft": apply_latest_package_draft,
+        "get_workflow_control_plan": get_workflow_control_plan,
+    }
+    for tool_name in tool_order:
+        register(tool_name, handlers[tool_name])
     return mcp
 
 
@@ -5068,6 +5135,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="streamable-http",
         help="MCP transport for --serve.",
     )
+    parser.add_argument(
+        "--tool-profile",
+        choices=TOOL_PROFILES,
+        default=TOOL_PROFILE_FULL,
+        help=(
+            "MCP tool surface to expose. Default full preserves the canonical 12-tool path; "
+            "public-read-only exposes only Phase 0 read-only proof tools."
+        ),
+    )
     parser.add_argument("--dry-run-timeout-seconds", type=float, default=DEFAULT_DRY_RUN_TIMEOUT_SECONDS)
     parser.add_argument("--transport-smoke-timeout-seconds", type=float, default=DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
     parser.add_argument("--cloudflare-smoke-timeout-seconds", type=float, default=DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS)
@@ -5102,8 +5178,9 @@ def main(argv: list[str] | None = None) -> int:
             dry_run_timeout_seconds=args.dry_run_timeout_seconds,
             max_inbox_bytes=int(args.max_inbox_mb * 1024 * 1024),
         )
+        config.tool_profile = args.tool_profile
         if args.tool_manifest:
-            payload = tool_manifest()
+            payload = tool_manifest(args.tool_profile)
             print_payload(payload, json_mode=args.json)
             return 0
         if args.self_test:
@@ -5117,6 +5194,7 @@ def main(argv: list[str] | None = None) -> int:
                 port=args.port,
                 allowed_hosts=args.allowed_host,
                 allowed_origins=args.allowed_origin,
+                tool_profile=args.tool_profile,
             )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
@@ -5126,6 +5204,7 @@ def main(argv: list[str] | None = None) -> int:
                 host=args.host,
                 transport=args.transport,
                 timeout_seconds=args.transport_smoke_timeout_seconds,
+                tool_profile=args.tool_profile,
             )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
@@ -5136,6 +5215,7 @@ def main(argv: list[str] | None = None) -> int:
                 transport=args.transport,
                 timeout_seconds=args.transport_smoke_timeout_seconds,
                 include_proposal_submit=True,
+                tool_profile=args.tool_profile,
             )
             print_payload(payload, json_mode=args.json)
             return 0 if payload.get("ok") else 1
@@ -5231,6 +5311,7 @@ def main(argv: list[str] | None = None) -> int:
                 port=args.port,
                 allowed_hosts=args.allowed_host,
                 allowed_origins=args.allowed_origin,
+                tool_profile=args.tool_profile,
             )
             mcp.run(transport=args.transport)
             return 0

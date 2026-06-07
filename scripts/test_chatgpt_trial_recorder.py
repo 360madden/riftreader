@@ -68,6 +68,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES, chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT, len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
         self.assertIn("apply_latest_package_draft", recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+        self.assertEqual(recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES, chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER)
 
     def test_template_contains_required_fields_and_safe_defaults(self) -> None:
         payload = recorder.proof_template()
@@ -86,6 +87,18 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertFalse(payload["applyLatestPackageDraftWithoutApprovalBlocked"])
         self.assertEqual(payload["applyLatestPackageDraftWithoutApprovalBlockers"], [])
         self.assertIsNone(payload["applyLatestPackageDraftWithoutApprovalApplied"])
+
+    def test_domain_read_only_template_contains_phase0_fields(self) -> None:
+        payload = recorder.proof_template(recorder.DOMAIN_READ_ONLY_PROOF_MODE)
+
+        self.assertEqual(payload["kind"], "riftreader-chatgpt-domain-read-only-proof-input")
+        self.assertEqual(payload["proofMode"], recorder.DOMAIN_READ_ONLY_PROOF_MODE)
+        self.assertEqual(payload["publicMcpUrl"], "https://mcp.360madden.com/mcp")
+        self.assertEqual(payload["authentication"], "No Authentication")
+        self.assertEqual(payload["toolCount"], recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT)
+        self.assertEqual(payload["toolNames"], list(recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES))
+        self.assertNotIn("submit_package_proposal", payload["toolNames"])
+        self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
 
     def test_write_template_creates_ignored_fillable_proof_input(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,6 +122,20 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertIn(payload["artifactPaths"]["proofInputJson"], payload["checkCommand"])
         self.assertIn("--record", payload["recordCommand"])
         self.assertIn(payload["artifactPaths"]["proofInputJson"], payload["recordCommand"])
+
+    def test_write_domain_read_only_template_creates_phase0_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+
+            payload = recorder.write_proof_template(root, proof_mode=recorder.DOMAIN_READ_ONLY_PROOF_MODE)
+            proof_input = root / payload["artifactPaths"]["proofInputJson"]
+            proof = json.loads(proof_input.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["proofMode"], recorder.DOMAIN_READ_ONLY_PROOF_MODE)
+        self.assertEqual(proof["kind"], "riftreader-chatgpt-domain-read-only-proof-input")
+        self.assertEqual(proof["toolNames"], list(recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES))
 
     def test_self_test_passes_without_chatgpt_or_tunnel(self) -> None:
         payload = recorder.self_test()
@@ -224,6 +251,39 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         blockers = recorder.validate_proof(proof)
 
         self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:7", blockers)
+
+    def test_accepts_valid_domain_read_only_phase0_proof(self) -> None:
+        proof = recorder.domain_read_only_proof_template()
+        proof.update(
+            {
+                "chatgptAppCreated": True,
+                "healthCallSucceeded": True,
+                "getRepoStatusCallSucceeded": True,
+                "getWorkflowControlSummaryCallSucceeded": True,
+            }
+        )
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertEqual(blockers, [])
+
+    def test_domain_read_only_phase0_rejects_full_tool_surface(self) -> None:
+        proof = recorder.domain_read_only_proof_template()
+        proof.update(
+            {
+                "chatgptAppCreated": True,
+                "healthCallSucceeded": True,
+                "getRepoStatusCallSucceeded": True,
+                "getWorkflowControlSummaryCallSucceeded": True,
+                "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+                "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            }
+        )
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT}:12", blockers)
+        self.assertIn("tool-names-not-expected", blockers)
 
     def test_rejects_unexpected_tool_name_set(self) -> None:
         proof = valid_proof()

@@ -61,6 +61,17 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "get_workflow_control_plan",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = (
+    "health",
+    "get_repo_status",
+    "get_latest_handoff",
+    "get_workflow_control_summary",
+    "get_workflow_control_plan",
+)
+EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT = len(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES)
+FINAL_12_TOOL_PROOF_MODE = "final-12-tool"
+DOMAIN_READ_ONLY_PROOF_MODE = "domain-read-only"
+ALLOWED_PROOF_MODES = (FINAL_12_TOOL_PROOF_MODE, DOMAIN_READ_ONLY_PROOF_MODE)
 MANUAL_PUBLIC_IP_CONNECTION_MODE = "manual-public-ip"
 SECURE_TUNNEL_CONNECTION_MODE = "openai-secure-mcp-tunnel"
 PUBLIC_HTTPS_FALLBACK_CONNECTION_MODE = "public-https-fallback"
@@ -73,10 +84,13 @@ RETIRED_TUNNEL_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.
 PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 
 
-def proof_template() -> dict[str, Any]:
+def proof_template(proof_mode: str = FINAL_12_TOOL_PROOF_MODE) -> dict[str, Any]:
+    if proof_mode == DOMAIN_READ_ONLY_PROOF_MODE:
+        return domain_read_only_proof_template()
     return {
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-actual-client-proof-input",
+        "proofMode": FINAL_12_TOOL_PROOF_MODE,
         "connectionMode": MANUAL_PUBLIC_IP_CONNECTION_MODE,
         "publicMcpUrl": "https://<current-external-ip>/mcp",
         "chatgptRegistrationSucceeded": False,
@@ -111,10 +125,37 @@ def proof_template() -> dict[str, Any]:
     }
 
 
-def write_proof_template(repo_root: Path) -> dict[str, Any]:
+def domain_read_only_proof_template() -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-chatgpt-domain-read-only-proof-input",
+        "proofMode": DOMAIN_READ_ONLY_PROOF_MODE,
+        "connectionMode": MANUAL_PUBLIC_IP_CONNECTION_MODE,
+        "publicMcpUrl": "https://mcp.360madden.com/mcp",
+        "chatgptAppCreated": False,
+        "authentication": "No Authentication",
+        "toolCount": EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT,
+        "toolNames": list(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES),
+        "healthCallSucceeded": False,
+        "getRepoStatusCallSucceeded": False,
+        "getLatestHandoffCallSucceeded": False,
+        "getWorkflowControlSummaryCallSucceeded": False,
+        "health": {
+            "repoRoot": ".",
+            "repoName": "RiftReader",
+            "absoluteRepoRootExposed": False,
+        },
+        "repoStatusAbsoluteRepoRootExposed": False,
+        "latestHandoffAbsoluteRepoRootExposed": False,
+        "workflowControlSummaryAbsoluteRepoRootExposed": False,
+        "notes": "Fill this with actual ChatGPT Web/Desktop Developer Mode observations, then record with --record --input proof.json.",
+    }
+
+
+def write_proof_template(repo_root: Path, *, proof_mode: str = FINAL_12_TOOL_PROOF_MODE) -> dict[str, Any]:
     output_dir = timestamped_output_dir(repo_root / PROOF_INPUT_TEMPLATE_ROOT)
     proof_input_path = output_dir / "proof-input.json"
-    template = proof_template()
+    template = proof_template(proof_mode)
     proof_input_path.write_text(json.dumps(template, indent=2, sort_keys=True), encoding="utf-8")
     proof_input_rel = rel(repo_root, proof_input_path)
     return {
@@ -123,6 +164,7 @@ def write_proof_template(repo_root: Path) -> dict[str, Any]:
         "generatedAtUtc": utc_iso(),
         "status": "ready",
         "ok": True,
+        "proofMode": proof_mode,
         "template": template,
         "artifactPaths": {
             "proofInputJson": proof_input_rel,
@@ -174,7 +216,82 @@ def _tool_name_list_blockers(field_name: str, value: Any) -> list[str]:
     return blockers
 
 
-def validate_proof(proof: dict[str, Any]) -> list[str]:
+def _specific_tool_name_list_blockers(field_name: str, value: Any, expected: tuple[str, ...]) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{field_name}-not-list:{type(value).__name__}"]
+    if not all(isinstance(item, str) for item in value):
+        return [f"{field_name}-contains-non-string"]
+    blockers: list[str] = []
+    if len(value) != len(expected):
+        blockers.append(f"{field_name}-count-not-{len(expected)}:{len(value)}")
+    if len(set(value)) != len(value):
+        blockers.append(f"{field_name}-contains-duplicates")
+    if sorted(value) != sorted(expected):
+        blockers.append(f"{field_name}-not-expected")
+    return blockers
+
+
+def validate_domain_read_only_proof(proof: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    required_fields = (
+        "proofMode",
+        "connectionMode",
+        "publicMcpUrl",
+        "chatgptAppCreated",
+        "authentication",
+        "toolCount",
+        "toolNames",
+        "healthCallSucceeded",
+        "getRepoStatusCallSucceeded",
+        "health",
+    )
+    for field in required_fields:
+        if field not in proof:
+            blockers.append(f"required-field-missing:{field}")
+    health = proof.get("health") if isinstance(proof.get("health"), dict) else {}
+    for field in ("repoRoot", "repoName", "absoluteRepoRootExposed"):
+        if field not in health:
+            blockers.append(f"required-field-missing:health.{field}")
+    if proof.get("proofMode") != DOMAIN_READ_ONLY_PROOF_MODE:
+        blockers.append(f"proof-mode-invalid:{proof.get('proofMode')!r}")
+    public_url = str(proof.get("publicMcpUrl") or "")
+    connection_mode = proof.get("connectionMode")
+    if connection_mode not in ALLOWED_CONNECTION_MODES:
+        blockers.append(f"connection-mode-invalid:{connection_mode!r}")
+    if any(marker in public_url.lower() for marker in RETIRED_TUNNEL_HOST_MARKERS):
+        blockers.append("manual-public-ip-proof-url-uses-retired-tunnel-host")
+    if public_url != "https://mcp.360madden.com/mcp":
+        blockers.append(f"public-mcp-url-not-domain-route:{public_url!r}")
+    if proof.get("authentication") != "No Authentication":
+        blockers.append(f"authentication-not-no-authentication:{proof.get('authentication')!r}")
+    if proof.get("chatgptAppCreated") is not True:
+        blockers.append("chatgpt-app-created-not-confirmed")
+    if proof.get("toolCount") != EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT:
+        blockers.append(f"tool-count-not-{EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT}:{proof.get('toolCount')!r}")
+    blockers.extend(_specific_tool_name_list_blockers("tool-names", proof.get("toolNames"), EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES))
+    if health.get("repoRoot") != ".":
+        blockers.append(f"health-repo-root-not-redacted:{health.get('repoRoot')!r}")
+    if health.get("repoName") != "RiftReader":
+        blockers.append(f"health-repo-name-not-riftreader:{health.get('repoName')!r}")
+    if health.get("absoluteRepoRootExposed") is not False:
+        blockers.append(f"health-absolute-repo-root-exposed:{health.get('absoluteRepoRootExposed')!r}")
+    if proof.get("healthCallSucceeded") is not True:
+        blockers.append("health-call-not-confirmed")
+    if proof.get("getRepoStatusCallSucceeded") is not True:
+        blockers.append("get-repo-status-call-not-confirmed")
+    if proof.get("getLatestHandoffCallSucceeded") is not True and proof.get("getWorkflowControlSummaryCallSucceeded") is not True:
+        blockers.append("handoff-or-workflow-summary-call-not-confirmed")
+    for field in (
+        "repoStatusAbsoluteRepoRootExposed",
+        "latestHandoffAbsoluteRepoRootExposed",
+        "workflowControlSummaryAbsoluteRepoRootExposed",
+    ):
+        if field in proof and proof.get(field) is not False:
+            blockers.append(f"{field}-not-false:{proof.get(field)!r}")
+    return blockers
+
+
+def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
     blockers: list[str] = []
     for field in REQUIRED_FIELDS:
         if field not in proof:
@@ -262,6 +379,12 @@ def validate_proof(proof: dict[str, Any]) -> list[str]:
     return blockers
 
 
+def validate_proof(proof: dict[str, Any]) -> list[str]:
+    if proof.get("proofMode") == DOMAIN_READ_ONLY_PROOF_MODE:
+        return validate_domain_read_only_proof(proof)
+    return validate_final_12_tool_proof(proof)
+
+
 def render_markdown(record: dict[str, Any]) -> str:
     proof = record.get("proof") if isinstance(record.get("proof"), dict) else {}
     health = proof.get("health") if isinstance(proof.get("health"), dict) else {}
@@ -270,6 +393,7 @@ def render_markdown(record: dict[str, Any]) -> str:
         "",
         f"- Generated UTC: `{record.get('generatedAtUtc')}`",
         f"- Status: `{record.get('status')}`",
+        f"- Proof mode: `{proof.get('proofMode')}`",
         f"- Connection mode: `{proof.get('connectionMode')}`",
         f"- Public MCP URL: `{proof.get('publicMcpUrl')}`",
         f"- Tool count: `{proof.get('toolCount')}`",
@@ -311,7 +435,9 @@ def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
     output_dir = timestamped_output_dir(repo_root / ACTUAL_CLIENT_PROOF_ROOT)
     record = {
         "schemaVersion": 1,
-        "kind": "riftreader-chatgpt-actual-client-proof",
+        "kind": "riftreader-chatgpt-domain-read-only-proof"
+        if value.get("proofMode") == DOMAIN_READ_ONLY_PROOF_MODE
+        else "riftreader-chatgpt-actual-client-proof",
         "generatedAtUtc": utc_iso(),
         "status": status,
         "ok": status == "passed",
@@ -449,6 +575,18 @@ def self_test() -> dict[str, Any]:
     retired_secure_mode_proof["connectionMode"] = SECURE_TUNNEL_CONNECTION_MODE
     placeholder_proof = dict(valid_proof)
     placeholder_proof["publicMcpUrl"] = "https://<current-external-ip>/mcp"
+    valid_domain_read_only_proof = domain_read_only_proof_template()
+    valid_domain_read_only_proof.update(
+        {
+            "chatgptAppCreated": True,
+            "healthCallSucceeded": True,
+            "getRepoStatusCallSucceeded": True,
+            "getLatestHandoffCallSucceeded": True,
+        }
+    )
+    domain_read_only_extra_tool_proof = dict(valid_domain_read_only_proof)
+    domain_read_only_extra_tool_proof["toolNames"] = list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+    domain_read_only_extra_tool_proof["toolCount"] = EXPECTED_CHATGPT_MCP_TOOL_COUNT
 
     checks = [
         {
@@ -470,6 +608,14 @@ def self_test() -> dict[str, Any]:
         {
             "name": "placeholder-url-blocked",
             "pass": "public-mcp-url-placeholder" in validate_proof(placeholder_proof),
+        },
+        {
+            "name": "domain-read-only-valid-shape-passes",
+            "pass": validate_proof(valid_domain_read_only_proof) == [],
+        },
+        {
+            "name": "domain-read-only-blocks-full-tool-surface",
+            "pass": "tool-names-not-expected" in validate_proof(domain_read_only_extra_tool_proof),
         },
     ]
     ok = all(bool(check["pass"]) for check in checks)
@@ -499,6 +645,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
     mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
     parser.add_argument("--input", default=None, help="Path to proof input JSON for --check-input or --record.")
+    parser.add_argument("--proof-mode", choices=ALLOWED_PROOF_MODES, default=FINAL_12_TOOL_PROOF_MODE)
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -508,9 +655,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
     if args.template:
-        payload = proof_template()
+        payload = proof_template(args.proof_mode)
     elif args.write_template:
-        payload = write_proof_template(repo_root)
+        payload = write_proof_template(repo_root, proof_mode=args.proof_mode)
     elif args.self_test:
         payload = self_test()
     elif args.check_input:

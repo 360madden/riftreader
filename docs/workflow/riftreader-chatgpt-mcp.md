@@ -59,6 +59,72 @@ malformed result that omits the common structuredContent fields (`schemaVersion`
 `kind`, `status`, or boolean `ok`) is converted into a fail-closed
 `TOOL_RESULT_CONTRACT_INVALID` response and recorded in sanitized audit metadata.
 
+## Phase 0 domain read-only proof profile
+
+The canonical adapter remains `scripts\riftreader-chatgpt-mcp.cmd`. For the
+first public domain proof, run the same adapter with the read-only profile
+instead of creating a second MCP server:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+scripts\riftreader-chatgpt-mcp.cmd --serve --tool-profile public-read-only --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
+```
+
+Phase 0 exposes only:
+
+- `health`
+- `get_repo_status`
+- `get_latest_handoff`
+- `get_workflow_control_summary`
+- `get_workflow_control_plan`
+
+The default `--tool-profile full` path still exposes the existing 12-tool final
+proof surface and is not deleted or downgraded.
+
+For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
+
+| Field | Value |
+|---|---|
+| Server URL | `https://mcp.360madden.com/mcp` |
+| Authentication | `No Authentication` |
+| Expected app name | `rift-mcp` |
+| Local backend | `http://127.0.0.1:8770/mcp` |
+
+Write a Phase 0 proof template with:
+
+```cmd
+scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --proof-mode domain-read-only --json
+```
+
+Record it only after actual ChatGPT Web/Desktop observations confirm the app,
+Server URL, No Authentication, read-only tool list, successful `health`, successful
+`get_repo_status`, and either `get_latest_handoff` or
+`get_workflow_control_summary`.
+
+## Domain diagnostics and local dashboard
+
+Use the repo-native diagnostic helper instead of downloaded one-file runners:
+
+```cmd
+scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json
+```
+
+The helper writes generated Caddyfile text plus JSON/Markdown summaries under
+`.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics`, checks the local
+backend, DNS, TCP 443/Caddy identity when visible, and performs a real MCP
+`initialize` smoke with protocol/header `2025-06-18`. HTTP `502`, `403`, `404`,
+`421`, and non-MCP JSON are failures even if the HTTP client exits normally.
+
+Start the status-only localhost dashboard with:
+
+```cmd
+scripts\riftreader-mcp-dashboard.cmd
+```
+
+Open `http://127.0.0.1:8788/`. The dashboard is localhost-only, auto-refreshes,
+and has no start/stop, shell, Git, RIFT input, CE, x64dbg, arbitrary filesystem,
+or public control endpoint.
+
 ## Hard boundaries
 
 - No arbitrary filesystem read tool.

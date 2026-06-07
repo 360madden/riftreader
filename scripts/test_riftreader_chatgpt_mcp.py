@@ -290,6 +290,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertIn("schemaVersion", schema["required"])
             self.assertEqual(schema["properties"]["schemaVersion"]["const"], chatgpt_mcp.SCHEMA_VERSION)
 
+    def test_public_read_only_manifest_exposes_only_phase0_tools(self) -> None:
+        manifest = chatgpt_mcp.tool_manifest(chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY)
+
+        names = [item["name"] for item in manifest["tools"]]
+        self.assertEqual(names, list(chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER))
+        self.assertNotIn("submit_package_proposal", names)
+        self.assertNotIn("dry_run_latest_package_draft", names)
+        self.assertNotIn("apply_latest_package_draft", names)
+        self.assertTrue(all(item["annotations"]["readOnlyHint"] for item in manifest["tools"]))
+        self.assertFalse(manifest["safety"]["writeLikeToolsExposed"])
+        self.assertEqual(chatgpt_mcp.tool_manifest()["toolProfile"], chatgpt_mcp.TOOL_PROFILE_FULL)
+
     def test_health_reports_no_broad_mcp_proxy_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1281,6 +1293,28 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
 
         self.assertIn("health-repo-root-not-redacted:'C:\\\\RIFT MODDING\\\\RiftReader'", blockers)
         self.assertIn("health-absolute-repo-root-exposure-flag-not-false:True", blockers)
+
+    def test_transport_smoke_result_verifier_accepts_public_read_only_tool_profile(self) -> None:
+        registered = [registered_tool_summary(name) for name in chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER]
+        client_result = {
+            "toolNames": list(chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER),
+            "healthIsError": False,
+            "healthStructuredContent": {
+                "service": chatgpt_mcp.SERVER_NAME,
+                "toolCount": len(chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER),
+                "toolProfile": chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY,
+                "repoRoot": ".",
+                "safety": {"absoluteRepoRootExposed": False},
+            },
+            "registeredTools": registered,
+        }
+
+        blockers = chatgpt_mcp.verify_transport_smoke_result(
+            client_result,
+            tool_profile=chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY,
+        )
+
+        self.assertEqual(blockers, [])
 
     def test_transport_smoke_result_verifier_blocks_broad_submit_schema(self) -> None:
         registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]

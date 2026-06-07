@@ -2,6 +2,27 @@
 
 **Compact re-entry doc.** Read this first when returning to the project.
 
+## Latest compact handoff — ChatGPT MCP domain read-only dashboard — 2026-06-07 15:25 EDT
+
+A new compact handoff exists at
+docs/handoffs/2026-06-07-1525-chatgpt-mcp-domain-readonly-dashboard-handoff.md.
+
+The ChatGPT Web/Desktop MCP lane now has a safe Phase 0 public-domain proof path
+and a localhost-only dashboard, built on the existing canonical adapter. The
+default full 12-tool path remains unchanged; --tool-profile public-read-only
+exposes only health, get_repo_status, get_latest_handoff,
+get_workflow_control_summary, and get_workflow_control_plan for the first
+public proof on https://mcp.360madden.com/mcp with No Authentication.
+
+| Evidence | Result |
+|---|---|
+| Read-only profile | scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --tool-profile public-read-only --json passed with exactly 5 registered read-only tools. |
+| Full profile preserved | scripts\riftreader-chatgpt-mcp.cmd --validate-sdk --json passed with the canonical 12-tool surface. |
+| Dashboard | scripts\riftreader-mcp-dashboard.cmd serves a status-only local dashboard on http://127.0.0.1:8788/; no control endpoints are exposed. |
+| Domain diagnostics | .riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics\20260607-191604Z\summary.json correctly blocked on missing local backend and Cloudflare 403 Error 1010. |
+| Phase 0 proof template | .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260607-192205Z\proof-input.json. |
+| Boundary | No public route fix, ChatGPT registration, RIFT input, CE/x64dbg, provider write, push, or remote mutation was performed. |
+
 ## Latest compact handoff — ChatGPT MCP 12-tool current proof gate — 2026-06-06 20:58 EDT
 
 A new compact handoff exists at
