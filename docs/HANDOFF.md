@@ -1,3 +1,17 @@
+# 2026-06-08 — Desktop control command queue contract
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-desktop-control-command-queue-contract-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| New plan-only helper | `scripts\riftreader-desktop-control-queue-contract.cmd --json` prints the inert Browser/Computer command queue contract. |
+| Operator Lite | Adds `desktop-control-queue-contract` / `--desktop-control-queue-contract` and a `Desktop Queue Contract` MCP & Proof button. |
+| Execution state | Disabled: no queue writer, executor, MCP tool, Browser/Computer automation, desktop input, RIFT input, tunnel start, package apply, Git mutation, CE, or x64dbg endpoint. |
+| Current blocker | Computer Use still fails at setup with `Computer Use native pipe path is unavailable`; latest ignored observation is `20260608-111516Z`. |
+| Next action | Repair Computer Use native pipe externally, prove bootstrap/list-apps only, then record a success observation. |
+
+---
 # 2026-06-08 — Operator Lite Computer Use repair-guide action
 
 Fresh compact handoff:

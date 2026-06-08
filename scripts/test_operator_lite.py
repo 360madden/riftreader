@@ -35,6 +35,7 @@ def make_repo(root: Path) -> None:
         "riftreader-chatgpt-mcp.cmd",
         "riftreader-mcp-mission-control.cmd",
         "riftreader-desktop-control-readiness.cmd",
+        "riftreader-desktop-control-queue-contract.cmd",
         "riftreader-mcp-artifacts.cmd",
         "riftreader-chatgpt-trial-recorder.cmd",
         "riftreader-safe-commit-packager.cmd",
@@ -80,6 +81,7 @@ class OperatorLiteTests(unittest.TestCase):
                 "mcp-mission-control",
                 "desktop-control-readiness",
                 "desktop-control-repair-guide",
+                "desktop-control-queue-contract",
                 "mcp-proof-run-packet",
                 "mcp-artifacts-latest",
                 "chatgpt-trial-proof-template",
@@ -160,6 +162,10 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--repair-guide", desktop_repair["args"])
         self.assertIn("--json", desktop_repair["args"])
         self.assertEqual(desktop_repair["expectedExitCodes"], [0, 2])
+        desktop_queue = next(item for item in plan["commands"] if item["key"] == "desktop-control-queue-contract")
+        self.assertIn("riftreader-desktop-control-queue-contract.cmd", desktop_queue["args"][0])
+        self.assertIn("--json", desktop_queue["args"])
+        self.assertEqual(desktop_queue["expectedExitCodes"], [0])
         mcp_proof_packet = next(item for item in plan["commands"] if item["key"] == "mcp-proof-run-packet")
         self.assertIn("riftreader-mcp-mission-control.cmd", mcp_proof_packet["args"][0])
         self.assertIn("--proof-run-packet-md", mcp_proof_packet["args"])
@@ -353,6 +359,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("MCP mission control button", summary["visualRules"])
         self.assertIn("Browser/Computer readiness command button", summary["visualRules"])
         self.assertIn("Computer Use native-pipe blocker visibility", summary["visualRules"])
+        self.assertIn("inert Browser/Computer queue contract button", summary["visualRules"])
         self.assertIn("MCP proof run packet button", summary["visualRules"])
         self.assertIn("latest MCP artifacts button", summary["visualRules"])
         self.assertIn("ChatGPT trial proof template button", summary["visualRules"])
@@ -395,6 +402,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(payload["commandAliases"]["mcp-mission"], "mcp-mission-control")
         self.assertEqual(payload["commandAliases"]["computer-use-readiness"], "desktop-control-readiness")
         self.assertEqual(payload["commandAliases"]["computer-use-repair-guide"], "desktop-control-repair-guide")
+        self.assertEqual(payload["commandAliases"]["desktop-command-queue-contract"], "desktop-control-queue-contract")
         self.assertEqual(payload["commandAliases"]["proof-run-packet"], "mcp-proof-run-packet")
         self.assertEqual(payload["commandAliases"]["mcp-artifacts"], "mcp-artifacts-latest")
         self.assertEqual(payload["commandAliases"]["chatgpt-trial-proof"], "chatgpt-trial-proof-template")
@@ -419,6 +427,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--mcp-mission-control", encoded)
         self.assertIn("--desktop-control-readiness", encoded)
         self.assertIn("--desktop-control-repair-guide", encoded)
+        self.assertIn("--desktop-control-queue-contract", encoded)
         self.assertIn("--mcp-proof-run-packet", encoded)
         self.assertIn("--mcp-artifacts", encoded)
         self.assertIn("--chatgpt-trial-proof-template", encoded)
@@ -440,6 +449,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("RiftReader Operator Lite Command Reference", markdown)
         self.assertIn("`mcp-mission-control`", markdown)
         self.assertIn("`desktop-control-readiness`", markdown)
+        self.assertIn("`desktop-control-queue-contract`", markdown)
         self.assertIn("`mcp-proof-run-packet`", markdown)
         self.assertIn("`safe-commit-plan`", markdown)
         self.assertIn("`decision-packet`", markdown)
@@ -530,6 +540,7 @@ class OperatorLiteTests(unittest.TestCase):
             proof = operator_lite.run_command_key(root, "chatgpt-trial-proof")
             commit_plan = operator_lite.run_command_key(root, "safe-commit-plan")
             router = operator_lite.run_command_key(root, "workflow-router")
+            queue_contract = operator_lite.run_command_key(root, "desktop-command-queue-contract")
 
         self.assertEqual(mission["commandKey"], "mcp-mission-control")
         self.assertEqual(proof_packet["commandKey"], "mcp-proof-run-packet")
@@ -538,6 +549,8 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertEqual(commit_plan["commandKey"], "safe-commit-plan")
         self.assertEqual(router["commandKey"], "workflow-router-mcp")
         self.assertEqual(router["exitCode"], 0)
+        self.assertEqual(queue_contract["commandKey"], "desktop-control-queue-contract")
+        self.assertEqual(queue_contract["exitCode"], 0)
 
     def test_run_command_key_unknown_command_blocks_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -780,6 +793,7 @@ class OperatorLiteTests(unittest.TestCase):
             "--mcp-mission-control": "mcp-mission-control",
             "--desktop-control-readiness": "desktop-control-readiness",
             "--desktop-control-repair-guide": "desktop-control-repair-guide",
+            "--desktop-control-queue-contract": "desktop-control-queue-contract",
             "--mcp-proof-run-packet": "mcp-proof-run-packet",
             "--mcp-artifacts": "mcp-artifacts-latest",
             "--chatgpt-trial-proof-template": "chatgpt-trial-proof-template",
@@ -1029,6 +1043,7 @@ class OperatorLiteTests(unittest.TestCase):
                     "--mcp-mission-control",
                     "--desktop-control-readiness",
                     "--desktop-control-repair-guide",
+                    "--desktop-control-queue-contract",
                     "--mcp-artifacts",
                     "--chatgpt-trial-proof-template",
                     "--safe-commit-plan",
@@ -1060,6 +1075,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--mcp-mission-control", help_text)
         self.assertIn("--desktop-control-readiness", help_text)
         self.assertIn("--desktop-control-repair-guide", help_text)
+        self.assertIn("--desktop-control-queue-contract", help_text)
         self.assertIn("--mcp-artifacts", help_text)
         self.assertIn("--chatgpt-trial-proof-template", help_text)
         self.assertIn("--safe-commit-plan", help_text)

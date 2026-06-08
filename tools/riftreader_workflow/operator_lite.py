@@ -84,6 +84,9 @@ COMMAND_ALIASES = {
     "desktop-control-repair-guide": "desktop-control-repair-guide",
     "computer-use-repair-guide": "desktop-control-repair-guide",
     "browser-computer-repair-guide": "desktop-control-repair-guide",
+    "desktop-control-queue-contract": "desktop-control-queue-contract",
+    "desktop-command-queue-contract": "desktop-control-queue-contract",
+    "browser-computer-queue-contract": "desktop-control-queue-contract",
     "mcp-mission-control": "mcp-mission-control",
     "mcp-proof-run-packet": "mcp-proof-run-packet",
     "proof-run-packet": "mcp-proof-run-packet",
@@ -510,6 +513,16 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             ),
             expected_exit_codes=(0, 2),
         ),
+        "desktop-control-queue-contract": CommandSpec(
+            key="desktop-control-queue-contract",
+            label="Desktop Queue Contract",
+            args=(str(scripts / "riftreader-desktop-control-queue-contract.cmd"), "--json"),
+            timeout_seconds=45,
+            description=(
+                "Print the inert Browser/Computer command queue contract; plan-only, no queue writes, "
+                "executor, UI automation, RIFT input, tunnels, apply, or Git mutation."
+            ),
+        ),
         "mcp-artifacts-latest": CommandSpec(
             key="mcp-artifacts-latest",
             label="Latest MCP Artifacts",
@@ -770,6 +783,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-mission-control --json",
             ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-readiness --json",
             ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-repair-guide --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-queue-contract --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-proof-run-packet --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-artifacts --json",
             ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
@@ -1317,6 +1331,7 @@ def gui_theme_summary() -> dict[str, Any]:
             "browser-dashboard-aligned truth banner",
             "Browser/Computer readiness command button",
             "Computer Use native-pipe blocker visibility",
+            "inert Browser/Computer queue contract button",
             "Phase 1 target family/status line",
         ],
     }
@@ -1647,6 +1662,7 @@ def run_gui(repo_root: Path) -> int:
     action_button(row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
     row = button_row(mcp_panel)
     action_button(row, "MCP Trial Readiness", lambda: run_spec("mcp-trial-readiness"), "warning", width=22)
+    action_button(row, "Desktop Queue Contract", lambda: run_spec("desktop-control-queue-contract"), "neutral", width=24)
     action_button(row, "ChatGPT Trial Proof Template", lambda: run_spec("chatgpt-trial-proof-template"), "neutral", width=29)
     action_button(row, "Check Latest Proof Input", lambda: run_spec("chatgpt-trial-proof-check-latest"), "neutral", width=24)
 
@@ -1738,6 +1754,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --mcp-mission-control --json | "
             "riftreader-operator-lite.cmd --desktop-control-readiness --json | "
             "riftreader-operator-lite.cmd --desktop-control-repair-guide --json | "
+            "riftreader-operator-lite.cmd --desktop-control-queue-contract --json | "
             "riftreader-operator-lite.cmd --mcp-proof-run-packet --json | "
             "riftreader-operator-lite.cmd --mcp-artifacts --json | "
             "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
@@ -1812,6 +1829,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--desktop-control-repair-guide",
         action="store_true",
         help="Shortcut for --run desktop-control-repair-guide.",
+    )
+    parser.add_argument(
+        "--desktop-control-queue-contract",
+        action="store_true",
+        help="Shortcut for --run desktop-control-queue-contract. Plan-only; never executes queued actions.",
     )
     parser.add_argument(
         "--mcp-artifacts",
@@ -1904,6 +1926,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "desktop-control-readiness"
     if args.desktop_control_repair_guide:
         shortcut_command = "desktop-control-repair-guide"
+    if args.desktop_control_queue_contract:
+        shortcut_command = "desktop-control-queue-contract"
     if args.mcp_artifacts:
         shortcut_command = "mcp-artifacts-latest"
     if args.chatgpt_trial_proof_template:
@@ -1938,6 +1962,7 @@ def main(argv: list[str] | None = None) -> int:
             args.mcp_proof_run_packet,
             args.desktop_control_readiness,
             args.desktop_control_repair_guide,
+            args.desktop_control_queue_contract,
             args.mcp_artifacts,
             args.chatgpt_trial_proof_template,
             args.chatgpt_trial_proof_check_latest,
