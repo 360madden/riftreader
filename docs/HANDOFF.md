@@ -1,3 +1,19 @@
+# 2026-06-08 - Computer Use reboot resume handoff
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-computer-use-reboot-resume-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| User-visible blocker | Codex Settings > Computer use showed `Computer Use plugins unavailable`. |
+| Root cause found | Active `openai-bundled` temp marketplace snapshot was incomplete and did not expose `computer-use`. |
+| Local repair | Additively restored missing bundled marketplace manifest and plugin directories from installed Codex app resources; `codex plugin list` now shows `computer-use@openai-bundled installed, enabled`. |
+| Required reboot step | Reboot/full Codex restart is still needed so the app reloads the repaired marketplace and exposes the native Computer Use pipe. |
+| First post-reboot smoke | Use `@Computer` only for bootstrap/list-apps; no clicks, typing, window activation, desktop input, RIFT input, or queue execution. |
+| Repo state | `main` is ahead of `origin/main` by 2 commits before this handoff; do not push unless explicitly approved. |
+| Decision packet | Still blocked-safe for proof recovery: `latest-static-owner-readback-root-pointer-null`; safe next repo command is `python .\scripts\postupdate_owner_root_rediscovery.py --json`. |
+
+---
 # 2026-06-08 — MCP dashboard readiness summary, queue draft viewer, and CI action refresh
 
 Fresh compact handoff:
