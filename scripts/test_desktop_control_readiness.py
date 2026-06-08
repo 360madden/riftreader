@@ -66,6 +66,36 @@ class DesktopControlReadinessTests(unittest.TestCase):
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["blockers"], [])
         self.assertEqual(payload["latestObservation"]["path"], str(observation.relative_to(root)).replace("/", "\\"))
+        self.assertEqual(payload["recommendedNextActions"][0]["key"], "maintenance-loop")
+
+    def test_partial_observation_does_not_recommend_finished_browser_smoke(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            observation = root / readiness.OBSERVATION_ROOT / "20260608T010000Z" / "observation.json"
+            observation.parent.mkdir(parents=True)
+            observation.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "kind": "riftreader-desktop-control-observation",
+                        "browserUse": {"dashboardSmokeOk": True},
+                        "computerUse": {"nativePipeOk": False, "listAppsOk": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = readiness.readiness_payload(root)
+
+        action_keys = [item["key"] for item in payload["recommendedNextActions"]]
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["surfaces"]["browserUse"]["status"], "passed")
+        self.assertEqual(payload["surfaces"]["computerUse"]["status"], "blocked")
+        self.assertNotIn("browser-use-dashboard-smoke-not-confirmed", payload["blockers"])
+        self.assertIn("computer-use-native-pipe-not-confirmed", payload["blockers"])
+        self.assertNotIn("run-no-write-browser-dashboard-smoke", action_keys)
+        self.assertIn("repair-computer-use-native-pipe", action_keys)
 
     def test_self_test_does_not_expose_absolute_repo_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

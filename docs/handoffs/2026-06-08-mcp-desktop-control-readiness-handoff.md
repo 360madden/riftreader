@@ -15,14 +15,21 @@ MCP dashboard.
 | New Python module | `tools\riftreader_workflow\desktop_control_readiness.py` |
 | Operator Lite command | `desktop-control-readiness` / `--desktop-control-readiness` |
 | Dashboard card | `Browser & Computer Use` in the localhost-only MCP dashboard. |
-| Current readiness result | Blocked-safe until a no-write Browser Use dashboard smoke and Computer Use native-pipe/list-apps smoke are externally confirmed. |
+| Current readiness result | Browser Use dashboard smoke is confirmed; blocked-safe only on Computer Use native-pipe/list-apps smoke. |
+| Latest local observation | `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-readiness\20260608-095805Z\observation.json` |
 
 ## Current blockers surfaced by the helper
 
 | Blocker | Meaning |
 |---|---|
-| `browser-use-dashboard-smoke-not-confirmed` | Browser Use has not yet proven it can read `http://127.0.0.1:8788/` and `/status.json` without writes/transmission. |
 | `computer-use-native-pipe-not-confirmed` | Computer Use bootstrap/list-apps has not yet succeeded; previous live probe reported native pipe unavailable. |
+
+## Browser/Computer Use smoke result
+
+| Surface | Result |
+|---|---|
+| Browser Use | Passed read-only dashboard smoke against `http://127.0.0.1:8788/`; rendered the `Browser & Computer Use` card and read `/status.json` with `status=passed`, `ok=true`, and `finalReadiness.ok=true`. |
+| Computer Use | Blocked-safe at setup: `Computer Use native pipe path is unavailable`. No list-apps response was returned. |
 
 ## Files changed
 
@@ -59,6 +66,6 @@ slice does not stop or reconfigure it.
 
 ## Next action
 
-Repair/confirm the Computer Use native pipe, run a no-write browser dashboard
-smoke against `http://127.0.0.1:8788/`, then record an ignored local observation
-artifact under `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-readiness\`.
+Repair/confirm the Computer Use native pipe, rerun the lightweight bootstrap plus
+`list_apps` smoke, then update the ignored observation artifact under
+`.riftreader-local\riftreader-chatgpt-mcp\desktop-control-readiness\`.

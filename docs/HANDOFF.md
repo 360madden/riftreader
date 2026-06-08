@@ -8,9 +8,10 @@ Fresh compact handoff:
 | New helper | `scripts\riftreader-desktop-control-readiness.cmd --json` reports no-write Browser Use and Computer Use readiness. |
 | Operator Lite | Adds `desktop-control-readiness` / `--desktop-control-readiness` plus a Browser/Computer readiness GUI button. |
 | MCP dashboard | Adds a `Browser & Computer Use` status card and `desktopControl` JSON payload. |
-| Current blocker | External smokes are still blocked-safe: `browser-use-dashboard-smoke-not-confirmed` and `computer-use-native-pipe-not-confirmed`. |
-| Safety | No browser UI automation, desktop UI automation, RIFT input, movement, tunnel management, package apply, or service changes were performed. |
-| Next operator action | Repair/confirm Computer Use native pipe, run a no-write browser dashboard smoke, then record an ignored observation artifact. |
+| Current blocker | Browser Use dashboard smoke passed; remaining external blocker is `computer-use-native-pipe-not-confirmed`. |
+| Latest observation | `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-readiness\20260608-095805Z\observation.json` |
+| Safety | Browser smoke was read-only. No clicks, typing, desktop UI automation, RIFT input, movement, tunnel management, package apply, or service changes were performed. |
+| Next operator action | Repair/confirm Computer Use native pipe, rerun lightweight bootstrap/list-apps, then update the ignored observation artifact. |
 
 ---
 

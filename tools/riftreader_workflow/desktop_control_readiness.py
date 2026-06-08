@@ -62,6 +62,42 @@ def script_exists(repo_root: Path, relative_path: str) -> bool:
     return (repo_root / relative_path).is_file()
 
 
+def recommended_next_actions(*, browser_ok: bool, computer_ok: bool) -> list[dict[str, str]]:
+    actions: list[dict[str, str]] = []
+    if not computer_ok:
+        actions.append(
+            {
+                "key": "repair-computer-use-native-pipe",
+                "reason": "Computer Use bootstrap/list_apps must succeed before desktop automation can be trusted.",
+            }
+        )
+    if not browser_ok:
+        actions.append(
+            {
+                "key": "run-no-write-browser-dashboard-smoke",
+                "reason": "Browser Use should prove it can read the localhost MCP dashboard without transmitting data.",
+            }
+        )
+    if not browser_ok or not computer_ok:
+        actions.append(
+            {
+                "key": "record-observation-artifact",
+                "reason": (
+                    "After any external smoke changes readiness, store a local ignored observation JSON under the "
+                    "desktop-control-readiness root."
+                ),
+            }
+        )
+    if browser_ok and computer_ok:
+        actions.append(
+            {
+                "key": "maintenance-loop",
+                "reason": "Both external desktop-control smokes are confirmed; keep observations fresh before live workflow use.",
+            }
+        )
+    return actions
+
+
 def readiness_payload(repo_root: Path) -> dict[str, Any]:
     observation_path = latest_observation_path(repo_root)
     observation = load_json_object(observation_path)
@@ -148,20 +184,7 @@ def readiness_payload(repo_root: Path) -> dict[str, Any]:
                 "noGitMutation": True,
             },
         },
-        "recommendedNextActions": [
-            {
-                "key": "repair-computer-use-native-pipe",
-                "reason": "Computer Use bootstrap/list_apps must succeed before desktop automation can be trusted.",
-            },
-            {
-                "key": "run-no-write-browser-dashboard-smoke",
-                "reason": "Browser Use should prove it can read the localhost MCP dashboard without transmitting data.",
-            },
-            {
-                "key": "record-observation-artifact",
-                "reason": "Once both external smokes pass, store a local ignored observation JSON under the desktop-control-readiness root.",
-            },
-        ],
+        "recommendedNextActions": recommended_next_actions(browser_ok=browser_ok, computer_ok=computer_ok),
         "safety": {
             **safety_flags(),
             "statusOnly": True,
