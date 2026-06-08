@@ -1536,6 +1536,12 @@ class RiftReaderChatGptMcpAdapter:
                 "readiness": "blocked-on-fresh-actual-chatgpt-web-desktop-proof",
             },
             "safeReadSequence": safe_read_sequence,
+            "proofRunPacket": {
+                "cli": "scripts\\riftreader-mcp-mission-control.cmd --proof-run-packet-md",
+                "serverUrl": "https://mcp.360madden.com/mcp",
+                "auth": "No Authentication",
+                "connectionMode": "cloudflare-named-tunnel",
+            },
             "transportFallback": {
                 "ifFullPlanTimesOut": (
                     "Use this summary plus get_repo_status and get_latest_handoff instead of "
