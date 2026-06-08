@@ -1,3 +1,19 @@
+# 2026-06-08 — MCP desktop-control observation writer and freshness gate
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-desktop-control-observation-writer-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| New helper behavior | `scripts\riftreader-desktop-control-readiness.cmd --record-observation ... --json` writes an ignored local observation artifact. |
+| Freshness gate | Desktop-control observations now expose `ageSeconds`, `maxAgeSeconds=86400`, and `stale`; stale observations block readiness. |
+| Current observation | `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-readiness\20260608-101740Z\observation.json` |
+| Current status | Browser Use dashboard smoke passed; Computer Use remains blocked-safe at setup with `Computer Use native pipe path is unavailable`. |
+| MCP tool surface | No new ChatGPT MCP tool was added; the proven 12-tool surface remains unchanged. Dashboard/status JSON remains the read-only exposure path. |
+| Safety | No desktop clicks, typing, window actions, RIFT input, movement, tunnel management, package apply, Git mutation through helper, CE, or x64dbg. |
+
+---
+
 # 2026-06-08 — MCP Browser/Computer readiness surface
 
 Fresh compact handoff:
