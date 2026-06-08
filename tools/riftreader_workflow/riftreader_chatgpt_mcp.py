@@ -95,6 +95,15 @@ EXPECTED_TOOL_ORDER = (
     "apply_latest_package_draft",
     "get_workflow_control_plan",
 )
+PACKAGE_PROOF_TOOL_ORDER = (
+    "get_package_proposal_template",
+    "submit_package_proposal",
+    "list_inbox",
+    "create_package_draft_from_inbox",
+    "review_latest_package_draft",
+    "dry_run_latest_package_draft",
+    "apply_latest_package_draft",
+)
 PUBLIC_READ_ONLY_TOOL_ORDER = (
     "health",
     "get_repo_status",
@@ -1140,6 +1149,19 @@ class RiftReaderChatGptMcpAdapter:
             "toolProfile": tool_profile,
             "toolCount": len(tool_order),
             "tools": tool_manifest(tool_profile)["tools"],
+            "chatGptToolFacade": {
+                "expectedAvailableToolNames": list(tool_order),
+                "packageProofToolOrder": list(PACKAGE_PROOF_TOOL_ORDER),
+                "writeActionExpectation": (
+                    "ChatGPT Developer Mode should expose these tools; tools with readOnlyHint=false are "
+                    "write actions and should require user confirmation instead of disappearing."
+                ),
+                "ifToolUnavailable": (
+                    "Refresh the rift-mcp app in ChatGPT Apps settings, verify all tools are enabled, "
+                    "select Developer Mode/rift-mcp in the conversation, then explicitly ask ChatGPT to "
+                    "call the named rift-mcp tool. Do not treat health.tools as a substitute for an actual call."
+                ),
+            },
             "safety": {
                 **base_safety(),
                 "auditUnderDotRiftReaderLocal": is_relative_to(self.config.audit_root, self.config.repo_root / ".riftreader-local"),
@@ -1565,6 +1587,14 @@ class RiftReaderChatGptMcpAdapter:
                 "First call health, get_repo_status, and get_latest_handoff; call get_workflow_control_plan only "
                 "when larger plan detail is needed and the MCP transport is stable."
             ),
+            "actualClientProofRecovery": {
+                "status": "if-package-tools-unavailable-refresh-app-and-select-developer-mode-rift-mcp",
+                "packageProofToolOrder": list(PACKAGE_PROOF_TOOL_ORDER),
+                "operatorPrompt": (
+                    "Use only rift-mcp. Call the packageProofToolOrder tools in order; call "
+                    "apply_latest_package_draft without approvalToken to prove APPLY_APPROVAL_MISSING."
+                ),
+            },
             "blockers": [],
             "warnings": [
                 "Summary omits Mission Control and safe-commit detail by design; use get_workflow_control_plan for full detail.",
@@ -4942,6 +4972,9 @@ def create_fastmcp_server(
         SERVER_NAME,
         instructions=(
             "Narrow RiftReader MCP adapter for ChatGPT Web/Desktop Developer Mode only. "
+            "For package-loop proof call get_package_proposal_template, submit_package_proposal, list_inbox, "
+            "create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, then "
+            "apply_latest_package_draft without approvalToken. "
             "This is not ChatGPT Codex and not a broad local MCP proxy. Use only the exposed allowlisted tools. "
             "Do not ask this server for shell, arbitrary filesystem, Git mutation, RIFT input, CE, x64dbg, "
             "or tunnel control; those tools are intentionally absent. "

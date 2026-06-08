@@ -252,6 +252,21 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         self.assertIn(f"tool-count-not-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}:7", blockers)
 
+    def test_reports_chatgpt_tool_facade_unavailable_blocker(self) -> None:
+        proof = valid_proof()
+        proof["applyLatestPackageDraftWithoutApprovalBlocked"] = False
+        proof["applyLatestPackageDraftWithoutApprovalBlockers"] = [
+            "TOOL_NOT_AVAILABLE_IN_CHATGPT_TOOL_FACADE:get_package_proposal_template",
+            "TOOL_NOT_AVAILABLE_IN_CHATGPT_TOOL_FACADE:submit_package_proposal",
+        ]
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn(
+            "chatgpt-tool-facade-unavailable:get_package_proposal_template,submit_package_proposal",
+            blockers,
+        )
+
     def test_accepts_valid_domain_read_only_phase0_proof(self) -> None:
         proof = recorder.domain_read_only_proof_template()
         proof.update(

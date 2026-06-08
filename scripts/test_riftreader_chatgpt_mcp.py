@@ -319,6 +319,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["noShellExecutionEndpoint"])
         self.assertTrue(payload["safety"]["auditUnderDotRiftReaderLocal"])
         self.assertFalse(payload["safety"]["absoluteRepoRootExposed"])
+        self.assertEqual(payload["chatGptToolFacade"]["packageProofToolOrder"], list(chatgpt_mcp.PACKAGE_PROOF_TOOL_ORDER))
+        self.assertIn("Refresh the rift-mcp app", payload["chatGptToolFacade"]["ifToolUnavailable"])
 
     def test_tool_result_contract_blocks_malformed_handler_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -842,6 +844,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["responseCompaction"]["minifiedBytesTarget"], chatgpt_mcp.WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET)
         self.assertIn("get_workflow_control_summary", payload["safeReadSequence"])
         self.assertIn("get_workflow_control_plan", payload["transportFallback"]["ifFullPlanTimesOut"])
+        self.assertEqual(
+            payload["actualClientProofRecovery"]["packageProofToolOrder"],
+            list(chatgpt_mcp.PACKAGE_PROOF_TOOL_ORDER),
+        )
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["actualClientProofRecovery"]["operatorPrompt"])
         self.assertLessEqual(minified_size, chatgpt_mcp.WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET)
         self.assertTrue(payload["safety"]["readOnlyControlSummary"])
         self.assertFalse(payload["safety"]["gitMutation"])

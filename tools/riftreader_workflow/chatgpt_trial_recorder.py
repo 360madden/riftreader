@@ -374,8 +374,16 @@ def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
             "apply-latest-package-draft-without-approval-blockers-not-list:"
             f"{type(apply_without_approval_blockers).__name__}"
         )
-    elif "APPLY_APPROVAL_MISSING" not in apply_without_approval_blockers:
-        blockers.append("apply-latest-package-draft-without-approval-missing-approval-blocker")
+    else:
+        facade_missing_tools = sorted(
+            str(item).split("TOOL_NOT_AVAILABLE_IN_CHATGPT_TOOL_FACADE:", 1)[1]
+            for item in apply_without_approval_blockers
+            if isinstance(item, str) and item.startswith("TOOL_NOT_AVAILABLE_IN_CHATGPT_TOOL_FACADE:")
+        )
+        if facade_missing_tools:
+            blockers.append("chatgpt-tool-facade-unavailable:" + ",".join(facade_missing_tools))
+        if "APPLY_APPROVAL_MISSING" not in apply_without_approval_blockers:
+            blockers.append("apply-latest-package-draft-without-approval-missing-approval-blocker")
     if proof.get("applyLatestPackageDraftWithoutApprovalApplied") is not False:
         blockers.append(
             "apply-latest-package-draft-without-approval-applied-not-false:"
