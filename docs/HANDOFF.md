@@ -1,3 +1,16 @@
+# 2026-06-08 — Operator Lite Computer Use repair-guide action
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-operator-lite-computer-use-repair-guide-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| New Operator Lite command | `desktop-control-repair-guide` / `--desktop-control-repair-guide` prints the guide-only Computer Use native-pipe recovery checklist. |
+| GUI | MCP & Proof tab now includes a `Computer Use Repair Guide` button. |
+| Current blocker | Computer Use still fails before `list_apps` with `Computer Use native pipe path is unavailable`; fresh ignored observation `20260608-110501Z` records Browser OK and Computer Use blocked. |
+| Safety | Guide-only: no browser/desktop UI automation, RIFT input, tunnel start, package apply, Git mutation, CE, or x64dbg. |
+
+---
 # 2026-06-08 — MCP dashboard Browser Use hydration and route-context note
 
 Fresh compact handoff:

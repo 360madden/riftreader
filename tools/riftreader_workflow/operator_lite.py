@@ -81,6 +81,9 @@ COMMAND_ALIASES = {
     "desktop-control-readiness": "desktop-control-readiness",
     "browser-computer-readiness": "desktop-control-readiness",
     "computer-use-readiness": "desktop-control-readiness",
+    "desktop-control-repair-guide": "desktop-control-repair-guide",
+    "computer-use-repair-guide": "desktop-control-repair-guide",
+    "browser-computer-repair-guide": "desktop-control-repair-guide",
     "mcp-mission-control": "mcp-mission-control",
     "mcp-proof-run-packet": "mcp-proof-run-packet",
     "proof-run-packet": "mcp-proof-run-packet",
@@ -496,6 +499,17 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             ),
             expected_exit_codes=(0, 2),
         ),
+        "desktop-control-repair-guide": CommandSpec(
+            key="desktop-control-repair-guide",
+            label="Computer Use Repair Guide",
+            args=(str(scripts / "riftreader-desktop-control-readiness.cmd"), "--repair-guide", "--json"),
+            timeout_seconds=45,
+            description=(
+                "Print the supported Computer Use native-pipe recovery checklist and safe observation commands; "
+                "guide-only, no browser UI, desktop UI, RIFT input, tunnels, package apply, or Git mutation."
+            ),
+            expected_exit_codes=(0, 2),
+        ),
         "mcp-artifacts-latest": CommandSpec(
             key="mcp-artifacts-latest",
             label="Latest MCP Artifacts",
@@ -755,6 +769,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-trial-readiness --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-mission-control --json",
             ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-readiness --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-repair-guide --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-proof-run-packet --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-artifacts --json",
             ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
@@ -1626,6 +1641,7 @@ def run_gui(repo_root: Path) -> int:
     row = button_row(mcp_panel)
     action_button(row, "MCP Mission Control", lambda: run_spec("mcp-mission-control"), "primary", width=22)
     action_button(row, "Browser/Computer Readiness", lambda: run_spec("desktop-control-readiness"), "warning", width=29)
+    action_button(row, "Computer Use Repair Guide", lambda: run_spec("desktop-control-repair-guide"), "warning", width=28)
     action_button(row, "MCP Proof Run Packet", lambda: run_spec("mcp-proof-run-packet"), "primary", width=23)
     action_button(row, "Latest MCP Artifacts", lambda: run_spec("mcp-artifacts-latest"), "bridge", width=23)
     action_button(row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
@@ -1721,6 +1737,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --mcp-trial-readiness --json | "
             "riftreader-operator-lite.cmd --mcp-mission-control --json | "
             "riftreader-operator-lite.cmd --desktop-control-readiness --json | "
+            "riftreader-operator-lite.cmd --desktop-control-repair-guide --json | "
             "riftreader-operator-lite.cmd --mcp-proof-run-packet --json | "
             "riftreader-operator-lite.cmd --mcp-artifacts --json | "
             "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
@@ -1790,6 +1807,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--desktop-control-readiness",
         action="store_true",
         help="Shortcut for --run desktop-control-readiness.",
+    )
+    parser.add_argument(
+        "--desktop-control-repair-guide",
+        action="store_true",
+        help="Shortcut for --run desktop-control-repair-guide.",
     )
     parser.add_argument(
         "--mcp-artifacts",
@@ -1880,6 +1902,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "mcp-proof-run-packet"
     if args.desktop_control_readiness:
         shortcut_command = "desktop-control-readiness"
+    if args.desktop_control_repair_guide:
+        shortcut_command = "desktop-control-repair-guide"
     if args.mcp_artifacts:
         shortcut_command = "mcp-artifacts-latest"
     if args.chatgpt_trial_proof_template:
@@ -1913,6 +1937,7 @@ def main(argv: list[str] | None = None) -> int:
             args.mcp_mission_control,
             args.mcp_proof_run_packet,
             args.desktop_control_readiness,
+            args.desktop_control_repair_guide,
             args.mcp_artifacts,
             args.chatgpt_trial_proof_template,
             args.chatgpt_trial_proof_check_latest,
