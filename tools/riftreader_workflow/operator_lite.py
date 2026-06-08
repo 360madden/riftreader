@@ -78,6 +78,9 @@ COMMAND_ALIASES = {
     "chatgpt-mcp-trial": "mcp-trial-readiness",
     "chatgpt-mcp-trial-readiness": "mcp-trial-readiness",
     "mcp-mission": "mcp-mission-control",
+    "desktop-control-readiness": "desktop-control-readiness",
+    "browser-computer-readiness": "desktop-control-readiness",
+    "computer-use-readiness": "desktop-control-readiness",
     "mcp-mission-control": "mcp-mission-control",
     "mcp-proof-run-packet": "mcp-proof-run-packet",
     "proof-run-packet": "mcp-proof-run-packet",
@@ -482,6 +485,17 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
                 "12-tool checklist, proof input path, blockers, and safety boundaries."
             ),
         ),
+        "desktop-control-readiness": CommandSpec(
+            key="desktop-control-readiness",
+            label="Browser/Computer Readiness",
+            args=(str(scripts / "riftreader-desktop-control-readiness.cmd"), "--json"),
+            timeout_seconds=45,
+            description=(
+                "Report no-write Browser Use and Computer Use readiness for the MCP dashboard workflow; "
+                "does not drive browser UI, desktop UI, RIFT input, tunnels, package apply, or Git mutation."
+            ),
+            expected_exit_codes=(0, 2),
+        ),
         "mcp-artifacts-latest": CommandSpec(
             key="mcp-artifacts-latest",
             label="Latest MCP Artifacts",
@@ -684,6 +698,7 @@ def command_plan(repo_root: Path) -> dict[str, Any]:
             "ce-x64dbg",
             "git-stage-commit-push",
             "bridge-serve-or-tunnel",
+            "browser-computer-ui-automation",
         ],
         "safety": safety_flags(),
     }
@@ -739,6 +754,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --package-draft-selftest --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-trial-readiness --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-mission-control --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --desktop-control-readiness --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-proof-run-packet --json",
             ".\\scripts\\riftreader-operator-lite.cmd --mcp-artifacts --json",
             ".\\scripts\\riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json",
@@ -1284,6 +1300,8 @@ def gui_theme_summary() -> dict[str, Any]:
             "decision packet schema contract button",
             "decision packet agent plan button",
             "browser-dashboard-aligned truth banner",
+            "Browser/Computer readiness command button",
+            "Computer Use native-pipe blocker visibility",
             "Phase 1 target family/status line",
         ],
     }
@@ -1607,6 +1625,7 @@ def run_gui(repo_root: Path) -> int:
     mcp_panel = panel(tabs["MCP & Proof"], "MCP Proof & Mission Control", "Current ChatGPT Web/Desktop MCP proof helpers; no ChatGPT registration or tunnel start.")
     row = button_row(mcp_panel)
     action_button(row, "MCP Mission Control", lambda: run_spec("mcp-mission-control"), "primary", width=22)
+    action_button(row, "Browser/Computer Readiness", lambda: run_spec("desktop-control-readiness"), "warning", width=29)
     action_button(row, "MCP Proof Run Packet", lambda: run_spec("mcp-proof-run-packet"), "primary", width=23)
     action_button(row, "Latest MCP Artifacts", lambda: run_spec("mcp-artifacts-latest"), "bridge", width=23)
     action_button(row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
@@ -1701,6 +1720,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --package-draft-selftest --json | "
             "riftreader-operator-lite.cmd --mcp-trial-readiness --json | "
             "riftreader-operator-lite.cmd --mcp-mission-control --json | "
+            "riftreader-operator-lite.cmd --desktop-control-readiness --json | "
             "riftreader-operator-lite.cmd --mcp-proof-run-packet --json | "
             "riftreader-operator-lite.cmd --mcp-artifacts --json | "
             "riftreader-operator-lite.cmd --chatgpt-trial-proof-template --json | "
@@ -1765,6 +1785,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--mcp-proof-run-packet",
         action="store_true",
         help="Shortcut for --run mcp-proof-run-packet.",
+    )
+    parser.add_argument(
+        "--desktop-control-readiness",
+        action="store_true",
+        help="Shortcut for --run desktop-control-readiness.",
     )
     parser.add_argument(
         "--mcp-artifacts",
@@ -1853,6 +1878,8 @@ def main(argv: list[str] | None = None) -> int:
         shortcut_command = "mcp-mission-control"
     if args.mcp_proof_run_packet:
         shortcut_command = "mcp-proof-run-packet"
+    if args.desktop_control_readiness:
+        shortcut_command = "desktop-control-readiness"
     if args.mcp_artifacts:
         shortcut_command = "mcp-artifacts-latest"
     if args.chatgpt_trial_proof_template:
@@ -1885,6 +1912,7 @@ def main(argv: list[str] | None = None) -> int:
             args.mcp_trial_readiness,
             args.mcp_mission_control,
             args.mcp_proof_run_packet,
+            args.desktop_control_readiness,
             args.mcp_artifacts,
             args.chatgpt_trial_proof_template,
             args.chatgpt_trial_proof_check_latest,

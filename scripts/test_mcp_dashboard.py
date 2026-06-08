@@ -54,6 +54,7 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("Local status dashboard only", html)
         self.assertIn("No start/stop", html)
         self.assertIn("/status.json", html)
+        self.assertIn("Browser & Computer Use", html)
 
 
 if __name__ == "__main__":

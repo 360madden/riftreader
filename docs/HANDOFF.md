@@ -1,3 +1,19 @@
+# 2026-06-08 — MCP Browser/Computer readiness surface
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-desktop-control-readiness-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| New helper | `scripts\riftreader-desktop-control-readiness.cmd --json` reports no-write Browser Use and Computer Use readiness. |
+| Operator Lite | Adds `desktop-control-readiness` / `--desktop-control-readiness` plus a Browser/Computer readiness GUI button. |
+| MCP dashboard | Adds a `Browser & Computer Use` status card and `desktopControl` JSON payload. |
+| Current blocker | External smokes are still blocked-safe: `browser-use-dashboard-smoke-not-confirmed` and `computer-use-native-pipe-not-confirmed`. |
+| Safety | No browser UI automation, desktop UI automation, RIFT input, movement, tunnel management, package apply, or service changes were performed. |
+| Next operator action | Repair/confirm Computer Use native pipe, run a no-write browser dashboard smoke, then record an ignored observation artifact. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP final readiness passed
 
 Fresh compact handoff:

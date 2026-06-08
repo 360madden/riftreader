@@ -22,6 +22,7 @@ try:
         EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES,
     )
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from .desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from .mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -40,6 +41,7 @@ except ImportError:  # pragma: no cover
         EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES,
     )
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from riftreader_workflow.desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from riftreader_workflow.mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -143,6 +145,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     }
     final_status = command_json(repo_root, ["cmd", "/c", "scripts\\riftreader-mcp-final.cmd", "--status", "--compact-json"], 10.0)
     mission = command_json(repo_root, ["cmd", "/c", "scripts\\riftreader-mcp-mission-control.cmd", "--json"], 12.0)
+    desktop_control = desktop_control_readiness_payload(repo_root)
     latest_template_path = latest_file(repo_root / PROOF_INPUT_TEMPLATE_ROOT, "*/proof-input.json")
     latest_proof_path = latest_file(repo_root / ACTUAL_CLIENT_PROOF_ROOT, "*/proof.json")
     latest_template = load_json_file(latest_template_path)
@@ -179,6 +182,14 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "ok": final_status.get("ok"),
             "recommendedNextAction": final_status.get("recommendedNextAction"),
             "blockers": (final_status.get("blockers") or [])[:10],
+        },
+        "desktopControl": {
+            "status": desktop_control.get("status"),
+            "ok": desktop_control.get("ok"),
+            "blockers": (desktop_control.get("blockers") or [])[:10],
+            "surfaces": desktop_control.get("surfaces"),
+            "latestObservation": desktop_control.get("latestObservation"),
+            "recommendedNextActions": desktop_control.get("recommendedNextActions"),
         },
         "proof": {
             "latestTemplatePath": rel(repo_root, latest_template_path),
@@ -261,6 +272,7 @@ async function refresh() {
   cards.push(card("Tool surface", `<h3>Phase 0 read-only</h3>${list(s.toolSurface.phase0ReadOnlyTools)}<h3>Full 12-tool final proof</h3><p>${s.toolSurface.fullFinalProofToolCount} tools retained.</p>`));
   cards.push(card("Mission Control", `${pill("mission", s.missionControl.ok, s.missionControl.status)}<p>Next: <code>${esc(JSON.stringify(s.missionControl.recommendedNextAction || {}))}</code></p>${list(s.missionControl.blockers)}`));
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
+  cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
   cards.push(card("Safety", `${pill("dashboard", true, "status-only")} ${pill("controls", null, "disabled")}<ul><li>No shell endpoint</li><li>No arbitrary filesystem endpoint</li><li>No Git mutation endpoint</li><li>No RIFT input</li><li>No CE/x64dbg</li></ul>`));
   cards.push(card("Recent audit/events", `<pre>${esc(JSON.stringify(s.recentAuditEvents, null, 2))}</pre>`));
   document.getElementById("cards").innerHTML = cards.join("");
