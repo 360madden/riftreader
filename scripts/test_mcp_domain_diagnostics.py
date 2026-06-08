@@ -90,6 +90,29 @@ class McpDomainDiagnosticsTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["blockers"], [])
 
+    def test_windows_port_owner_filters_exact_listening_port(self) -> None:
+        netstat_stdout = "\n".join(
+            [
+                "  TCP    0.0.0.0:443          0.0.0.0:0              LISTENING       123",
+                "  TCP    127.0.0.1:4430       127.0.0.1:49350        FIN_WAIT_2      456",
+                "  TCP    127.0.0.1:8770       127.0.0.1:3684         ESTABLISHED     789",
+            ]
+        )
+
+        def fake_run(args: list[str], stdout_limit: int | None = 4000) -> dict[str, object]:
+            if args[:2] == ["netstat", "-ano"]:
+                return {"args": args, "exitCode": 0, "ok": True, "stdout": netstat_stdout, "stderr": ""}
+            if args[:1] == ["tasklist"]:
+                return {"args": args, "exitCode": 0, "ok": True, "stdout": '"caddy.exe","123","Services","0","1,234 K"\n', "stderr": ""}
+            return {"args": args, "exitCode": 1, "ok": False, "stdout": "", "stderr": ""}
+
+        with mock.patch.object(diag, "_run", side_effect=fake_run):
+            payload = diag.check_windows_port_owner(443)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["listeners"], [{"protocol": "TCP", "local": "0.0.0.0:443", "foreign": "0.0.0.0:0", "state": "LISTENING", "pid": "123"}])
+        self.assertEqual(payload["processes"], [{"pid": "123", "imageName": "caddy.exe"}])
+
     def test_collect_diagnostics_marks_cloudflare_tunnel_active_and_caddy_deprecated(self) -> None:
         fake_owner_443 = {
             "status": "blocked",

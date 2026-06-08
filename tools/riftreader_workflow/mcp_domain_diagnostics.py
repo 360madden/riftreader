@@ -125,10 +125,14 @@ def check_windows_port_owner(port: int) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     pids: set[str] = set()
     if netstat.get("ok"):
-        marker = f":{port}"
         for line in str(netstat.get("stdout") or "").splitlines():
             parts = line.split()
-            if len(parts) >= 5 and parts[0].upper() == "TCP" and marker in parts[1]:
+            if (
+                len(parts) >= 5
+                and parts[0].upper() == "TCP"
+                and parts[3].upper() == "LISTENING"
+                and _netstat_local_port(parts[1]) == port
+            ):
                 row = {"protocol": parts[0], "local": parts[1], "foreign": parts[2], "state": parts[3], "pid": parts[4]}
                 rows.append(row)
                 pids.add(parts[4])
@@ -157,6 +161,17 @@ def check_windows_port_owner(port: int) -> dict[str, Any]:
         "blockers": blockers,
         "commands": {"netstat": {key: netstat.get(key) for key in ("args", "exitCode", "ok", "error") if key in netstat}},
     }
+
+
+def _netstat_local_port(local_address: str) -> int | None:
+    """Return the numeric port from a Windows netstat local address field."""
+
+    if ":" not in local_address:
+        return None
+    port_text = local_address.rsplit(":", 1)[-1]
+    if not port_text.isdigit():
+        return None
+    return int(port_text)
 
 
 def parse_mcp_initialize_response(text: str, content_type: str) -> dict[str, Any]:
