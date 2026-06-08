@@ -23,6 +23,7 @@ try:
     )
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from .desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
+    from .desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
     from .mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover
     )
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from riftreader_workflow.desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
+    from riftreader_workflow.desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
     from riftreader_workflow.mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -146,6 +148,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     final_status = command_json(repo_root, ["cmd", "/c", "scripts\\riftreader-mcp-final.cmd", "--status", "--compact-json"], 10.0)
     mission = command_json(repo_root, ["cmd", "/c", "scripts\\riftreader-mcp-mission-control.cmd", "--json"], 12.0)
     desktop_control = desktop_control_readiness_payload(repo_root)
+    desktop_control_queue = desktop_control_queue_contract_payload(repo_root)
     latest_template_path = latest_file(repo_root / PROOF_INPUT_TEMPLATE_ROOT, "*/proof-input.json")
     latest_proof_path = latest_file(repo_root / ACTUAL_CLIENT_PROOF_ROOT, "*/proof.json")
     latest_template = load_json_file(latest_template_path)
@@ -206,6 +209,15 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "surfaces": desktop_control.get("surfaces"),
             "latestObservation": desktop_control.get("latestObservation"),
             "recommendedNextActions": desktop_control.get("recommendedNextActions"),
+        },
+        "desktopControlQueue": {
+            "status": desktop_control_queue.get("status"),
+            "ok": desktop_control_queue.get("ok"),
+            "summary": desktop_control_queue.get("summary"),
+            "execution": desktop_control_queue.get("execution"),
+            "queueItemSchema": desktop_control_queue.get("queueItemSchema"),
+            "requiredGatesBeforeAnyFutureExecutor": desktop_control_queue.get("requiredGatesBeforeAnyFutureExecutor"),
+            "safety": desktop_control_queue.get("safety"),
         },
         "proof": {
             "latestTemplatePath": rel(repo_root, latest_template_path),
@@ -300,6 +312,7 @@ function renderStatus(s, source) {
   cards.push(card("Mission Control", `${pill("mission", s.missionControl.ok, s.missionControl.status)}<p>Next: <code>${esc(JSON.stringify(s.missionControl.recommendedNextAction || {}))}</code></p>${list(s.missionControl.blockers)}`));
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
   cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
+  cards.push(card("Desktop Queue Contract", `${pill("contract", s.desktopControlQueue.ok, s.desktopControlQueue.status)} ${pill("execution", s.desktopControlQueue.execution?.enabled, s.desktopControlQueue.execution?.status)}<p>${esc(s.desktopControlQueue.summary)}</p><h3>Required gates</h3>${list(s.desktopControlQueue.requiredGatesBeforeAnyFutureExecutor)}<h3>Forbidden action families</h3>${list(s.desktopControlQueue.queueItemSchema?.forbiddenActionFamilies)}<h3>Execution</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.execution || {}, null, 2))}</pre>`));
   cards.push(card("Safety", `${pill("dashboard", true, "status-only")} ${pill("controls", null, "disabled")}<ul><li>No shell endpoint</li><li>No arbitrary filesystem endpoint</li><li>No Git mutation endpoint</li><li>No RIFT input</li><li>No CE/x64dbg</li></ul>`));
   cards.push(card("Recent audit/events", `<pre>${esc(JSON.stringify(s.recentAuditEvents, null, 2))}</pre>`));
   document.getElementById("cards").innerHTML = cards.join("");

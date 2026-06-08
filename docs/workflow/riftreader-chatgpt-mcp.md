@@ -126,7 +126,12 @@ scripts\riftreader-mcp-dashboard.cmd
 
 Open `http://127.0.0.1:8788/`. The dashboard is localhost-only, auto-refreshes,
 and has no start/stop, shell, Git, RIFT input, CE, x64dbg, arbitrary filesystem,
-or public control endpoint.
+or public control endpoint. It also displays the plan-only Desktop Queue
+Contract from `scripts\riftreader-desktop-control-queue-contract.cmd --json`:
+the contract shows Browser/Computer readiness, required future executor gates,
+forbidden action families, and `execution.status=disabled`. This is visibility
+only; it does not add a queue writer, executor, ChatGPT MCP tool, Browser Use
+automation, Computer Use automation, desktop input, or game-control endpoint.
 
 ## Hard boundaries
 

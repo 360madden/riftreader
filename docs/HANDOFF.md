@@ -1,3 +1,17 @@
+# 2026-06-08 — MCP dashboard Desktop Queue Contract card
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-dashboard-desktop-queue-contract-card-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Dashboard JSON | `scripts\riftreader-mcp-dashboard.cmd --once-json --no-public-smoke` now includes `desktopControlQueue`. |
+| Dashboard UI | The localhost-only dashboard renders a `Desktop Queue Contract` card with required future gates and forbidden action families. |
+| Execution state | Still disabled: no queue writer, executor, MCP tool, Browser/Computer automation, desktop input, RIFT input, tunnel start, package apply, Git mutation, CE, or x64dbg endpoint. |
+| Current blocker | Computer Use still fails at setup with `Computer Use native pipe path is unavailable`; latest ignored observation is `20260608-113208Z`. |
+| Next action | Repair Computer Use native pipe externally, prove bootstrap/list-apps only, then record a success observation. |
+
+---
 # 2026-06-08 — Desktop control command queue contract
 
 Fresh compact handoff:

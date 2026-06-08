@@ -55,6 +55,7 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("No start/stop", html)
         self.assertIn("/status.json", html)
         self.assertIn("Browser & Computer Use", html)
+        self.assertIn("Desktop Queue Contract", html)
         self.assertIn("legacy Caddy/router is deprecated", html)
 
     def test_render_html_embeds_initial_status_for_fetch_blocked_browsers(self) -> None:
@@ -86,6 +87,19 @@ class McpDashboardTests(unittest.TestCase):
                     "desktop_control_readiness_payload",
                     return_value={"ok": True, "status": "passed"},
                 ),
+                mock.patch.object(
+                    dashboard,
+                    "desktop_control_queue_contract_payload",
+                    return_value={
+                        "ok": True,
+                        "status": "passed",
+                        "summary": "plan only",
+                        "execution": {"enabled": False, "status": "disabled"},
+                        "queueItemSchema": {"forbiddenActionFamilies": ["desktop-click"]},
+                        "requiredGatesBeforeAnyFutureExecutor": ["desktopControlReadiness.ok=true"],
+                        "safety": {"contractOnly": True, "executionEndpoint": False},
+                    },
+                ),
             ):
                 status = dashboard.collect_status(root, "mcp.360madden.com", include_public_smoke=True)
 
@@ -93,6 +107,9 @@ class McpDashboardTests(unittest.TestCase):
         self.assertTrue(status["activeRoute"]["legacyCaddyRouterDeprecated"])
         self.assertTrue(status["activeRoute"]["tcp443OwnerDiagnosticOnly"])
         self.assertTrue(status["domain"]["tcp443OwnerDiagnosticOnly"])
+        self.assertEqual(status["desktopControlQueue"]["execution"]["status"], "disabled")
+        self.assertFalse(status["desktopControlQueue"]["execution"]["enabled"])
+        self.assertIn("desktopControlReadiness.ok=true", status["desktopControlQueue"]["requiredGatesBeforeAnyFutureExecutor"])
 
 
 if __name__ == "__main__":
