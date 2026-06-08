@@ -1,3 +1,19 @@
+# 2026-06-08 — ChatGPT MCP draft-created proof compact handoff
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-chatgpt-mcp-draft-created-proof-compact-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Proof progress | ChatGPT has successfully called `get_package_proposal_template`, `submit_package_proposal`, `list_inbox`, and `create_package_draft_from_inbox`. |
+| Latest inbox ID | `20260608T034503Z-2828ca695563` |
+| Latest draft ID | `20260608T034503Z-2828ca695563` |
+| Current blocker | ChatGPT still needs to call `review_latest_package_draft` and prove read-only review for the latest draft. |
+| Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to `127.0.0.1:8770`; Caddy is deprecated and not active. |
+| Next operator action | In ChatGPT, call `review_latest_package_draft`, then paste the output into Codex. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP list-inbox proof compact handoff
 
 Fresh compact handoff:
