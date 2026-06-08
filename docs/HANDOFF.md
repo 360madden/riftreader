@@ -7,12 +7,13 @@ Mode app at `2026-06-08T03:35:46Z`.
 | Item | Current truth |
 |---|---|
 | Latest handoff | `docs/handoffs/2026-06-08-chatgpt-mcp-package-template-callable-handoff.md` |
-| Cleared blocker | `get_package_proposal_template` is now callable in ChatGPT; `template-fetch-not-confirmed` is no longer current. |
+| Cleared blockers | `get_package_proposal_template` and `submit_package_proposal` are now callable in ChatGPT; `template-fetch-not-confirmed` and `submit-package-proposal-not-confirmed` are no longer current. |
 | Current proof input | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260607-232355Z\proof-input.json` |
-| Current proof state | Still blocked until `submit_package_proposal`, `list_inbox`, `create_package_draft_from_inbox`, `review_latest_package_draft`, `dry_run_latest_package_draft`, and `apply_latest_package_draft` without `approvalToken` are observed from ChatGPT. |
+| Latest ChatGPT inbox ID | `20260608T034503Z-2828ca695563` |
+| Current proof state | Still blocked until ChatGPT `list_inbox` sees `20260608T034503Z-2828ca695563`, then `create_package_draft_from_inbox`, `review_latest_package_draft`, `dry_run_latest_package_draft`, and `apply_latest_package_draft` without `approvalToken` are observed from ChatGPT. |
 | Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to local backend `127.0.0.1:8770`; Caddy remains deprecated and is not the active route. |
 | Latest domain diagnostics | `.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics\20260608-033956Z\summary.json` passed. |
-| Next operator action | In ChatGPT, call `submit_package_proposal` with the minimal proof-smoke package from the latest handoff, then paste the output back into Codex. |
+| Next operator action | In ChatGPT, call `list_inbox`, then paste the output back into Codex. |
 
 ---
 
