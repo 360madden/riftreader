@@ -232,7 +232,7 @@ x64dbg action.
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Planned; not exposed | Explicit approval plus repo-owned command allowlist, argument-array invocation, timeout/output caps. |
-| Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan. |
+| Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan; plan-only gates are drafted in `docs\workflow\riftreader-chatgpt-mcp-live-control-design.md`. |
 | Debugger/CE assist | Planned; not exposed | Explicit debugger approval with crash-risk statement and candidate-only proof boundaries. |
 
 Default development order: apply-package dry-run-to-apply bridge first, local
