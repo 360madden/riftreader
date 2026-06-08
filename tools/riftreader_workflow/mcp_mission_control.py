@@ -543,6 +543,148 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
     )
 
 
+def render_proof_run_packet(payload: dict[str, Any], domain_payload: dict[str, Any] | None = None) -> str:
+    """Render a compact current proof packet for ChatGPT Web/Desktop setup."""
+
+    commands = payload.get("pasteSafeCommands") if isinstance(payload.get("pasteSafeCommands"), dict) else {}
+    final_status = payload.get("finalStatus") if isinstance(payload.get("finalStatus"), dict) else {}
+    latest = payload.get("latestArtifacts") if isinstance(payload.get("latestArtifacts"), dict) else {}
+    proof_template = latest.get("proof-input-template") if isinstance(latest.get("proof-input-template"), dict) else {}
+    proof_paths = proof_template.get("artifactPaths") if isinstance(proof_template.get("artifactPaths"), dict) else {}
+    proof_input_json = proof_paths.get("proofInputJson") or proof_template.get("path") or ""
+    domain_payload = domain_payload if isinstance(domain_payload, dict) else {}
+    public_url = domain_payload.get("publicMcpUrl") or "https://mcp.360madden.com/mcp"
+    backend = domain_payload.get("backend") if isinstance(domain_payload.get("backend"), dict) else {}
+    owner = backend.get("owner") if isinstance(backend.get("owner"), dict) else {}
+    processes = owner.get("processes") if isinstance(owner.get("processes"), list) else []
+    backend_pids = ", ".join(str(proc.get("pid")) for proc in processes if isinstance(proc, dict) and proc.get("pid")) or "not-detected"
+    public_smoke = domain_payload.get("publicSmoke") if isinstance(domain_payload.get("publicSmoke"), dict) else {}
+    server_info = public_smoke.get("serverInfo") if isinstance(public_smoke.get("serverInfo"), dict) else {}
+    check_command = [
+        "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+        "--check-input",
+        "--input",
+        proof_input_json or "<proof-input.json>",
+        "--json",
+    ]
+    record_command = [
+        "scripts\\riftreader-chatgpt-trial-recorder.cmd",
+        "--record",
+        "--input",
+        proof_input_json or "<proof-input.json>",
+        "--json",
+    ]
+    tool_names_json = json.dumps(list(EXPECTED_CHATGPT_MCP_TOOL_NAMES), indent=2)
+    lines = [
+        "# RiftReader ChatGPT Web/Desktop MCP proof run packet",
+        "",
+        "## Current route",
+        "",
+        f"- Server URL: `{public_url}`",
+        "- Authentication: `No Authentication`",
+        "- Connection mode to record: `cloudflare-named-tunnel`",
+        f"- Public smoke: `{public_smoke.get('status', 'unknown')}` HTTP `{public_smoke.get('httpStatus')}`",
+        f"- Server info: `{server_info.get('name', 'unknown')}` version `{server_info.get('version', 'unknown')}`",
+        f"- Local backend: `127.0.0.1:8770` PID(s) `{backend_pids}`",
+        "- Retired paths: OpenAI Secure MCP Tunnel, `trycloudflare.com` quick tunnels, and Caddy/router are not backups.",
+        "",
+        "## Proof template",
+        "",
+        f"- Latest proof input: `{proof_input_json or 'missing'}`",
+        f"- Template status: `{proof_template.get('status', 'missing')}`",
+        f"- Check filled input: `{' '.join(check_command)}`",
+        f"- Record after check passes: `{' '.join(record_command)}`",
+        "",
+        "## ChatGPT call sequence",
+        "",
+        "1. Connect this MCP in ChatGPT Web/Desktop with the Server URL above and No Authentication.",
+        "2. Call `health` and confirm `repoRoot == \".\"` and `absoluteRepoRootExposed == false`.",
+        "3. Confirm ChatGPT sees exactly the 12 tool names listed below and output schemas for all 12.",
+        "4. Call `get_repo_status`, `get_latest_handoff`, and `get_workflow_control_summary`.",
+        "5. Call `get_package_proposal_template` and record `templateFetched: true`.",
+        "6. Submit one tiny harmless `package-proposal` via `submit_package_proposal`.",
+        "7. Call `list_inbox` and record that it sees the returned `inboxId`.",
+        "8. Call `create_package_draft_from_inbox` for that `inboxId`.",
+        "9. Call `review_latest_package_draft` and record that the review is read-only.",
+        "10. Call `dry_run_latest_package_draft` and record `diffPreview` path, length, bounded-bytes flag, and truncated flag.",
+        "11. Call `apply_latest_package_draft` without an approval token and record that it blocks with `APPLY_APPROVAL_MISSING` and `applied=false`.",
+        "",
+        "## Expected tool names",
+        "",
+        "```json",
+        tool_names_json,
+        "```",
+        "",
+        "## Local validation after filling proof input",
+        "",
+        f"1. `{' '.join(check_command)}`",
+        f"2. `{' '.join(record_command)}`",
+        f"3. `{' '.join(commands.get('finalCompactStatus') or [])}`",
+        "",
+        "## Current blockers to clear",
+        "",
+    ]
+    for blocker in final_status.get("blockers") or payload.get("blockers") or ["none"]:
+        lines.append(f"- `{blocker}`")
+    lines.extend(
+        [
+            "",
+            "## Safety boundaries",
+            "",
+            "- Do not send RIFT input, movement, target selection, `/reloadui`, or screenshot-key input during this proof.",
+            "- Do not attach CE/x64dbg or promote coordinate/current-truth artifacts.",
+            "- Do not apply packages with an approval token, commit, push, or write provider repos during this proof.",
+            "- Keep the MCP backend narrow and stop if ChatGPT observes unexpected tools or missing output schemas.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def domain_diagnostics_payload(repo_root: Path) -> dict[str, Any]:
+    """Run domain diagnostics through its CMD wrapper to avoid import cycles."""
+
+    envelope = run_command_envelope(
+        "proof-run-packet-domain-diagnostics",
+        ["scripts\\riftreader-mcp-domain-diagnostics.cmd", "--public-mcp-host", "mcp.360madden.com", "--json"],
+        repo_root,
+        timeout_seconds=45,
+        expected_exit_codes={0, 1, 2},
+        capture_full_output=True,
+    )
+    stdout = envelope.get("stdout") if isinstance(envelope.get("stdout"), str) else ""
+    parsed: dict[str, Any] = {}
+    if stdout.strip().startswith("{"):
+        try:
+            loaded = json.loads(stdout)
+            if isinstance(loaded, dict):
+                parsed = loaded
+        except json.JSONDecodeError:
+            parsed = {}
+    if parsed:
+        parsed.setdefault("commandEnvelope", envelope)
+        return parsed
+    return {
+        "schemaVersion": 1,
+        "kind": "riftreader-chatgpt-mcp-domain-diagnostics-unavailable",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked",
+        "ok": False,
+        "publicMcpUrl": "https://mcp.360madden.com/mcp",
+        "blockers": ["domain-diagnostics-json-unavailable"],
+        "commandEnvelope": envelope,
+        "safety": {
+            **safety_flags(),
+            "statusOnly": True,
+            "serverStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "gitMutation": False,
+            "inputSent": False,
+            "movementSent": False,
+        },
+    }
+
+
 def run_local_action(repo_root: Path, command_key: str, label: str) -> dict[str, Any]:
     commands = standard_commands()
     args = commands[command_key]
@@ -595,6 +737,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--trial-command", action="store_true", help="Retired: Cloudflare ChatGPT trial sessions are no longer a fallback path.")
     mode.add_argument("--summary-md", action="store_true", help="Print a Markdown mission-control summary.")
     mode.add_argument("--checklist-md", action="store_true", help="Print a Markdown actual-client proof checklist.")
+    mode.add_argument("--proof-run-packet-md", action="store_true", help="Print a current ChatGPT Web/Desktop proof run packet.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -620,6 +763,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.checklist_md:
         payload = mission_control(repo_root)
         print(render_proof_checklist(payload))
+        return 0
+    elif args.proof_run_packet_md:
+        payload = mission_control(repo_root)
+        domain_payload = domain_diagnostics_payload(repo_root)
+        print(render_proof_run_packet(payload, domain_payload))
         return 0
     else:
         payload = mission_control(repo_root)

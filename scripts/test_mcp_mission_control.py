@@ -305,6 +305,18 @@ class McpMissionControlTests(unittest.TestCase):
 
             summary = mission.render_summary_markdown(payload)
             checklist = mission.render_proof_checklist(payload)
+            packet = mission.render_proof_run_packet(
+                payload,
+                {
+                    "publicMcpUrl": "https://mcp.360madden.com/mcp",
+                    "publicSmoke": {
+                        "status": "passed",
+                        "httpStatus": 200,
+                        "serverInfo": {"name": "riftreader_chatgpt_mcp", "version": "1.27.1"},
+                    },
+                    "backend": {"owner": {"processes": [{"pid": "12345", "imageName": "python.exe"}]}},
+                },
+            )
 
         self.assertIn("RiftReader MCP Mission Control Summary", summary)
         self.assertIn("Final product progress", summary)
@@ -324,6 +336,16 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("APPLY_APPROVAL_MISSING", checklist)
         self.assertIn("riftreader-mcp-final.cmd --status --compact-json", checklist)
         self.assertIn("scripts\\riftreader-chatgpt-trial-recorder.cmd --record --input proof.json --json", checklist)
+        self.assertIn("RiftReader ChatGPT Web/Desktop MCP proof run packet", packet)
+        self.assertIn("https://mcp.360madden.com/mcp", packet)
+        self.assertIn("No Authentication", packet)
+        self.assertIn("cloudflare-named-tunnel", packet)
+        self.assertIn("127.0.0.1:8770", packet)
+        self.assertIn("12345", packet)
+        self.assertIn("Expected tool names", packet)
+        self.assertIn("apply_latest_package_draft", packet)
+        self.assertIn("APPLY_APPROVAL_MISSING", packet)
+        self.assertIn("Do not send RIFT input", packet)
 
 
 if __name__ == "__main__":
