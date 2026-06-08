@@ -115,33 +115,76 @@ GROUP_ALIASES = {
     "chatgpt-trial-readiness": "bridge-trial-readiness",
 }
 
-GUI_PALETTE = {
-    "background": "#0f172a",
-    "panel": "#111827",
-    "panel_alt": "#1f2937",
-    "text": "#f8fafc",
-    "muted": "#cbd5e1",
-    "output_bg": "#020617",
-    "output_fg": "#e5e7eb",
-    "status_bg": "#0b1220",
-    "status_fg": "#93c5fd",
-    "truth_bg": "#132033",
-    "truth_border": "#2563eb",
-    "truth_fg": "#bfdbfe",
-    "truth_accent": "#4dd4ac",
-    "primary": "#2563eb",
-    "primary_active": "#1d4ed8",
-    "success": "#15803d",
-    "success_active": "#166534",
-    "warning": "#b45309",
-    "warning_active": "#92400e",
-    "bridge": "#6d28d9",
-    "bridge_active": "#5b21b6",
-    "neutral": "#475569",
-    "neutral_active": "#334155",
-    "disabled_bg": "#3f1f2f",
-    "disabled_fg": "#fca5a5",
+GUI_THEMES = {
+    "Dark": {
+        "background": "#0f172a",
+        "panel": "#111827",
+        "panel_alt": "#1f2937",
+        "text": "#f8fafc",
+        "muted": "#cbd5e1",
+        "button_fg": "#ffffff",
+        "output_bg": "#020617",
+        "output_fg": "#e5e7eb",
+        "status_bg": "#0b1220",
+        "status_fg": "#93c5fd",
+        "truth_bg": "#132033",
+        "truth_border": "#2563eb",
+        "truth_fg": "#bfdbfe",
+        "truth_accent": "#4dd4ac",
+        "primary": "#2563eb",
+        "primary_active": "#1d4ed8",
+        "success": "#15803d",
+        "success_active": "#166534",
+        "warning": "#b45309",
+        "warning_active": "#92400e",
+        "bridge": "#6d28d9",
+        "bridge_active": "#5b21b6",
+        "neutral": "#475569",
+        "neutral_active": "#334155",
+        "disabled_bg": "#3f1f2f",
+        "disabled_fg": "#fca5a5",
+        "fail": "#f87171",
+    },
+    "Light": {
+        "background": "#f8fafc",
+        "panel": "#ffffff",
+        "panel_alt": "#e2e8f0",
+        "text": "#0f172a",
+        "muted": "#475569",
+        "button_fg": "#ffffff",
+        "output_bg": "#ffffff",
+        "output_fg": "#111827",
+        "status_bg": "#e0f2fe",
+        "status_fg": "#075985",
+        "truth_bg": "#eff6ff",
+        "truth_border": "#2563eb",
+        "truth_fg": "#1e3a8a",
+        "truth_accent": "#047857",
+        "primary": "#2563eb",
+        "primary_active": "#1d4ed8",
+        "success": "#15803d",
+        "success_active": "#166534",
+        "warning": "#b45309",
+        "warning_active": "#92400e",
+        "bridge": "#7c3aed",
+        "bridge_active": "#6d28d9",
+        "neutral": "#64748b",
+        "neutral_active": "#475569",
+        "disabled_bg": "#fee2e2",
+        "disabled_fg": "#991b1b",
+        "fail": "#dc2626",
+    },
 }
+GUI_PALETTE = GUI_THEMES["Dark"]
+GUI_FONT_FAMILIES = ("Segoe UI", "Calibri", "Arial", "Consolas")
+GUI_TAB_NAMES = (
+    "Dashboard",
+    "MCP & Proof",
+    "Bridge",
+    "Packages",
+    "Reports & Git",
+    "Locked Controls",
+)
 
 BUTTON_VARIANTS = {
     "primary": ("primary", "primary_active"),
@@ -1178,18 +1221,37 @@ def redacted_bridge_chatgpt_prompt(repo_root: Path) -> str:
 
 def gui_theme_summary() -> dict[str, Any]:
     return {
+        "themes": {name: dict(palette) for name, palette in GUI_THEMES.items()},
+        "defaultTheme": "Dark",
+        "fontFamilies": list(GUI_FONT_FAMILIES),
+        "tabs": list(GUI_TAB_NAMES),
         "palette": GUI_PALETTE,
         "buttonVariants": sorted(BUTTON_VARIANTS.keys()),
         "sections": [
-            "Workflow Status & Triage",
-            "Packages, Reports & Git",
-            "Local Artifact Bridge",
+            "Dashboard",
+            "MCP & Proof",
+            "Bridge",
+            "Packages",
+            "Reports & Git",
             "Locked Live Controls",
         ],
+        "layoutFeatures": [
+            "tabbed notebook organization",
+            "theme selector dropdown",
+            "font selector dropdown",
+            "safe command dropdown runner",
+            "colorized status output tags",
+            "responsive grouped command rows",
+        ],
         "visualRules": [
-            "dark grouped panels",
+            "dark and light grouped panels",
             "high contrast action buttons",
             "distinct bridge color",
+            "tabbed MCP proof workspace",
+            "dropdown command launcher",
+            "runtime font selection",
+            "runtime theme selection",
+            "colorized output stream",
             "bridge buttons split into action and copy rows",
             "Desktop ChatGPT handoff packet",
             "Desktop ChatGPT session-start packet",
@@ -1228,196 +1290,181 @@ def gui_theme_summary() -> dict[str, Any]:
 
 def run_gui(repo_root: Path) -> int:
     import tkinter as tk
-    from tkinter import filedialog, font as tkfont, messagebox, scrolledtext
+    from tkinter import filedialog, font as tkfont, messagebox, scrolledtext, ttk
 
     specs = build_command_specs(repo_root)
     groups = build_command_groups()
-    palette = GUI_PALETTE
+    palette = dict(GUI_THEMES["Dark"])
 
     root = tk.Tk()
     root.title("RiftReader Operator Lite")
-    root.geometry("1220x820")
-    root.minsize(1040, 720)
-    root.configure(bg=palette["background"])
+    root.geometry("1360x900")
+    root.minsize(1120, 760)
 
-    title_font = tkfont.Font(family="Segoe UI", size=16, weight="bold")
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+
+    title_font = tkfont.Font(family="Segoe UI", size=18, weight="bold")
     subtitle_font = tkfont.Font(family="Segoe UI", size=10)
     panel_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
     button_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
     small_font = tkfont.Font(family="Segoe UI", size=9)
+    output_font = tkfont.Font(family="Consolas", size=10)
 
-    header = tk.Frame(root, bg=palette["background"])
-    header.pack(fill=tk.X, padx=14, pady=(12, 6))
-    tk.Label(
-        header,
-        text="RiftReader Operator Lite",
-        bg=palette["background"],
-        fg=palette["text"],
-        font=title_font,
-        anchor="w",
-    ).pack(fill=tk.X)
-    tk.Label(
-        header,
-        text="Safe local workflow launcher — no movement, debugger attach, bridge serving, tunnel management, or Git mutation.",
-        bg=palette["background"],
-        fg=palette["muted"],
-        font=subtitle_font,
-        anchor="w",
-    ).pack(fill=tk.X, pady=(2, 0))
-
+    theme_var = tk.StringVar(value="Dark")
+    font_family_var = tk.StringVar(value="Segoe UI")
+    action_var = tk.StringVar()
+    status_var = tk.StringVar(value="READY | Safe/offline mode | No live input | No CE/x64dbg | No promotion/push")
     truth_status_var = tk.StringVar(value=operator_truth_text(repo_root))
     bridge_status_var = tk.StringVar(value=bridge_status_text(repo_root))
-    truth_banner = tk.Frame(
-        header,
-        bg=palette["truth_bg"],
-        highlightbackground=palette["truth_border"],
-        highlightthickness=1,
-        padx=10,
-        pady=8,
-    )
-    truth_banner.pack(fill=tk.X, pady=(8, 0))
-    tk.Label(
-        truth_banner,
-        text="Current Truth / Phase 1 Target",
-        bg=palette["truth_bg"],
-        fg=palette["truth_accent"],
-        font=panel_font,
-        anchor="w",
-    ).pack(fill=tk.X)
-    tk.Label(
-        truth_banner,
-        textvariable=truth_status_var,
-        bg=palette["truth_bg"],
-        fg=palette["truth_fg"],
-        font=small_font,
-        anchor="w",
-        justify=tk.LEFT,
-        wraplength=1120,
-    ).pack(fill=tk.X, pady=(3, 0))
+    registered_widgets: list[tk.Widget] = []
 
-    def panel(parent: tk.Misc, title: str, subtitle: str | None = None) -> tk.LabelFrame:
-        frame = tk.LabelFrame(
-            parent,
-            text=f" {title} ",
-            bg=palette["panel"],
-            fg=palette["text"],
-            font=panel_font,
-            padx=10,
-            pady=8,
-            bd=2,
-            relief=tk.GROOVE,
-            labelanchor="nw",
+    def remember(widget: tk.Widget, *, bg_key: str | None = None, fg_key: str | None = None, variant: str | None = None) -> tk.Widget:
+        setattr(widget, "_rr_bg_key", bg_key)
+        setattr(widget, "_rr_fg_key", fg_key)
+        setattr(widget, "_rr_variant", variant)
+        registered_widgets.append(widget)
+        return widget
+
+    def configure_ttk() -> None:
+        family = font_family_var.get() or "Segoe UI"
+        style.configure("RR.TNotebook", background=palette["background"], borderwidth=0)
+        style.configure(
+            "RR.TNotebook.Tab",
+            background=palette["panel_alt"],
+            foreground=palette["text"],
+            padding=(18, 8),
+            font=(family, 10, "bold"),
         )
-        frame.pack(fill=tk.X, padx=14, pady=6)
-        if subtitle:
-            tk.Label(
-                frame,
-                text=subtitle,
-                bg=palette["panel"],
-                fg=palette["muted"],
-                font=small_font,
-                anchor="w",
-                justify=tk.LEFT,
-            ).pack(fill=tk.X, pady=(0, 6))
-        return frame
-
-    def action_button(parent: tk.Misc, text: str, command: Any, variant: str, width: int = 24) -> tk.Button:
-        bg_key, active_key = BUTTON_VARIANTS[variant]
-        button = tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=palette[bg_key],
-            fg=palette["text"],
-            activebackground=palette[active_key],
-            activeforeground=palette["text"],
-            disabledforeground=palette["disabled_fg"],
-            font=button_font,
-            relief=tk.RAISED,
-            bd=2,
-            padx=12,
-            pady=8,
-            width=width,
-            cursor="hand2",
-            highlightbackground=palette["background"],
-            highlightcolor=palette["status_fg"],
-            highlightthickness=1,
+        style.map(
+            "RR.TNotebook.Tab",
+            background=[("selected", palette["primary"]), ("active", palette["neutral"])],
+            foreground=[("selected", palette["button_fg"]), ("active", palette["button_fg"])],
         )
-        button.pack(side=tk.LEFT, padx=6, pady=5)
-        return button
-
-    def button_row(parent: tk.Misc) -> tk.Frame:
-        row = tk.Frame(parent, bg=palette["panel"])
-        row.pack(fill=tk.X, pady=(0, 2))
-        return row
-
-    def locked_badge(parent: tk.Misc, text: str) -> tk.Label:
-        badge = tk.Label(
-            parent,
-            text=f"LOCKED: {text}",
-            bg=palette["disabled_bg"],
-            fg=palette["disabled_fg"],
-            font=button_font,
-            padx=12,
-            pady=8,
-            relief=tk.RIDGE,
-            bd=2,
+        style.configure(
+            "RR.TCombobox",
+            fieldbackground=palette["panel_alt"],
+            background=palette["panel_alt"],
+            foreground=palette["text"],
+            arrowcolor=palette["text"],
+            padding=4,
         )
-        badge.pack(side=tk.LEFT, padx=6, pady=5)
-        return badge
+        style.map(
+            "RR.TCombobox",
+            fieldbackground=[("readonly", palette["panel_alt"])],
+            foreground=[("readonly", palette["text"])],
+        )
 
-    workflow_frame = panel(root, "Workflow Status & Triage", "Primary read-only status commands. Exit code 2 still means a safe blocker.")
-    package_frame = panel(root, "Packages, Reports & Git", "Dry-run package tools, local reports, and read-only Git status.")
-    bridge_frame = panel(root, "Local Artifact Bridge", "Bridge helpers are self-test/session/index/inbox/docs/copy only; persistent serve and tunnels stay manual.")
-    tk.Label(
-        bridge_frame,
-        textvariable=bridge_status_var,
-        bg=palette["panel_alt"],
-        fg=palette["status_fg"],
-        font=small_font,
-        anchor="w",
-        justify=tk.LEFT,
-        padx=10,
-        pady=6,
-        relief=tk.SOLID,
-        bd=1,
-    ).pack(fill=tk.X, pady=(0, 6))
-    locked_frame = panel(root, "Locked Live Controls", "Shown explicitly so unsafe actions do not look like missing features.")
+    def configure_one(widget: tk.Widget) -> None:
+        variant = getattr(widget, "_rr_variant", None)
+        bg_key = getattr(widget, "_rr_bg_key", None)
+        fg_key = getattr(widget, "_rr_fg_key", None)
+        try:
+            if variant:
+                normal_key, active_key = BUTTON_VARIANTS[str(variant)]
+                widget.configure(
+                    bg=palette[normal_key],
+                    fg=palette["button_fg"],
+                    activebackground=palette[active_key],
+                    activeforeground=palette["button_fg"],
+                    highlightbackground=palette["background"],
+                    highlightcolor=palette["status_fg"],
+                )
+            else:
+                options: dict[str, str] = {}
+                if bg_key:
+                    options["bg"] = palette[bg_key]
+                if fg_key:
+                    options["fg"] = palette[fg_key]
+                if options:
+                    widget.configure(**options)
+        except tk.TclError:
+            pass
 
-    def append(text: str) -> None:
-        output.insert(tk.END, text.rstrip() + "\n")
+    def configure_output_tags() -> None:
+        output.configure(
+            bg=palette["output_bg"],
+            fg=palette["output_fg"],
+            insertbackground=palette["text"],
+            selectbackground=palette["primary"],
+            selectforeground=palette["button_fg"],
+        )
+        output.tag_configure("info", foreground=palette["output_fg"])
+        output.tag_configure("pass", foreground=palette["success"])
+        output.tag_configure("blocked", foreground=palette["warning"])
+        output.tag_configure("fail", foreground=palette["fail"])
+        output.tag_configure("command", foreground=palette["status_fg"])
+
+    def apply_theme(*_: Any) -> None:
+        nonlocal palette
+        palette = dict(GUI_THEMES.get(theme_var.get(), GUI_THEMES["Dark"]))
+        root.configure(bg=palette["background"])
+        configure_ttk()
+        for widget in registered_widgets:
+            configure_one(widget)
+        configure_output_tags()
+
+    def apply_font_family(*_: Any) -> None:
+        family = font_family_var.get() or "Segoe UI"
+        for font in (title_font, subtitle_font, panel_font, button_font, small_font):
+            font.configure(family=family)
+        output_font.configure(family="Consolas" if family == "Consolas" else family)
+        configure_ttk()
+
+    def append(text: str, tag: str = "info") -> None:
+        output.insert(tk.END, text.rstrip() + "\n", tag)
         output.see(tk.END)
 
-    def refresh_bridge_status_panel() -> None:
+    def append_result(result: dict[str, Any]) -> None:
+        status = str(result.get("status") or "")
+        tag = "pass" if status == "passed" else "blocked" if status == "blocked" else "fail" if status == "failed" else "info"
+        append(json.dumps(result, indent=2), tag)
+        status_var.set(f"{status.upper() or 'DONE'} | exit={result.get('exitCode')} | {result.get('commandKey') or result.get('groupKey') or 'command'}")
+
+    def refresh_status_panels() -> None:
         bridge_status_var.set(bridge_status_text(repo_root))
         truth_status_var.set(operator_truth_text(repo_root))
 
     def run_spec(key: str) -> None:
         spec = specs[key]
-        append(f"\n## {spec.label}\n$ {' '.join(spec.args)}")
+        append(f"\n## {spec.label}\n$ {' '.join(spec.args)}", "command")
         result = run_command(spec.args, repo_root, spec.timeout_seconds, spec.expected_exit_codes)
-        append(json.dumps(result, indent=2))
-        refresh_bridge_status_panel()
+        append_result(result)
+        refresh_status_panels()
 
     def run_group_spec(key: str) -> None:
         group = groups[key]
-        append(f"\n## {group.label}\n$ .\\scripts\\riftreader-operator-lite.cmd --run-all {key} --json")
+        append(f"\n## {group.label}\n$ .\\scripts\\riftreader-operator-lite.cmd --run-all {key} --json", "command")
         result = run_command_group(repo_root, key)
-        append(json.dumps(result, indent=2))
-        refresh_bridge_status_panel()
+        append_result(result)
+        refresh_status_panels()
+
+    def run_selected_action() -> None:
+        selected = action_var.get()
+        kind_key = action_options.get(selected)
+        if not kind_key:
+            messagebox.showinfo("RiftReader Operator Lite", "Choose a safe command or group first.")
+            return
+        kind, key = kind_key
+        if kind == "command":
+            run_spec(key)
+        else:
+            run_group_spec(key)
 
     def run_package_dry_run() -> None:
         selected = filedialog.askopenfilename(title="Select package .zip or manifest package file")
         if not selected:
-            selected_dir = filedialog.askdirectory(title="Select package directory")
-            selected = selected_dir
+            selected = filedialog.askdirectory(title="Select package directory")
         if not selected:
             return
         package_path = Path(selected)
         args = package_intake_dry_run_args(repo_root, package_path)
-        append(f"\n## Package Intake Dry-Run\n$ {' '.join(args)}")
+        append(f"\n## Package Intake Dry-Run\n$ {' '.join(args)}", "command")
         result = run_command(args, repo_root, 120)
-        append(json.dumps(result, indent=2))
+        append_result(result)
 
     def open_latest() -> None:
         report = latest_report(repo_root)
@@ -1425,7 +1472,7 @@ def run_gui(repo_root: Path) -> int:
             messagebox.showinfo("RiftReader Operator Lite", "No .riftreader-local report found yet.")
             return
         os.startfile(report)  # type: ignore[attr-defined]
-        append(f"Opened latest report: {report}")
+        append(f"Opened latest report: {report}", "pass")
 
     def open_bridge_docs() -> None:
         docs = bridge_docs_path(repo_root)
@@ -1433,158 +1480,207 @@ def run_gui(repo_root: Path) -> int:
             messagebox.showerror("RiftReader Operator Lite", f"Bridge docs not found:\n{docs}")
             return
         os.startfile(docs)  # type: ignore[attr-defined]
-        append(f"Opened bridge docs: {docs}")
+        append(f"Opened bridge docs: {docs}", "pass")
 
-    def copy_bridge_instructions() -> None:
-        instructions = redacted_bridge_instructions(repo_root)
+    def copy_to_clipboard(label: str, content: str) -> None:
         root.clipboard_clear()
-        root.clipboard_append(instructions)
-        append("Copied redacted bridge instructions to clipboard.")
+        root.clipboard_append(content)
+        append(f"Copied {label} to clipboard.", "pass")
 
-    def copy_bridge_start_command() -> None:
-        command = redacted_bridge_start_command(repo_root)
-        root.clipboard_clear()
-        root.clipboard_append(command)
-        append("Copied manual bridge start command to clipboard.")
+    def card(parent: tk.Misc, title: str, variable: tk.StringVar, *, accent: bool = False) -> tk.Frame:
+        frame = remember(
+            tk.Frame(parent, padx=12, pady=10, highlightthickness=1),
+            bg_key="truth_bg" if accent else "panel_alt",
+        )
+        frame.configure(highlightbackground=palette["truth_border"])
+        frame.pack(fill=tk.X, pady=(0, 10))
+        remember(
+            tk.Label(frame, text=title, font=panel_font, anchor="w"),
+            bg_key="truth_bg" if accent else "panel_alt",
+            fg_key="truth_accent" if accent else "status_fg",
+        ).pack(fill=tk.X)
+        remember(
+            tk.Label(frame, textvariable=variable, font=small_font, anchor="w", justify=tk.LEFT, wraplength=1220),
+            bg_key="truth_bg" if accent else "panel_alt",
+            fg_key="truth_fg" if accent else "text",
+        ).pack(fill=tk.X, pady=(4, 0))
+        return frame
 
-    def copy_bridge_inbox_template() -> None:
-        template = redacted_bridge_inbox_template()
-        root.clipboard_clear()
-        root.clipboard_append(template)
-        append("Copied guarded inbox JSON template to clipboard.")
+    def panel(parent: tk.Misc, title: str, subtitle: str | None = None) -> tk.LabelFrame:
+        frame = remember(tk.LabelFrame(parent, text=f" {title} ", font=panel_font, padx=12, pady=10, bd=2, relief=tk.GROOVE, labelanchor="nw"), bg_key="panel", fg_key="text")
+        frame.pack(fill=tk.X, padx=12, pady=8)
+        if subtitle:
+            remember(tk.Label(frame, text=subtitle, font=small_font, anchor="w", justify=tk.LEFT), bg_key="panel", fg_key="muted").pack(fill=tk.X, pady=(0, 8))
+        return frame
 
-    def copy_bridge_package_proposal_template() -> None:
-        template = redacted_bridge_package_proposal_template()
-        root.clipboard_clear()
-        root.clipboard_append(template)
-        append("Copied guarded package-proposal JSON template to clipboard.")
+    def button_row(parent: tk.Misc) -> tk.Frame:
+        row = remember(tk.Frame(parent), bg_key="panel")
+        row.pack(fill=tk.X, pady=(0, 4))
+        return row
 
-    def copy_bridge_chatgpt_prompt() -> None:
-        prompt = redacted_bridge_chatgpt_prompt(repo_root)
-        root.clipboard_clear()
-        root.clipboard_append(prompt)
-        append("Copied redacted ChatGPT bridge prompt to clipboard.")
+    def action_button(parent: tk.Misc, text: str, command: Any, variant: str, width: int = 24) -> tk.Button:
+        button = remember(
+            tk.Button(
+                parent,
+                text=text,
+                command=command,
+                font=button_font,
+                relief=tk.RAISED,
+                bd=2,
+                padx=12,
+                pady=8,
+                width=width,
+                cursor="hand2",
+                disabledforeground=palette["disabled_fg"],
+                highlightthickness=1,
+            ),
+            variant=variant,
+        )
+        button.pack(side=tk.LEFT, padx=6, pady=5)
+        return button
 
-    action_button(workflow_frame, "Refresh Workflow Status", lambda: run_spec("workflow-status"), "primary")
-    action_button(workflow_frame, "Refresh Decision Packet", lambda: run_spec("decision-packet"), "primary", width=24)
-    action_button(workflow_frame, "Decision Packet Schema", lambda: run_spec("decision-packet-schema"), "neutral", width=24)
-    action_button(workflow_frame, "Decision Packet Agent Plan", lambda: run_spec("decision-packet-agent-plan"), "neutral", width=27)
-    action_button(workflow_frame, "Compact ChatGPT SITREP", lambda: run_spec("compact-sitrep"), "primary", width=23)
-    action_button(workflow_frame, "Run Live-Test Triage", lambda: run_spec("live-triage"), "warning")
+    def locked_badge(parent: tk.Misc, text: str) -> tk.Label:
+        badge = remember(
+            tk.Label(text=f"LOCKED: {text}", master=parent, font=button_font, padx=12, pady=8, relief=tk.RIDGE, bd=2),
+            bg_key="disabled_bg",
+            fg_key="disabled_fg",
+        )
+        badge.pack(side=tk.LEFT, padx=6, pady=5)
+        return badge
 
-    action_button(package_frame, "Package Intake Dry-Run", run_package_dry_run, "success")
-    action_button(package_frame, "Package Self-Test", lambda: run_spec("package-selftest"), "success", width=18)
-    action_button(package_frame, "Git Status", lambda: run_spec("git-status"), "neutral", width=14)
-    action_button(package_frame, "Open Latest Report", open_latest, "neutral", width=18)
+    action_options: dict[str, tuple[str, str]] = {}
+    for key, spec_item in sorted(specs.items()):
+        action_options[f"Command: {spec_item.label} [{key}]"] = ("command", key)
+    for key, group_item in sorted(groups.items()):
+        action_options[f"Group: {group_item.label} [{key}]"] = ("group", key)
+    if action_options:
+        action_var.set(next(iter(action_options)))
 
-    bridge_action_row = button_row(bridge_frame)
-    action_button(bridge_action_row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
-    action_button(bridge_action_row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
-    action_button(bridge_action_row, "Bridge Session Start", lambda: run_spec("bridge-session-start"), "bridge", width=21)
-    action_button(bridge_action_row, "Bridge Handoff Packet", lambda: run_spec("bridge-handoff"), "bridge", width=21)
-    action_button(bridge_action_row, "Bootstrap Payload", lambda: run_spec("bridge-bootstrap-payload"), "warning", width=18)
+    header = remember(tk.Frame(root), bg_key="background")
+    header.pack(fill=tk.X, padx=16, pady=(12, 8))
+    remember(tk.Label(header, text="RiftReader Operator Lite", font=title_font, anchor="w"), bg_key="background", fg_key="text").pack(fill=tk.X)
+    remember(
+        tk.Label(
+            header,
+            text="Safe MCP/local workflow HUD - no movement, debugger attach, bridge serving, tunnel management, promotion, or Git mutation.",
+            font=subtitle_font,
+            anchor="w",
+        ),
+        bg_key="background",
+        fg_key="muted",
+    ).pack(fill=tk.X, pady=(2, 8))
 
-    bridge_index_row = button_row(bridge_frame)
-    action_button(bridge_index_row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
-    action_button(bridge_index_row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
-    action_button(bridge_index_row, "Bridge Latest Inbox", lambda: run_spec("bridge-inbox-latest"), "bridge", width=19)
-    action_button(bridge_index_row, "Bridge Package Draft", lambda: run_spec("bridge-inbox-package-draft"), "bridge", width=21)
+    controls = remember(tk.Frame(header), bg_key="background")
+    controls.pack(fill=tk.X)
+    remember(tk.Label(controls, text="Theme", font=small_font), bg_key="background", fg_key="muted").pack(side=tk.LEFT, padx=(0, 6))
+    theme_dropdown = ttk.Combobox(controls, textvariable=theme_var, values=tuple(GUI_THEMES), width=10, state="readonly", style="RR.TCombobox")
+    theme_dropdown.pack(side=tk.LEFT, padx=(0, 14))
+    remember(tk.Label(controls, text="Font", font=small_font), bg_key="background", fg_key="muted").pack(side=tk.LEFT, padx=(0, 6))
+    font_dropdown = ttk.Combobox(controls, textvariable=font_family_var, values=GUI_FONT_FAMILIES, width=14, state="readonly", style="RR.TCombobox")
+    font_dropdown.pack(side=tk.LEFT, padx=(0, 14))
+    remember(tk.Label(controls, text="Safe action", font=small_font), bg_key="background", fg_key="muted").pack(side=tk.LEFT, padx=(0, 6))
+    command_dropdown = ttk.Combobox(controls, textvariable=action_var, values=tuple(action_options), width=62, state="readonly", style="RR.TCombobox")
+    command_dropdown.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    action_button(controls, "Run Selected", run_selected_action, "primary", width=15)
 
-    bridge_draft_row = button_row(bridge_frame)
-    action_button(bridge_draft_row, "Draft Index", lambda: run_spec("package-draft-index"), "bridge", width=15)
-    action_button(bridge_draft_row, "Latest Draft Summary", lambda: run_spec("package-draft-latest"), "bridge", width=21)
-    action_button(bridge_draft_row, "Latest Operator Draft", lambda: run_spec("package-draft-latest-operator"), "bridge", width=23)
+    notebook = ttk.Notebook(root, style="RR.TNotebook")
+    notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 8))
+    tabs: dict[str, tk.Frame] = {}
+    for name in GUI_TAB_NAMES:
+        frame = remember(tk.Frame(notebook), bg_key="background")
+        notebook.add(frame, text=name)
+        tabs[name] = frame
 
-    bridge_dry_run_row = button_row(bridge_frame)
-    action_button(bridge_dry_run_row, "Dry-Run Latest Draft", lambda: run_spec("package-draft-dry-run-latest"), "success", width=22)
-    action_button(
-        bridge_dry_run_row,
-        "Dry-Run Operator Draft",
-        lambda: run_spec("package-draft-dry-run-latest-operator"),
-        "success",
-        width=23,
-    )
+    card(tabs["Dashboard"], "Current Truth / Phase 1 Target", truth_status_var, accent=True)
+    card(tabs["Dashboard"], "Local Artifact Bridge", bridge_status_var)
+    dashboard_panel = panel(tabs["Dashboard"], "Primary Status", "Read-only status commands. Exit code 2 means a known safe blocker.")
+    row = button_row(dashboard_panel)
+    action_button(row, "Refresh Workflow Status", lambda: run_spec("workflow-status"), "primary")
+    action_button(row, "Refresh Decision Packet", lambda: run_spec("decision-packet"), "primary", width=24)
+    action_button(row, "Compact ChatGPT SITREP", lambda: run_spec("compact-sitrep"), "primary", width=23)
+    row = button_row(dashboard_panel)
+    action_button(row, "Decision Packet Schema", lambda: run_spec("decision-packet-schema"), "neutral", width=24)
+    action_button(row, "Decision Packet Agent Plan", lambda: run_spec("decision-packet-agent-plan"), "neutral", width=27)
+    action_button(row, "Run Live-Test Triage", lambda: run_spec("live-triage"), "warning")
 
-    bridge_loop_row = button_row(bridge_frame)
-    action_button(bridge_loop_row, "Draft Loop Self-Test", lambda: run_spec("package-draft-loop-selftest"), "warning", width=22)
-    action_button(bridge_loop_row, "Proposal Loop Checks", lambda: run_group_spec("bridge-proposal-loop-checks"), "warning", width=23)
-    action_button(bridge_loop_row, "Trial Readiness Gate", lambda: run_group_spec("bridge-trial-readiness"), "warning", width=23)
-    action_button(bridge_loop_row, "MCP Trial Readiness", lambda: run_spec("mcp-trial-readiness"), "warning", width=22)
+    mcp_panel = panel(tabs["MCP & Proof"], "MCP Proof & Mission Control", "Current ChatGPT Web/Desktop MCP proof helpers; no ChatGPT registration or tunnel start.")
+    row = button_row(mcp_panel)
+    action_button(row, "MCP Mission Control", lambda: run_spec("mcp-mission-control"), "primary", width=22)
+    action_button(row, "MCP Proof Run Packet", lambda: run_spec("mcp-proof-run-packet"), "primary", width=23)
+    action_button(row, "Latest MCP Artifacts", lambda: run_spec("mcp-artifacts-latest"), "bridge", width=23)
+    action_button(row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
+    row = button_row(mcp_panel)
+    action_button(row, "MCP Trial Readiness", lambda: run_spec("mcp-trial-readiness"), "warning", width=22)
+    action_button(row, "ChatGPT Trial Proof Template", lambda: run_spec("chatgpt-trial-proof-template"), "neutral", width=29)
+    action_button(row, "Check Latest Proof Input", lambda: run_spec("chatgpt-trial-proof-check-latest"), "neutral", width=24)
 
-    mcp_helper_row = button_row(bridge_frame)
-    action_button(mcp_helper_row, "MCP Mission Control", lambda: run_spec("mcp-mission-control"), "primary", width=22)
-    action_button(mcp_helper_row, "MCP Proof Run Packet", lambda: run_spec("mcp-proof-run-packet"), "primary", width=23)
-    action_button(mcp_helper_row, "Latest MCP Artifacts", lambda: run_spec("mcp-artifacts-latest"), "bridge", width=23)
-    action_button(mcp_helper_row, "Workflow Router", lambda: run_spec("workflow-router-mcp"), "primary", width=18)
+    bridge_panel = panel(tabs["Bridge"], "Local Artifact Bridge", "Self-test/session/index/inbox/docs/copy only; persistent serve and tunnels stay manual.")
+    row = button_row(bridge_panel)
+    action_button(row, "Bridge Self-Test", lambda: run_spec("bridge-selftest"), "bridge", width=18)
+    action_button(row, "Bridge Preflight", lambda: run_spec("bridge-preflight"), "bridge", width=18)
+    action_button(row, "Bridge Session Start", lambda: run_spec("bridge-session-start"), "bridge", width=21)
+    action_button(row, "Bridge Handoff Packet", lambda: run_spec("bridge-handoff"), "bridge", width=21)
+    action_button(row, "Bootstrap Payload", lambda: run_spec("bridge-bootstrap-payload"), "warning", width=18)
+    row = button_row(bridge_panel)
+    action_button(row, "Bridge Payload Index", lambda: run_spec("bridge-index"), "bridge", width=20)
+    action_button(row, "Bridge Inbox Index", lambda: run_spec("bridge-inbox-index"), "bridge", width=19)
+    action_button(row, "Bridge Latest Inbox", lambda: run_spec("bridge-inbox-latest"), "bridge", width=19)
+    row = button_row(bridge_panel)
+    action_button(row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
+    action_button(row, "Copy Bridge Start Command", lambda: copy_to_clipboard("manual bridge start command", redacted_bridge_start_command(repo_root)), "neutral", width=25)
+    action_button(row, "Copy Bridge Instructions", lambda: copy_to_clipboard("redacted bridge instructions", redacted_bridge_instructions(repo_root)), "neutral", width=27)
+    row = button_row(bridge_panel)
+    action_button(row, "Copy Inbox JSON Template", lambda: copy_to_clipboard("guarded inbox JSON template", redacted_bridge_inbox_template()), "neutral", width=26)
+    action_button(row, "Copy Package Proposal Template", lambda: copy_to_clipboard("guarded package-proposal JSON template", redacted_bridge_package_proposal_template()), "neutral", width=32)
+    action_button(row, "Copy ChatGPT Bridge Prompt", lambda: copy_to_clipboard("redacted ChatGPT bridge prompt", redacted_bridge_chatgpt_prompt(repo_root)), "neutral", width=28)
 
-    mcp_local_row = button_row(bridge_frame)
-    action_button(
-        mcp_local_row,
-        "ChatGPT Trial Proof Template",
-        lambda: run_spec("chatgpt-trial-proof-template"),
-        "neutral",
-        width=29,
-    )
-    action_button(
-        mcp_local_row,
-        "Check Latest Proof Input",
-        lambda: run_spec("chatgpt-trial-proof-check-latest"),
-        "neutral",
-        width=24,
-    )
-    action_button(mcp_local_row, "Safe Commit Plan", lambda: run_spec("safe-commit-plan"), "neutral", width=19)
+    package_panel = panel(tabs["Packages"], "Package Drafts", "Draft, review, and dry-run package proposals without applying them.")
+    row = button_row(package_panel)
+    action_button(row, "Bridge Package Draft", lambda: run_spec("bridge-inbox-package-draft"), "bridge", width=21)
+    action_button(row, "Draft Index", lambda: run_spec("package-draft-index"), "bridge", width=15)
+    action_button(row, "Latest Draft Summary", lambda: run_spec("package-draft-latest"), "bridge", width=21)
+    action_button(row, "Latest Operator Draft", lambda: run_spec("package-draft-latest-operator"), "bridge", width=23)
+    row = button_row(package_panel)
+    action_button(row, "Dry-Run Latest Draft", lambda: run_spec("package-draft-dry-run-latest"), "success", width=22)
+    action_button(row, "Dry-Run Operator Draft", lambda: run_spec("package-draft-dry-run-latest-operator"), "success", width=23)
+    action_button(row, "Package Intake Dry-Run", run_package_dry_run, "success")
+    row = button_row(package_panel)
+    action_button(row, "Draft Loop Self-Test", lambda: run_spec("package-draft-loop-selftest"), "warning", width=22)
+    action_button(row, "Proposal Loop Checks", lambda: run_group_spec("bridge-proposal-loop-checks"), "warning", width=23)
+    action_button(row, "Trial Readiness Gate", lambda: run_group_spec("bridge-trial-readiness"), "warning", width=23)
 
-    bridge_utility_row = button_row(bridge_frame)
-    action_button(bridge_utility_row, "Open Bridge Docs", open_bridge_docs, "neutral", width=17)
-    action_button(bridge_utility_row, "Copy Bridge Start Command", copy_bridge_start_command, "neutral", width=25)
+    reports_panel = panel(tabs["Reports & Git"], "Reports, Validation & Git", "Read-only reports and plan-only Git helpers.")
+    row = button_row(reports_panel)
+    action_button(row, "Package Self-Test", lambda: run_spec("package-selftest"), "success", width=18)
+    action_button(row, "Git Status", lambda: run_spec("git-status"), "neutral", width=14)
+    action_button(row, "Safe Commit Plan", lambda: run_spec("safe-commit-plan"), "neutral", width=19)
+    action_button(row, "Open Latest Report", open_latest, "neutral", width=18)
 
-    bridge_template_row = button_row(bridge_frame)
-    action_button(bridge_template_row, "Copy Inbox JSON Template", copy_bridge_inbox_template, "neutral", width=26)
-    action_button(bridge_template_row, "Copy Package Proposal Template", copy_bridge_package_proposal_template, "neutral", width=32)
+    locked_panel = panel(tabs["Locked Controls"], "Explicitly Locked Actions", "These remain unavailable unless a future task receives explicit approval.")
+    row = button_row(locked_panel)
+    for label in ("Target-Control", "Visual Gate", "ProofOnly", "Movement", "Promotion", "Git Push", "Bridge Serve/Tunnel"):
+        locked_badge(row, label)
 
-    bridge_copy_row = button_row(bridge_frame)
-    action_button(bridge_copy_row, "Copy Redacted Bridge Instructions", copy_bridge_instructions, "neutral", width=31)
-    action_button(bridge_copy_row, "Copy ChatGPT Bridge Prompt", copy_bridge_chatgpt_prompt, "neutral", width=28)
+    output_panel = remember(tk.Frame(root), bg_key="background")
+    output_panel.pack(fill=tk.BOTH, expand=False, padx=12, pady=(0, 6))
+    remember(tk.Label(output_panel, text="Command output", font=panel_font, anchor="w"), bg_key="background", fg_key="text").pack(fill=tk.X)
+    output = scrolledtext.ScrolledText(output_panel, wrap=tk.WORD, height=14, font=output_font, relief=tk.SUNKEN, bd=2)
+    output.pack(fill=tk.BOTH, expand=True)
 
-    for label in [
-        "Target-Control",
-        "Visual Gate",
-        "ProofOnly",
-        "Movement",
-        "Promotion",
-        "Git Push",
-        "Bridge Serve/Tunnel",
-    ]:
-        locked_badge(locked_frame, label)
-
-    output = scrolledtext.ScrolledText(
-        root,
-        wrap=tk.WORD,
-        height=18,
-        bg=palette["output_bg"],
-        fg=palette["output_fg"],
-        insertbackground=palette["text"],
-        font=("Consolas", 10),
-        relief=tk.SUNKEN,
-        bd=2,
-    )
-    output.pack(fill=tk.BOTH, expand=True, padx=14, pady=(8, 6))
-
-    status_bar = tk.Label(
-        root,
-        text="READY · Truth banner mirrors browser dashboard · Safe/offline mode · No live input · No CE/x64dbg · No promotion/push",
-        bg=palette["status_bg"],
-        fg=palette["status_fg"],
-        font=small_font,
-        anchor="w",
-        padx=10,
-        pady=5,
+    status_bar = remember(
+        tk.Label(root, textvariable=status_var, font=small_font, anchor="w", padx=10, pady=6),
+        bg_key="status_bg",
+        fg_key="status_fg",
     )
     status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
-    append("RiftReader Operator Lite loaded.")
-    append("Live input, movement, CE/x64dbg, stage/commit/push, target-control, visual gate, and ProofOnly are disabled in v0.")
-    append("Local Artifact Bridge controls are self-test/session/index/inbox/docs/copy only; Operator Lite does not start a persistent bridge or tunnel.")
+    theme_var.trace_add("write", apply_theme)
+    font_family_var.trace_add("write", apply_font_family)
+    apply_font_family()
+    apply_theme()
+    append("RiftReader Operator Lite loaded with tabbed MCP HUD.", "pass")
+    append("Live input, movement, CE/x64dbg, stage/commit/push, target-control, visual gate, and ProofOnly are disabled.", "blocked")
+    append("Use the dropdown to launch any known safe command or group; tabs organize the same safe command surface.", "info")
     root.mainloop()
     return 0
 
