@@ -117,7 +117,7 @@ class WorkflowRouterTests(unittest.TestCase):
         self.assertEqual(payload["recommendedNextAction"]["key"], "safe-commit-plan")
         self.assertIn("riftreader-safe-commit-packager.cmd", payload["recommendedNextAction"]["command"][0])
 
-    def test_recommends_manual_public_ip_plan_after_local_readiness_and_proposal(self) -> None:
+    def test_recommends_cloudflare_named_tunnel_plan_after_local_readiness_and_proposal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_repo(root)
@@ -126,9 +126,9 @@ class WorkflowRouterTests(unittest.TestCase):
 
             payload = workflow_router.route_mcp(root)
 
-        self.assertEqual(payload["recommendedNextAction"]["key"], "manual-public-ip-plan")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "cloudflare-named-tunnel-plan")
 
-    def test_recommends_manual_public_ip_proof_when_plan_exists_but_actual_client_proof_missing(self) -> None:
+    def test_recommends_cloudflare_named_tunnel_proof_when_plan_exists_but_actual_client_proof_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_repo(root)
@@ -138,7 +138,7 @@ class WorkflowRouterTests(unittest.TestCase):
 
             payload = workflow_router.route_mcp(root)
 
-        self.assertEqual(payload["recommendedNextAction"]["key"], "chatgpt-manual-public-ip-proof")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "chatgpt-cloudflare-named-tunnel-proof")
 
     def test_recommends_draft_export_and_dry_run_based_on_inbox_and_draft_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

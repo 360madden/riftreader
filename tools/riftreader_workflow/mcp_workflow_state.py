@@ -465,7 +465,7 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
         return action("proposal-transport-smoke", "Prove guarded submit_package_proposal through local MCP transport.", commands["proposalTransportSmoke"])
     if not passed(latest_artifacts.get("manual-public-ip-plan")):
         return action(
-            "manual-public-ip-plan",
+            "cloudflare-named-tunnel-plan",
             "Prepare the Cloudflare named Tunnel Server URL plan before ChatGPT Web/Desktop connector work.",
             commands["manualPublicIpPlan"],
         )
@@ -474,7 +474,7 @@ def build_recommended_next_action(state: dict[str, Any]) -> dict[str, Any]:
         if template_action["command"] != commands["trialProofTemplate"]:
             return template_action
         return action(
-            "chatgpt-manual-public-ip-proof",
+            "chatgpt-cloudflare-named-tunnel-proof",
             "Use the operator-managed Cloudflare named Tunnel Server URL for actual ChatGPT proof; OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router are retired.",
             commands["manualPublicIpPlan"],
         )
