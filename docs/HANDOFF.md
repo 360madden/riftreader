@@ -1,3 +1,21 @@
+# 2026-06-08 — ChatGPT MCP final readiness passed
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-chatgpt-mcp-final-readiness-ci-passed-compact-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Final readiness | Passed at `2026-06-08T09:23:15Z`: `ok=true`, `status=passed`, `phase2Ready=true`, `ciStatus=passed`, `upstreamStatus=passed`. |
+| Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel `riftreader-mcp-360madden` to `127.0.0.1:8770`; Caddy/router/direct-public-IP remains deprecated legacy. |
+| Actual ChatGPT proof | Complete and recorded under `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260608-091238Z\`. |
+| Proof/CI baseline HEAD | `b332124f8bb28a09839ff584a293de6e8d2851a6`, synchronized with `origin/main` after the proof push. |
+| Current-head CI | `.NET build and test` run `27127927030` passed; `RiftReader Policy` run `27127927100` passed. |
+| Latest domain diagnostics | `.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics\20260608-092312Z\summary.json` passed; public smoke returned HTTP `200`, server `riftreader_chatgpt_mcp` version `1.27.1`. |
+| Caddy note | Diagnostics may show `caddy.exe` listening on TCP 443, but `activeRouteUsesCaddy=false`; it is not the active ChatGPT MCP route. |
+| Next operator action | Keep proof fresh and begin maintenance/UX hardening; any live RIFT stimulus or movement testing still requires explicit approval. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP actual-client proof complete
 
 Fresh proof-complete handoff:
