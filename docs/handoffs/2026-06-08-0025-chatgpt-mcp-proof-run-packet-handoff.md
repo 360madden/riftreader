@@ -65,10 +65,22 @@ compact `proofRunPacket` pointer with the same Server URL, No Authentication
 mode, connection mode, and local CLI packet command. This keeps the packet
 discoverable from ChatGPT without changing the 12-tool MCP surface.
 
+Operator Lite also exposes the same packet as a safe local command:
+
+```cmd
+scripts\riftreader-operator-lite.cmd --mcp-proof-run-packet --json
+```
+
+This command is read-only and does not start tunnels, register ChatGPT, apply
+packages, mutate Git, or send live RIFT input.
+
 ## Local commits since the previous pushed HEAD
 
 | Commit | Summary |
 |---|---|
+| `6ec817f` | Expose MCP proof packet in Operator Lite |
+| `66a8798` | Harden MCP domain port-owner diagnostics |
+| `04cdbc0` | Refresh ChatGPT MCP proof handoff state |
 | `96f1c87` | Surface MCP proof packet in workflow summary |
 | `e440861` | Add ChatGPT MCP proof packet handoff |
 | `56f616b` | Filter PID zero from MCP proof packet |
@@ -78,10 +90,10 @@ discoverable from ChatGPT without changing the 12-tool MCP surface.
 | `4a8967d` | Rename MCP route action keys for Cloudflare tunnel |
 | `a824cbc` | Fix Cloudflare route metadata in MCP control surfaces |
 
-Local branch state at handoff creation:
+Local branch state after the latest local commit:
 
 ```text
-main...origin/main [ahead 8]
+main...origin/main [ahead 11]
 ```
 
 No push was performed because remote mutation is gated by repo policy.
@@ -90,19 +102,23 @@ No push was performed because remote mutation is gated by repo policy.
 
 | Validation | Result |
 |---|---|
-| `git diff --check` | Passed on changed slices |
-| `python -m unittest scripts.test_mcp_mission_control scripts.test_riftreader_chatgpt_mcp` | Passed, 76 tests |
-| `python -m unittest scripts.test_chatgpt_mcp_workflow_docs` | Passed, 4 tests |
-| targeted `pre-commit run --files ... --show-diff-on-failure` | Passed |
-| `scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json` | Passed after backend start |
-| `scripts\riftreader-mcp-final.cmd --status --compact-json` | Blocked as expected on unpushed CI and stale/missing actual-client proof |
+| `python -m unittest scripts.test_operator_lite` | Passed, 51 tests |
+| `scripts\riftreader-operator-lite.cmd --mcp-proof-run-packet --json` | Passed; printed current proof packet through Operator Lite |
+| `python -m unittest scripts.test_operator_lite scripts.test_mcp_mission_control scripts.test_riftreader_chatgpt_mcp scripts.test_chatgpt_mcp_workflow_docs scripts.test_mcp_domain_diagnostics` | Passed, 138 tests |
+| targeted `pre-commit run --files tools/riftreader_workflow/operator_lite.py scripts/test_operator_lite.py --show-diff-on-failure` | Passed |
+| `python tools\riftreader_workflow\validation_ledger.py --tier full-local --json` | Passed in 444.843s |
+| Validation ledger summary | `.riftreader-local\validation-runs\20260608-004411-448466\summary.md` |
+| `dotnet restore RiftReader.slnx` | Passed inside full-local ledger |
+| `dotnet build RiftReader.slnx --no-restore --configuration Release` | Passed inside full-local ledger, 0 warnings/errors |
+| `dotnet test RiftReader.slnx --no-build --configuration Release --logger console;verbosity=minimal` | Passed inside full-local ledger, 109 tests |
+| `scripts\riftreader-mcp-final.cmd --status --compact-json` | Blocked as expected on unpushed current-head CI and stale/missing actual-client proof |
 
 ## Current final-gate blockers
 
 | Blocker group | Meaning |
 |---|---|
-| `git:upstream-not-synced:behind=0:ahead=6` | Six local commits have not been pushed; current-head CI cannot run yet. |
-| `ci:missing:.NET build and test` / `ci:missing:RiftReader Policy` | Expected until the commits are pushed. |
+| `git:upstream-not-synced:behind=0:ahead=11` | Eleven local commits have not been pushed; GitHub current-head CI cannot run for this local HEAD yet. |
+| `ci:missing:.NET build and test` / `ci:missing:RiftReader Policy` | Expected in the final gate until the commits are pushed; local full-local ledger passed separately. |
 | `proof:*` stale/missing fields | Existing historical proof is from retired quick-tunnel era and lacks the current Cloudflare named Tunnel proof fields. |
 | `phase2:not-ready` | Phase 2 cannot pass until proof replay and current-head CI pass. |
 
