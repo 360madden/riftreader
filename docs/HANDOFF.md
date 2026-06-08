@@ -1,3 +1,16 @@
+# 2026-06-08 — MCP dashboard Browser Use hydration and route-context note
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-dashboard-browser-hydration-route-note-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Browser Use dashboard smoke | Dashboard now renders cards from embedded initial status before live `/status.json` refresh, so Browser Use can verify the page even when direct JSON navigation is blocked. |
+| Caddy context | Dashboard status now reports `activeRoute.key=cloudflare-named-tunnel`, `legacyCaddyRouterDeprecated=true`, and `tcp443OwnerDiagnosticOnly=true`; `caddy.exe` output is diagnostic local TCP 443 ownership only. |
+| Remaining blocker | Computer Use remains blocked at setup with `Computer Use native pipe path is unavailable`; fresh ignored observation `20260608-105309Z` records Browser OK and Computer Use blocked. |
+| Safety | No new control endpoints, shell/filesystem/Git mutation endpoints, RIFT input, tunnel start, package apply, CE, or x64dbg. |
+
+---
 # 2026-06-08 — MCP desktop-control repair guide
 
 Fresh compact handoff:

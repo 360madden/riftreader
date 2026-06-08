@@ -164,7 +164,23 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "authentication": "No Authentication",
         },
         "backend": {"service": SERVER_NAME, "host": DEFAULT_HOST, "port": DEFAULT_PORT, "connect": backend_connect, "owner": backend_owner},
-        "domain": {"publicHost": public_host, "publicMcpUrl": public_url, "dns": dns, "tcp443": tcp443, "tcp443Owner": tcp443_owner, "publicSmoke": public_smoke},
+        "domain": {
+            "publicHost": public_host,
+            "publicMcpUrl": public_url,
+            "dns": dns,
+            "tcp443": tcp443,
+            "tcp443Owner": tcp443_owner,
+            "tcp443OwnerDiagnosticOnly": True,
+            "publicSmoke": public_smoke,
+        },
+        "activeRoute": {
+            "key": "cloudflare-named-tunnel",
+            "connectionMode": "cloudflare-named-tunnel",
+            "cloudflareNamedTunnelPreferred": True,
+            "legacyCaddyRouterDeprecated": True,
+            "tcp443OwnerDiagnosticOnly": True,
+            "note": "Local TCP 443 owner output is diagnostic-only; do not treat caddy.exe as the active MCP route.",
+        },
         "toolSurface": {
             "phase0ReadOnlyTools": list(PUBLIC_READ_ONLY_TOOL_ORDER),
             "phase0ExpectedProofTools": list(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES),
@@ -218,8 +234,13 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     return redact_repo_root(status, repo_root)
 
 
-def render_html() -> bytes:
-    return HTML.encode("utf-8")
+def json_for_script(value: Any) -> str:
+    """Serialize JSON safely for an inert application/json script block."""
+    return json.dumps(value, sort_keys=True).replace("</", "<\\/")
+
+
+def render_html(initial_status: dict[str, Any] | None = None) -> bytes:
+    return HTML.replace("__INITIAL_STATUS_JSON__", json_for_script(initial_status)).encode("utf-8")
 
 
 HTML = """<!doctype html>
@@ -250,7 +271,9 @@ HTML = """<!doctype html>
   <div class="muted">Local status dashboard only. No start/stop, shell, Git, RIFT input, CE, or x64dbg controls.</div>
   <div id="updated" class="muted"></div>
   <div id="cards" class="grid"></div>
+<script id="initial-status" type="application/json">__INITIAL_STATUS_JSON__</script>
 <script>
+let latestStatus = null;
 function cls(ok, status) {
   if (ok === true || status === "passed" || status === "ready") return "green";
   if (status === "skipped" || status === "disabled") return "gray";
@@ -261,13 +284,17 @@ function pill(label, ok, status) { return `<span class="status ${cls(ok, status)
 function esc(v) { return String(v ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c])); }
 function list(items) { return `<ul>${(items||[]).map(x=>`<li><code>${esc(x)}</code></li>`).join("") || "<li class='muted'>none</li>"}</ul>`; }
 function card(title, body) { return `<section class="card"><h2>${esc(title)}</h2>${body}</section>`; }
-async function refresh() {
-  const r = await fetch("/status.json", {cache:"no-store"});
-  const s = await r.json();
-  document.getElementById("updated").textContent = `Updated ${s.generatedAtUtc}`;
+function embeddedStatus() {
+  const node = document.getElementById("initial-status");
+  if (!node) return null;
+  try { return JSON.parse(node.textContent || "null"); } catch { return null; }
+}
+function renderStatus(s, source) {
+  if (!s) return;
+  document.getElementById("updated").textContent = `Updated ${s.generatedAtUtc} (${source})`;
   const cards = [];
   cards.push(card("MCP backend", `${pill("backend", s.backend.connect.ok, s.backend.connect.ok ? "running" : "stopped")}<p><code>${s.backend.host}:${s.backend.port}</code></p><pre>${esc(JSON.stringify(s.backend.owner.processes || [], null, 2))}</pre>`));
-  cards.push(card("Public domain", `${pill("DNS", s.domain.dns.ok, s.domain.dns.status)} ${pill("TCP 443", s.domain.tcp443.ok, s.domain.tcp443.ok ? "passed" : "blocked")} ${pill("/mcp smoke", s.domain.publicSmoke.ok, s.domain.publicSmoke.status)}<p><code>${esc(s.domain.publicMcpUrl)}</code></p>${list(s.domain.publicSmoke.blockers)}`));
+  cards.push(card("Public domain", `${pill("DNS", s.domain.dns.ok, s.domain.dns.status)} ${pill("TCP 443", s.domain.tcp443.ok, s.domain.tcp443.ok ? "passed" : "blocked")} ${pill("/mcp smoke", s.domain.publicSmoke.ok, s.domain.publicSmoke.status)}<p><code>${esc(s.domain.publicMcpUrl)}</code></p><p class="muted">Route: <code>${esc(s.activeRoute.key)}</code>. Local TCP 443 owner is diagnostic-only; legacy Caddy/router is deprecated.</p>${list(s.domain.publicSmoke.blockers)}`));
   cards.push(card("ChatGPT setup", `<p>App: <code>${esc(s.appName)}</code></p><p>Server URL: <code>${esc(s.chatGptSetup.serverUrl)}</code></p><p>Auth: <code>${esc(s.chatGptSetup.authentication)}</code></p><p class="muted">Surface: ${esc(s.chatGptSetup.surface)}; not Codex.</p>`));
   cards.push(card("Tool surface", `<h3>Phase 0 read-only</h3>${list(s.toolSurface.phase0ReadOnlyTools)}<h3>Full 12-tool final proof</h3><p>${s.toolSurface.fullFinalProofToolCount} tools retained.</p>`));
   cards.push(card("Mission Control", `${pill("mission", s.missionControl.ok, s.missionControl.status)}<p>Next: <code>${esc(JSON.stringify(s.missionControl.recommendedNextAction || {}))}</code></p>${list(s.missionControl.blockers)}`));
@@ -277,6 +304,19 @@ async function refresh() {
   cards.push(card("Recent audit/events", `<pre>${esc(JSON.stringify(s.recentAuditEvents, null, 2))}</pre>`));
   document.getElementById("cards").innerHTML = cards.join("");
 }
+async function refresh() {
+  try {
+    const r = await fetch("/status.json", {cache:"no-store"});
+    latestStatus = await r.json();
+    renderStatus(latestStatus, "live");
+  } catch (error) {
+    if (!latestStatus) latestStatus = embeddedStatus();
+    if (latestStatus) renderStatus(latestStatus, "embedded");
+    else document.getElementById("updated").textContent = `Status refresh blocked: ${error}`;
+  }
+}
+latestStatus = embeddedStatus();
+if (latestStatus) renderStatus(latestStatus, "embedded");
 refresh();
 setInterval(refresh, 5000);
 </script>
@@ -312,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path in ("/", "/index.html"):
-            body = render_html()
+            body = render_html(self.server.status())
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))

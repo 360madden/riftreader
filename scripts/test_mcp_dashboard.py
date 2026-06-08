@@ -55,6 +55,44 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("No start/stop", html)
         self.assertIn("/status.json", html)
         self.assertIn("Browser & Computer Use", html)
+        self.assertIn("legacy Caddy/router is deprecated", html)
+
+    def test_render_html_embeds_initial_status_for_fetch_blocked_browsers(self) -> None:
+        html = dashboard.render_html(
+            {"kind": "test-status", "unsafe": "</script><script>bad()</script>"}
+        ).decode("utf-8")
+
+        self.assertIn('id="initial-status"', html)
+        self.assertIn('"kind": "test-status"', html)
+        self.assertIn("renderStatus(latestStatus, \"embedded\")", html)
+        self.assertIn("<\\/script>", html)
+        self.assertNotIn("</script><script>bad()", html)
+
+    def test_collect_status_marks_local_443_owner_as_diagnostic_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with (
+                mock.patch.object(dashboard, "_socket_connect", return_value={"ok": True}),
+                mock.patch.object(dashboard, "check_dns", return_value={"ok": True, "status": "passed"}),
+                mock.patch.object(dashboard, "check_windows_port_owner", return_value={"ok": True, "processes": []}),
+                mock.patch.object(
+                    dashboard,
+                    "smoke_public_initialize",
+                    return_value={"ok": True, "status": "passed", "blockers": []},
+                ),
+                mock.patch.object(dashboard, "command_json", return_value={"ok": True, "status": "passed"}),
+                mock.patch.object(
+                    dashboard,
+                    "desktop_control_readiness_payload",
+                    return_value={"ok": True, "status": "passed"},
+                ),
+            ):
+                status = dashboard.collect_status(root, "mcp.360madden.com", include_public_smoke=True)
+
+        self.assertEqual(status["activeRoute"]["key"], "cloudflare-named-tunnel")
+        self.assertTrue(status["activeRoute"]["legacyCaddyRouterDeprecated"])
+        self.assertTrue(status["activeRoute"]["tcp443OwnerDiagnosticOnly"])
+        self.assertTrue(status["domain"]["tcp443OwnerDiagnosticOnly"])
 
 
 if __name__ == "__main__":
