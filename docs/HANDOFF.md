@@ -1,3 +1,18 @@
+# 2026-06-08 — ChatGPT MCP dry-run proof compact handoff
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-chatgpt-mcp-dry-run-proof-compact-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Proof progress | ChatGPT has successfully called all package-loop tools through `dry_run_latest_package_draft`. |
+| Latest draft ID | `20260608T034503Z-2828ca695563` |
+| Current blocker | Final actual-client negative proof: ChatGPT must call `apply_latest_package_draft` without `approvalToken` and it must block. |
+| Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to `127.0.0.1:8770`; Caddy is deprecated and not active. |
+| Next operator action | In ChatGPT, call `apply_latest_package_draft` without `approvalToken`, then paste the blocked output into Codex. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP review-ready proof compact handoff
 
 Fresh compact handoff:
