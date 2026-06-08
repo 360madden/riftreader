@@ -751,6 +751,7 @@ def command_list_payload(repo_root: Path) -> dict[str, Any]:
             ".\\scripts\\riftreader-operator-lite.cmd --run-all bridge-startup-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --proposal-loop-checks --json",
             ".\\scripts\\riftreader-operator-lite.cmd --trial-readiness --json",
+            ".\\scripts\\riftreader-operator-lite.cmd --gui",
             ".\\scripts\\riftreader-operator-lite.cmd /help",
         ],
         "disabledLiveActions": plan["disabledLiveActions"],
@@ -1712,6 +1713,7 @@ def build_parser() -> argparse.ArgumentParser:
             "riftreader-operator-lite.cmd --run-all bridge-startup-checks --json | "
             "riftreader-operator-lite.cmd --proposal-loop-checks --json | "
             "riftreader-operator-lite.cmd --trial-readiness --json | "
+            "riftreader-operator-lite.cmd --gui | "
             "riftreader-operator-lite.cmd /help"
         ),
     )
@@ -1720,6 +1722,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--command-plan", action="store_true", help="Print the full safe command plan and exit.")
     parser.add_argument("--list-commands", action="store_true", help="List safe command keys available to --run.")
     parser.add_argument("--command-reference-md", action="store_true", help="Print generated Markdown command reference and exit.")
+    parser.add_argument("--gui", action="store_true", help="Launch the tabbed local Operator Lite GUI. This is also the default when no action mode is selected.")
     parser.add_argument("--run", metavar="COMMAND_KEY", help="Run one known safe command key from the command plan.")
     parser.add_argument("--run-all", metavar="GROUP_KEY", help="Run one known safe command group, such as bridge-startup-checks.")
     parser.add_argument("--session-start", action="store_true", help="Shortcut for --run bridge-session-start.")
@@ -1920,9 +1923,10 @@ def main(argv: list[str] | None = None) -> int:
         bool(args.list_commands),
         bool(args.command_reference_md),
         bool(args.self_test or args.command_plan),
+        bool(args.gui),
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
-        parser.error("select only one action mode: --run/shortcut, --run-all/group shortcut, --list-commands, or --self-test/--command-plan")
+        parser.error("select only one action mode: --run/shortcut, --run-all/group shortcut, --list-commands, --self-test/--command-plan, or --gui")
     if command_to_run:
         payload = run_command_key(repo_root, command_to_run)
         if args.json:

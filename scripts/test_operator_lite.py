@@ -408,6 +408,7 @@ class OperatorLiteTests(unittest.TestCase):
         self.assertIn("--run-all bridge-startup-checks", encoded)
         self.assertIn("--proposal-loop-checks", encoded)
         self.assertIn("--trial-readiness", encoded)
+        self.assertIn("--gui", encoded)
         self.assertIn("/help", encoded)
 
     def test_generated_command_reference_markdown_lists_safe_commands(self) -> None:
