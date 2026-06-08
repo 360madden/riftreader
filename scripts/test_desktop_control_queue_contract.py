@@ -47,6 +47,11 @@ class DesktopControlQueueContractTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["desktopClicksSent"])
         self.assertIn("desktop-click", payload["queueItemSchema"]["forbiddenActionFamilies"])
         self.assertIn("rift-movement", payload["queueItemSchema"]["forbiddenActionFamilies"])
+        self.assertTrue(payload["queueDraftViewer"]["safety"]["viewerOnly"])
+        self.assertFalse(payload["queueDraftViewer"]["safety"]["draftWriteEndpoint"])
+        self.assertFalse(payload["queueDraftViewer"]["safety"]["executionEndpoint"])
+        self.assertEqual(payload["chatGptWindowDiscovery"]["actionKey"], "chatgpt-window-discovery-no-input")
+        self.assertFalse(payload["chatGptWindowDiscovery"]["ok"])
 
     def test_contract_reflects_passed_readiness_without_enabling_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -72,6 +77,57 @@ class DesktopControlQueueContractTests(unittest.TestCase):
         self.assertEqual(payload["execution"]["currentReadinessBlockers"], [])
         self.assertFalse(payload["execution"]["enabled"])
         self.assertFalse(payload["safety"]["executionEndpoint"])
+        self.assertTrue(payload["chatGptWindowDiscovery"]["ok"])
+        self.assertEqual(payload["chatGptWindowDiscovery"]["status"], "ready")
+
+    def test_queue_draft_viewer_summarizes_latest_valid_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft_root = root / queue_contract.QUEUE_DRAFT_ROOT
+            draft_root.mkdir(parents=True)
+            (draft_root / "001-valid.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "kind": "riftreader-desktop-control-queue-item",
+                        "queueId": "queue-test-001",
+                        "actionKey": "chatgpt-window-discovery-no-input",
+                        "surface": "computer-use",
+                        "intent": "Discover candidate ChatGPT windows without input.",
+                        "requiresHumanApproval": True,
+                        "dryRunOnly": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = queue_contract.queue_draft_viewer_payload(root)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["latestDraft"]["queueId"], "queue-test-001")
+        self.assertTrue(payload["latestDraft"]["valid"])
+        self.assertEqual(payload["latestDraft"]["blockers"], [])
+
+    def test_queue_item_validation_rejects_execution_like_draft(self) -> None:
+        blockers = queue_contract.validate_queue_item(
+            {
+                "schemaVersion": 1,
+                "kind": "riftreader-desktop-control-queue-item",
+                "queueId": "queue-test-unsafe",
+                "actionKey": "desktop-click",
+                "surface": "computer-use",
+                "intent": "desktop-click on ChatGPT",
+                "requiresHumanApproval": False,
+                "dryRunOnly": False,
+            }
+        )
+
+        self.assertIn("actionKey-not-allowed-before-readiness", blockers)
+        self.assertIn("dryRunOnly-not-true", blockers)
+        self.assertIn("requiresHumanApproval-not-true", blockers)
+        self.assertIn("forbidden-action-family:desktop-click", blockers)
 
     def test_self_test_does_not_expose_absolute_repo_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

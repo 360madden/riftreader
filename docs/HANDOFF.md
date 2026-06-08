@@ -1,3 +1,19 @@
+# 2026-06-08 — MCP dashboard readiness summary, queue draft viewer, and CI action refresh
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-dashboard-queue-draft-viewer-ci-actions-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Computer Use | Still blocked at setup with `Computer Use native pipe path is unavailable`; fresh ignored observation is `20260608-152808Z`. |
+| Dashboard UI | Adds `Readiness Summary`, `Desktop Queue Draft Viewer`, and `Status JSON` cards. |
+| Queue drafts | Read-only viewer only under `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-queue-drafts`; schema rejects execution-like drafts and forbidden action families. |
+| No-input discovery | Adds a future `chatgpt-window-discovery-no-input` contract, still blocked until Computer Use bootstrap/list-apps readiness passes. |
+| CI actions | Updates Node 24-compatible GitHub Actions: `actions/checkout@v6`, `actions/setup-dotnet@v5`, and `actions/setup-python@v6`. |
+| Execution state | Still disabled: no queue writer, executor, MCP tool expansion, Browser/Computer automation, desktop input, RIFT input, tunnel start, package apply, Git endpoint, provider write, CE, or x64dbg endpoint. |
+| Next action | Repair Computer Use native pipe externally, prove bootstrap/list-apps only, then record a success observation. |
+
+---
 # 2026-06-08 — No-live RIFT target gate after safe triage
 
 Fresh compact handoff:

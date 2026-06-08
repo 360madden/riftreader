@@ -132,10 +132,22 @@ contract shows Browser/Computer readiness, required future executor gates,
 forbidden action families, and `execution.status=disabled`. It also displays
 copy-ready desktop readiness observation commands from the repair guide so an
 operator can record a blocked or later-successful Computer Use bootstrap/list
-apps proof after running that proof externally. This is visibility only; it
-does not add a queue writer, executor, ChatGPT MCP tool, Browser Use
-automation, Computer Use automation, command execution, desktop input, or
-game-control endpoint.
+apps proof after running that proof externally. The dashboard also includes:
+
+- `Readiness Summary`: separates repo final gate, Browser Use, Computer Use,
+  and queue-execution state so `computer-use-native-pipe-not-confirmed` is
+  visible without reading raw JSON.
+- `Desktop Queue Draft Viewer`: read-only visibility for future inert queue
+  drafts under `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-queue-drafts`;
+  schema validation requires `dryRunOnly=true`, `requiresHumanApproval=true`,
+  and allowed pre-readiness action keys only.
+- `Status JSON`: a direct read-only `/status.json` link plus the existing
+  embedded-status fallback for Browser Use clients that cannot navigate
+  directly to JSON.
+
+This is visibility only; it does not add a queue writer, executor, ChatGPT MCP
+tool, Browser Use automation, Computer Use automation, command execution,
+desktop input, or game-control endpoint.
 
 ## Hard boundaries
 

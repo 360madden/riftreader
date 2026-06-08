@@ -54,9 +54,12 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("Local status dashboard only", html)
         self.assertIn("No start/stop", html)
         self.assertIn("/status.json", html)
+        self.assertIn("Readiness Summary", html)
         self.assertIn("Browser & Computer Use", html)
         self.assertIn("Desktop Queue Contract", html)
+        self.assertIn("Desktop Queue Draft Viewer", html)
         self.assertIn("Desktop Readiness Commands", html)
+        self.assertIn("Status JSON", html)
         self.assertIn("legacy Caddy/router is deprecated", html)
 
     def test_render_html_embeds_initial_status_for_fetch_blocked_browsers(self) -> None:
@@ -122,6 +125,22 @@ class McpDashboardTests(unittest.TestCase):
                         "summary": "plan only",
                         "execution": {"enabled": False, "status": "disabled"},
                         "queueItemSchema": {"forbiddenActionFamilies": ["desktop-click"]},
+                        "queueDraftViewer": {
+                            "ok": True,
+                            "status": "ready",
+                            "count": 0,
+                            "latestDraft": None,
+                            "safety": {
+                                "viewerOnly": True,
+                                "draftWriteEndpoint": False,
+                                "executionEndpoint": False,
+                            },
+                        },
+                        "chatGptWindowDiscovery": {
+                            "ok": True,
+                            "status": "ready",
+                            "actionKey": "chatgpt-window-discovery-no-input",
+                        },
                         "requiredGatesBeforeAnyFutureExecutor": ["desktopControlReadiness.ok=true"],
                         "safety": {"contractOnly": True, "executionEndpoint": False},
                     },
@@ -133,8 +152,16 @@ class McpDashboardTests(unittest.TestCase):
         self.assertTrue(status["activeRoute"]["legacyCaddyRouterDeprecated"])
         self.assertTrue(status["activeRoute"]["tcp443OwnerDiagnosticOnly"])
         self.assertTrue(status["domain"]["tcp443OwnerDiagnosticOnly"])
+        self.assertIn("readinessBadges", status)
+        self.assertIn("computer-use", [badge["key"] for badge in status["readinessBadges"]])
         self.assertEqual(status["desktopControlQueue"]["execution"]["status"], "disabled")
         self.assertFalse(status["desktopControlQueue"]["execution"]["enabled"])
+        self.assertEqual(status["desktopControlQueue"]["queueDraftViewer"]["status"], "ready")
+        self.assertFalse(status["desktopControlQueue"]["queueDraftViewer"]["safety"]["draftWriteEndpoint"])
+        self.assertEqual(
+            status["desktopControlQueue"]["chatGptWindowDiscovery"]["actionKey"],
+            "chatgpt-window-discovery-no-input",
+        )
         self.assertIn("desktopControlReadiness.ok=true", status["desktopControlQueue"]["requiredGatesBeforeAnyFutureExecutor"])
         self.assertIn("--computer-use-native-pipe-ok", status["desktopControlCommands"]["recordSuccessCommandText"])
         self.assertIn('"Computer Use native pipe path is unavailable"', status["desktopControlCommands"]["recordBlockedCommandText"])
@@ -156,6 +183,13 @@ class McpDashboardTests(unittest.TestCase):
                         "executionEndpoint": True,
                         "queueWriteEndpoint": True,
                     },
+                    "queueDraftViewer": {
+                        "safety": {
+                            "viewerOnly": False,
+                            "draftWriteEndpoint": True,
+                            "executionEndpoint": True,
+                        },
+                    },
                 },
                 "desktopControlCommands": {
                     "safety": {
@@ -173,6 +207,9 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("desktop-control-queue-mcp-tool-exposed", payload["blockers"])
         self.assertIn("desktop-control-queue-execution-endpoint", payload["blockers"])
         self.assertIn("desktop-control-queue-write-endpoint", payload["blockers"])
+        self.assertIn("desktop-control-draft-viewer-not-viewer-only", payload["blockers"])
+        self.assertIn("desktop-control-draft-viewer-write-endpoint", payload["blockers"])
+        self.assertIn("desktop-control-draft-viewer-execution-endpoint", payload["blockers"])
         self.assertIn("desktop-control-commands-not-copy-only", payload["blockers"])
         self.assertIn("desktop-control-commands-execution-endpoint", payload["blockers"])
 

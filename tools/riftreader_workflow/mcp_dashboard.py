@@ -167,6 +167,10 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     desktop_control_repair_guide = desktop_control.get("repairGuide") if isinstance(desktop_control.get("repairGuide"), dict) else {}
     record_blocked_command = desktop_control_repair_guide.get("recordBlockedCommand") or []
     record_success_command = desktop_control_repair_guide.get("recordSuccessCommand") or []
+    desktop_surfaces = desktop_control.get("surfaces") if isinstance(desktop_control.get("surfaces"), dict) else {}
+    browser_surface = desktop_surfaces.get("browserUse") if isinstance(desktop_surfaces.get("browserUse"), dict) else {}
+    computer_surface = desktop_surfaces.get("computerUse") if isinstance(desktop_surfaces.get("computerUse"), dict) else {}
+    queue_execution = desktop_control_queue.get("execution") if isinstance(desktop_control_queue.get("execution"), dict) else {}
     latest_template_path = latest_file(repo_root / PROOF_INPUT_TEMPLATE_ROOT, "*/proof-input.json")
     latest_proof_path = latest_file(repo_root / ACTUAL_CLIENT_PROOF_ROOT, "*/proof.json")
     latest_template = load_json_file(latest_template_path)
@@ -202,6 +206,36 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "tcp443OwnerDiagnosticOnly": True,
             "note": "Local TCP 443 owner output is diagnostic-only; do not treat caddy.exe as the active MCP route.",
         },
+        "readinessBadges": [
+            {
+                "key": "repo-final-gate",
+                "label": "Repo final gate",
+                "status": final_status.get("status"),
+                "ok": final_status.get("ok"),
+                "blockers": (final_status.get("blockers") or [])[:5],
+            },
+            {
+                "key": "browser-use",
+                "label": "Browser Use",
+                "status": browser_surface.get("status"),
+                "ok": browser_surface.get("ok"),
+                "blockers": (browser_surface.get("blockers") or [])[:5],
+            },
+            {
+                "key": "computer-use",
+                "label": "Computer Use",
+                "status": computer_surface.get("status"),
+                "ok": computer_surface.get("ok"),
+                "blockers": (computer_surface.get("blockers") or [])[:5],
+            },
+            {
+                "key": "queue-execution",
+                "label": "Queue execution",
+                "status": queue_execution.get("status"),
+                "ok": queue_execution.get("enabled") is False,
+                "blockers": [] if queue_execution.get("enabled") is False else ["queue-execution-not-disabled"],
+            },
+        ],
         "toolSurface": {
             "phase0ReadOnlyTools": list(PUBLIC_READ_ONLY_TOOL_ORDER),
             "phase0ExpectedProofTools": list(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES),
@@ -234,6 +268,8 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "summary": desktop_control_queue.get("summary"),
             "execution": desktop_control_queue.get("execution"),
             "queueItemSchema": desktop_control_queue.get("queueItemSchema"),
+            "queueDraftViewer": desktop_control_queue.get("queueDraftViewer"),
+            "chatGptWindowDiscovery": desktop_control_queue.get("chatGptWindowDiscovery"),
             "requiredGatesBeforeAnyFutureExecutor": desktop_control_queue.get("requiredGatesBeforeAnyFutureExecutor"),
             "safety": desktop_control_queue.get("safety"),
         },
@@ -274,6 +310,8 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "dashboardHost": DEFAULT_DASHBOARD_HOST,
             "localhostOnly": True,
             "statusOnly": True,
+            "statusJsonEndpoint": "/status.json",
+            "embeddedStatusFallback": True,
             "startStopControls": False,
             "shellEndpoint": False,
             "arbitraryFilesystemEndpoint": False,
@@ -309,6 +347,7 @@ HTML = """<!doctype html>
     .muted { color:#9aa7b5; }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap:16px; margin-top:18px; }
     .card { background:#151b23; border:1px solid #30363d; border-radius:12px; padding:16px; box-shadow: 0 2px 12px #0008; }
+    .badges { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .status { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; }
     .green { background:#1f6f43; color:#d2ffe3; }
     .yellow { background:#8a6d1d; color:#fff4c2; }
@@ -338,6 +377,7 @@ function esc(v) { return String(v ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","
 function list(items) { return `<ul>${(items||[]).map(x=>`<li><code>${esc(x)}</code></li>`).join("") || "<li class='muted'>none</li>"}</ul>`; }
 function card(title, body) { return `<section class="card"><h2>${esc(title)}</h2>${body}</section>`; }
 function commandBlock(label, text) { return `<h3>${esc(label)}</h3><pre>${esc(text || "unavailable")}</pre>`; }
+function badgeGrid(items) { return `<div class="badges">${(items||[]).map(x=>`<div>${pill(esc(x.label || x.key), x.ok, x.status)}${list(x.blockers)}</div>`).join("")}</div>`; }
 function embeddedStatus() {
   const node = document.getElementById("initial-status");
   if (!node) return null;
@@ -347,6 +387,7 @@ function renderStatus(s, source) {
   if (!s) return;
   document.getElementById("updated").textContent = `Updated ${s.generatedAtUtc} (${source})`;
   const cards = [];
+  cards.push(card("Readiness Summary", `${badgeGrid(s.readinessBadges)}<p class="muted">Repo/MCP can be ready while Computer Use remains externally blocked; queue execution must stay disabled.</p>`));
   cards.push(card("MCP backend", `${pill("backend", s.backend.connect.ok, s.backend.connect.ok ? "running" : "stopped")}<p><code>${s.backend.host}:${s.backend.port}</code></p><pre>${esc(JSON.stringify(s.backend.owner.processes || [], null, 2))}</pre>`));
   cards.push(card("Public domain", `${pill("DNS", s.domain.dns.ok, s.domain.dns.status)} ${pill("TCP 443", s.domain.tcp443.ok, s.domain.tcp443.ok ? "passed" : "blocked")} ${pill("/mcp smoke", s.domain.publicSmoke.ok, s.domain.publicSmoke.status)}<p><code>${esc(s.domain.publicMcpUrl)}</code></p><p class="muted">Route: <code>${esc(s.activeRoute.key)}</code>. Local TCP 443 owner is diagnostic-only; legacy Caddy/router is deprecated.</p>${list(s.domain.publicSmoke.blockers)}`));
   cards.push(card("ChatGPT setup", `<p>App: <code>${esc(s.appName)}</code></p><p>Server URL: <code>${esc(s.chatGptSetup.serverUrl)}</code></p><p>Auth: <code>${esc(s.chatGptSetup.authentication)}</code></p><p class="muted">Surface: ${esc(s.chatGptSetup.surface)}; not Codex.</p>`));
@@ -355,7 +396,9 @@ function renderStatus(s, source) {
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
   cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
   cards.push(card("Desktop Queue Contract", `${pill("contract", s.desktopControlQueue.ok, s.desktopControlQueue.status)} ${pill("execution", s.desktopControlQueue.execution?.enabled, s.desktopControlQueue.execution?.status)}<p>${esc(s.desktopControlQueue.summary)}</p><h3>Required gates</h3>${list(s.desktopControlQueue.requiredGatesBeforeAnyFutureExecutor)}<h3>Forbidden action families</h3>${list(s.desktopControlQueue.queueItemSchema?.forbiddenActionFamilies)}<h3>Execution</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.execution || {}, null, 2))}</pre>`));
+  cards.push(card("Desktop Queue Draft Viewer", `${pill("viewer", s.desktopControlQueue.queueDraftViewer?.ok, s.desktopControlQueue.queueDraftViewer?.status)}<p class="muted">Read-only draft visibility only. No queue write endpoint and no executor.</p><p>Drafts: <code>${esc(s.desktopControlQueue.queueDraftViewer?.count ?? 0)}</code></p><h3>Latest draft</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.queueDraftViewer?.latestDraft || {}, null, 2))}</pre><h3>No-input ChatGPT window discovery</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.chatGptWindowDiscovery || {}, null, 2))}</pre>`));
   cards.push(card("Desktop Readiness Commands", `${pill("commands", s.desktopControlCommands?.ok, s.desktopControlCommands?.status)}<p class="muted">Copy/paste only after matching external proof; this dashboard never runs the commands.</p>${commandBlock("Record current blocked Computer Use probe", s.desktopControlCommands?.recordBlockedCommandText)}${commandBlock("Record success after bootstrap/list_apps passes", s.desktopControlCommands?.recordSuccessCommandText)}<h3>Safety</h3><pre>${esc(JSON.stringify(s.desktopControlCommands?.safety || {}, null, 2))}</pre>`));
+  cards.push(card("Status JSON", `${pill("status-json", true, "read-only")}<p><a href="/status.json">Open /status.json</a></p><p class="muted">If live fetch is blocked, this page still renders the embedded initial status payload.</p>`));
   cards.push(card("Safety", `${pill("dashboard", true, "status-only")} ${pill("controls", null, "disabled")}<ul><li>No shell endpoint</li><li>No arbitrary filesystem endpoint</li><li>No Git mutation endpoint</li><li>No RIFT input</li><li>No CE/x64dbg</li></ul>`));
   cards.push(card("Recent audit/events", `<pre>${esc(JSON.stringify(s.recentAuditEvents, null, 2))}</pre>`));
   document.getElementById("cards").innerHTML = cards.join("");
@@ -458,6 +501,14 @@ def self_test(repo_root: Path, public_host: str) -> dict[str, Any]:
             blockers.append("desktop-control-queue-execution-endpoint")
         if queue_safety.get("queueWriteEndpoint") is not False:
             blockers.append("desktop-control-queue-write-endpoint")
+        draft_viewer = queue.get("queueDraftViewer") if isinstance(queue.get("queueDraftViewer"), dict) else {}
+        draft_safety = draft_viewer.get("safety") if isinstance(draft_viewer.get("safety"), dict) else {}
+        if draft_viewer and draft_safety.get("viewerOnly") is not True:
+            blockers.append("desktop-control-draft-viewer-not-viewer-only")
+        if draft_viewer and draft_safety.get("draftWriteEndpoint") is not False:
+            blockers.append("desktop-control-draft-viewer-write-endpoint")
+        if draft_viewer and draft_safety.get("executionEndpoint") is not False:
+            blockers.append("desktop-control-draft-viewer-execution-endpoint")
     commands = status.get("desktopControlCommands")
     if isinstance(commands, dict):
         commands_safety = commands.get("safety") if isinstance(commands.get("safety"), dict) else {}
