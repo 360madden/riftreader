@@ -56,6 +56,7 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("/status.json", html)
         self.assertIn("Browser & Computer Use", html)
         self.assertIn("Desktop Queue Contract", html)
+        self.assertIn("Desktop Readiness Commands", html)
         self.assertIn("legacy Caddy/router is deprecated", html)
 
     def test_render_html_embeds_initial_status_for_fetch_blocked_browsers(self) -> None:
@@ -85,7 +86,32 @@ class McpDashboardTests(unittest.TestCase):
                 mock.patch.object(
                     dashboard,
                     "desktop_control_readiness_payload",
-                    return_value={"ok": True, "status": "passed"},
+                    return_value={
+                        "ok": True,
+                        "status": "passed",
+                        "repairGuide": {
+                            "recordBlockedCommand": [
+                                "scripts\\riftreader-desktop-control-readiness.cmd",
+                                "--record-observation",
+                                "--browser-dashboard-smoke-ok",
+                                "--computer-use-stage",
+                                "setup",
+                                "--computer-use-error",
+                                "Computer Use native pipe path is unavailable",
+                                "--json",
+                            ],
+                            "recordSuccessCommand": [
+                                "scripts\\riftreader-desktop-control-readiness.cmd",
+                                "--record-observation",
+                                "--browser-dashboard-smoke-ok",
+                                "--computer-use-native-pipe-ok",
+                                "--computer-use-list-apps-ok",
+                                "--computer-use-stage",
+                                "passed",
+                                "--json",
+                            ],
+                        },
+                    },
                 ),
                 mock.patch.object(
                     dashboard,
@@ -110,6 +136,45 @@ class McpDashboardTests(unittest.TestCase):
         self.assertEqual(status["desktopControlQueue"]["execution"]["status"], "disabled")
         self.assertFalse(status["desktopControlQueue"]["execution"]["enabled"])
         self.assertIn("desktopControlReadiness.ok=true", status["desktopControlQueue"]["requiredGatesBeforeAnyFutureExecutor"])
+        self.assertIn("--computer-use-native-pipe-ok", status["desktopControlCommands"]["recordSuccessCommandText"])
+        self.assertIn('"Computer Use native pipe path is unavailable"', status["desktopControlCommands"]["recordBlockedCommandText"])
+        self.assertTrue(status["desktopControlCommands"]["safety"]["copyOnly"])
+        self.assertFalse(status["desktopControlCommands"]["safety"]["executionEndpoint"])
+
+    def test_self_test_blocks_desktop_queue_execution_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            unsafe_status = {
+                "safety": {"localhostOnly": True},
+                "desktopControlQueue": {
+                    "execution": {
+                        "enabled": True,
+                        "executorImplemented": True,
+                        "mcpToolExposed": True,
+                    },
+                    "safety": {
+                        "executionEndpoint": True,
+                        "queueWriteEndpoint": True,
+                    },
+                },
+                "desktopControlCommands": {
+                    "safety": {
+                        "copyOnly": False,
+                        "executionEndpoint": True,
+                    },
+                },
+            }
+            with mock.patch.object(dashboard, "collect_status", return_value=unsafe_status):
+                payload = dashboard.self_test(root, "mcp.360madden.com")
+
+        self.assertFalse(payload["ok"])
+        self.assertIn("desktop-control-queue-execution-enabled", payload["blockers"])
+        self.assertIn("desktop-control-queue-executor-implemented", payload["blockers"])
+        self.assertIn("desktop-control-queue-mcp-tool-exposed", payload["blockers"])
+        self.assertIn("desktop-control-queue-execution-endpoint", payload["blockers"])
+        self.assertIn("desktop-control-queue-write-endpoint", payload["blockers"])
+        self.assertIn("desktop-control-commands-not-copy-only", payload["blockers"])
+        self.assertIn("desktop-control-commands-execution-endpoint", payload["blockers"])
 
 
 if __name__ == "__main__":

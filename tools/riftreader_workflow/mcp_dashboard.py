@@ -114,6 +114,21 @@ def command_json(repo_root: Path, args: list[str], timeout_seconds: float = 8.0)
         return {"status": "failed", "ok": False, "_command": {"args": args, "error": f"{type(exc).__name__}:{exc}"}}
 
 
+def command_text(args: Any) -> str:
+    """Render an argv list as copy-ready text without using shell execution."""
+    if not isinstance(args, list):
+        return ""
+    parts: list[str] = []
+    for item in args:
+        text = str(item)
+        escaped = text.replace('"', '\\"')
+        if any(ch.isspace() for ch in text) or '"' in text:
+            parts.append(f'"{escaped}"')
+        else:
+            parts.append(text)
+    return " ".join(parts)
+
+
 def recent_audit_events(repo_root: Path, limit: int = 12) -> list[dict[str, Any]]:
     audit_root = repo_root / ".riftreader-local" / "riftreader-chatgpt-mcp" / "audit"
     if not audit_root.is_dir():
@@ -149,6 +164,9 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     mission = command_json(repo_root, ["cmd", "/c", "scripts\\riftreader-mcp-mission-control.cmd", "--json"], 12.0)
     desktop_control = desktop_control_readiness_payload(repo_root)
     desktop_control_queue = desktop_control_queue_contract_payload(repo_root)
+    desktop_control_repair_guide = desktop_control.get("repairGuide") if isinstance(desktop_control.get("repairGuide"), dict) else {}
+    record_blocked_command = desktop_control_repair_guide.get("recordBlockedCommand") or []
+    record_success_command = desktop_control_repair_guide.get("recordSuccessCommand") or []
     latest_template_path = latest_file(repo_root / PROOF_INPUT_TEMPLATE_ROOT, "*/proof-input.json")
     latest_proof_path = latest_file(repo_root / ACTUAL_CLIENT_PROOF_ROOT, "*/proof.json")
     latest_template = load_json_file(latest_template_path)
@@ -218,6 +236,29 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "queueItemSchema": desktop_control_queue.get("queueItemSchema"),
             "requiredGatesBeforeAnyFutureExecutor": desktop_control_queue.get("requiredGatesBeforeAnyFutureExecutor"),
             "safety": desktop_control_queue.get("safety"),
+        },
+        "desktopControlCommands": {
+            "status": "ready",
+            "ok": True,
+            "scope": "operator-copy-only",
+            "recordBlockedCommand": record_blocked_command,
+            "recordBlockedCommandText": command_text(record_blocked_command),
+            "recordSuccessCommand": record_success_command,
+            "recordSuccessCommandText": command_text(record_success_command),
+            "safety": {
+                **safety_flags(),
+                "copyOnly": True,
+                "executionEndpoint": False,
+                "desktopClicksSent": False,
+                "desktopTypingSent": False,
+                "windowActivationSent": False,
+                "browserAutomated": False,
+                "computerUseAutomated": False,
+                "mcpToolExposed": False,
+                "queueWriteEndpoint": False,
+                "gitMutation": False,
+                "providerWrites": False,
+            },
         },
         "proof": {
             "latestTemplatePath": rel(repo_root, latest_template_path),
@@ -296,6 +337,7 @@ function pill(label, ok, status) { return `<span class="status ${cls(ok, status)
 function esc(v) { return String(v ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c])); }
 function list(items) { return `<ul>${(items||[]).map(x=>`<li><code>${esc(x)}</code></li>`).join("") || "<li class='muted'>none</li>"}</ul>`; }
 function card(title, body) { return `<section class="card"><h2>${esc(title)}</h2>${body}</section>`; }
+function commandBlock(label, text) { return `<h3>${esc(label)}</h3><pre>${esc(text || "unavailable")}</pre>`; }
 function embeddedStatus() {
   const node = document.getElementById("initial-status");
   if (!node) return null;
@@ -313,6 +355,7 @@ function renderStatus(s, source) {
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
   cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
   cards.push(card("Desktop Queue Contract", `${pill("contract", s.desktopControlQueue.ok, s.desktopControlQueue.status)} ${pill("execution", s.desktopControlQueue.execution?.enabled, s.desktopControlQueue.execution?.status)}<p>${esc(s.desktopControlQueue.summary)}</p><h3>Required gates</h3>${list(s.desktopControlQueue.requiredGatesBeforeAnyFutureExecutor)}<h3>Forbidden action families</h3>${list(s.desktopControlQueue.queueItemSchema?.forbiddenActionFamilies)}<h3>Execution</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.execution || {}, null, 2))}</pre>`));
+  cards.push(card("Desktop Readiness Commands", `${pill("commands", s.desktopControlCommands?.ok, s.desktopControlCommands?.status)}<p class="muted">Copy/paste only after matching external proof; this dashboard never runs the commands.</p>${commandBlock("Record current blocked Computer Use probe", s.desktopControlCommands?.recordBlockedCommandText)}${commandBlock("Record success after bootstrap/list_apps passes", s.desktopControlCommands?.recordSuccessCommandText)}<h3>Safety</h3><pre>${esc(JSON.stringify(s.desktopControlCommands?.safety || {}, null, 2))}</pre>`));
   cards.push(card("Safety", `${pill("dashboard", true, "status-only")} ${pill("controls", null, "disabled")}<ul><li>No shell endpoint</li><li>No arbitrary filesystem endpoint</li><li>No Git mutation endpoint</li><li>No RIFT input</li><li>No CE/x64dbg</li></ul>`));
   cards.push(card("Recent audit/events", `<pre>${esc(JSON.stringify(s.recentAuditEvents, null, 2))}</pre>`));
   document.getElementById("cards").innerHTML = cards.join("");
@@ -363,6 +406,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
         return
 
+    def write_body(self, body: bytes) -> None:
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            return
+
     def do_GET(self) -> None:  # noqa: N802
         if self.path in ("/", "/index.html"):
             body = render_html(self.server.status())
@@ -370,7 +419,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            self.write_body(body)
             return
         if self.path == "/status.json":
             body = json.dumps(self.server.status(), indent=2, sort_keys=True).encode("utf-8")
@@ -379,7 +428,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            self.write_body(body)
             return
         self.send_error(404)
 
@@ -395,6 +444,27 @@ def self_test(repo_root: Path, public_host: str) -> dict[str, Any]:
         blockers.append("secret-like-token-exposed")
     if status.get("safety", {}).get("localhostOnly") is not True:
         blockers.append("localhost-only-flag-missing")
+    queue = status.get("desktopControlQueue")
+    if isinstance(queue, dict):
+        execution = queue.get("execution") if isinstance(queue.get("execution"), dict) else {}
+        queue_safety = queue.get("safety") if isinstance(queue.get("safety"), dict) else {}
+        if execution.get("enabled") is not False:
+            blockers.append("desktop-control-queue-execution-enabled")
+        if execution.get("executorImplemented") is not False:
+            blockers.append("desktop-control-queue-executor-implemented")
+        if execution.get("mcpToolExposed") is not False:
+            blockers.append("desktop-control-queue-mcp-tool-exposed")
+        if queue_safety.get("executionEndpoint") is not False:
+            blockers.append("desktop-control-queue-execution-endpoint")
+        if queue_safety.get("queueWriteEndpoint") is not False:
+            blockers.append("desktop-control-queue-write-endpoint")
+    commands = status.get("desktopControlCommands")
+    if isinstance(commands, dict):
+        commands_safety = commands.get("safety") if isinstance(commands.get("safety"), dict) else {}
+        if commands_safety.get("copyOnly") is not True:
+            blockers.append("desktop-control-commands-not-copy-only")
+        if commands_safety.get("executionEndpoint") is not False:
+            blockers.append("desktop-control-commands-execution-endpoint")
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-dashboard-self-test",
@@ -437,7 +507,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if payload.get("ok") else 2
     httpd = DashboardServer((args.host, args.port), Handler, repo_root, args.public_mcp_host, not args.no_public_smoke)
     print(f"RiftReader MCP dashboard: http://{args.host}:{args.port}/")
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nRiftReader MCP dashboard stopped.")
+        return 0
     return 0
 
 

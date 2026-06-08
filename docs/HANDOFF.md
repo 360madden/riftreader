@@ -1,3 +1,18 @@
+# 2026-06-08 — MCP dashboard Desktop Readiness Commands card
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-dashboard-desktop-readiness-commands-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Dashboard JSON | `scripts\riftreader-mcp-dashboard.cmd --once-json --no-public-smoke` now includes `desktopControlCommands`. |
+| Dashboard UI | The localhost-only dashboard renders a `Desktop Readiness Commands` card with copy-ready record-blocked and record-success observation commands. |
+| Execution state | Copy/display only: no command execution, queue writer, executor, MCP tool, Browser/Computer automation, desktop input, RIFT input, tunnel start, package apply, Git mutation, CE, or x64dbg endpoint. |
+| Queue invariant | Dashboard self-test now fails if the Desktop Queue Contract exposes execution or queue-write capability. |
+| Current blocker | Computer Use still fails at setup with `Computer Use native pipe path is unavailable`; latest ignored observation is `20260608-114715Z`. |
+| Next action | Repair Computer Use native pipe externally, prove bootstrap/list-apps only, then record a success observation from the displayed command. |
+
+---
 # 2026-06-08 — MCP dashboard Desktop Queue Contract card
 
 Fresh compact handoff:
