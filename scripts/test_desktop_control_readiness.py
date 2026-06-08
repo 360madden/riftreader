@@ -42,6 +42,8 @@ class DesktopControlReadinessTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["browserAutomated"])
         self.assertFalse(payload["safety"]["computerUseAutomated"])
         self.assertTrue(payload["surfaces"]["localDashboard"]["localhostOnly"])
+        self.assertEqual(payload["repairGuide"]["blocker"], "computer-use-native-pipe-not-confirmed")
+        self.assertIn("PowerShell SendKeys", payload["repairGuide"]["doNotUseFallbacks"])
 
     def test_readiness_passes_with_explicit_local_observation_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -221,6 +223,18 @@ class DesktopControlReadinessTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertNotIn(str(root), text)
         self.assertFalse(payload["statusPreview"]["safety"]["desktopClicksSent"])
+
+    def test_repair_guide_is_guide_only_and_has_record_commands(self) -> None:
+        payload = readiness.repair_guide_payload()
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked-safe")
+        self.assertEqual(payload["knownError"], "Computer Use native pipe path is unavailable")
+        self.assertTrue(payload["safety"]["guideOnly"])
+        self.assertFalse(payload["safety"]["desktopClicksSent"])
+        self.assertFalse(payload["safety"]["computerUseAutomated"])
+        self.assertIn("--computer-use-native-pipe-ok", payload["recordSuccessCommand"])
+        self.assertIn("--computer-use-error", payload["recordBlockedCommand"])
 
 
 if __name__ == "__main__":

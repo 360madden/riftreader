@@ -1,3 +1,18 @@
+# 2026-06-08 — MCP desktop-control repair guide
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-08-mcp-desktop-control-repair-guide-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Computer Use status | Still blocked-safe at setup with `Computer Use native pipe path is unavailable`. |
+| New guide | `scripts\riftreader-desktop-control-readiness.cmd --repair-guide --json` prints supported recovery steps and safe observation commands. |
+| Scope | Guide-only; no browser/desktop automation, no window input, no service mutation, no MCP tool-surface expansion. |
+| Proven MCP surface | Still the existing 12-tool ChatGPT MCP surface; no new MCP tool added. |
+| Next action | Repair/reconnect the Codex Computer Use plugin/runtime outside this repo, then rerun only bootstrap + `list_apps`. |
+
+---
+
 # 2026-06-08 — MCP desktop-control observation writer and freshness gate
 
 Fresh compact handoff:

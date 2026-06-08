@@ -31,6 +31,7 @@ COMPUTER_USE_BLOCKER = "computer-use-native-pipe-not-confirmed"
 COMPUTER_USE_LIST_APPS_BLOCKER = "computer-use-list-apps-not-confirmed"
 BROWSER_USE_BLOCKER = "browser-use-dashboard-smoke-not-confirmed"
 OBSERVATION_STALE_BLOCKER = "desktop-control-observation-stale"
+COMPUTER_USE_NATIVE_PIPE_ERROR = "Computer Use native pipe path is unavailable"
 
 
 def latest_observation_path(repo_root: Path) -> Path | None:
@@ -136,6 +137,80 @@ def recommended_next_actions(*, browser_ok: bool, computer_ok: bool) -> list[dic
             }
         )
     return actions
+
+
+def repair_guide_payload() -> dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-desktop-control-repair-guide",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked-safe",
+        "ok": False,
+        "blocker": COMPUTER_USE_BLOCKER,
+        "knownError": COMPUTER_USE_NATIVE_PIPE_ERROR,
+        "scope": "Codex Computer Use plugin/runtime environment outside the RiftReader repo-owned MCP adapter.",
+        "supportedProbe": {
+            "surface": "Codex Computer Use plugin",
+            "steps": [
+                "Load the Computer Use client through the supported plugin runtime.",
+                "Run only the lightweight bootstrap.",
+                "Run only list_apps after bootstrap succeeds.",
+            ],
+            "successCriteria": [
+                "nativePipeOk=true",
+                "listAppsOk=true",
+                "noClicks=true",
+                "noTyping=true",
+                "noWindowActions=true",
+                "noRiftInput=true",
+            ],
+        },
+        "operatorChecklist": [
+            "Confirm the Codex Desktop Computer Use plugin is installed, enabled, and permitted for this session.",
+            "Restart or reconnect Codex Desktop/Computer Use if the plugin UI exposes a supported reconnect path.",
+            "Start a fresh Codex thread/session if the native pipe remains unavailable after reconnect.",
+            "Rerun only the supported Computer Use bootstrap plus list_apps smoke.",
+            "If the smoke passes, record a new desktop-control observation with nativePipeOk and listAppsOk true.",
+        ],
+        "doNotUseFallbacks": [
+            "PowerShell SendKeys",
+            "Windows Run dialog",
+            "Windows terminal UI automation",
+            "custom native-pipe clients",
+            "manual shell commands as a substitute for Computer Use UI automation",
+            "RIFT input or movement as a readiness probe",
+        ],
+        "recordSuccessCommand": [
+            "scripts\\riftreader-desktop-control-readiness.cmd",
+            "--record-observation",
+            "--browser-dashboard-smoke-ok",
+            "--computer-use-native-pipe-ok",
+            "--computer-use-list-apps-ok",
+            "--computer-use-stage",
+            "passed",
+            "--json",
+        ],
+        "recordBlockedCommand": [
+            "scripts\\riftreader-desktop-control-readiness.cmd",
+            "--record-observation",
+            "--browser-dashboard-smoke-ok",
+            "--computer-use-stage",
+            "setup",
+            "--computer-use-error",
+            COMPUTER_USE_NATIVE_PIPE_ERROR,
+            "--json",
+        ],
+        "safety": {
+            **safety_flags(),
+            "guideOnly": True,
+            "browserAutomated": False,
+            "computerUseAutomated": False,
+            "desktopClicksSent": False,
+            "desktopTypingSent": False,
+            "serverStarted": False,
+            "publicTunnelStarted": False,
+        },
+    }
 
 
 def observation_payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
@@ -307,6 +382,7 @@ def readiness_payload(repo_root: Path) -> dict[str, Any]:
             },
         },
         "recommendedNextActions": recommended_next_actions(browser_ok=browser_ok, computer_ok=computer_ok),
+        "repairGuide": repair_guide_payload() if not computer_ok else None,
         "safety": {
             **safety_flags(),
             "statusOnly": True,
@@ -322,6 +398,7 @@ def readiness_payload(repo_root: Path) -> dict[str, Any]:
 
 def self_test(repo_root: Path) -> dict[str, Any]:
     payload = readiness_payload(repo_root)
+    repair_guide = repair_guide_payload()
     text = json.dumps(payload, sort_keys=True)
     blockers: list[str] = []
     root_text = str(repo_root.resolve())
@@ -331,6 +408,10 @@ def self_test(repo_root: Path) -> dict[str, Any]:
         blockers.append("browser-automation-flag-not-false")
     if payload.get("safety", {}).get("computerUseAutomated") is not False:
         blockers.append("computer-use-automation-flag-not-false")
+    if repair_guide.get("safety", {}).get("guideOnly") is not True:
+        blockers.append("repair-guide-not-guide-only")
+    if repair_guide.get("safety", {}).get("desktopClicksSent") is not False:
+        blockers.append("repair-guide-desktop-clicks-flag-not-false")
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-desktop-control-readiness-self-test",
@@ -339,6 +420,7 @@ def self_test(repo_root: Path) -> dict[str, Any]:
         "ok": not blockers,
         "blockers": blockers,
         "statusPreview": payload,
+        "repairGuidePreview": repair_guide,
         "safety": {**safety_flags(), "statusOnly": True},
     }
 
@@ -347,6 +429,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Read-only Browser/Computer Use readiness for RiftReader MCP.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--repair-guide", action="store_true", help="Print a guide for the external Computer Use native-pipe blocker.")
     parser.add_argument("--record-observation", action="store_true", help="Write an ignored local observation artifact.")
     parser.add_argument("--browser-dashboard-smoke-ok", action="store_true")
     parser.add_argument("--browser-checked-url", default=DASHBOARD_URL)
@@ -364,7 +447,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
-    if args.record_observation:
+    if args.repair_guide:
+        payload = repair_guide_payload()
+    elif args.record_observation:
         payload = write_observation(repo_root, args)
     elif args.self_test:
         payload = self_test(repo_root)
@@ -373,6 +458,8 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     if args.record_observation:
         return 0
+    if args.repair_guide:
+        return 2
     if args.self_test:
         return 0 if payload.get("ok") else 1
     return 0 if payload.get("ok") else 2
