@@ -60,6 +60,33 @@ TOOL_NOT_AVAILABLE_IN_CHATGPT_TOOL_FACADE:apply_latest_package_draft
 | `python tools\riftreader_workflow\chatgpt_trial_recorder.py --check-latest-template --json` | Blocked, now with explicit `chatgpt-tool-facade-unavailable:*` blocker |
 | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_workflow_control_summary --json` | Passed and includes `actualClientProofRecovery` |
 
+## 2026-06-08 runtime refresh
+
+The public MCP process was restarted after the tool-facade guidance patch so
+ChatGPT can refresh against the latest server instructions and health payload.
+
+| Field | Value |
+|---|---|
+| Old MCP PID | `46884` |
+| New MCP PID | `48828` |
+| Listener | `127.0.0.1:8770` |
+| Command | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --serve --tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com` |
+| Public route check | Passed |
+| Public health check | Passed and includes `chatGptToolFacade.packageProofToolOrder` |
+| Domain diagnostics artifact | `.riftreader-local\riftreader-chatgpt-mcp\domain-diagnostics\20260608-032403Z\summary.json` |
+| Server logs | `.riftreader-local\riftreader-chatgpt-mcp\server-logs\20260607-232336-stdout.log`, `.riftreader-local\riftreader-chatgpt-mcp\server-logs\20260607-232336-stderr.log` |
+
+Computer/browser automation status in Codex:
+
+| Channel | Status |
+|---|---|
+| Computer Use | Blocked: `Computer Use native pipe path is unavailable` |
+| Chrome DevTools | Blocked: no local DevTools port open on `9222`, `9223`, `9224`, `9333`, or `9515` |
+| In-app Browser | Not suitable for final proof because it is not the operator's logged-in ChatGPT session |
+
+Therefore the next actual-client proof step remains operator-side in ChatGPT
+Web/Desktop after refreshing the `rift-mcp` app.
+
 ## Next actual ChatGPT prompt
 
 Use this in a fresh ChatGPT Web/Desktop chat after opening the app selector and
@@ -83,4 +110,3 @@ Do not treat health.tools as proof that a tool was actually callable.
 If ChatGPT still reports package tools unavailable, the next likely fix is in
 ChatGPT app settings/tool enablement or the developer-mode app refresh/cache
 path, not the public Cloudflare route.
-
