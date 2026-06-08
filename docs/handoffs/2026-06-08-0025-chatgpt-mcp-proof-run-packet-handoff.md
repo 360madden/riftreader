@@ -60,10 +60,17 @@ It prints a current ChatGPT Web/Desktop packet with:
 - Current final-gate blockers.
 - Explicit no-RIFT-input / no-CE / no-git-mutation boundaries.
 
+The existing MCP `get_workflow_control_summary` response now also includes a
+compact `proofRunPacket` pointer with the same Server URL, No Authentication
+mode, connection mode, and local CLI packet command. This keeps the packet
+discoverable from ChatGPT without changing the 12-tool MCP surface.
+
 ## Local commits since the previous pushed HEAD
 
 | Commit | Summary |
 |---|---|
+| `96f1c87` | Surface MCP proof packet in workflow summary |
+| `e440861` | Add ChatGPT MCP proof packet handoff |
 | `56f616b` | Filter PID zero from MCP proof packet |
 | `c98213b` | Document ChatGPT MCP proof run packet |
 | `972bd47` | Add ChatGPT MCP proof run packet |
@@ -74,7 +81,7 @@ It prints a current ChatGPT Web/Desktop packet with:
 Local branch state at handoff creation:
 
 ```text
-main...origin/main [ahead 6]
+main...origin/main [ahead 8]
 ```
 
 No push was performed because remote mutation is gated by repo policy.
