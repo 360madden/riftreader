@@ -1,3 +1,19 @@
+# 2026-06-08 — ChatGPT MCP submit-proof current handoff
+
+Fresh handoff:
+`docs/handoffs/2026-06-08-chatgpt-mcp-submit-proof-current-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Proof progress | ChatGPT has successfully called `get_package_proposal_template` and `submit_package_proposal`. |
+| Latest inbox ID | `20260608T034503Z-2828ca695563` |
+| Current blocker | ChatGPT still needs to call `list_inbox` and show `20260608T034503Z-2828ca695563` in `items[]`. |
+| Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to `127.0.0.1:8770`; Caddy is deprecated and not the active route. |
+| Latest validation | Proof input check is blocked-safe with `submit-succeeded-but-list-inbox-did-not-see-id`; domain diagnostics passed at `2026-06-08T03:48:37Z`. |
+| Next operator action | In ChatGPT, call `list_inbox`, then paste the output into Codex. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP package-template callable update
 
 Current actual ChatGPT Web/Desktop proof advanced: the operator pasted a
