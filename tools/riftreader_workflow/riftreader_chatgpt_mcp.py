@@ -1532,7 +1532,7 @@ class RiftReaderChatGptMcpAdapter:
                 "currentStageName": FULL_PRODUCT_STAGE_PLAN["currentStageName"],
                 "nextStage": FULL_PRODUCT_STAGE_PLAN["nextStage"],
                 "nextStageName": FULL_PRODUCT_STAGE_PLAN["nextStageName"],
-                "primaryProofPath": "manual-public-ip-server-url-no-auth",
+                "primaryProofPath": "cloudflare-named-tunnel-server-url-no-auth",
                 "readiness": "blocked-on-fresh-actual-chatgpt-web-desktop-proof",
             },
             "safeReadSequence": safe_read_sequence,

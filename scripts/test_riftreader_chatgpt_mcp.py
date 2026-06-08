@@ -834,6 +834,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["controlMode"], "summary-only")
         self.assertEqual(payload["currentProduct"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertEqual(payload["currentProduct"]["primaryProofPath"], "cloudflare-named-tunnel-server-url-no-auth")
         self.assertEqual(payload["responseCompaction"]["minifiedBytesTarget"], chatgpt_mcp.WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET)
         self.assertIn("get_workflow_control_summary", payload["safeReadSequence"])
         self.assertIn("get_workflow_control_plan", payload["transportFallback"]["ifFullPlanTimesOut"])

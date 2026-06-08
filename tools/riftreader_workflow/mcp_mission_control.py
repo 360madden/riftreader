@@ -184,7 +184,7 @@ def build_final_product_progress(
         }
     elif next_phase and next_phase["phase"] == 7 and final_ok:
         recommended = {
-            "key": "prepare-manual-public-ip-chatgpt-proof",
+            "key": "prepare-cloudflare-named-tunnel-chatgpt-proof",
             "reason": "Local final gate passes; the next external proof should use the operator-managed Cloudflare named Tunnel Server URL path.",
             "command": commands["manualPublicIpPlan"],
         }
@@ -213,9 +213,11 @@ def build_final_product_progress(
         "releaseHandoffPath": release_handoff_path,
         "actualClientProofCompleted": actual_client_proof_completed,
         "externalTrialExplicitOnly": True,
-        "recommendedConnection": "manual-public-ip",
+        "recommendedConnection": "cloudflare-named-tunnel",
         "openAiSecureTunnelRetired": True,
-        "cloudflareTunnelRetired": True,
+        "cloudflareTunnelRetired": False,
+        "cloudflareNamedTunnelActive": True,
+        "cloudflareQuickTunnelRetired": True,
         "publicTunnelStarted": False,
         "chatGptRegistrationPerformed": False,
     }
