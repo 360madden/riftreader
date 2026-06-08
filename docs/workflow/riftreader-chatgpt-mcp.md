@@ -381,7 +381,7 @@ cd /d "C:\RIFT MODDING\RiftReader"
 
 | Helper | Command | Default behavior |
 |---|---|---|
-| MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, and `--checklist-md`. |
+| MCP Mission Control | `scripts\riftreader-mcp-mission-control.cmd --json` | Shows readiness, latest artifacts, Git dirty summary, ranked next actions, paste-safe commands, `--summary-md`, `--checklist-md`, and `--proof-run-packet-md`. |
 | Manual Public-Host Plan | `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json` | Writes an ignored local plan artifact and prints the active Cloudflare named Tunnel Server URL, loopback MCP serve command, tunnel/Cloudflare checklist, retired-path warnings, and first ChatGPT smoke order. |
 | Final Readiness Gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Authoritative final-product gate covering Phase 2 proof/CI/freshness, clean tree, upstream sync, retired tunnel dependency state, environment preflight, tool-surface safety, and public-session state. |
 | Proof Artifact Browser | `scripts\riftreader-mcp-artifacts.cmd --latest --json` | Lists latest readiness/smoke/trial/proof-input-template/inbox/draft/dry-run/proof artifacts; `--timeline`, `--kind <kind>`, and read-only `--open-latest` are supported. |
@@ -418,6 +418,7 @@ RUN THIS:
 cd /d "C:\RIFT MODDING\RiftReader"
 .\scripts\riftreader-mcp-mission-control.cmd --summary-md
 .\scripts\riftreader-mcp-mission-control.cmd --checklist-md
+.\scripts\riftreader-mcp-mission-control.cmd --proof-run-packet-md
 .\scripts\riftreader-mcp-final.cmd --status --compact-json
 ```
 
@@ -431,6 +432,7 @@ Mission Control now emits:
 | `recommendedNextAction` / `rankedActions` | Final-gate-aligned operator routing; raw artifact presence cannot mark the dashboard ready when proof replay fails current rules. |
 | `--summary-md` | Human-readable progress and latest-artifact summary suitable for handoff context. |
 | `--checklist-md` | Paste-safe proof checklist covering final gate, optional local refreshes, explicit public trial, package review, proof recording, and final gate rerun. |
+| `--proof-run-packet-md` | Current ChatGPT Web/Desktop proof packet with the live Cloudflare Server URL, No Authentication mode, backend PID when visible, latest proof-template path, expected 12-tool list, safe ChatGPT call sequence, and check/record commands. |
 | `--trial-command --json` | Prints the bounded public-trial command without running it. |
 
 Mission Control remains safe by default: it does not start a public tunnel,
