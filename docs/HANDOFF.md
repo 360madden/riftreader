@@ -1,3 +1,19 @@
+# 2026-06-08 — ChatGPT MCP actual-client proof complete
+
+Fresh proof-complete handoff:
+`docs/handoffs/2026-06-08-chatgpt-mcp-actual-client-proof-complete-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Actual ChatGPT proof | Complete and recorded. All package-loop tools were observed through ChatGPT, including blocked `apply_latest_package_draft` without `approvalToken`. |
+| Recorded proof | `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260608-091238Z\proof.json` |
+| Proof replay | Passed and fresh in final readiness. |
+| Public route | `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to `127.0.0.1:8770`; Caddy is deprecated and not active. |
+| Remaining blockers | `git:upstream-not-synced:behind=0:ahead=3`, `phase2:not-ready`, and current-head CI missing for `.NET build and test` plus `RiftReader Policy`. |
+| Next operator action | If approved, push `main` and wait for current-head CI. |
+
+---
+
 # 2026-06-08 — ChatGPT MCP dry-run proof compact handoff
 
 Fresh compact handoff:
