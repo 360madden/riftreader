@@ -314,7 +314,7 @@ class McpMissionControlTests(unittest.TestCase):
                         "httpStatus": 200,
                         "serverInfo": {"name": "riftreader_chatgpt_mcp", "version": "1.27.1"},
                     },
-                    "backend": {"owner": {"processes": [{"pid": "12345", "imageName": "python.exe"}]}},
+                    "backend": {"owner": {"processes": [{"pid": "0", "imageName": "System Idle Process"}, {"pid": "12345", "imageName": "python.exe"}]}},
                 },
             )
 
@@ -342,6 +342,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("cloudflare-named-tunnel", packet)
         self.assertIn("127.0.0.1:8770", packet)
         self.assertIn("12345", packet)
+        self.assertNotIn("PID(s) `0", packet)
         self.assertIn("Expected tool names", packet)
         self.assertIn("apply_latest_package_draft", packet)
         self.assertIn("APPLY_APPROVAL_MISSING", packet)

@@ -557,7 +557,14 @@ def render_proof_run_packet(payload: dict[str, Any], domain_payload: dict[str, A
     backend = domain_payload.get("backend") if isinstance(domain_payload.get("backend"), dict) else {}
     owner = backend.get("owner") if isinstance(backend.get("owner"), dict) else {}
     processes = owner.get("processes") if isinstance(owner.get("processes"), list) else []
-    backend_pids = ", ".join(str(proc.get("pid")) for proc in processes if isinstance(proc, dict) and proc.get("pid")) or "not-detected"
+    backend_pids = (
+        ", ".join(
+            str(proc.get("pid"))
+            for proc in processes
+            if isinstance(proc, dict) and proc.get("pid") not in {None, "", "0", 0}
+        )
+        or "not-detected"
+    )
     public_smoke = domain_payload.get("publicSmoke") if isinstance(domain_payload.get("publicSmoke"), dict) else {}
     server_info = public_smoke.get("serverInfo") if isinstance(public_smoke.get("serverInfo"), dict) else {}
     check_command = [
