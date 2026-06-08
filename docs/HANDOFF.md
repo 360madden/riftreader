@@ -1,3 +1,17 @@
+# 2026-06-08 — No-live RIFT target gate after safe triage
+
+Fresh compact handoff:
+`docs\handoffs\2026-06-08-no-live-rift-target-gate-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Live target | No live `rift_x64` process is visible. |
+| Launcher | Glyph is present but hidden; launcher inspection blocks button automation and launch without explicit approval. |
+| Latest safe artifacts | `.riftreader-local\live-test-triage\20260608-144000Z\live-test-triage-summary.json` and `.riftreader-local\launcher-inspection\run-20260608-144000-249834\launcher-inspection-summary.json`. |
+| Safety | No input, movement, launcher action, debugger/CE, provider write, truth apply, promotion, Git push, or tracked truth write was performed. |
+| Next action | Get explicit launch/relaunch approval, then rerun no-input triage after RIFT is visible/in-world. |
+
+---
 # 2026-06-08 — MCP dashboard Desktop Readiness Commands card
 
 Fresh compact handoff:
