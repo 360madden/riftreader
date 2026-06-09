@@ -50,6 +50,7 @@ COMMAND_BUDGET_SECONDS: dict[str, float] = {
     "py-compile": 30.0,
     "unittest-focused": 120.0,
     "unittest-discover": 420.0,
+    "unittest-discover-active": 420.0,
     "policy-lint": 120.0,
     "decision-packet": 120.0,
     "dotnet-restore": 180.0,
@@ -326,7 +327,14 @@ def full_local_specs() -> list[CommandSpec]:
             budget_seconds=COMMAND_BUDGET_SECONDS["decision-packet"],
             expected_exit_codes=(0, STATUS_EXIT_CODES["blocked"]),
         ),
-        spec("unittest-discover", [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py"], tier=tier, phase="python-tests", timeout_seconds=900.0, budget_seconds=COMMAND_BUDGET_SECONDS["unittest-discover"]),
+        spec(
+            "unittest-discover-active",
+            [sys.executable, "tools\\riftreader_workflow\\unittest_discover_active.py"],
+            tier=tier,
+            phase="python-tests",
+            timeout_seconds=900.0,
+            budget_seconds=COMMAND_BUDGET_SECONDS["unittest-discover-active"],
+        ),
         spec(
             "workflow-status",
             ["cmd", "/c", "scripts\\riftreader-workflow-status.cmd", "--compact-json"],

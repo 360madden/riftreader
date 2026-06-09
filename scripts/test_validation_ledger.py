@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools.riftreader_workflow import validation_ledger
+from tools.riftreader_workflow import unittest_discover_active, validation_ledger
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -183,6 +183,32 @@ class ValidationLedgerTests(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertEqual(report["status"], "passed")
         self.assertFalse(report["safety"]["gitMutation"])
+
+    def test_full_local_uses_active_unittest_discovery(self):
+        specs = validation_ledger.full_local_specs()
+        labels = [item.label for item in specs]
+        active = next(item for item in specs if item.label == "unittest-discover-active")
+
+        self.assertIn("unittest-discover-active", labels)
+        self.assertNotIn("unittest-discover", labels)
+        self.assertEqual(
+            active.args,
+            [sys.executable, "tools\\riftreader_workflow\\unittest_discover_active.py"],
+        )
+
+    def test_active_discovery_filters_retired_opencode_modules(self):
+        self.assertTrue(
+            unittest_discover_active.is_excluded_test_id(
+                "scripts.test_opencode_bridge.OpenCodeBridgePromptTests.test_example",
+                set(unittest_discover_active.DEFAULT_RETIRED_MODULES),
+            )
+        )
+        self.assertFalse(
+            unittest_discover_active.is_excluded_test_id(
+                "scripts.test_decision_packet.DecisionPacketTests.test_example",
+                set(unittest_discover_active.DEFAULT_RETIRED_MODULES),
+            )
+        )
 
 
 if __name__ == "__main__":
