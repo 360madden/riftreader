@@ -188,7 +188,7 @@ class McpPhase1CompletionTests(unittest.TestCase):
             ["scripts\\riftreader-chatgpt-trial-recorder.cmd", "--write-template", "--json"],
         )
 
-    def test_repo_side_complete_recommends_latest_fresh_proof_template_when_present(self) -> None:
+    def test_repo_side_complete_records_actual_client_proof_when_template_present(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             make_repo(root)
@@ -199,14 +199,12 @@ class McpPhase1CompletionTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "blocked")
         self.assertTrue(payload["repoSideComplete"])
-        self.assertEqual(payload["recommendedNextAction"]["key"], "check-actual-client-proof-input")
+        self.assertEqual(payload["recommendedNextAction"]["key"], "record-actual-client-proof")
         self.assertEqual(
             payload["recommendedNextAction"]["command"],
             [
                 "scripts\\riftreader-chatgpt-trial-recorder.cmd",
-                "--check-input",
-                "--input",
-                ".riftreader-local\\riftreader-chatgpt-mcp\\proof-input-templates\\20260519-010350Z\\proof-input.json",
+                "--write-template",
                 "--json",
             ],
         )

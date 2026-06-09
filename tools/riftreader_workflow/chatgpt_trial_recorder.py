@@ -59,6 +59,8 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "dry_run_latest_package_draft",
     "apply_latest_package_draft",
     "get_workflow_control_plan",
+    "get_dirty_paths",
+    "get_recent_commits",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
 EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = (

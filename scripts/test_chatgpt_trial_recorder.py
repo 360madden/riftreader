@@ -297,7 +297,8 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         blockers = recorder.validate_proof(proof)
 
-        self.assertIn(f"tool-count-not-{recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT}:12", blockers)
+        full_tool_count = len(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+        self.assertIn(f"tool-count-not-{recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT}:{full_tool_count}", blockers)
         self.assertIn("tool-names-not-expected", blockers)
 
     def test_rejects_unexpected_tool_name_set(self) -> None:
