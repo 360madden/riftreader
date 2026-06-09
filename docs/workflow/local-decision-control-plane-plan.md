@@ -30,6 +30,7 @@ defensive/resilience hardening slices:
 | Commit planner messages | Code-only workflow-helper slices no longer fall back to docs-only suggested commit messages. |
 | Commit planner stage command | `commitPlan.stageCommand` emits an argument array `["git", "add", "--", ...]`; `stageCommandPreview` uses `git add -- <paths>` and quotes spaces/metacharacters for humans; Markdown packets render both. |
 | Post-validation reminders | After `--run-safe-checks` passes and `commitPlan.recommended` is true, `safeNextAction` switches to `commit-ready-explicit-paths` status/commit-plan review instead of looping safe checks. |
+| Post-update target-drift loop guard | If latest post-update recovery evidence reports PID/HWND/process-start drift, `safeNextAction` routes to read-only `scripts\get-rift-window-targets.cmd -Json` before repeating current-PID owner/root rediscovery. |
 | Agent-plan validator | Agent plans reject malformed slices, invalid authority/risk values, empty owned paths/validation, normalized duplicate owned paths, and self-forbidden owned-path patterns before future agents split work. |
 | Agent-plan CLI smoke | `--agent-plan` and Operator Lite `--decision-packet-agent-plan --json` have smoke coverage proving they emit `agentPlan` plus `llmReminder` and preserve safe-blocked exit behavior. |
 

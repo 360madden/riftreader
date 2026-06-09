@@ -62,6 +62,14 @@ RETIRED_OPENCODE_PATH_PATTERNS = (
 RETIRED_OPENCODE_POLICY = "retired-opencode-requires-explicit-reauthorization"
 RETIRED_OPENCODE_BLOCKER = "retired-opencode-surface-changed"
 RETIRED_SURFACE_RECOMMENDED_ACTION = "inspect-revert-or-get-reauthorization"
+POSTUPDATE_TARGET_IDENTITY_BLOCKER_TOKENS = (
+    "pid-hwnd-mismatch",
+    "target-hwnd-pid-mismatch",
+    "process-start-mismatch",
+    "process-not-found",
+    "no-rift-window-targets-present",
+    "target-drift",
+)
 FORBIDDEN_ACTIONS = [
     "movement",
     "live_input",
@@ -104,6 +112,22 @@ def safe_mapping(value: Any) -> dict[str, Any]:
 
 def safe_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def postupdate_target_identity_blockers(post_update_recovery: dict[str, Any]) -> list[str]:
+    """Return blockers showing post-update recovery is aimed at a stale/missing target."""
+
+    sources = [
+        safe_list(post_update_recovery.get("blockers")),
+        safe_list(safe_mapping(post_update_recovery.get("yawFacingCandidates")).get("blockers")),
+    ]
+    blockers: list[str] = []
+    for source in sources:
+        for item in source:
+            blocker = str(item)
+            if any(token in blocker for token in POSTUPDATE_TARGET_IDENTITY_BLOCKER_TOKENS):
+                blockers.append(blocker)
+    return sorted(set(blockers))
 
 
 def load_json_object(path: Path) -> dict[str, Any] | None:
@@ -1437,6 +1461,17 @@ def build_safe_next_action(
     static_resolver = safe_mapping(actor.get("staticResolver"))
     post_update_recovery = safe_mapping(post_update_recovery)
     if target_epoch.get("status") == "post-update-static-root-blocked":
+        target_identity_blockers = postupdate_target_identity_blockers(post_update_recovery)
+        if target_identity_blockers:
+            return {
+                "key": "refresh-rift-window-target-discovery",
+                "command": ["scripts\\get-rift-window-targets.cmd", "-Json"],
+                "why": (
+                    "The promoted static root is blocked and the latest post-update recovery evidence reports "
+                    f"target identity drift ({', '.join(target_identity_blockers)}). Refresh read-only RIFT "
+                    "window target discovery before repeating current-PID owner/root rediscovery."
+                ),
+            }
         if post_update_recovery.get("status") == "candidate" and post_update_recovery.get("chain"):
             return {
                 "key": "postupdate-global-container-coordinate-readback-refresh",

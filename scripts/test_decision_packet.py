@@ -130,7 +130,7 @@ def write_postupdate_global_container_summary(root: Path) -> Path:
     return path
 
 
-def write_postupdate_yaw_facing_inventory_summary(root: Path) -> Path:
+def write_postupdate_yaw_facing_inventory_summary(root: Path, *, blockers: list[str] | None = None) -> Path:
     path = root / "scripts" / "captures" / "postupdate-owner-root-rediscovery-fixture" / "summary.json"
     write_json(
         path,
@@ -171,7 +171,7 @@ def write_postupdate_yaw_facing_inventory_summary(root: Path) -> Path:
                     }
                 ],
             },
-            "blockers": ["no-owner-root-hypothesis-yet"],
+            "blockers": blockers if blockers is not None else ["no-owner-root-hypothesis-yet"],
             "warnings": ["static-access-chain-root-orientation-only-not-position"],
         },
     )
@@ -331,6 +331,52 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertEqual(
             packet["staticOwnerReadback"]["latestAttempt"]["verdict"],
             "target-hwnd-pid-mismatch",
+        )
+        self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
+
+    def test_postupdate_target_identity_drift_refreshes_window_targets_before_rediscovery(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 77152,
+                        "targetWindowHandle": "0x17A0DB2",
+                        "processStartUtc": "2026-06-02T15:45:29.2617327Z",
+                        "moduleBase": "0x7FF7211C0000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "staticChainStatus": {
+                        "status": "promoted",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootRva": "0x32EBC80",
+                        },
+                    },
+                },
+            )
+            write_blocked_static_owner_summary(root)
+            write_postupdate_yaw_facing_inventory_summary(
+                root,
+                blockers=["no-owner-root-hypothesis-yet", "pid-hwnd-mismatch", "process-start-mismatch"],
+            )
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["targetEpoch"]["status"], "post-update-static-root-blocked")
+        self.assertEqual(packet["safeNextAction"]["key"], "refresh-rift-window-target-discovery")
+        self.assertEqual(packet["safeNextAction"]["command"], ["scripts\\get-rift-window-targets.cmd", "-Json"])
+        self.assertIn("pid-hwnd-mismatch", packet["safeNextAction"]["why"])
+        self.assertIn("process-start-mismatch", packet["safeNextAction"]["why"])
+        self.assertIn(
+            "pid-hwnd-mismatch",
+            packet["postUpdateRecovery"]["yawFacingCandidates"]["blockers"],
         )
         self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
 
