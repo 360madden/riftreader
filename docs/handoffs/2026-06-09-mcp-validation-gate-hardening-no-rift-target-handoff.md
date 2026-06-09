@@ -4,11 +4,11 @@
 
 | Item | Status |
 |---|---|
-| Generated at | `2026-06-09T09:28:37Z` |
-| Branch | `main`, clean worktree before this handoff, `ahead 3` before this handoff commit. |
-| Latest local commits | `f89aea5` documented the MCP validation gap; `6884787` runs package dry-run checks in an ignored workspace; `1cd41e2` gates package apply preflight on dry-run check results. |
+| Generated at | `2026-06-09T09:28:37Z`; updated `2026-06-09T09:52:00Z` |
+| Branch | `main`, clean worktree; remote relation was `ahead 4` when CI-parity evidence was collected for local `HEAD` `ea3c0e6`. |
+| Latest local commits | `f89aea5` documented the MCP validation gap; `6884787` runs package dry-run checks in an ignored workspace; `1cd41e2` gates package apply preflight on dry-run check results; `ea3c0e6` added this durable handoff. |
 | Decision packet | `scripts\riftreader-decision-packet.cmd --compact-json --write` remains `blocked` / `blocked-safe`; safe next action is `python .\scripts\postupdate_owner_root_rediscovery.py --json`. |
-| RIFT target discovery | `scripts\get-rift-window-targets.ps1 -Json` at `2026-06-09T09:26:21Z` found `count=0` for `rift_x64`; no current PID/HWND is available for owner-root rediscovery. |
+| RIFT target discovery | `scripts\get-rift-window-targets.ps1 -Json` at `2026-06-09T09:34:31Z` found `count=0` for `rift_x64`; no current PID/HWND is available for owner-root rediscovery. |
 | Proof recovery blocker | Latest static owner readback still reports `root-pointer-null`; packet blocker is `latest-static-owner-readback-root-pointer-null`. |
 | MCP package intake gate | Dry-run now executes manifest-declared checks in an ignored temporary workspace and reports `runCount`/`failedCount` from actual check execution. |
 | MCP apply preflight gate | Apply preflight now rejects dry-run summaries where declared checks were skipped, count-mismatched, invalid, or failed. |
@@ -21,13 +21,14 @@
 | Package intake + draft review unit tests | `python -m unittest scripts.test_package_intake scripts.test_package_draft_review` passed: 29 tests. |
 | Targeted ledger | Passed: `.riftreader-local\validation-runs\20260609-091950-823861\summary.md`; duration `2.819s`, command duration `2.515s`. |
 | Smoke ledger | Passed: `.riftreader-local\validation-runs\20260609-092322-583432\summary.md`; duration `1.093s`. |
+| CI-parity ledger | Blocked-safe: `.riftreader-local\validation-runs\20260609-093529-591706\summary.md`; duration `907.242s`; blocker `ci-poll-timeout:900.0s` because GitHub returned no runs for local-only `HEAD` `ea3c0e6`. |
 | Pre-commit gates | Passed for the changed package validation files and docs during local commits. |
 
 ## Gate
 
 | Gate | Required behavior |
 |---|---|
-| Git push | Requires explicit user approval; branch is ahead locally. |
+| Git push | Requires explicit user approval; branch is ahead locally and remote CI cannot run for local-only commits until they are pushed. |
 | Launch/relaunch RIFT | Requires explicit approval before starting or interacting with the game/launcher. |
 | Owner-root rediscovery | Safe only after a current `rift_x64` PID/HWND exists; no-input readback remains allowed. |
 | ProofOnly / promotion / current-truth apply | Still blocked without fresh same-target proof gates and explicit approval. |
