@@ -1,3 +1,18 @@
+# 2026-06-09 - Full-local active unittest validation and no-RIFT-target gate
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-09-full-local-active-unittest-no-rift-target-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Validation | Post-commit full-local ledger passed: `.riftreader-local\validation-runs\20260609-111219-900949\summary.md`, duration `214.490s`. |
+| Latest local commit | `70c8ce3 Keep full local validation on active tests`. |
+| Full-local change | Default `full-local` now runs active unittest discovery and excludes retired OpenCode suites unless explicitly opted in. |
+| RIFT target | Read-only target discovery still finds `count=0` for `rift_x64`; no current PID/HWND is available. |
+| Decision packet | Still blocked-safe for proof recovery: `latest-static-owner-readback-root-pointer-null`; safe next repo command is `scripts\get-rift-window-targets.cmd -Json`. |
+| Git state | `main` is clean and ahead of `origin/main` by 9 commits before this handoff; do not push unless explicitly approved. |
+
+---
 # 2026-06-08 - Computer Use reboot resume handoff
 
 Fresh compact handoff:
