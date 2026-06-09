@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_ci_status import current_head_ci_status
     from .mcp_final_readiness import compact_final_readiness, final_readiness
@@ -18,7 +18,7 @@ try:
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.chatgpt_trial_recorder import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
@@ -606,7 +606,7 @@ def render_proof_run_packet(payload: dict[str, Any], domain_payload: dict[str, A
         "",
         "1. Connect this MCP in ChatGPT Web/Desktop with the Server URL above and No Authentication.",
         "2. Call `health` and confirm `repoRoot == \".\"` and `absoluteRepoRootExposed == false`.",
-        "3. Confirm ChatGPT sees exactly the 12 tool names listed below and output schemas for all 12.",
+        f"3. Confirm ChatGPT sees exactly {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tool names listed below and output schemas for all {EXPECTED_CHATGPT_MCP_TOOL_COUNT}.",
         "4. Call `get_repo_status`, `get_latest_handoff`, and `get_workflow_control_summary`.",
         "5. Call `get_package_proposal_template` and record `templateFetched: true`.",
         "6. Submit one tiny harmless `package-proposal` via `submit_package_proposal`.",

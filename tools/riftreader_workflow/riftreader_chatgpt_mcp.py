@@ -36,6 +36,7 @@ try:
     from . import package_manifest
     from . import package_draft_review, status_packet
     from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import local_artifact_bridge as bridge
@@ -43,6 +44,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 
 
 SCHEMA_VERSION = 1
@@ -81,38 +83,9 @@ TUNNEL_CLIENT_DEFAULT_PATHS = (
 )
 CLOUDFLARE_QUICK_TUNNEL_PATTERN = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
 
-EXPECTED_TOOL_ORDER = (
-    "health",
-    "get_repo_status",
-    "get_latest_handoff",
-    "get_workflow_control_summary",
-    "get_package_proposal_template",
-    "submit_package_proposal",
-    "list_inbox",
-    "create_package_draft_from_inbox",
-    "review_latest_package_draft",
-    "dry_run_latest_package_draft",
-    "apply_latest_package_draft",
-    "get_workflow_control_plan",
-    "get_dirty_paths",
-    "get_recent_commits",
-)
-PACKAGE_PROOF_TOOL_ORDER = (
-    "get_package_proposal_template",
-    "submit_package_proposal",
-    "list_inbox",
-    "create_package_draft_from_inbox",
-    "review_latest_package_draft",
-    "dry_run_latest_package_draft",
-    "apply_latest_package_draft",
-)
-PUBLIC_READ_ONLY_TOOL_ORDER = (
-    "health",
-    "get_repo_status",
-    "get_latest_handoff",
-    "get_workflow_control_summary",
-    "get_workflow_control_plan",
-)
+EXPECTED_TOOL_ORDER = EXPECTED_CHATGPT_MCP_TOOL_NAMES
+PACKAGE_PROOF_TOOL_ORDER = PACKAGE_PROOF_TOOL_NAMES
+PUBLIC_READ_ONLY_TOOL_ORDER = PUBLIC_READ_ONLY_TOOL_NAMES
 TOOL_PROFILE_FULL = "full"
 TOOL_PROFILE_PUBLIC_READ_ONLY = "public-read-only"
 TOOL_PROFILES = (TOOL_PROFILE_FULL, TOOL_PROFILE_PUBLIC_READ_ONLY)
@@ -473,14 +446,14 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "currentStage": 20,
     "currentStageName": "Gated apply exposed locally",
     "currentTruth": (
-        "Local 12-tool MCP is validated locally with gated apply and a compact workflow-control summary; "
+        f"Local {len(EXPECTED_TOOL_ORDER)}-tool MCP is validated locally with gated apply and a compact workflow-control summary; "
         "full readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and any "
         "unpushed local commits."
     ),
     "nextStage": 21,
     "nextStageName": "Apply actual-client proof",
     "phaseOrder": [
-        "prove current 12-tool gated-apply Cloudflare named Tunnel product",
+        f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
         "add local commit with safe explicit-path staging",
         "add push as separate remote-mutation gate",
@@ -5303,7 +5276,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=TOOL_PROFILES,
         default=TOOL_PROFILE_FULL,
         help=(
-            "MCP tool surface to expose. Default full preserves the canonical 12-tool path; "
+            "MCP tool surface to expose. Default full preserves the current full tool path; "
             "public-read-only exposes only Phase 0 read-only proof tools."
         ),
     )

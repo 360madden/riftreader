@@ -12,10 +12,12 @@ from typing import Any
 try:
     from .common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
     from .mcp_workflow_state import ACTUAL_CLIENT_PROOF_ROOT
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.mcp_workflow_state import ACTUAL_CLIENT_PROOF_ROOT
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
 
 
 REQUIRED_FIELDS = (
@@ -46,23 +48,6 @@ REQUIRED_FIELDS = (
     "applyLatestPackageDraftWithoutApprovalBlockers",
     "applyLatestPackageDraftWithoutApprovalApplied",
 )
-EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
-    "health",
-    "get_repo_status",
-    "get_latest_handoff",
-    "get_workflow_control_summary",
-    "get_package_proposal_template",
-    "submit_package_proposal",
-    "list_inbox",
-    "create_package_draft_from_inbox",
-    "review_latest_package_draft",
-    "dry_run_latest_package_draft",
-    "apply_latest_package_draft",
-    "get_workflow_control_plan",
-    "get_dirty_paths",
-    "get_recent_commits",
-)
-EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
 EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = (
     "health",
     "get_repo_status",

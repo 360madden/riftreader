@@ -16,29 +16,18 @@ from typing import Any
 
 try:
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from .mcp_phase2_status import compact_phase2_status, phase2_status
     from .mcp_workflow_state import build_mcp_workflow_state, proof_input_template_next_action, safe_load_json, standard_commands
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from riftreader_workflow.mcp_phase2_status import compact_phase2_status, phase2_status
     from riftreader_workflow.mcp_workflow_state import build_mcp_workflow_state, proof_input_template_next_action, safe_load_json, standard_commands
 
 
-APPROVED_TOOL_NAMES = (
-    "health",
-    "get_repo_status",
-    "get_latest_handoff",
-    "get_workflow_control_summary",
-    "get_package_proposal_template",
-    "submit_package_proposal",
-    "list_inbox",
-    "create_package_draft_from_inbox",
-    "review_latest_package_draft",
-    "dry_run_latest_package_draft",
-    "apply_latest_package_draft",
-    "get_workflow_control_plan",
-)
+APPROVED_TOOL_NAMES = EXPECTED_CHATGPT_MCP_TOOL_NAMES
 
 FALSE_SAFETY_KEYS = (
     "movementSent",

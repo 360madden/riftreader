@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 try:
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
 
 
@@ -41,13 +43,8 @@ FRESHNESS_BUDGET_SECONDS = {
     "actual-client-proof": 24 * 60 * 60,
 }
 CURRENT_PROOF_INPUT_CONNECTION_MODE = "cloudflare-named-tunnel"
-CURRENT_PROOF_INPUT_TOOL_COUNT = 12
-CURRENT_PROOF_INPUT_REQUIRED_TOOLS = frozenset(
-    {
-        "get_workflow_control_summary",
-        "apply_latest_package_draft",
-    }
-)
+CURRENT_PROOF_INPUT_TOOL_COUNT = EXPECTED_CHATGPT_MCP_TOOL_COUNT
+CURRENT_PROOF_INPUT_REQUIRED_TOOLS = frozenset(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
 
 ARTIFACT_KINDS = (
     "readiness",
