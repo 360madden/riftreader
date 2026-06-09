@@ -144,10 +144,17 @@ def make_draft(root: Path, draft_id: str, *, title: str, self_test: bool = False
     return draft_dir
 
 
-def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180100Z") -> Path:
+def make_cached_dry_run(
+    root: Path,
+    draft_dir: Path,
+    run_id: str = "20260518-180100Z",
+    *,
+    check_counts: dict[str, int] | None = None,
+) -> Path:
     package_root = draft_dir / "package"
     intake_dir = root / ".riftreader-local" / "package-intake" / run_id
     intake_dir.mkdir(parents=True)
+    counts = check_counts or {"declaredCount": 0, "runCount": 0, "failedCount": 0}
     compact = {
         "schemaVersion": 1,
         "kind": "riftreader-package-intake-compact-summary",
@@ -157,7 +164,7 @@ def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180
         "packageRoot": str(package_root),
         "changedFiles": ["docs/proposed.md"],
         "changedFileCount": 1,
-        "checks": {"declaredCount": 0, "runCount": 0, "failedCount": 0},
+        "checks": counts,
         "blockers": [],
         "warnings": [],
         "errors": [],
@@ -190,6 +197,50 @@ def make_cached_dry_run(root: Path, draft_dir: Path, run_id: str = "20260518-180
     )
     os.utime(path, (1_900_000_000, 1_900_000_000))
     return path
+
+
+def make_full_dry_run_summary(
+    root: Path,
+    draft_dir: Path,
+    run_id: str = "20260518T140000Z-dry-run",
+    *,
+    declared_checks: list[dict[str, object]] | None = None,
+    check_results: list[dict[str, object]] | None = None,
+) -> tuple[Path, str]:
+    package_root = draft_dir / "package"
+    intake_dir = root / ".riftreader-local" / "package-intake" / run_id
+    intake_dir.mkdir(parents=True)
+    diff_path = intake_dir / "package.diff"
+    diff_path.write_text(
+        "diff --git a/docs/proposed.md b/docs/proposed.md\n"
+        "--- a/docs/proposed.md\n"
+        "+++ b/docs/proposed.md\n",
+        encoding="utf-8",
+    )
+    diff_sha256 = hashlib.sha256(diff_path.read_bytes()).hexdigest()
+    summary = {
+        "schemaVersion": 1,
+        "kind": "riftreader-package-intake-summary",
+        "generatedAtUtc": "2099-01-01T00:00:00Z",
+        "status": "passed",
+        "dryRun": True,
+        "packagePath": str(package_root),
+        "packageRoot": str(package_root),
+        "blockers": [],
+        "warnings": [],
+        "errors": [],
+        "changedFiles": ["docs/proposed.md"],
+        "declaredChecks": declared_checks if declared_checks is not None else [],
+        "checks": check_results if check_results is not None else [],
+        "artifacts": {
+            "summaryJson": str((intake_dir / "package-intake-summary.json").relative_to(root)).replace("/", "\\"),
+            "diff": str(diff_path.relative_to(root)).replace("/", "\\"),
+        },
+        "safety": {"applyFlagSent": False},
+    }
+    summary_path = intake_dir / "package-intake-summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary_path, diff_sha256
 
 
 def submit_package_proposal_input_schema() -> dict[str, object]:
@@ -563,7 +614,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             root = Path(temp_dir)
             make_repo(root)
             draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Dry-run")
-            make_cached_dry_run(root, draft)
+            make_cached_dry_run(root, draft, check_counts={"declaredCount": 1, "runCount": 1, "failedCount": 0})
             adapter = make_adapter(root)
             with mock.patch.object(chatgpt_mcp.package_draft_review, "dry_run_latest_package_draft") as dry_run:
                 payload = adapter.call_tool(
@@ -579,6 +630,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["dryRun"]["command"]["args"][0], "cached-dry-run-artifact")
         self.assertTrue(payload["dryRun"]["safety"]["cachedDryRunArtifact"])
         self.assertTrue(payload["dryRun"]["intakeCompactSummary"]["dryRun"])
+        self.assertEqual(
+            payload["dryRun"]["intakeCompactSummary"]["checks"],
+            {"declaredCount": 1, "runCount": 1, "failedCount": 0},
+        )
         self.assertTrue(payload["dryRun"]["diffPreview"]["ok"])
         self.assertEqual(payload["dryRun"]["diffPreview"]["artifactPath"], ".riftreader-local\\package-intake\\20260518-180100Z\\package.diff")
         self.assertIn("+# Proposed", payload["dryRun"]["diffPreview"]["text"])
@@ -717,6 +772,73 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("APPLY_APPROVAL_MISSING", payload["blockers"])
         self.assertFalse(payload["safety"]["applyFlagSent"])
         self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_apply_latest_package_draft_surfaces_preflight_check_counts_without_applying(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Apply preflight counts")
+            summary_path, diff_sha256 = make_full_dry_run_summary(
+                root,
+                draft,
+                declared_checks=[{"name": "py-compile"}],
+                check_results=[{"label": "py-compile", "ok": True, "exitCode": 0}],
+            )
+            adapter = make_adapter(root)
+            with mock.patch.object(chatgpt_mcp.package_draft_review, "run_command_envelope") as run_command:
+                payload = adapter.call_tool(
+                    "apply_latest_package_draft",
+                    {
+                        "operatorOnly": True,
+                        "dryRunSummaryPath": str(summary_path.relative_to(root)),
+                        "dryRunDiffSha256": diff_sha256,
+                        "timeoutSeconds": 30,
+                    },
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["blockers"])
+        preflight = payload["applyResult"]["preflight"]
+        self.assertEqual(preflight["status"], "ready")
+        self.assertEqual(preflight["dryRun"]["declaredCheckCount"], 1)
+        self.assertEqual(preflight["dryRun"]["runCheckCount"], 1)
+        self.assertEqual(preflight["dryRun"]["failedCheckCount"], 0)
+        self.assertFalse(payload["safety"]["applyFlagSent"])
+        run_command.assert_not_called()
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_apply_latest_package_draft_blocks_declared_dry_run_checks_not_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Skipped checks")
+            summary_path, diff_sha256 = make_full_dry_run_summary(
+                root,
+                draft,
+                declared_checks=[{"name": "py-compile"}],
+                check_results=[],
+            )
+            adapter = make_adapter(root)
+            with mock.patch.object(chatgpt_mcp.package_draft_review, "run_command_envelope") as run_command:
+                payload = adapter.call_tool(
+                    "apply_latest_package_draft",
+                    {
+                        "operatorOnly": True,
+                        "dryRunSummaryPath": str(summary_path.relative_to(root)),
+                        "dryRunDiffSha256": diff_sha256,
+                        "timeoutSeconds": 30,
+                    },
+                )
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["applied"])
+        self.assertIn("APPLY_DRY_RUN_DECLARED_CHECKS_NOT_RUN", payload["blockers"])
+        self.assertIn("APPLY_PREFLIGHT_NOT_READY", payload["blockers"])
+        self.assertIn("APPLY_APPROVAL_MISSING", payload["blockers"])
+        self.assertFalse(payload["safety"]["applyFlagSent"])
+        run_command.assert_not_called()
         assert_repo_root_not_serialized(self, root, payload)
 
     def test_invalid_operator_only_type_is_blocked(self) -> None:
