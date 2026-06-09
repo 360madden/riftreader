@@ -14,6 +14,32 @@ Current recovery truth lives in
 May 9, 2026, native exact-HWND no-turn waypoint movement has been live-validated
 and navigation run/route summaries explicitly record the movement backend used.
 
+## ChatGPT MCP local launcher
+
+Use the root launcher for the current ChatGPT Web/Desktop MCP adapter:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+START_RIFTREADER_CHATGPT_MCP.cmd
+```
+
+Keep that console window open while ChatGPT is connected. It serves the
+repo-owned narrow MCP adapter at `http://127.0.0.1:8770/mcp`; the ChatGPT custom
+MCP app should use `https://mcp.360madden.com/mcp` with **No Authentication**.
+Do not use the older `scripts\start_mcp_local.cmd` helper for this lane; that is
+the separate legacy/tokenized local HTTP helper on port `8765`.
+
+Quick checks:
+
+```cmd
+START_RIFTREADER_CHATGPT_MCP.cmd --call health --json
+START_RIFTREADER_CHATGPT_MCP.cmd smoke
+scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json
+```
+
+See `docs\workflow\riftreader-chatgpt-mcp.md` for the full route and proof
+workflow.
+
 ## Waypoint Navigation V1 (April 16, 2026)
 
 Waypoint navigation v1 now exists in the reader as a **manual-facing assist**

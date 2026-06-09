@@ -61,13 +61,30 @@ malformed result that omits the common structuredContent fields (`schemaVersion`
 
 ## Phase 0 domain read-only proof profile
 
-The canonical adapter remains `scripts\riftreader-chatgpt-mcp.cmd`. For the
-first public domain proof, run the same adapter with the read-only profile
-instead of creating a second MCP server:
+The canonical adapter remains `scripts\riftreader-chatgpt-mcp.cmd`, and the
+repo root also provides `START_RIFTREADER_CHATGPT_MCP.cmd` as the operator-facing
+launcher for the current ChatGPT Web/Desktop MCP lane.
+
+For normal full-profile local serving, run the root launcher and keep that
+console window open:
 
 ```cmd
 cd /d "C:\RIFT MODDING\RiftReader"
-scripts\riftreader-chatgpt-mcp.cmd --serve --tool-profile public-read-only --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
+START_RIFTREADER_CHATGPT_MCP.cmd
+```
+
+That wrapper starts:
+
+```cmd
+tools\riftreader_workflow\riftreader_chatgpt_mcp.py --serve --tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
+```
+
+For the first public domain proof, run the same adapter with the read-only
+profile instead of creating a second MCP server:
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+START_RIFTREADER_CHATGPT_MCP.cmd readonly
 ```
 
 Phase 0 exposes only:
@@ -89,6 +106,10 @@ For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 | Authentication | `No Authentication` |
 | Expected app name | `rift-mcp` |
 | Local backend | `http://127.0.0.1:8770/mcp` |
+
+Do not use `scripts\start_mcp_local.cmd` for this ChatGPT Developer Mode lane.
+That helper belongs to the separate legacy/tokenized local HTTP MCP path on port
+`8765`; the current ChatGPT route is `mcp.360madden.com -> 127.0.0.1:8770`.
 
 Write a Phase 0 proof template with:
 
