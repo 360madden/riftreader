@@ -5,13 +5,14 @@ Fresh compact handoff:
 
 | Item | Current truth |
 |---|---|
-| Validation | Post-commit full-local ledger passed: `.riftreader-local\validation-runs\20260609-111219-900949\summary.md`, duration `214.490s`. |
-| Latest local commits | `b211360 Record active validation no-target handoff`; `70c8ce3 Keep full local validation on active tests`. |
+| Validation | Current-HEAD full-local ledger passed: `.riftreader-local\validation-runs\20260609-113722-681617\summary.md`, duration `209.368s`. |
+| CI parity | Blocked, not failed: `.riftreader-local\validation-runs\20260609-114319-996799\summary.md`; `gh` and auth passed, then remote polling timed out for local-only `HEAD` with `ci-poll-timeout:900.0s`. |
+| Latest local commits | `615e647 Record fresh offline Ghidra evidence`; `b211360 Record active validation no-target handoff`; `70c8ce3 Keep full local validation on active tests`. |
 | Full-local change | Default `full-local` now runs active unittest discovery and excludes retired OpenCode suites unless explicitly opted in. |
 | Offline Ghidra evidence | Fresh offline run passed at `2026-06-09T11:32:03Z`; summary is `scripts\captures\ghidra-static-analysis-20260609-112207\summary.md`. |
 | RIFT target | Read-only target discovery still finds `count=0` for `rift_x64`; no current PID/HWND is available. |
 | Decision packet | Still blocked-safe for proof recovery: `latest-static-owner-readback-root-pointer-null`; safe next repo command is `scripts\get-rift-window-targets.cmd -Json`. |
-| Git state | `main` is clean and ahead of `origin/main` by 10 commits before this evidence-update commit; do not push unless explicitly approved. |
+| Git state | `main` is clean and ahead of `origin/main` by 11 commits before this CI-blocker handoff update; do not push unless explicitly approved. |
 
 ---
 # 2026-06-08 - Computer Use reboot resume handoff
