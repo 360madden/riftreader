@@ -94,6 +94,8 @@ EXPECTED_TOOL_ORDER = (
     "dry_run_latest_package_draft",
     "apply_latest_package_draft",
     "get_workflow_control_plan",
+    "get_dirty_paths",
+    "get_recent_commits",
 )
 PACKAGE_PROOF_TOOL_ORDER = (
     "get_package_proposal_template",
@@ -129,6 +131,8 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
         {"operatorOnly", "dryRunSummaryPath", "dryRunDiffSha256", "approvalToken", "timeoutSeconds"}
     ),
     "get_workflow_control_plan": frozenset(),
+    "get_dirty_paths": frozenset(),
+    "get_recent_commits": frozenset({"limit"}),
 }
 TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
 
@@ -703,6 +707,28 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         destructive=False,
         open_world=False,
     ),
+    "get_dirty_paths": ToolSpec(
+        name="get_dirty_paths",
+        title="Get Dirty Git Paths",
+        description=(
+            "Use this when you need read-only Git worktree dirty-path status for RiftReader. "
+            "This never stages, commits, pushes, rewrites branches, sends RIFT input, touches CE, or touches x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_recent_commits": ToolSpec(
+        name="get_recent_commits",
+        title="Get Recent Git Commits",
+        description=(
+            "Use this when you need the latest local Git commits for RiftReader without relying on stale handoff memory. "
+            "This is read-only and never stages, commits, pushes, rewrites branches, sends RIFT input, touches CE, or touches x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
 }
 
 
@@ -1091,6 +1117,8 @@ class RiftReaderChatGptMcpAdapter:
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
                 ),
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
+                "get_dirty_paths": lambda _: self.get_dirty_paths(),
+                "get_recent_commits": lambda call_args: self.get_recent_commits(call_args.get("limit")),
             }
             result = dispatch[tool_name](args)
         except AdapterError as exc:
@@ -1702,6 +1730,41 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+
+    def load_git_state_reader_module(self) -> Any:
+        import importlib.util
+
+        helper_path = self.config.repo_root / "tools" / "riftreader_workflow" / "git_state_reader.py"
+        spec = importlib.util.spec_from_file_location("riftreader_phase1b_git_state_reader", helper_path)
+        if spec is None or spec.loader is None:
+            raise AdapterError(
+                "GIT_STATE_READER_LOAD_FAILED",
+                f"Could not load Git state reader helper: {helper_path}",
+                status="failed",
+            )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def get_dirty_paths(self) -> dict[str, Any]:
+        git_state_reader = self.load_git_state_reader_module()
+
+        payload = git_state_reader.get_dirty_paths(self.config.repo_root, 30.0)
+        payload["kind"] = "riftreader-chatgpt-mcp-dirty-paths"
+        payload["safety"] = {**base_safety(), **payload.get("safety", {})}
+        return payload
+
+    def get_recent_commits(self, limit: Any = None) -> dict[str, Any]:
+        git_state_reader = self.load_git_state_reader_module()
+
+        try:
+            safe_limit = 10 if limit is None else int(limit)
+        except (TypeError, ValueError):
+            safe_limit = 10
+        payload = git_state_reader.get_recent_commits(self.config.repo_root, safe_limit, 30.0)
+        payload["kind"] = "riftreader-chatgpt-mcp-recent-commits"
+        payload["safety"] = {**base_safety(), **payload.get("safety", {})}
+        return payload
 
 def cached_dry_run_payload_for_latest_draft(
     repo_root: Path,
@@ -5111,6 +5174,16 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_workflow_control_plan", {})
 
+    def get_dirty_paths() -> dict[str, Any]:
+        """Use this when you need read-only Git dirty path status for RiftReader."""
+
+        return adapter.call_tool("get_dirty_paths", {})
+
+    def get_recent_commits(limit: int = 10) -> dict[str, Any]:
+        """Use this when you need the latest local Git commits for RiftReader."""
+
+        return adapter.call_tool("get_recent_commits", {"limit": limit})
+
     handlers = {
         "health": health,
         "get_repo_status": get_repo_status,
@@ -5124,6 +5197,8 @@ def create_fastmcp_server(
         "dry_run_latest_package_draft": dry_run_latest_package_draft,
         "apply_latest_package_draft": apply_latest_package_draft,
         "get_workflow_control_plan": get_workflow_control_plan,
+        "get_dirty_paths": get_dirty_paths,
+        "get_recent_commits": get_recent_commits,
     }
     for tool_name in tool_order:
         register(tool_name, handlers[tool_name])
