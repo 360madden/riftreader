@@ -6,21 +6,24 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Any
 
 try:
-    from .common import find_repo_root, run_command_envelope as run_command
+    from .common import find_repo_root
     from .common import repo_rel as rel
     from .common import safety_flags, timestamped_output_dir, utc_iso
     from .package_manifest import MANIFEST_NAME, load_manifest, sha256_file, validate_manifest
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.common import find_repo_root, run_command_envelope as run_command
+    from riftreader_workflow.common import find_repo_root
     from riftreader_workflow.common import repo_rel as rel
     from riftreader_workflow.common import safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.package_manifest import MANIFEST_NAME, load_manifest, sha256_file, validate_manifest
@@ -124,19 +127,177 @@ def apply_files(repo_root: Path, intake_dir: Path, files: list[dict[str, Any]]) 
     return backups, diff_path
 
 
-def run_checks(repo_root: Path, checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def preview_output(value: str, limit: int = 4000) -> str:
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[-limit:]
+
+
+def run_command_with_env(
+    label: str,
+    args: list[str],
+    cwd: Path,
+    *,
+    timeout_seconds: float,
+    expected_exit_codes: set[int],
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    started = utc_iso()
+    start_monotonic = time.monotonic()
+    envelope: dict[str, Any] = {
+        "label": label,
+        "args": args,
+        "cwd": str(cwd),
+        "startedAtUtc": started,
+        "timeoutSeconds": timeout_seconds,
+        "exitCode": None,
+        "ok": False,
+        "timedOut": False,
+        "stdoutPreview": "",
+        "stderrPreview": "",
+    }
+    try:
+        completed = subprocess.run(
+            args,
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+            env=env,
+        )
+        envelope["exitCode"] = completed.returncode
+        envelope["ok"] = completed.returncode in expected_exit_codes
+        envelope["stdoutPreview"] = preview_output(completed.stdout)
+        envelope["stderrPreview"] = preview_output(completed.stderr)
+    except subprocess.TimeoutExpired as exc:
+        envelope["timedOut"] = True
+        envelope["error"] = f"TimeoutExpired:{exc}"
+        envelope["stdoutPreview"] = preview_output(exc.stdout if isinstance(exc.stdout, str) else "")
+        envelope["stderrPreview"] = preview_output(exc.stderr if isinstance(exc.stderr, str) else "")
+    except FileNotFoundError as exc:
+        envelope["error"] = f"FileNotFoundError:{exc}"
+    except Exception as exc:  # noqa: BLE001 - command envelope must capture unexpected local failures.
+        envelope["error"] = f"{type(exc).__name__}:{exc}"
+    finally:
+        envelope["endedAtUtc"] = utc_iso()
+        envelope["durationSeconds"] = round(time.monotonic() - start_monotonic, 3)
+    return envelope
+
+
+def run_checks(
+    repo_root: Path,
+    checks: list[dict[str, Any]],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    check_cwd = cwd if cwd is not None else repo_root
     for check in checks:
         results.append(
-            run_command(
+            run_command_with_env(
                 str(check["name"]),
                 list(check["args"]),
-                repo_root,
+                check_cwd,
                 timeout_seconds=float(check["timeoutSeconds"]),
                 expected_exit_codes=set(int(item) for item in check["expectedExitCodes"]),
+                env=env,
             )
         )
     return results
+
+
+def git_tracked_files(repo_root: Path) -> list[str]:
+    completed = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", "-z"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=False,
+        timeout=30,
+    )
+    if completed.returncode != 0:
+        return []
+    return [item.decode("utf-8") for item in completed.stdout.split(b"\0") if item]
+
+
+def copy_repo_snapshot(repo_root: Path, workspace: Path) -> None:
+    tracked = git_tracked_files(repo_root)
+    if tracked:
+        for relative in tracked:
+            source = repo_root / relative
+            if not source.is_file():
+                continue
+            target = workspace / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        return
+
+    skipped_dirs = {".git", ".riftreader-local", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
+    for source in repo_root.rglob("*"):
+        relative_path = source.relative_to(repo_root)
+        if any(part in skipped_dirs for part in relative_path.parts):
+            continue
+        if not source.is_file():
+            continue
+        target = workspace / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
+def overlay_package_files(workspace: Path, files: list[dict[str, Any]]) -> None:
+    for item in files:
+        source = Path(str(item["sourcePath"]))
+        target = workspace / str(item["target"]).replace("\\", "/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
+def dry_run_check_env(repo_root: Path, workspace: Path, intake_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    git_dir_probe = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "--git-dir"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if git_dir_probe.returncode != 0:
+        return env
+
+    git_dir = Path(git_dir_probe.stdout.strip())
+    if not git_dir.is_absolute():
+        git_dir = repo_root / git_dir
+    env["GIT_DIR"] = str(git_dir.resolve())
+    env["GIT_WORK_TREE"] = str(workspace.resolve())
+    env["GIT_INDEX_FILE"] = str((intake_dir / "dry-run-check.index").resolve())
+    subprocess.run(
+        ["git", "read-tree", "HEAD"],
+        cwd=workspace,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    return env
+
+
+def run_dry_run_checks(repo_root: Path, intake_dir: Path, files: list[dict[str, Any]], checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    workspace_root = intake_dir / "dry-run-workspaces"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="workspace-", dir=workspace_root) as workspace_name:
+        workspace = Path(workspace_name)
+        copy_repo_snapshot(repo_root, workspace)
+        overlay_package_files(workspace, files)
+        env = dry_run_check_env(repo_root, workspace, intake_dir)
+        return run_checks(repo_root, checks, cwd=workspace, env=env)
 
 
 def build_summary(
@@ -172,7 +333,18 @@ def build_summary(
             status = "failed"
         elif not apply_requested:
             diff_path = write_preview_diff(repo_root, intake_dir, files)
-            status = "passed"
+            if run_declared_checks and checks:
+                check_results = run_dry_run_checks(repo_root, intake_dir, files, checks)
+                failed = [item for item in check_results if not item.get("ok")]
+                if failed:
+                    blockers.extend(f"check-failed:{item.get('label')}:{item.get('exitCode')}" for item in failed)
+                    status = "blocked"
+                else:
+                    status = "passed"
+            else:
+                if checks and not run_declared_checks:
+                    warnings.append("declared-checks-skipped")
+                status = "passed"
         else:
             backups, diff_path = apply_files(repo_root, intake_dir, files)
             if run_declared_checks and checks:

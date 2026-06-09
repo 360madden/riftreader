@@ -104,6 +104,81 @@ class PackageIntakeTests(unittest.TestCase):
             self.assertIn("+new", diff_text)
             self.assertFalse(summary["safety"]["gitMutation"])
 
+    def test_dry_run_runs_declared_checks_in_overlay_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            package_root = Path(temp_dir) / "package"
+            intake_dir = root / ".riftreader-local" / "package-intake" / "test"
+            root.mkdir()
+            package_root.mkdir()
+            make_repo(root)
+            target = root / "docs" / "test.md"
+            target.parent.mkdir(parents=True)
+            target.write_text("old\n", encoding="utf-8")
+            checks = [
+                {
+                    "name": "sees-overlay-file",
+                    "args": [
+                        sys.executable,
+                        "-c",
+                        (
+                            "from pathlib import Path; "
+                            "raise SystemExit("
+                            "0 if Path('docs/test.md').read_text(encoding='utf-8') == 'new\\n' else 7"
+                            ")"
+                        ),
+                    ],
+                }
+            ]
+            make_package(package_root, "docs/test.md", "new\n", checks=checks)
+            intake_dir.mkdir(parents=True)
+
+            summary = apply_package.build_summary(
+                root,
+                package_root,
+                intake_dir,
+                apply_requested=False,
+                run_declared_checks=True,
+            )
+
+            self.assertEqual(summary["status"], "passed")
+            self.assertTrue(summary["dryRun"])
+            self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
+            self.assertEqual(len(summary["declaredChecks"]), 1)
+            self.assertEqual(len(summary["checks"]), 1)
+            self.assertTrue(summary["checks"][0]["ok"])
+            self.assertIn("dry-run-workspaces", summary["checks"][0]["cwd"])
+
+    def test_dry_run_blocks_when_declared_check_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            package_root = Path(temp_dir) / "package"
+            intake_dir = root / ".riftreader-local" / "package-intake" / "test"
+            root.mkdir()
+            package_root.mkdir()
+            make_repo(root)
+            target = root / "docs" / "test.md"
+            target.parent.mkdir(parents=True)
+            target.write_text("old\n", encoding="utf-8")
+            checks = [{"name": "fail", "args": [sys.executable, "-c", "raise SystemExit(7)"]}]
+            make_package(package_root, "docs/test.md", "new\n", checks=checks)
+            intake_dir.mkdir(parents=True)
+
+            summary = apply_package.build_summary(
+                root,
+                package_root,
+                intake_dir,
+                apply_requested=False,
+                run_declared_checks=True,
+            )
+
+            self.assertEqual(summary["status"], "blocked")
+            self.assertTrue(summary["dryRun"])
+            self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
+            self.assertEqual(len(summary["checks"]), 1)
+            self.assertFalse(summary["checks"][0]["ok"])
+            self.assertIn("check-failed:fail:7", summary["blockers"])
+
     def test_compact_summary_preserves_apply_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "repo"

@@ -1,8 +1,8 @@
-# MCP Full Automation Validation Gap Blocker
+# MCP Full Automation Validation Gate
 
-Version: riftreader-mcp-validation-gap-blocker-doc-v0.1.0
-Total-Character-Count: 2726
-Purpose: Record the current validation blocker for user-driven full automation after ChatGPT prompts.
+Version: riftreader-mcp-validation-gap-gate-doc-v0.2.0
+Total-Character-Count: 2773
+Purpose: Record the validation gate for user-driven full automation after ChatGPT prompts.
 
 ## Current goal
 
@@ -29,23 +29,25 @@ ChatGPT → dry_run_latest_package_draft → structural dry-run passes
 ChatGPT → apply_latest_package_draft without token → APPLY_APPROVAL_MISSING
 ```
 
-## Hard validation gap
+## Implemented validation gate
 
-Package dry-run currently reports declared checks but does not execute them.
+Package dry-run now executes manifest-declared checks in an ignored temporary
+workspace before any real apply.
 
-Observed pattern:
+Required compact summary pattern:
 
 ```json
 {
   "checks": {
     "declaredCount": 3,
-    "runCount": 0,
+    "runCount": 3,
     "failedCount": 0
   }
 }
 ```
 
-This is not strong CI. It is only structural review.
+If `runCount != declaredCount` or `failedCount > 0`, the package must remain
+blocked.
 
 ## Required before auto-apply-safe
 
@@ -63,20 +65,18 @@ Before any package can be auto-applied, the local workflow must ensure:
 - failure blocks apply
 ```
 
-## Recommended next implementation
+## Implemented local behavior
 
-Patch package-intake or add a repo-owned validation stage so dry-run can execute declared checks in a temporary workspace before real apply.
+Package intake dry-run uses a repo-owned validation stage so dry-run can execute
+declared checks in a temporary workspace before real apply.
 
-Required behavior:
+Implemented behavior:
 
 ```text
 1. Create temporary workspace under .riftreader-local.
-2. Copy or materialize a safe repo snapshot.
+2. Copy/materialize a safe repo snapshot.
 3. Overlay package draft files into that workspace.
-4. Run only allowlisted checks:
-   - python -m py_compile ...
-   - python -m unittest ...
-   - git --no-pager diff --check
+4. Run manifest-declared allowlisted checks there.
 5. Capture stdout/stderr/exit code/timing.
 6. Return runCount and failedCount accurately.
 7. Block apply if checks fail or if declared checks were not executed.
@@ -97,6 +97,8 @@ Required behavior:
 
 ## Current decision
 
-Do not apply code-bearing automation packages until the validation runner path executes declared checks and reports runCount equal to declaredCount.
+Do not apply code-bearing automation packages unless the dry-run summary reports
+`runCount == declaredCount` and `failedCount == 0`. Real apply, git commit, and
+git push still require explicit approval.
 
 ## END_OF_SCRIPT_MARKER
