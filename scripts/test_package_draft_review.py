@@ -110,6 +110,9 @@ def make_dry_run_summary(
     run_id: str = "20260518T140000Z-dry-run",
     generated_at: str = "2026-05-18T14:00:00Z",
     diff_text: str = "--- a/docs/proposed.md\n+++ b/docs/proposed.md\n",
+    declared_checks: list[dict] | None = None,
+    check_results: list[dict] | None = None,
+    warnings: list[str] | None = None,
 ) -> tuple[Path, str]:
     intake_dir = root / ".riftreader-local" / "package-intake" / run_id
     intake_dir.mkdir(parents=True)
@@ -125,9 +128,11 @@ def make_dry_run_summary(
         "packagePath": str(package_root.resolve()),
         "packageRoot": str(package_root.resolve()),
         "blockers": [],
-        "warnings": [],
+        "warnings": warnings if warnings is not None else [],
         "errors": [],
         "changedFiles": ["docs/proposed.md"],
+        "declaredChecks": declared_checks if declared_checks is not None else [],
+        "checks": check_results if check_results is not None else [],
         "artifacts": {
             "intakeDir": str(intake_dir.relative_to(root)).replace("/", "\\"),
             "summaryJson": str((intake_dir / "package-intake-summary.json").relative_to(root)).replace("/", "\\"),
@@ -321,10 +326,59 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["approvalFacts"]["draftId"], "20260518T130000Z-bbbbbbbbbbbb")
         self.assertEqual(payload["approvalFacts"]["dryRunDiffSha256"], diff_sha256)
+        self.assertEqual(payload["dryRun"]["declaredCheckCount"], 0)
+        self.assertEqual(payload["dryRun"]["runCheckCount"], 0)
+        self.assertEqual(payload["dryRun"]["failedCheckCount"], 0)
         self.assertTrue(str(payload["expectedApprovalToken"]).startswith("APPLY-"))
         self.assertFalse(payload["applyToolExposed"])
         self.assertFalse(payload["safety"]["applyFlagSent"])
         self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
+
+    def test_apply_preflight_blocks_dry_run_declared_checks_not_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Skipped dry-run checks")
+            summary_path, diff_sha256 = make_dry_run_summary(
+                root,
+                draft / "package",
+                declared_checks=[{"name": "py-compile"}],
+                check_results=[],
+            )
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=10**9,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("APPLY_DRY_RUN_DECLARED_CHECKS_NOT_RUN", payload["blockers"])
+
+    def test_apply_preflight_blocks_dry_run_failed_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            draft = make_draft(root, "20260518T130000Z-bbbbbbbbbbbb", title="Failed dry-run checks")
+            summary_path, diff_sha256 = make_dry_run_summary(
+                root,
+                draft / "package",
+                declared_checks=[{"name": "py-compile"}],
+                check_results=[{"label": "py-compile", "ok": False, "exitCode": 1}],
+            )
+
+            payload = package_draft_review.apply_preflight_latest_package_draft(
+                root,
+                dry_run_summary_path=str(summary_path.relative_to(root)),
+                dry_run_diff_sha256=diff_sha256,
+                max_age_seconds=10**9,
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("APPLY_DRY_RUN_CHECKS_FAILED", payload["blockers"])
 
     def test_apply_preflight_blocks_diff_hash_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

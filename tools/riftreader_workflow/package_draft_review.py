@@ -450,6 +450,19 @@ def summarize_dry_run_summary(
         return None, "APPLY_DRY_RUN_NOT_DRY_RUN"
     if summary.get("status") != "passed":
         return None, "APPLY_DRY_RUN_NOT_PASSED"
+    declared_checks = summary.get("declaredChecks") or []
+    check_results = summary.get("checks") or []
+    if not isinstance(declared_checks, list):
+        return None, "APPLY_DRY_RUN_DECLARED_CHECKS_INVALID"
+    if not isinstance(check_results, list):
+        return None, "APPLY_DRY_RUN_CHECK_RESULTS_INVALID"
+    warnings = summary.get("warnings") if isinstance(summary.get("warnings"), list) else []
+    if declared_checks and "declared-checks-skipped" in warnings:
+        return None, "APPLY_DRY_RUN_DECLARED_CHECKS_NOT_RUN"
+    if len(check_results) != len(declared_checks):
+        return None, "APPLY_DRY_RUN_DECLARED_CHECKS_NOT_RUN"
+    if any(not isinstance(item, dict) or item.get("ok") is not True for item in check_results):
+        return None, "APPLY_DRY_RUN_CHECKS_FAILED"
 
     summary_package_root = safe_resolve_repo_path(repo_root, summary.get("packageRoot"))
     if summary_package_root != package_root:
@@ -475,6 +488,9 @@ def summarize_dry_run_summary(
             "diffSha256": diff_sha256,
             "changedFiles": summary.get("changedFiles") or [],
             "changedFileCount": len(summary.get("changedFiles") or []),
+            "declaredCheckCount": len(declared_checks),
+            "runCheckCount": len(check_results),
+            "failedCheckCount": len([item for item in check_results if not item.get("ok")]),
         },
         None,
     )

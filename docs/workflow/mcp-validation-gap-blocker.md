@@ -1,7 +1,7 @@
 # MCP Full Automation Validation Gate
 
-Version: riftreader-mcp-validation-gap-gate-doc-v0.2.0
-Total-Character-Count: 2773
+Version: riftreader-mcp-validation-gap-gate-doc-v0.3.0
+Total-Character-Count: 3076
 Purpose: Record the validation gate for user-driven full automation after ChatGPT prompts.
 
 ## Current goal
@@ -80,6 +80,15 @@ Implemented behavior:
 5. Capture stdout/stderr/exit code/timing.
 6. Return runCount and failedCount accurately.
 7. Block apply if checks fail or if declared checks were not executed.
+```
+
+Package draft apply preflight also rejects stale/older dry-run summaries where:
+
+```text
+- declared checks are present but missing from run results
+- run check count does not match declared check count
+- any run check result is not ok
+- the dry-run summary explicitly warns declared-checks-skipped
 ```
 
 ## Safety boundaries
