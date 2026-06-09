@@ -4,14 +4,15 @@
 
 | Item | Status |
 |---|---|
-| Generated at | `2026-06-09T11:18:47Z` |
-| Branch | `main`, clean worktree before this handoff; local branch is ahead of `origin/main` by 9 commits before this handoff commit. |
-| Latest local commit | `70c8ce3 Keep full local validation on active tests`. |
+| Generated at | `2026-06-09T11:32:03Z` |
+| Branch | `main`, clean worktree before this handoff; local branch is ahead of `origin/main` by 10 commits before this evidence-update commit. |
+| Latest local commits | `b211360 Record active validation no-target handoff`; `70c8ce3 Keep full local validation on active tests`. |
 | Local repo | Reachable at `C:\RIFT MODDING\RiftReader`. |
 | Decision packet | `scripts\riftreader-decision-packet.cmd --compact-json --write` remains `blocked` / `blocked-safe` for proof recovery. |
 | Safe next action | `scripts\get-rift-window-targets.cmd -Json`. |
-| RIFT target discovery | `scripts\get-rift-window-targets.cmd -Json` at `2026-06-09T11:18:47Z` found `count=0` for `rift_x64`; no current PID/HWND is available for owner-root rediscovery. |
+| RIFT target discovery | `scripts\get-rift-window-targets.cmd -Json` at `2026-06-09T11:21:30Z` found `count=0` for `rift_x64`; no current PID/HWND is available for owner-root rediscovery. |
 | Proof recovery blocker | Static owner readback still reports `root-pointer-null`; packet blocker remains `latest-static-owner-readback-root-pointer-null`. |
+| Offline Ghidra evidence | Fresh offline run passed at `2026-06-09T11:32:03Z`; summary is `scripts\captures\ghidra-static-analysis-20260609-112207\summary.md`. |
 | Post-update recovery state | Candidate-only yaw/facing inventory exists, but it remains not route-actionable and includes target identity blockers. |
 | Safety state | No movement, game input, reload, screenshot hotkey, target selection, debugger/CE attach, provider write, truth apply, proof promotion, branch rewrite, or Git push was performed. |
 
@@ -23,6 +24,7 @@
 | Active unittest helper | `tools\riftreader_workflow\unittest_discover_active.py` discovers tests under `scripts`, excludes retired OpenCode suites by default, and provides `--json`, `--self-test`, and controlled error reporting. |
 | Retired OpenCode boundary | The retired OpenCode suites remain available by explicit opt-in with `--include-retired-opencode`; default `full-local` no longer blocks on that retired surface. |
 | Test coverage | `scripts\test_unittest_discover_active.py` covers filtering and self-test behavior; `scripts\test_validation_ledger.py` verifies `full-local` uses active discovery. |
+| Offline static evidence | `scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path "C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe" --json` refreshed the ignored Ghidra evidence artifacts without live target access. |
 
 ## Validation evidence
 
@@ -34,6 +36,8 @@
 | .NET restore/build/test inside ledger | Passed. |
 | Git commit hook | Passed before commit `70c8ce3`. |
 | Safe target discovery | Passed read-only and reported `count=0` for `rift_x64`. |
+| Offline Ghidra static evidence | Passed: `scripts\captures\ghidra-static-analysis-20260609-112207\summary.md`; import `425.056s`, evidence pass `171.173s`; warning `ghidra-analysis-timeout-project-saved`. |
+| Post-Ghidra decision packet refresh | Still blocked-safe, but `ghidraStaticEvidenceGeneratedAtUtc` is now `2026-06-09T11:32:03Z`; Ghidra evidence is no longer listed among stale sources. |
 
 ## Gate
 
@@ -69,6 +73,12 @@ Run current local validation with:
 python tools\riftreader_workflow\validation_ledger.py --tier full-local
 ```
 
+Refresh offline Ghidra static evidence, if needed, with:
+
+```cmd
+scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path "C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe" --json
+```
+
 ## Next action
 
-If the goal is proof recovery, start RIFT manually or explicitly approve launch/relaunch, then rerun `scripts\get-rift-window-targets.cmd -Json`. If the goal is publication, explicitly approve pushing the local ahead commits.
+If the goal is proof recovery, start RIFT manually or explicitly approve launch/relaunch, then rerun `scripts\get-rift-window-targets.cmd -Json`. If the goal is publication, explicitly approve pushing the local ahead commits. No proof/current-truth promotion is justified by the offline Ghidra run alone.
