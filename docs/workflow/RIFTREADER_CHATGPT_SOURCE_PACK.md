@@ -11,6 +11,7 @@ Compact operating manual for ChatGPT project Sources. Prefer this file plus live
 - Source-pack commit: `725cb3c Add RiftReader ChatGPT source pack`
 - Latest handoff at first creation: `docs/handoffs/2026-06-09-phase1b-git-state-mcp-tools-live.md`
 - Current lane: MCP/local repo automation, not live game work.
+- Updated local surface: Phase 1C-B0 exposes tracked repo context tools; expected full profile is now 19 tools before fresh actual-client proof.
 
 Start resumed tasks by checking:
 
@@ -31,8 +32,8 @@ Required order:
 ```text
 1. Check live local state with MCP get_repo_status.
 2. Inspect existing tracked repo context.
-   - Preferred after Phase 1C-B0: MCP tracked repo reader.
-   - Current fallback: public GitHub repo at 360madden/riftreader.
+   - Preferred: MCP tracked repo reader/search tools.
+   - Fallback: public GitHub repo at 360madden/riftreader.
 3. Search/read existing helpers, adapter patterns, tests, wrappers, and docs.
 4. Reuse or patch existing helpers before creating new ones.
 5. Only then propose or generate code.
@@ -44,14 +45,14 @@ Do not code from memory alone when relevant tracked repo files can be inspected.
 | Need | Source |
 |---|---|
 | Current branch, HEAD, dirty state | MCP `get_repo_status` |
-| Existing tracked repo code/docs | MCP tracked repo reader when available; public GitHub until then |
+| Existing tracked repo code/docs | MCP tracked repo reader/search tools; public GitHub fallback |
 | Durable operating rules | This source pack |
 | Local ignored/generated artifacts | Curated MCP tools only |
 | Repo writes | Package-intake flow |
 | Commit/push | Dedicated validated helper/tool only |
 
 ## MCP state
-Expected runtime health: full profile, 14 tools.
+Expected runtime health: full profile, 19 tools.
 
 Read/state tools include:
 - `health`
@@ -61,6 +62,13 @@ Read/state tools include:
 - `get_workflow_control_plan`
 - `get_dirty_paths`
 - `get_recent_commits`
+
+Tracked repo context tools include:
+- `repo_tree_tracked`
+- `repo_search_tracked`
+- `repo_read_tracked_file`
+- `repo_read_many_tracked_files`
+- `repo_context_pack`
 
 Package flow tools include:
 - `get_package_proposal_template`
@@ -72,11 +80,6 @@ Package flow tools include:
 - `apply_latest_package_draft`
 
 Missing automation tools to build:
-- `repo_tree_tracked`
-- `repo_search_tracked`
-- `repo_read_tracked_file`
-- `repo_read_many_tracked_files`
-- `repo_context_pack`
 - `run_validation_suite`
 - `commit_reviewed_slice`
 - `push_current_branch`
@@ -85,7 +88,7 @@ Missing automation tools to build:
 - Phase 1A: done — local read-only Git-state helper.
 - Phase 1B: done — MCP exposes `get_dirty_paths` and `get_recent_commits`.
 - Phase 1C-A: done — operator automation design doc.
-- Phase 1C-B0: next — tracked repo context reader/search tools.
+- Phase 1C-B0: complete-local — MCP exposes tracked repo context reader/search tools.
 - Phase 1C-B: `run_validation_suite`.
 - Phase 1C-C: `commit_reviewed_slice`.
 - Phase 1C-D: `push_current_branch`.
@@ -156,7 +159,7 @@ START_RIFTREADER_CHATGPT_MCP.cmd  MCP launcher
 
 ## Best next actions
 1. Use this file in the ChatGPT project Sources tab.
-2. Build Phase 1C-B0 tracked repo reader/search tools.
+2. Refresh connector/schema and actual-client proof for the 19-tool surface.
 3. Build `run_validation_suite`.
 4. Build `commit_reviewed_slice`.
 5. Build `push_current_branch`.

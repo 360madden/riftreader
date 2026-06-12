@@ -5,7 +5,8 @@ Design-only proposal.
 
 ## Baseline
 - Repo is clean and synced at `3a6cd10 Record Phase 1B MCP Git-state tool status`.
-- MCP health reports full profile with 14 tools.
+- Historical design baseline: MCP health reported full profile with 14 tools after Phase 1B.
+- Current local baseline after Phase 1C-B0: MCP full profile is 19 tools, adding read-only tracked repo context tools.
 - Phase 1B added read-only Git-state tools: `get_dirty_paths` and `get_recent_commits`.
 - Latest handoff: `docs/handoffs/2026-06-09-phase1b-git-state-mcp-tools-live.md`.
 

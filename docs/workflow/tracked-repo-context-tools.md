@@ -1,18 +1,18 @@
-# Tracked Repo Context Tools v0.1
+# Tracked Repo Context Tools v0.2
 
-Version: riftreader-tracked-repo-context-doc-v0.1.0
+Version: riftreader-tracked-repo-context-doc-v0.2.0
 Total-Character-Count: 0000002798
-Purpose: Document the read-only tracked repo context helper intended for MCP tool exposure.
+Purpose: Document the read-only tracked repo context helper and MCP tool exposure.
 
 ## Purpose
 
-This helper is the Phase 1C-B0 precursor for MCP tracked repo reader/search tools. It gives ChatGPT bounded access to public/tracked repository context without exposing arbitrary local filesystem paths.
+This helper and MCP surface are the Phase 1C-B0 tracked repo reader/search tools. They give ChatGPT bounded access to git-tracked repository context without exposing arbitrary local filesystem paths.
 
-The first package adds a repo-owned Python helper and tests. The MCP adapter can then wrap these functions as callable tools after the adapter file is inspected and patched safely.
+The Python helper remains the reusable local implementation. The ChatGPT MCP adapter exposes the same read-only functions as callable tools with stricter MCP response caps.
 
-## Tool names represented by helper functions
+## MCP tool names
 
-The helper implements Python-callable functions matching the intended MCP surface:
+The full MCP profile exposes these read-only tracked-context tools:
 
 ```text
 repo_tree_tracked
@@ -21,6 +21,8 @@ repo_read_tracked_file
 repo_read_many_tracked_files
 repo_context_pack
 ```
+
+They are full-profile tools only; the public-read-only profile remains limited to the smaller phase-0 status/control surface.
 
 ## Safety model
 
@@ -51,16 +53,27 @@ Blocked by default:
 - writes
 ```
 
+## MCP caps
+
+| Tool area | Default cap | Max cap |
+|---|---:|---:|
+| Tree items | 200 | 500 |
+| Search matches | 25 | 50 |
+| Single file bytes | 64 KiB | 256 KiB |
+| Multi-file total bytes | 256 KiB | 512 KiB |
+| Context-pack files | 8 | 12 |
+| Read-many files | 20 | 20 |
+
 ## CLI usage
 
 From the repo root:
 
-```powershell
-.\scripts\riftreader-tracked-repo-context.cmd self-test --json
-.\scripts\riftreader-tracked-repo-context.cmd tree --prefix tools/riftreader_workflow --depth 1 --json
-.\scripts\riftreader-tracked-repo-context.cmd search riftreader_chatgpt_mcp --json
-.\scripts\riftreader-tracked-repo-context.cmd read tools/riftreader_workflow/riftreader_chatgpt_mcp.py --json
-.\scripts\riftreader-tracked-repo-context.cmd context-pack mcp-adapter --json
+```cmd
+scripts\riftreader-tracked-repo-context.cmd self-test --json
+scripts\riftreader-tracked-repo-context.cmd tree --prefix tools/riftreader_workflow --depth 1 --json
+scripts\riftreader-tracked-repo-context.cmd search riftreader_chatgpt_mcp --json
+scripts\riftreader-tracked-repo-context.cmd read tools/riftreader_workflow/riftreader_chatgpt_mcp.py --json
+scripts\riftreader-tracked-repo-context.cmd context-pack mcp-adapter --json
 ```
 
 ## Context packs
@@ -76,17 +89,18 @@ Initial packs:
 
 ## Validation
 
-Run after applying the package locally:
+Run after tracked-context helper or MCP wrapper changes:
 
-```powershell
+```cmd
 python -m py_compile tools\riftreader_workflow\tracked_repo_context.py scripts\test_tracked_repo_context.py
-python -m unittest scripts.test_tracked_repo_context
-.\scripts\riftreader-tracked-repo-context.cmd self-test --json
+python -m py_compile tools\riftreader_workflow\riftreader_chatgpt_mcp.py tools\riftreader_workflow\mcp_tool_surface.py
+python -m unittest scripts.test_tracked_repo_context scripts.test_riftreader_chatgpt_mcp scripts.test_mcp_phase1_completion
+scripts\riftreader-tracked-repo-context.cmd self-test --json
 git --no-pager diff --check
 ```
 
-## Adapter integration note
+## Adapter integration status
 
-Do not patch `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` from memory. Inspect the tracked adapter file first, then wire these helper functions into MCP using the existing adapter registration pattern.
+Implemented locally in `tools/riftreader_workflow/riftreader_chatgpt_mcp.py` and guarded by `scripts/test_riftreader_chatgpt_mcp.py`. Future changes must still inspect the tracked adapter file first and extend the existing registration pattern instead of patching from memory.
 
 END_OF_SCRIPT_MARKER

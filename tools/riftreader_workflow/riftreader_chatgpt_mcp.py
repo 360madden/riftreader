@@ -34,7 +34,7 @@ try:
     from . import local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import package_manifest
-    from . import package_draft_review, status_packet
+    from . import package_draft_review, status_packet, tracked_repo_context
     from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import package_manifest
-    from riftreader_workflow import package_draft_review, status_packet
+    from riftreader_workflow import package_draft_review, status_packet, tracked_repo_context
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
     from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 
@@ -71,6 +71,17 @@ WORKFLOW_CONTROL_LIST_LIMIT = 5
 WORKFLOW_CONTROL_TEXT_LIMIT = 160
 WORKFLOW_CONTROL_MINIFIED_BYTES_TARGET = 8 * 1024
 WORKFLOW_CONTROL_SUMMARY_MINIFIED_BYTES_TARGET = 3 * 1024
+MCP_REPO_TREE_DEFAULT_LIMIT = 200
+MCP_REPO_TREE_MAX_LIMIT = 500
+MCP_REPO_SEARCH_DEFAULT_MATCHES = 25
+MCP_REPO_SEARCH_MAX_MATCHES = 50
+MCP_REPO_READ_FILE_DEFAULT_BYTES = 64 * 1024
+MCP_REPO_READ_FILE_MAX_BYTES = 256 * 1024
+MCP_REPO_READ_TOTAL_DEFAULT_BYTES = 256 * 1024
+MCP_REPO_READ_TOTAL_MAX_BYTES = 512 * 1024
+MCP_REPO_CONTEXT_PACK_DEFAULT_FILES = 8
+MCP_REPO_CONTEXT_PACK_MAX_FILES = 12
+MCP_REPO_READ_MANY_MAX_FILES = 20
 BRIDGE_TOKEN = "riftreader-chatgpt-mcp-local"
 CLOUDFLARED_DEFAULT_PATHS = (
     Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
@@ -106,6 +117,11 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_workflow_control_plan": frozenset(),
     "get_dirty_paths": frozenset(),
     "get_recent_commits": frozenset({"limit"}),
+    "repo_tree_tracked": frozenset({"prefix", "depth", "limit", "includeBlockedMeta"}),
+    "repo_search_tracked": frozenset({"query", "caseSensitive", "regex", "maxMatches", "maxFileBytes"}),
+    "repo_read_tracked_file": frozenset({"path", "maxBytes", "includeSha256"}),
+    "repo_read_many_tracked_files": frozenset({"paths", "maxFileBytes", "maxTotalBytes", "maxFiles"}),
+    "repo_context_pack": frozenset({"packName", "maxFiles", "maxFileBytes", "maxTotalBytes"}),
 }
 TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
 
@@ -702,6 +718,63 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         destructive=False,
         open_world=False,
     ),
+    "repo_tree_tracked": ToolSpec(
+        name="repo_tree_tracked",
+        title="List Tracked Repo Files",
+        description=(
+            "Use this when you need a bounded inventory of git-tracked RiftReader text files before coding. "
+            "This reads tracked repo metadata only; it never reads ignored local artifacts, executes commands from user input, "
+            "writes files, stages, commits, pushes, sends RIFT input, touches CE, or touches x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "repo_search_tracked": ToolSpec(
+        name="repo_search_tracked",
+        title="Search Tracked Repo Files",
+        description=(
+            "Use this when you need bounded literal or regex search over git-tracked RiftReader text files. "
+            "This excludes ignored/untracked/local artifacts and never exposes arbitrary filesystem search, shell execution, "
+            "Git mutation, RIFT input, CE, or x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "repo_read_tracked_file": ToolSpec(
+        name="repo_read_tracked_file",
+        title="Read One Tracked Repo File",
+        description=(
+            "Use this when you need bounded content from one git-tracked RiftReader text file. "
+            "This rejects absolute paths, backslashes, traversal, secrets, binaries, ignored local artifacts, and untracked files."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "repo_read_many_tracked_files": ToolSpec(
+        name="repo_read_many_tracked_files",
+        title="Read Multiple Tracked Repo Files",
+        description=(
+            "Use this when you need bounded content from several git-tracked RiftReader text files. "
+            "This enforces per-file, total-byte, and file-count caps and rejects secrets, binaries, local artifacts, and untracked files."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "repo_context_pack": ToolSpec(
+        name="repo_context_pack",
+        title="Read Tracked Repo Context Pack",
+        description=(
+            "Use this when you need a predefined bounded context pack of git-tracked RiftReader source, tests, and docs. "
+            "This never accepts arbitrary filesystem roots and never reads ignored local artifacts or untracked files."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
 }
 
 
@@ -903,6 +976,51 @@ def optional_str(value: Any, *, field_name: str) -> str | None:
     return stripped or None
 
 
+def required_str(value: Any, *, field_name: str) -> str:
+    text = optional_str(value, field_name=field_name)
+    if text is None:
+        raise AdapterError("INVALID_STRING", f"{field_name} is required and must be a non-empty string.")
+    return text
+
+
+def required_str_list(value: Any, *, field_name: str, max_items: int) -> list[str]:
+    if not isinstance(value, list):
+        raise AdapterError("INVALID_STRING_LIST", f"{field_name} must be a JSON array of strings.")
+    if len(value) > max_items:
+        raise AdapterError(
+            "STRING_LIST_TOO_LARGE",
+            f"{field_name} must contain at most {max_items} items.",
+            extra={"fieldName": field_name, "maxItems": max_items, "actualItems": len(value)},
+        )
+    strings: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            raise AdapterError("INVALID_STRING_LIST", f"{field_name}[{index}] must be a non-empty string.")
+        strings.append(item.strip())
+    return strings
+
+
+def bounded_int(
+    value: Any,
+    *,
+    field_name: str,
+    default: int,
+    min_value: int,
+    max_value: int,
+) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AdapterError("INVALID_INTEGER", f"{field_name} must be an integer when supplied.")
+    if value < min_value or value > max_value:
+        raise AdapterError(
+            "INVALID_INTEGER",
+            f"{field_name} must be between {min_value} and {max_value}.",
+            extra={"fieldName": field_name, "minValue": min_value, "maxValue": max_value, "actualValue": value},
+        )
+    return value
+
+
 def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if tool_name == "submit_package_proposal":
         proposal = arguments.get("proposal")
@@ -1092,6 +1210,106 @@ class RiftReaderChatGptMcpAdapter:
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
                 "get_dirty_paths": lambda _: self.get_dirty_paths(),
                 "get_recent_commits": lambda call_args: self.get_recent_commits(call_args.get("limit")),
+                "repo_tree_tracked": lambda call_args: self.repo_tree_tracked(
+                    prefix=optional_str(call_args.get("prefix"), field_name="prefix"),
+                    depth=bounded_int(call_args.get("depth"), field_name="depth", default=None, min_value=0, max_value=20)
+                    if call_args.get("depth") is not None
+                    else None,
+                    limit=bounded_int(
+                        call_args.get("limit"),
+                        field_name="limit",
+                        default=MCP_REPO_TREE_DEFAULT_LIMIT,
+                        min_value=1,
+                        max_value=MCP_REPO_TREE_MAX_LIMIT,
+                    ),
+                    include_blocked_meta=optional_bool(
+                        call_args.get("includeBlockedMeta"), field_name="includeBlockedMeta", default=False
+                    ),
+                ),
+                "repo_search_tracked": lambda call_args: self.repo_search_tracked(
+                    query=required_str(call_args.get("query"), field_name="query"),
+                    case_sensitive=optional_bool(
+                        call_args.get("caseSensitive"), field_name="caseSensitive", default=False
+                    ),
+                    regex=optional_bool(call_args.get("regex"), field_name="regex", default=False),
+                    max_matches=bounded_int(
+                        call_args.get("maxMatches"),
+                        field_name="maxMatches",
+                        default=MCP_REPO_SEARCH_DEFAULT_MATCHES,
+                        min_value=1,
+                        max_value=MCP_REPO_SEARCH_MAX_MATCHES,
+                    ),
+                    max_file_bytes=bounded_int(
+                        call_args.get("maxFileBytes"),
+                        field_name="maxFileBytes",
+                        default=MCP_REPO_READ_FILE_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_FILE_MAX_BYTES,
+                    ),
+                ),
+                "repo_read_tracked_file": lambda call_args: self.repo_read_tracked_file(
+                    path=required_str(call_args.get("path"), field_name="path"),
+                    max_bytes=bounded_int(
+                        call_args.get("maxBytes"),
+                        field_name="maxBytes",
+                        default=MCP_REPO_READ_FILE_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_FILE_MAX_BYTES,
+                    ),
+                    include_sha256=optional_bool(call_args.get("includeSha256"), field_name="includeSha256", default=False),
+                ),
+                "repo_read_many_tracked_files": lambda call_args: self.repo_read_many_tracked_files(
+                    paths=required_str_list(
+                        call_args.get("paths"),
+                        field_name="paths",
+                        max_items=MCP_REPO_READ_MANY_MAX_FILES,
+                    ),
+                    max_file_bytes=bounded_int(
+                        call_args.get("maxFileBytes"),
+                        field_name="maxFileBytes",
+                        default=MCP_REPO_READ_FILE_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_FILE_MAX_BYTES,
+                    ),
+                    max_total_bytes=bounded_int(
+                        call_args.get("maxTotalBytes"),
+                        field_name="maxTotalBytes",
+                        default=MCP_REPO_READ_TOTAL_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_TOTAL_MAX_BYTES,
+                    ),
+                    max_files=bounded_int(
+                        call_args.get("maxFiles"),
+                        field_name="maxFiles",
+                        default=MCP_REPO_READ_MANY_MAX_FILES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_MANY_MAX_FILES,
+                    ),
+                ),
+                "repo_context_pack": lambda call_args: self.repo_context_pack(
+                    pack_name=required_str(call_args.get("packName"), field_name="packName"),
+                    max_files=bounded_int(
+                        call_args.get("maxFiles"),
+                        field_name="maxFiles",
+                        default=MCP_REPO_CONTEXT_PACK_DEFAULT_FILES,
+                        min_value=1,
+                        max_value=MCP_REPO_CONTEXT_PACK_MAX_FILES,
+                    ),
+                    max_file_bytes=bounded_int(
+                        call_args.get("maxFileBytes"),
+                        field_name="maxFileBytes",
+                        default=MCP_REPO_READ_FILE_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_FILE_MAX_BYTES,
+                    ),
+                    max_total_bytes=bounded_int(
+                        call_args.get("maxTotalBytes"),
+                        field_name="maxTotalBytes",
+                        default=MCP_REPO_READ_TOTAL_DEFAULT_BYTES,
+                        min_value=1,
+                        max_value=MCP_REPO_READ_TOTAL_MAX_BYTES,
+                    ),
+                ),
             }
             result = dispatch[tool_name](args)
         except AdapterError as exc:
@@ -1738,6 +1956,106 @@ class RiftReaderChatGptMcpAdapter:
         payload["kind"] = "riftreader-chatgpt-mcp-recent-commits"
         payload["safety"] = {**base_safety(), **payload.get("safety", {})}
         return payload
+
+    def tracked_repo_context_payload(self, payload: dict[str, Any], *, kind: str) -> dict[str, Any]:
+        payload = dict(payload)
+        payload["schemaVersion"] = SCHEMA_VERSION
+        payload["kind"] = kind
+        payload["safety"] = {
+            **base_safety(),
+            "repoContextReadOnly": True,
+            "gitTrackedFilesOnly": True,
+            "ignoredAndUntrackedFilesBlocked": True,
+            "secretLikePathsBlocked": True,
+            "binaryFilesBlocked": True,
+            **payload.get("safety", {}),
+        }
+        return payload
+
+    def repo_tree_tracked(
+        self,
+        *,
+        prefix: str | None,
+        depth: int | None,
+        limit: int,
+        include_blocked_meta: bool,
+    ) -> dict[str, Any]:
+        payload = tracked_repo_context.repo_tree_tracked(
+            repo_root=self.config.repo_root,
+            prefix=prefix,
+            depth=depth,
+            limit=limit,
+            include_blocked_meta=include_blocked_meta,
+        )
+        return self.tracked_repo_context_payload(payload, kind="riftreader-chatgpt-mcp-repo-tree-tracked")
+
+    def repo_search_tracked(
+        self,
+        *,
+        query: str,
+        case_sensitive: bool,
+        regex: bool,
+        max_matches: int,
+        max_file_bytes: int,
+    ) -> dict[str, Any]:
+        payload = tracked_repo_context.repo_search_tracked(
+            query,
+            repo_root=self.config.repo_root,
+            case_sensitive=case_sensitive,
+            regex=regex,
+            max_matches=max_matches,
+            max_file_bytes=max_file_bytes,
+        )
+        return self.tracked_repo_context_payload(payload, kind="riftreader-chatgpt-mcp-repo-search-tracked")
+
+    def repo_read_tracked_file(
+        self,
+        *,
+        path: str,
+        max_bytes: int,
+        include_sha256: bool,
+    ) -> dict[str, Any]:
+        payload = tracked_repo_context.repo_read_tracked_file(
+            path,
+            repo_root=self.config.repo_root,
+            max_bytes=max_bytes,
+            include_sha256=include_sha256,
+        )
+        return self.tracked_repo_context_payload(payload, kind="riftreader-chatgpt-mcp-repo-read-tracked-file")
+
+    def repo_read_many_tracked_files(
+        self,
+        *,
+        paths: list[str],
+        max_file_bytes: int,
+        max_total_bytes: int,
+        max_files: int,
+    ) -> dict[str, Any]:
+        payload = tracked_repo_context.repo_read_many_tracked_files(
+            paths,
+            repo_root=self.config.repo_root,
+            max_file_bytes=max_file_bytes,
+            max_total_bytes=max_total_bytes,
+            max_files=max_files,
+        )
+        return self.tracked_repo_context_payload(payload, kind="riftreader-chatgpt-mcp-repo-read-many-tracked-files")
+
+    def repo_context_pack(
+        self,
+        *,
+        pack_name: str,
+        max_files: int,
+        max_file_bytes: int,
+        max_total_bytes: int,
+    ) -> dict[str, Any]:
+        payload = tracked_repo_context.repo_context_pack(
+            pack_name,
+            repo_root=self.config.repo_root,
+            max_files=max_files,
+            max_file_bytes=max_file_bytes,
+            max_total_bytes=max_total_bytes,
+        )
+        return self.tracked_repo_context_payload(payload, kind="riftreader-chatgpt-mcp-repo-context-pack")
 
 def cached_dry_run_payload_for_latest_draft(
     repo_root: Path,
@@ -5157,6 +5475,92 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_recent_commits", {"limit": limit})
 
+    def repo_tree_tracked(
+        prefix: str | None = None,
+        depth: int | None = None,
+        limit: int = MCP_REPO_TREE_DEFAULT_LIMIT,
+        includeBlockedMeta: bool = False,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need a bounded inventory of git-tracked RiftReader text files."""
+
+        return adapter.call_tool(
+            "repo_tree_tracked",
+            {
+                "prefix": prefix,
+                "depth": depth,
+                "limit": limit,
+                "includeBlockedMeta": includeBlockedMeta,
+            },
+        )
+
+    def repo_search_tracked(
+        query: str,
+        caseSensitive: bool = False,  # noqa: N803 - MCP input name.
+        regex: bool = False,
+        maxMatches: int = MCP_REPO_SEARCH_DEFAULT_MATCHES,  # noqa: N803 - MCP input name.
+        maxFileBytes: int = MCP_REPO_READ_FILE_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need bounded search over git-tracked RiftReader text files."""
+
+        return adapter.call_tool(
+            "repo_search_tracked",
+            {
+                "query": query,
+                "caseSensitive": caseSensitive,
+                "regex": regex,
+                "maxMatches": maxMatches,
+                "maxFileBytes": maxFileBytes,
+            },
+        )
+
+    def repo_read_tracked_file(
+        path: str,
+        maxBytes: int = MCP_REPO_READ_FILE_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+        includeSha256: bool = False,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need bounded content from one git-tracked RiftReader text file."""
+
+        return adapter.call_tool(
+            "repo_read_tracked_file",
+            {"path": path, "maxBytes": maxBytes, "includeSha256": includeSha256},
+        )
+
+    def repo_read_many_tracked_files(
+        paths: list[str],
+        maxFileBytes: int = MCP_REPO_READ_FILE_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+        maxTotalBytes: int = MCP_REPO_READ_TOTAL_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+        maxFiles: int = MCP_REPO_READ_MANY_MAX_FILES,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need bounded content from several git-tracked RiftReader text files."""
+
+        return adapter.call_tool(
+            "repo_read_many_tracked_files",
+            {
+                "paths": paths,
+                "maxFileBytes": maxFileBytes,
+                "maxTotalBytes": maxTotalBytes,
+                "maxFiles": maxFiles,
+            },
+        )
+
+    def repo_context_pack(
+        packName: str,  # noqa: N803 - MCP input name.
+        maxFiles: int = MCP_REPO_CONTEXT_PACK_DEFAULT_FILES,  # noqa: N803 - MCP input name.
+        maxFileBytes: int = MCP_REPO_READ_FILE_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+        maxTotalBytes: int = MCP_REPO_READ_TOTAL_DEFAULT_BYTES,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need a predefined bounded git-tracked RiftReader context pack."""
+
+        return adapter.call_tool(
+            "repo_context_pack",
+            {
+                "packName": packName,
+                "maxFiles": maxFiles,
+                "maxFileBytes": maxFileBytes,
+                "maxTotalBytes": maxTotalBytes,
+            },
+        )
+
     handlers = {
         "health": health,
         "get_repo_status": get_repo_status,
@@ -5172,6 +5576,11 @@ def create_fastmcp_server(
         "get_workflow_control_plan": get_workflow_control_plan,
         "get_dirty_paths": get_dirty_paths,
         "get_recent_commits": get_recent_commits,
+        "repo_tree_tracked": repo_tree_tracked,
+        "repo_search_tracked": repo_search_tracked,
+        "repo_read_tracked_file": repo_read_tracked_file,
+        "repo_read_many_tracked_files": repo_read_many_tracked_files,
+        "repo_context_pack": repo_context_pack,
     }
     for tool_name in tool_order:
         register(tool_name, handlers[tool_name])

@@ -42,7 +42,7 @@ entrypoints:
 | `scripts\riftreader-chatgpt-mcp.cmd` | Main ChatGPT Developer Mode MCP adapter wrapper. |
 | `scripts\riftreader-chatgpt-mcp.cmd --operator-launch-plan --json` | Plan-only inventory of the existing non-Codex operator-owned launch commands. It does not start a server or tunnel. |
 | `scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json` | Prints the active Cloudflare named Tunnel Server URL plan. The legacy flag name is retained for compatibility; it does not start the MCP server, start Cloudflared, or edit Cloudflare. |
-| `scripts\riftreader-mcp-mission-control.cmd --proof-run-packet-md` | Prints a current ChatGPT Web/Desktop proof packet with the live Server URL, backend status, expected 12-tool list, safe ChatGPT call order, and proof check/record commands. |
+| `scripts\riftreader-mcp-mission-control.cmd --proof-run-packet-md` | Prints a current ChatGPT Web/Desktop proof packet with the live Server URL, backend status, expected 19-tool list, safe ChatGPT call order, and proof check/record commands. |
 | `scripts\riftreader-chatgpt-mcp.cmd --secure-tunnel-plan --json` | Retired OpenAI Secure MCP Tunnel path; not a backup. |
 | `scripts\riftreader-chatgpt-mcp.cmd --chatgpt-trial-session --chatgpt-session-seconds 3600 --json` | Retired Cloudflare quick-tunnel path; not a backup. |
 | `scripts\riftreader-bridge-tunnel-session.cmd` | Local Artifact Bridge tunnel session, related but not the narrow ChatGPT MCP adapter. |

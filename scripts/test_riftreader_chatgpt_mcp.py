@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import types
@@ -74,6 +75,27 @@ def make_repo(root: Path) -> None:
         "exit /b 0\n",
         encoding="utf-8",
     )
+
+
+def make_tracked_context_repo(root: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    files = {
+        "agents.md": "# policy\n",
+        "docs/HANDOFF.md": "# Handoff\n",
+        "docs/workflow/intro.md": "# Intro\nneedle line\n",
+        "tools/riftreader_workflow/helper.py": "VALUE = 'needle'\n",
+        "scripts/run.cmd": "@echo off\nREM needle cmd\n",
+        ".env": "TOKEN=needle\n",
+        ".riftreader-local/local.md": "needle local\n",
+    }
+    for rel_path, content in files.items():
+        path = root / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    blob = root / "data" / "blob.bin"
+    blob.parent.mkdir(parents=True, exist_ok=True)
+    blob.write_bytes(b"\x00\x01\x02")
+    subprocess.run(["git", "add", "--", *files.keys(), "data/blob.bin"], cwd=root, check=True)
 
 
 def make_adapter(root: Path) -> chatgpt_mcp.RiftReaderChatGptMcpAdapter:
@@ -320,6 +342,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["get_repo_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_summary"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_workflow_control_plan"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["repo_tree_tracked"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["repo_search_tracked"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["repo_read_tracked_file"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["repo_read_many_tracked_files"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["repo_context_pack"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
@@ -333,6 +360,17 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             allowed_args_by_name["apply_latest_package_draft"],
             ["approvalToken", "dryRunDiffSha256", "dryRunSummaryPath", "operatorOnly", "timeoutSeconds"],
         )
+        self.assertEqual(allowed_args_by_name["repo_tree_tracked"], ["depth", "includeBlockedMeta", "limit", "prefix"])
+        self.assertEqual(
+            allowed_args_by_name["repo_search_tracked"],
+            ["caseSensitive", "maxFileBytes", "maxMatches", "query", "regex"],
+        )
+        self.assertEqual(allowed_args_by_name["repo_read_tracked_file"], ["includeSha256", "maxBytes", "path"])
+        self.assertEqual(
+            allowed_args_by_name["repo_read_many_tracked_files"],
+            ["maxFileBytes", "maxFiles", "maxTotalBytes", "paths"],
+        )
+        self.assertEqual(allowed_args_by_name["repo_context_pack"], ["maxFileBytes", "maxFiles", "maxTotalBytes", "packName"])
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
             self.assertFalse(annotations["openWorldHint"])
@@ -913,6 +951,80 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertEqual(payload["code"], "UNEXPECTED_TOOL_ARGUMENTS")
             self.assertIn("apply", payload["unexpectedKeys"])
             self.assertFalse((root / ".riftreader-local" / "artifact-bridge-inbox").exists())
+
+    def test_repo_context_tools_read_only_tracked_files_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_tracked_context_repo(root)
+            adapter = make_adapter(root)
+
+            tree = adapter.call_tool("repo_tree_tracked", {"prefix": "docs", "limit": 10})
+            read_one = adapter.call_tool(
+                "repo_read_tracked_file",
+                {"path": "docs/workflow/intro.md", "maxBytes": 4096, "includeSha256": True},
+            )
+            read_many = adapter.call_tool(
+                "repo_read_many_tracked_files",
+                {
+                    "paths": ["docs/workflow/intro.md", "tools/riftreader_workflow/helper.py"],
+                    "maxFileBytes": 4096,
+                    "maxTotalBytes": 8192,
+                },
+            )
+            search = adapter.call_tool("repo_search_tracked", {"query": "needle", "maxMatches": 5})
+            pack = adapter.call_tool(
+                "repo_context_pack",
+                {"packName": "workflow-docs", "maxFiles": 2, "maxFileBytes": 4096, "maxTotalBytes": 8192},
+            )
+            blocked_secret = adapter.call_tool("repo_read_tracked_file", {"path": ".env"})
+            blocked_local = adapter.call_tool("repo_read_tracked_file", {"path": ".riftreader-local/local.md"})
+            blocked_binary = adapter.call_tool("repo_read_tracked_file", {"path": "data/blob.bin"})
+
+        self.assertTrue(tree["ok"], tree)
+        self.assertEqual(tree["kind"], "riftreader-chatgpt-mcp-repo-tree-tracked")
+        self.assertLessEqual(tree["count"], 10)
+        self.assertIn("docs/workflow/intro.md", {row["path"] for row in tree["files"]})
+        self.assertTrue(read_one["ok"], read_one)
+        self.assertEqual(read_one["kind"], "riftreader-chatgpt-mcp-repo-read-tracked-file")
+        self.assertIn("needle line", read_one["content"])
+        self.assertIn("sha256", read_one)
+        self.assertTrue(read_one["safety"]["gitTrackedFilesOnly"])
+        self.assertTrue(read_many["ok"], read_many)
+        self.assertEqual(read_many["returnedCount"], 2)
+        self.assertTrue(search["ok"], search)
+        self.assertEqual(search["kind"], "riftreader-chatgpt-mcp-repo-search-tracked")
+        self.assertGreaterEqual(search["matchCount"], 2)
+        self.assertTrue(pack["ok"], pack)
+        self.assertEqual(pack["packName"], "workflow-docs")
+        self.assertFalse(blocked_secret["ok"])
+        self.assertEqual(blocked_secret["reason"], "secret-like-name")
+        self.assertFalse(blocked_local["ok"])
+        self.assertEqual(blocked_local["reason"], "blocked-directory")
+        self.assertFalse(blocked_binary["ok"])
+        self.assertEqual(blocked_binary["reason"], "blocked-extension")
+
+    def test_repo_context_tool_argument_caps_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_tracked_context_repo(root)
+            adapter = make_adapter(root)
+
+            too_many_tree_items = adapter.call_tool(
+                "repo_tree_tracked",
+                {"limit": chatgpt_mcp.MCP_REPO_TREE_MAX_LIMIT + 1},
+            )
+            non_list_paths = adapter.call_tool("repo_read_many_tracked_files", {"paths": "docs/workflow/intro.md"})
+            too_large_read = adapter.call_tool(
+                "repo_read_tracked_file",
+                {"path": "docs/workflow/intro.md", "maxBytes": chatgpt_mcp.MCP_REPO_READ_FILE_MAX_BYTES + 1},
+            )
+
+        self.assertFalse(too_many_tree_items["ok"])
+        self.assertEqual(too_many_tree_items["code"], "INVALID_INTEGER")
+        self.assertFalse(non_list_paths["ok"])
+        self.assertEqual(non_list_paths["code"], "INVALID_STRING_LIST")
+        self.assertFalse(too_large_read["ok"])
+        self.assertEqual(too_large_read["code"], "INVALID_INTEGER")
 
     def test_tool_arguments_must_be_json_serializable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

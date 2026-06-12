@@ -1,3 +1,18 @@
+# 2026-06-12 - Phase 1C-B0 tracked repo context MCP tools
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-12-phase1c-b0-tracked-repo-context-mcp-tools.md`.
+
+| Item | Current truth |
+|---|---|
+| MCP surface | Full profile now expects 19 tools locally. |
+| New tools | `repo_tree_tracked`, `repo_search_tracked`, `repo_read_tracked_file`, `repo_read_many_tracked_files`, `repo_context_pack`. |
+| Scope | Read-only tracked repo context only; no arbitrary filesystem root, shell endpoint, Git mutation, live RIFT input, CE, x64dbg, or provider writes. |
+| Validation | Adapter py_compile passed; local adapter smoke passed for all five new `repo_*` tools; final unit suite passed: `145 tests` in `27.260s`; helper self-test, SDK registration, and diff check passed. |
+| Remaining gate | Final readiness is blocked until the worktree is clean and fresh actual ChatGPT Web/Desktop proof/readiness artifacts match the new 19-tool surface. |
+| Next action | Commit explicit paths only if preserving this local slice; then refresh actual-client proof separately. Do not push without explicit approval. |
+
+---
 # 2026-06-09 - Full-local active unittest validation and no-RIFT-target gate
 
 Fresh compact handoff:

@@ -1,7 +1,7 @@
 # Tracked Repo Context Workflow
 
 ## Purpose
-This document makes the corrected RiftReader workflow durable: ChatGPT must use available tracked repo context before coding. The public GitHub repo is not optional background context; it is the immediate source for tracked files until MCP tracked-repo reader tools exist.
+This document makes the corrected RiftReader workflow durable: ChatGPT must use available tracked repo context before coding. The MCP tracked-repo reader/search tools are now the preferred source for local tracked files; the public GitHub repo remains the fallback when those tools are unavailable.
 
 ## Problem fixed
 The old workflow over-relied on chat memory, MCP summaries, pasted logs, and generated one-off scripts. That caused avoidable errors because existing helpers, wrapper styles, tests, and docs were not inspected first.
@@ -12,8 +12,8 @@ Before writing code or proposing patches, use this order:
 ```text
 1. Verify live local repo state with MCP get_repo_status.
 2. Inspect tracked repo context.
-   - Preferred after Phase 1C-B0: MCP tracked-repo reader/search tools.
-   - Fallback until then: public GitHub repo 360madden/riftreader.
+   - Preferred: MCP tracked-repo reader/search tools.
+   - Fallback: public GitHub repo 360madden/riftreader.
 3. Search/read relevant existing helpers, tests, wrappers, adapter code, and workflow docs.
 4. Reuse or patch existing helpers where practical.
 5. Generate the smallest useful package/patch.
@@ -21,14 +21,14 @@ Before writing code or proposing patches, use this order:
 7. Commit/push only through explicit validated workflow.
 ```
 
-## Why GitHub is mandatory context now
-RiftReader is public on GitHub. The tracked public repo files are already visible to the world, so they should be used as immediate coding context. GitHub is slower and less workflow-native than MCP, but it is still better than coding from memory.
+## Why GitHub remains fallback context
+RiftReader is public on GitHub. If the local MCP tracked repo tools are unavailable or stale, the tracked public repo files are still better than coding from memory. MCP is preferred because it is tied to the exact local checkout.
 
-## Why MCP tracked repo reader is still needed
-Public GitHub gives tracked-source visibility, but MCP tracked repo reader will be faster and tied to the exact local checkout. It should support task-focused context packs and direct search/read tools without exposing ignored local artifacts.
+## Why MCP tracked repo reader is preferred
+Public GitHub gives tracked-source visibility, but MCP tracked repo reader is faster and tied to the exact local checkout. It supports task-focused context packs and direct search/read tools without exposing ignored local artifacts.
 
-## Phase 1C-B0 target tools
-Add read-only MCP tools for tracked files:
+## Phase 1C-B0 local tools
+Read-only MCP tools for tracked files:
 
 ```text
 repo_tree_tracked
@@ -38,7 +38,7 @@ repo_read_many_tracked_files
 repo_context_pack
 ```
 
-These tools must use git-tracked file inventory as the source of truth, not broad filesystem walking.
+These tools use git-tracked file inventory as the source of truth, not broad filesystem walking.
 
 ## Allow policy
 Allow read-only access to git-tracked text files that are already public or intended repo source:
@@ -116,7 +116,7 @@ Before coding, inspect tracked repo files through MCP tracked repo reader when a
 ## Updated near-term roadmap
 
 ```text
-1. Phase 1C-B0 — tracked repo reader/search MCP tools
+1. Phase 1C-B0 — tracked repo reader/search MCP tools: complete-local
 2. Phase 1C-B  — run_validation_suite
 3. Phase 1C-C  — commit_reviewed_slice
 4. Phase 1C-D  — push_current_branch

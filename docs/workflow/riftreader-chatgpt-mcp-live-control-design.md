@@ -1,8 +1,8 @@
 # ChatGPT MCP live RIFT control design
 
 Status: **plan-only draft**. No live-control MCP tools are exposed by this
-document, and the current 12-tool ChatGPT Web/Desktop proof contract remains
-unchanged.
+document, and the current 19-tool ChatGPT Web/Desktop proof contract remains
+unchanged by this live-control design.
 
 This design is for the later Stage 38-43 live-read/live-control ladder after
 the current Cloudflare named Tunnel product proof passes. It defines the gates
@@ -13,8 +13,8 @@ stimulus tests, or eventually control player movement.
 
 | Boundary | Rule |
 |---|---|
-| Current MCP product | Keep the existing 12-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
-| Tool exposure | Do not add live RIFT tools until the current 12-tool actual-client proof is fresh and final readiness passes. |
+| Current MCP product | Keep the existing 19-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
+| Tool exposure | Do not add live RIFT tools until the current 19-tool actual-client proof is fresh and final readiness passes. |
 | Live input | Do not send key input, target selection, movement, turn stimulus, `/reloadui`, or screenshot-key input without explicit live approval. |
 | Debugger/CE | Do not attach x64dbg, Cheat Engine, breakpoints, or watchpoints from this lane. |
 | Promotion | Do not promote current truth, actor chains, coordinates, yaw/facing, or proof anchors from a live-control tool. |
@@ -108,7 +108,7 @@ no action.
 ## Minimal implementation sequence
 
 1. Add a read-only exact-target identity helper with JSON and unit tests.
-2. Add `get_live_rift_status` only after the current 12-tool product proof
+2. Add `get_live_rift_status` only after the current 19-tool product proof
    passes and the tool-count/proof contract is intentionally updated.
 3. Add read-only no-input proof summary exposure, preserving candidate-only
    status and current blockers.
@@ -121,7 +121,7 @@ no action.
 
 | Blocker | Effect |
 |---|---|
-| Current 12-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route. | Do not change the ChatGPT tool count or expose high-power tools yet. |
+| Current 19-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route. | Do not expose high-power live tools yet. |
 | Current static-owner readback root pointer is blocked/null after the game update. | Live navigation/control is not route-actionable. |
 | Latest no-input rediscovery is candidate-only and reports PID/HWND mismatch blockers. | Exact-target proof must be rebuilt before movement. |
 

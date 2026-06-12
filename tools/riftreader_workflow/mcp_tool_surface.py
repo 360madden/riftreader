@@ -23,6 +23,11 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "get_workflow_control_plan",
     "get_dirty_paths",
     "get_recent_commits",
+    "repo_tree_tracked",
+    "repo_search_tracked",
+    "repo_read_tracked_file",
+    "repo_read_many_tracked_files",
+    "repo_context_pack",
 )
 EXPECTED_CHATGPT_MCP_TOOL_COUNT = len(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
 

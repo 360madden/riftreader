@@ -2,7 +2,7 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 20 — gated apply exposed locally**. The local 14-tool MCP is validated locally, final readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and current-head CI for any latest local slice.
+Current stage: **Stage 20 — gated apply exposed locally**, plus Phase 1C-B0 tracked repo context tools exposed locally. The local 19-tool MCP is validated locally by focused tests, final readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and current-head CI for any latest local slice.
 
 ## Operating rules
 
@@ -27,15 +27,15 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 14-tool M
 | 5 | Cloudflare named Tunnel network rehearsal | Verify local loopback MCP, Cloudflared service health, public domain initialize, and no retired tunnel/Caddy fallback without broad repo mutation. | `https://mcp.360madden.com/mcp` is reachable through Cloudflare and forwards to the loopback MCP server. | pending |
 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to `https://mcp.360madden.com/mcp` using No Authentication and the narrow MCP app. | ChatGPT can discover the app without OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, Caddy/router, or ngrok. | pending |
 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, get_workflow_control_summary, and get_workflow_control_plan when transport allows. | Proof records read-only calls, redaction, safety flags, and no unexpected tools. | pending |
-| 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 12 tools. | Proof replay passes exact tool identity checks. | pending |
-| 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 14 tools. | Proof replay passes output-schema count and tool-name checks. | pending |
+| 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 19 tools. | Proof replay passes exact tool identity checks. | pending |
+| 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 19 tools. | Proof replay passes output-schema count and tool-name checks. | pending |
 | 10 | Local proposal submit proof | From ChatGPT, submit a harmless package-proposal into .riftreader-local. | Proposal lands in local inbox only with expected metadata and no repo target writes. | pending |
 | 11 | Inbox/listing proof | From ChatGPT, list the local inbox and verify the submitted item is visible. | ChatGPT can receive local proposal metadata back through MCP. | pending |
 | 12 | Draft creation proof | From ChatGPT, create an inert package draft from the explicit inboxId. | Draft exists under .riftreader-local and is marked inert/local-only. | pending |
 | 13 | Draft review proof | From ChatGPT, review the latest operator draft without applying it. | Review returns package summary, blockers, and read-only safety flags. | pending |
 | 14 | Dry-run diff proof | From ChatGPT, run dry_run_latest_package_draft and receive bounded diffPreview. | Proof records bounded bytes, text length, truncation boolean, and package-intake path confinement. | pending |
-| 15 | Final gate pass for current 14-tool product | Replay proof and rerun final gate after CI/current proof are fresh. | Final gate passes for current gated-apply ChatGPT MCP product. | pending |
-| 16 | Release handoff for current product | Create and commit a compact handoff for the proven 12-tool Cloudflare named Tunnel product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
+| 15 | Final gate pass for current 19-tool product | Replay proof and rerun final gate after CI/current proof are fresh. | Final gate passes for current gated-apply ChatGPT MCP product. | pending |
+| 16 | Release handoff for current product | Create and commit a compact handoff for the proven 19-tool Cloudflare named Tunnel product. | Durable handoff captures proof artifacts, commands, CI, and remaining future-roadmap gates. | pending |
 | 17 | Apply-tool design spec | Design apply_latest_package_draft with exact inputs, approval copy, dry-run hash binding, and fail-closed states. | Design doc exists, control-plan metadata is surfaced, and tests prove the gated tool behavior. | complete-local |
 | 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | complete-local |
 | 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper blocks missing/mismatched approval tokens and only passes `--apply` after preflight approval. | complete-local |
@@ -81,8 +81,8 @@ Current stage: **Stage 20 — gated apply exposed locally**. The local 14-tool M
 | 4 | 5 | Cloudflare named Tunnel network rehearsal | Verify local loopback MCP, Cloudflared service health, public domain initialize, and no retired tunnel/Caddy fallback without broad repo mutation. |
 | 5 | 6 | ChatGPT connector registration smoke | Connect ChatGPT Web/Desktop to `https://mcp.360madden.com/mcp` using No Authentication and the narrow MCP app. |
 | 6 | 7 | Read-only ChatGPT smoke | From ChatGPT, call health, get_repo_status, get_latest_handoff, get_workflow_control_summary, and get_workflow_control_plan when transport allows. |
-| 7 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 12 tools. |
-| 8 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 14 tools. |
+| 7 | 8 | Tool identity proof | Record exact ChatGPT-observed toolNames for the canonical 19 tools. |
+| 8 | 9 | Output schema proof | Record exact ChatGPT-observed outputSchema coverage for all 19 tools. |
 | 9 | 10 | Local proposal submit proof | From ChatGPT, submit a harmless package-proposal into .riftreader-local. |
 
 ## High-risk exposure order
