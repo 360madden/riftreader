@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -1698,6 +1699,80 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["client"]["applyLatestPackageDraftWithoutApprovalStructuredContent"]["applied"])
         self.assertTrue(summary_exists)
         self.assertEqual(summary_payload["artifactPaths"], payload["artifactPaths"])
+
+    def test_transport_client_retry_uses_smoke_budget_for_read_timeout(self) -> None:
+        observed: dict[str, object] = {}
+
+        async def fake_client_once(
+            url: str,
+            package_proposal: dict[str, object] | None = None,
+            *,
+            client_read_timeout_seconds: float,
+            progress: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            observed["url"] = url
+            observed["packageProposal"] = package_proposal
+            observed["clientReadTimeoutSeconds"] = client_read_timeout_seconds
+            if progress is not None:
+                progress["currentStage"] = "call_tool:dry_run_latest_package_draft"
+            return {"ok": True}
+
+        fake_process = FakeProcess()
+        with mock.patch.object(chatgpt_mcp, "run_transport_client_once", new=fake_client_once):
+            result = asyncio.run(
+                chatgpt_mcp.run_transport_client_with_retry(
+                    "http://127.0.0.1:9770/mcp",
+                    fake_process,
+                    timeout_seconds=30.0,
+                    package_proposal={"kind": "package-proposal"},
+                )
+            )
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(observed["url"], "http://127.0.0.1:9770/mcp")
+        self.assertEqual(observed["packageProposal"], {"kind": "package-proposal"})
+        self.assertGreater(float(observed["clientReadTimeoutSeconds"]), 30.0)
+        self.assertLessEqual(
+            float(observed["clientReadTimeoutSeconds"]),
+            30.0 + chatgpt_mcp.TRANSPORT_CLIENT_READ_TIMEOUT_MARGIN_SECONDS + 1.0,
+        )
+
+    def test_transport_client_retry_timeout_reports_current_stage(self) -> None:
+        async def fake_client_once(
+            url: str,
+            package_proposal: dict[str, object] | None = None,
+            *,
+            client_read_timeout_seconds: float,
+            progress: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            if progress is not None:
+                progress["currentStage"] = "call_tool:dry_run_latest_package_draft"
+                progress["stepTimings"] = [
+                    {"stage": "initialize", "status": "passed", "durationSeconds": 0.001},
+                    {"stage": "call_tool:dry_run_latest_package_draft", "status": "started"},
+                ]
+            await asyncio.sleep(1.0)
+            return {"ok": True}
+
+        fake_process = FakeProcess()
+        with mock.patch.object(chatgpt_mcp, "run_transport_client_once", new=fake_client_once):
+            with self.assertRaises(chatgpt_mcp.AdapterError) as caught:
+                asyncio.run(
+                    chatgpt_mcp.run_transport_client_with_retry(
+                        "http://127.0.0.1:9770/mcp",
+                        fake_process,
+                        timeout_seconds=0.01,
+                        package_proposal={"kind": "package-proposal"},
+                    )
+                )
+
+        self.assertEqual(caught.exception.code, "MCP_TRANSPORT_CLIENT_TIMEOUT")
+        self.assertEqual(caught.exception.extra["lastClientStage"], "call_tool:dry_run_latest_package_draft")
+        self.assertIn("remaining smoke timeout", caught.exception.extra["lastClientError"])
+        self.assertEqual(
+            caught.exception.extra["lastClientStepTimings"][-1]["stage"],
+            "call_tool:dry_run_latest_package_draft",
+        )
 
     def test_transport_smoke_result_verifier_requires_dry_run_diff_preview(self) -> None:
         registered = [registered_tool_summary(name) for name in chatgpt_mcp.EXPECTED_TOOL_ORDER]

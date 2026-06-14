@@ -1,3 +1,19 @@
+# 2026-06-14 - MCP proposal transport timeout fixed locally
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-14-mcp-transport-timeout-readiness-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| MCP surface | Full profile remains 19 tools locally. |
+| Fix | Proposal transport smoke now uses current MCP SDK `streamable_http_client` with an explicit `httpx.AsyncClient` read timeout aligned to the smoke budget. |
+| Diagnostics | Transport client results now include per-step timings; timeout failures report the last client stage. |
+| Validation | `scripts.test_riftreader_chatgpt_mcp` passed (`73 tests`, `4.369s`); SDK validation, basic transport smoke, proposal transport smoke, and Operator Lite trial readiness all passed on 2026-06-14. |
+| Remaining gate | Final readiness is still blocked by dirty worktree, branch ahead 1, missing current-head CI, and stale 14-tool actual-client proof for the new 19-tool surface. |
+| Scope note | Unrelated dirty reader C# scan-region files are not part of this MCP transport-timeout slice and need separate review. |
+| Next action | Commit the MCP slice with explicit paths only, then refresh actual-client proof separately. Do not push without explicit approval. |
+
+---
 # 2026-06-12 - Phase 1C-B0 tracked repo context MCP tools
 
 Fresh compact handoff:

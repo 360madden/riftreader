@@ -27,7 +27,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
@@ -56,6 +56,10 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 DEFAULT_DRY_RUN_TIMEOUT_SECONDS = 180.0
 DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS = 30.0
+TRANSPORT_CLIENT_CONNECT_TIMEOUT_SECONDS = 5.0
+TRANSPORT_CLIENT_WRITE_TIMEOUT_SECONDS = 30.0
+TRANSPORT_CLIENT_POOL_TIMEOUT_SECONDS = 30.0
+TRANSPORT_CLIENT_READ_TIMEOUT_MARGIN_SECONDS = 5.0
 DEFAULT_CLOUDFLARE_SMOKE_TIMEOUT_SECONDS = 120.0
 DEFAULT_CHATGPT_SESSION_SECONDS = 900.0
 DEFAULT_CHATGPT_ORIGIN = "https://chatgpt.com"
@@ -2815,37 +2819,150 @@ def validate_sdk_registration(
     }
 
 
-async def run_transport_client_once(url: str, package_proposal: dict[str, Any] | None = None) -> dict[str, Any]:
-    from mcp.client.session import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
+def compact_exception_text(exc: BaseException) -> str:
+    child_exceptions = getattr(exc, "exceptions", None)
+    if type(exc).__name__ in {"BaseExceptionGroup", "ExceptionGroup"} and isinstance(child_exceptions, tuple):
+        child_errors = "; ".join(compact_exception_text(child) for child in child_exceptions[:3])
+        suffix = f" [{child_errors}]" if child_errors else ""
+        if len(child_exceptions) > 3:
+            suffix += f" (+{len(child_exceptions) - 3} more)"
+        return f"{type(exc).__name__}: {exc}{suffix}"
+    return f"{type(exc).__name__}: {exc}"
 
-    async with streamablehttp_client(url, timeout=5, sse_read_timeout=10) as (read_stream, write_stream, _get_session_id):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            health_result = await session.call_tool("health", {})
-            submit_result = None
-            inbox_result = None
-            draft_result = None
-            review_result = None
-            dry_run_result = None
-            apply_without_approval_result = None
-            if package_proposal is not None:
-                submit_result = await session.call_tool("submit_package_proposal", {"proposal": package_proposal})
-                inbox_result = await session.call_tool("list_inbox", {})
-                submit_content = getattr(submit_result, "structuredContent", None)
-                inbox_id = submit_content.get("inboxId") if isinstance(submit_content, dict) else None
-                if isinstance(inbox_id, str) and inbox_id:
-                    draft_result = await session.call_tool("create_package_draft_from_inbox", {"inboxId": inbox_id})
-                    review_result = await session.call_tool("review_latest_package_draft", {"operatorOnly": False})
-                    dry_run_result = await session.call_tool(
-                        "dry_run_latest_package_draft",
-                        {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+
+class TransportClientStepError(Exception):
+    """Transport smoke client error annotated with the failing MCP step."""
+
+    def __init__(self, stage: str, original: BaseException, step_timings: list[dict[str, Any]]) -> None:
+        super().__init__(f"{stage}: {compact_exception_text(original)}")
+        self.stage = stage
+        self.original = original
+        self.step_timings = list(step_timings)
+
+
+async def record_transport_client_step(
+    stage: str,
+    step_timings: list[dict[str, Any]],
+    progress: dict[str, Any],
+    operation: Callable[[], Awaitable[Any]],
+) -> Any:
+    progress["currentStage"] = stage
+    progress["stepTimings"] = step_timings
+    started = time.monotonic()
+    try:
+        result = await operation()
+    except asyncio.CancelledError:
+        duration = time.monotonic() - started
+        step_timings.append(
+            {
+                "stage": stage,
+                "status": "cancelled",
+                "durationSeconds": round(duration, 3),
+                "error": "CancelledError: transport client attempt exceeded its bounded timeout",
+            }
+        )
+        raise
+    except Exception as exc:
+        duration = time.monotonic() - started
+        step_timings.append(
+            {
+                "stage": stage,
+                "status": "failed",
+                "durationSeconds": round(duration, 3),
+                "error": compact_exception_text(exc),
+            }
+        )
+        raise TransportClientStepError(stage, exc, step_timings) from exc
+    duration = time.monotonic() - started
+    step_timings.append({"stage": stage, "status": "passed", "durationSeconds": round(duration, 3)})
+    progress["lastCompletedStage"] = stage
+    return result
+
+
+async def run_transport_client_once(
+    url: str,
+    package_proposal: dict[str, Any] | None = None,
+    *,
+    client_read_timeout_seconds: float,
+    progress: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from mcp.client.session import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+    from mcp.shared._httpx_utils import create_mcp_http_client
+    import httpx
+
+    step_timings: list[dict[str, Any]] = []
+    progress = progress if progress is not None else {}
+    progress["stepTimings"] = step_timings
+    timeout = httpx.Timeout(
+        connect=TRANSPORT_CLIENT_CONNECT_TIMEOUT_SECONDS,
+        read=client_read_timeout_seconds,
+        write=TRANSPORT_CLIENT_WRITE_TIMEOUT_SECONDS,
+        pool=TRANSPORT_CLIENT_POOL_TIMEOUT_SECONDS,
+    )
+    async with create_mcp_http_client(timeout=timeout) as http_client:
+        async with streamable_http_client(url, http_client=http_client) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await record_transport_client_step("initialize", step_timings, progress, session.initialize)
+                tools_result = await record_transport_client_step("list_tools", step_timings, progress, session.list_tools)
+                health_result = await record_transport_client_step(
+                    "call_tool:health",
+                    step_timings,
+                    progress,
+                    lambda: session.call_tool("health", {}),
+                )
+                submit_result = None
+                inbox_result = None
+                draft_result = None
+                review_result = None
+                dry_run_result = None
+                apply_without_approval_result = None
+                if package_proposal is not None:
+                    submit_result = await record_transport_client_step(
+                        "call_tool:submit_package_proposal",
+                        step_timings,
+                        progress,
+                        lambda: session.call_tool("submit_package_proposal", {"proposal": package_proposal}),
                     )
-                    apply_without_approval_result = await session.call_tool(
-                        "apply_latest_package_draft",
-                        {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                    inbox_result = await record_transport_client_step(
+                        "call_tool:list_inbox",
+                        step_timings,
+                        progress,
+                        lambda: session.call_tool("list_inbox", {}),
                     )
+                    submit_content = getattr(submit_result, "structuredContent", None)
+                    inbox_id = submit_content.get("inboxId") if isinstance(submit_content, dict) else None
+                    if isinstance(inbox_id, str) and inbox_id:
+                        draft_result = await record_transport_client_step(
+                            "call_tool:create_package_draft_from_inbox",
+                            step_timings,
+                            progress,
+                            lambda: session.call_tool("create_package_draft_from_inbox", {"inboxId": inbox_id}),
+                        )
+                        review_result = await record_transport_client_step(
+                            "call_tool:review_latest_package_draft",
+                            step_timings,
+                            progress,
+                            lambda: session.call_tool("review_latest_package_draft", {"operatorOnly": False}),
+                        )
+                        dry_run_result = await record_transport_client_step(
+                            "call_tool:dry_run_latest_package_draft",
+                            step_timings,
+                            progress,
+                            lambda: session.call_tool(
+                                "dry_run_latest_package_draft",
+                                {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                            ),
+                        )
+                        apply_without_approval_result = await record_transport_client_step(
+                            "call_tool:apply_latest_package_draft",
+                            step_timings,
+                            progress,
+                            lambda: session.call_tool(
+                                "apply_latest_package_draft",
+                                {"operatorOnly": False, "timeoutSeconds": DEFAULT_DRY_RUN_TIMEOUT_SECONDS},
+                            ),
+                        )
     tools = list(getattr(tools_result, "tools", []) or [])
     tool_names = [getattr(tool, "name", None) for tool in tools]
     registered_summaries = []
@@ -2863,6 +2980,9 @@ async def run_transport_client_once(url: str, package_proposal: dict[str, Any] |
         "toolCount": len(tools),
         "toolNames": tool_names,
         "registeredTools": registered_summaries,
+        "transportClientApi": "streamable_http_client",
+        "clientReadTimeoutSeconds": client_read_timeout_seconds,
+        "clientStepTimings": step_timings,
         "healthIsError": bool(getattr(health_result, "isError", False)),
         "healthStructuredContent": getattr(health_result, "structuredContent", None),
         "healthContentTypes": [type(item).__name__ for item in getattr(health_result, "content", []) or []],
@@ -2893,24 +3013,65 @@ async def run_transport_client_with_retry(
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     last_error: str | None = None
+    last_stage: str | None = None
+    last_step_timings: list[dict[str, Any]] = []
+    last_client_read_timeout: float | None = None
     while time.monotonic() < deadline:
         if server_process.poll() is not None:
             raise AdapterError(
                 "MCP_TRANSPORT_SERVER_EXITED_EARLY",
                 "MCP server process exited before the transport smoke client could connect.",
                 status="failed",
-                extra={"serverExitCode": server_process.returncode, "lastClientError": last_error},
+                extra={
+                    "serverExitCode": server_process.returncode,
+                    "lastClientError": last_error,
+                    "lastClientStage": last_stage,
+                    "lastClientStepTimings": last_step_timings,
+                },
             )
+        remaining_seconds = max(0.001, deadline - time.monotonic())
+        last_client_read_timeout = remaining_seconds + TRANSPORT_CLIENT_READ_TIMEOUT_MARGIN_SECONDS
+        progress: dict[str, Any] = {}
         try:
-            return await run_transport_client_once(url, package_proposal=package_proposal)
+            return await asyncio.wait_for(
+                run_transport_client_once(
+                    url,
+                    package_proposal=package_proposal,
+                    client_read_timeout_seconds=last_client_read_timeout,
+                    progress=progress,
+                ),
+                timeout=remaining_seconds,
+            )
+        except asyncio.TimeoutError:
+            last_stage = str(progress.get("currentStage") or "unknown")
+            last_step_timings = list(progress.get("stepTimings") or [])
+            last_error = (
+                "TimeoutError: transport client attempt exceeded remaining smoke timeout "
+                f"at {last_stage}"
+            )
+            break
+        except TransportClientStepError as exc:
+            last_stage = exc.stage
+            last_step_timings = exc.step_timings
+            last_error = compact_exception_text(exc.original)
+            await asyncio.sleep(0.5)
         except Exception as exc:  # noqa: BLE001 - retry until bounded timeout expires.
-            last_error = f"{type(exc).__name__}: {exc}"
+            last_stage = str(progress.get("currentStage") or "unknown")
+            last_step_timings = list(progress.get("stepTimings") or [])
+            last_error = compact_exception_text(exc)
             await asyncio.sleep(0.5)
     raise AdapterError(
         "MCP_TRANSPORT_CLIENT_TIMEOUT",
         "Timed out waiting for MCP streamable HTTP client smoke test to pass.",
         status="failed",
-        extra={"url": url, "timeoutSeconds": timeout_seconds, "lastClientError": last_error},
+        extra={
+            "url": url,
+            "timeoutSeconds": timeout_seconds,
+            "lastClientError": last_error,
+            "lastClientStage": last_stage,
+            "lastClientReadTimeoutSeconds": last_client_read_timeout,
+            "lastClientStepTimings": last_step_timings,
+        },
     )
 
 
@@ -3091,7 +3252,7 @@ def run_transport_smoke_test(
     if include_proposal_submit and tool_profile != TOOL_PROFILE_FULL:
         raise AdapterError(
             "PROPOSAL_SMOKE_REQUIRES_FULL_TOOL_PROFILE",
-            "Proposal transport smoke requires the full 12-tool profile.",
+            "Proposal transport smoke requires the full tool profile.",
             status="failed",
             extra={"toolProfile": tool_profile},
         )
