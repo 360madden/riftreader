@@ -32,7 +32,7 @@ Usage:
   RiftReader.Reader --process-name <name> --record-session --session-watchset-file <path> --session-output-directory <path> [--session-marker-input-file <path>] [--session-sample-count <count>] [--session-interval-ms <ms>] [--session-label <text>] [--json]
   RiftReader.Reader --process-name <name> --telemetry-preflight [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics] [--json]
   RiftReader.Reader --process-name <name> --run-telemetry-host [--telemetry-poll-interval-ms <ms>] [--telemetry-output-file <path>] [--telemetry-event-log-file <path>] [--telemetry-diagnostics-log-file <path>] [--telemetry-proof-anchor-file <path>] [--telemetry-diagnostics]
-  RiftReader.Reader --process-name <name> --scan-string <text> [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
+  RiftReader.Reader --process-name <name> --scan-string <text> [--scan-region-base <address> --scan-region-size <bytes>] [--scan-encoding ascii|utf16|both] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-int32 <value> [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-float <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
   RiftReader.Reader --process-name <name> --scan-double <value> [--scan-tolerance <epsilon>] [--scan-context <bytes>] [--max-hits <count>]
@@ -1469,9 +1469,9 @@ Examples:
             return ReaderOptionsParseResult.Fail("Specify --scan-region-base and --scan-region-size together.", UsageText);
         }
 
-        if (scanRegionBase.HasValue && scanFloatTriplet is null)
+        if (scanRegionBase.HasValue && scanFloatTriplet is null && scanString is null)
         {
-            return ReaderOptionsParseResult.Fail("--scan-region-base/--scan-region-size can only be used with --scan-float-triplet.", UsageText);
+            return ReaderOptionsParseResult.Fail("--scan-region-base/--scan-region-size support --scan-float-triplet and --scan-string.", UsageText);
         }
 
         if ((telemetryOutputFile is not null || telemetryEventLogFile is not null || telemetryDiagnosticsLogFile is not null || telemetryProofAnchorFile is not null || telemetryDiagnostics) && !runTelemetryHost && !telemetryPreflight)

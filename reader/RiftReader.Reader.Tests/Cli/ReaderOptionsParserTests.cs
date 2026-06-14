@@ -228,8 +228,10 @@ public sealed class ReaderOptionsParserTests
     }
 
     [Fact]
-    public void Parse_RejectsScanRegionWithoutFloatTriplet()
+    public void Parse_RejectsScanRegionWithoutSupportedScanMode()
     {
+        // --scan-float does not support region pinning, so this should be rejected.
+        // The error message lists the supported set; it must mention --scan-float-triplet.
         var result = ReaderOptionsParser.Parse(
         [
             "--process-name", "rift_x64",
@@ -239,7 +241,7 @@ public sealed class ReaderOptionsParserTests
         ]);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains("can only be used with --scan-float-triplet", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--scan-region-base/--scan-region-size", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -477,6 +479,41 @@ public sealed class ReaderOptionsParserTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("TomTom import switches require --import-tomtom-waypoints.", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_AcceptsStringScanWithScanRegion()
+    {
+        var args = new[]
+        {
+            "--process-name", "rift_x64",
+            "--scan-string", "6fc01704d4a509d5",
+            "--scan-region-base", "0x1000",
+            "--scan-region-size", "8388608",
+        };
+
+        var result = ReaderOptionsParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        var options = Assert.IsType<ReaderOptions>(result.Options);
+        Assert.Equal("6fc01704d4a509d5", options.ScanString);
+        Assert.Equal((nint)0x1000, options.ScanRegionBase);
+        Assert.Equal(8388608, options.ScanRegionSize);
+    }
+
+    [Fact]
+    public void Parse_RejectsModulePatternScanWithScanRegion()
+    {
+        var result = ReaderOptionsParser.Parse(
+        [
+            "--process-name", "rift_x64",
+            "--scan-module-pattern", "48 8B ??",
+            "--scan-region-base", "0x1000",
+            "--scan-region-size", "4096",
+        ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("--scan-region-base/--scan-region-size", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

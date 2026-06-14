@@ -292,5 +292,53 @@ public static class ProcessStringScanner
         return "unclassified";
     }
 
+    public static StringScanResult ScanStringInRange(
+        ProcessMemoryReader reader,
+        int processId,
+        string processName,
+        string searchText,
+        string searchSource,
+        StringScanEncoding encoding,
+        nint rangeBaseAddress,
+        long rangeSize,
+        int contextBytes,
+        int maxHits)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        if (string.IsNullOrEmpty(searchText)) throw new ArgumentException("Search text must be non-empty.", nameof(searchText));
+        if (rangeBaseAddress == nint.Zero) throw new ArgumentException("Range base address must be non-zero.", nameof(rangeBaseAddress));
+        if (rangeSize <= 0) throw new ArgumentOutOfRangeException(nameof(rangeSize), "Range size must be positive.");
+        if (contextBytes < 0) throw new ArgumentOutOfRangeException(nameof(contextBytes), "Context bytes must be non-negative.");
+        if (maxHits <= 0) throw new ArgumentOutOfRangeException(nameof(maxHits), "Max hits must be positive.");
+
+        var patterns = BuildPatterns(searchText, encoding);
+        var hits = new List<StringScanHit>();
+
+        // Construct region with sentinel State/Protect/Type (0,0,0). ScanRegion only uses
+        // BaseAddress/RegionSize for bounded chunked reads and hit-address arithmetic; the
+        // operator explicitly selected this range, so virtual-memory State/Protect/Type are not consulted.
+        var region = new ProcessMemoryRegion(rangeBaseAddress, rangeSize, 0u, 0u, 0u);
+        ScanRegion(reader, region, patterns, hits, maxHits);
+
+        if (contextBytes > 0 && hits.Count > 0)
+        {
+            var enriched = EnrichHitsWithContext(reader, hits, contextBytes);
+            hits.Clear();
+            hits.AddRange(enriched);
+        }
+
+        return new StringScanResult(
+            "string-range",
+            processId,
+            processName,
+            searchText,
+            searchSource,
+            encoding.ToString().ToLowerInvariant(),
+            contextBytes,
+            maxHits,
+            hits.Count,
+            hits);
+    }
+
     private sealed record SearchPattern(string Label, byte[] Bytes);
 }

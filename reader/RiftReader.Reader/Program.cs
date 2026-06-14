@@ -2790,15 +2790,27 @@ internal static class Program
             return 1;
         }
 
-        var result = ProcessStringScanner.Scan(
-            reader,
-            target.ProcessId,
-            target.ProcessName,
-            searchText,
-            searchSource,
-            options.ScanEncoding,
-            options.ScanContextBytes,
-            options.MaxHits);
+        var result = options.ScanRegionBase.HasValue && options.ScanRegionSize.HasValue
+            ? ProcessStringScanner.ScanStringInRange(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                searchText,
+                searchSource,
+                options.ScanEncoding,
+                options.ScanRegionBase.Value,
+                options.ScanRegionSize.Value,
+                options.ScanContextBytes,
+                options.MaxHits)
+            : ProcessStringScanner.Scan(
+                reader,
+                target.ProcessId,
+                target.ProcessName,
+                searchText,
+                searchSource,
+                options.ScanEncoding,
+                options.ScanContextBytes,
+                options.MaxHits);
 
         if (options.JsonOutput)
         {

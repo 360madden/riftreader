@@ -1,3 +1,18 @@
+# 2026-06-14 - Reader string scan region support
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-14-reader-string-scan-region-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Feature | `--scan-string` now accepts `--scan-region-base` plus `--scan-region-size`. |
+| Implementation | `ProcessStringScanner.ScanStringInRange` uses the existing chunked region scanner helper. |
+| Boundary | Unsupported scan modes, including `--scan-float` and `--scan-module-pattern`, still reject `--scan-region-*`. |
+| Validation | Parser-focused tests passed (`26` tests); reader build passed (`0` warnings/errors); full reader test project passed (`111` tests) after rerunning sequentially. |
+| Safety | No live process attach, no memory read, no RIFT input, no CE/x64dbg, no provider writes, and no push. |
+| Next action | Pre-commit explicit C# reader/handoff paths, then commit locally if clean. |
+
+---
 # 2026-06-14 - MCP proposal transport timeout fixed locally
 
 Fresh compact handoff:
