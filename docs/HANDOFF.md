@@ -1,3 +1,18 @@
+# 2026-06-14 - ChatGPT proof-mode label refreshed for 19-tool surface
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-14-chatgpt-proof-mode-label-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Proof recorder | Fresh final proof templates now label the full ChatGPT MCP surface as `final-19-tool`, derived from the current expected tool count. |
+| Compatibility | `FINAL_12_TOOL_PROOF_MODE` remains as an import alias; existing final-proof validation remains count-driven so historical proof JSON is not rejected solely by the old label. |
+| Fresh template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260614-100749Z\proof-input.json` has `proofMode=final-19-tool`, `toolCount=19`, and 19 output-schema tool names. |
+| Validation | `py_compile` passed; focused recorder/final-readiness tests passed (`57` tests); template print/write smokes passed. |
+| Remaining gate | Actual-client proof is still stale until the fresh 19-tool template is filled from ChatGPT-side observations, checked, and recorded. |
+| Next action | Pre-commit explicit recorder/test/handoff paths, then commit locally if clean. Do not push without explicit approval. |
+
+---
 # 2026-06-14 - Reader string scan region support
 
 Fresh compact handoff:

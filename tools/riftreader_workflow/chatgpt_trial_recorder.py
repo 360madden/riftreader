@@ -56,9 +56,12 @@ EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = (
     "get_workflow_control_plan",
 )
 EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT = len(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES)
-FINAL_12_TOOL_PROOF_MODE = "final-12-tool"
+FINAL_TOOL_PROOF_MODE = f"final-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool"
+# Backward-compatible import alias. The proof surface count is now dynamic, so
+# new generated proof templates should use FINAL_TOOL_PROOF_MODE.
+FINAL_12_TOOL_PROOF_MODE = FINAL_TOOL_PROOF_MODE
 DOMAIN_READ_ONLY_PROOF_MODE = "domain-read-only"
-ALLOWED_PROOF_MODES = (FINAL_12_TOOL_PROOF_MODE, DOMAIN_READ_ONLY_PROOF_MODE)
+ALLOWED_PROOF_MODES = (FINAL_TOOL_PROOF_MODE, DOMAIN_READ_ONLY_PROOF_MODE)
 MANUAL_PUBLIC_IP_CONNECTION_MODE = "manual-public-ip"
 CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE = "cloudflare-named-tunnel"
 CANONICAL_PUBLIC_MCP_URL = "https://mcp.360madden.com/mcp"
@@ -74,13 +77,13 @@ RETIRED_TUNNEL_HOST_MARKERS = (".trycloudflare.com", ".ngrok-free.app", ".ngrok.
 PROOF_INPUT_TEMPLATE_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "proof-input-templates"
 
 
-def proof_template(proof_mode: str = FINAL_12_TOOL_PROOF_MODE) -> dict[str, Any]:
+def proof_template(proof_mode: str = FINAL_TOOL_PROOF_MODE) -> dict[str, Any]:
     if proof_mode == DOMAIN_READ_ONLY_PROOF_MODE:
         return domain_read_only_proof_template()
     return {
         "schemaVersion": 1,
         "kind": "riftreader-chatgpt-actual-client-proof-input",
-        "proofMode": FINAL_12_TOOL_PROOF_MODE,
+        "proofMode": FINAL_TOOL_PROOF_MODE,
         "connectionMode": CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE,
         "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
         "chatgptRegistrationSucceeded": False,
@@ -142,7 +145,7 @@ def domain_read_only_proof_template() -> dict[str, Any]:
     }
 
 
-def write_proof_template(repo_root: Path, *, proof_mode: str = FINAL_12_TOOL_PROOF_MODE) -> dict[str, Any]:
+def write_proof_template(repo_root: Path, *, proof_mode: str = FINAL_TOOL_PROOF_MODE) -> dict[str, Any]:
     output_dir = timestamped_output_dir(repo_root / PROOF_INPUT_TEMPLATE_ROOT)
     proof_input_path = output_dir / "proof-input.json"
     template = proof_template(proof_mode)
@@ -154,7 +157,7 @@ def write_proof_template(repo_root: Path, *, proof_mode: str = FINAL_12_TOOL_PRO
         "generatedAtUtc": utc_iso(),
         "status": "ready",
         "ok": True,
-        "proofMode": proof_mode,
+        "proofMode": str(template.get("proofMode") or proof_mode),
         "template": template,
         "artifactPaths": {
             "proofInputJson": proof_input_rel,
@@ -281,7 +284,7 @@ def validate_domain_read_only_proof(proof: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
+def validate_final_tool_proof(proof: dict[str, Any]) -> list[str]:
     blockers: list[str] = []
     for field in REQUIRED_FIELDS:
         if field not in proof:
@@ -379,10 +382,16 @@ def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
     return blockers
 
 
+def validate_final_12_tool_proof(proof: dict[str, Any]) -> list[str]:
+    """Backward-compatible wrapper for older imports/tests."""
+
+    return validate_final_tool_proof(proof)
+
+
 def validate_proof(proof: dict[str, Any]) -> list[str]:
     if proof.get("proofMode") == DOMAIN_READ_ONLY_PROOF_MODE:
         return validate_domain_read_only_proof(proof)
-    return validate_final_12_tool_proof(proof)
+    return validate_final_tool_proof(proof)
 
 
 def render_markdown(record: dict[str, Any]) -> str:
@@ -645,7 +654,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--record", action="store_true", help="Validate and record proof input JSON.")
     mode.add_argument("--self-test", action="store_true", help="Run deterministic proof-rule self-test.")
     parser.add_argument("--input", default=None, help="Path to proof input JSON for --check-input or --record.")
-    parser.add_argument("--proof-mode", choices=ALLOWED_PROOF_MODES, default=FINAL_12_TOOL_PROOF_MODE)
+    parser.add_argument("--proof-mode", choices=ALLOWED_PROOF_MODES, default=FINAL_TOOL_PROOF_MODE)
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--json", action="store_true")
     return parser

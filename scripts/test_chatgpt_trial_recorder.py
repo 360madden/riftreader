@@ -67,6 +67,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
     def test_expected_tool_surface_tracks_mcp_adapter_order(self) -> None:
         self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES, chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertEqual(recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT, len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertEqual(recorder.FINAL_TOOL_PROOF_MODE, f"final-{recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool")
         self.assertIn("apply_latest_package_draft", recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES)
         self.assertEqual(recorder.EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES, chatgpt_mcp.PUBLIC_READ_ONLY_TOOL_ORDER)
 
@@ -75,6 +76,7 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
 
         for field in recorder.REQUIRED_FIELDS:
             self.assertIn(field, payload)
+        self.assertEqual(payload["proofMode"], recorder.FINAL_TOOL_PROOF_MODE)
         self.assertEqual(payload["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["toolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertFalse(payload["toolOutputSchemasPresent"])
@@ -114,7 +116,9 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["safety"]["templateWriteOnly"])
         self.assertIn(".riftreader-local", payload["artifactPaths"]["proofInputJson"])
+        self.assertEqual(payload["proofMode"], recorder.FINAL_TOOL_PROOF_MODE)
         self.assertEqual(proof["kind"], "riftreader-chatgpt-actual-client-proof-input")
+        self.assertEqual(proof["proofMode"], recorder.FINAL_TOOL_PROOF_MODE)
         self.assertEqual(proof["toolCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["recordCommand"][0], "scripts\\riftreader-chatgpt-trial-recorder.cmd")
         self.assertEqual(payload["checkCommand"][0], "scripts\\riftreader-chatgpt-trial-recorder.cmd")
