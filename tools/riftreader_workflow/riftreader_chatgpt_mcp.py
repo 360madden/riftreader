@@ -681,8 +681,8 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         description=(
             "Use this when the local operator supplies an approval token from the local apply preflight. "
             "This applies the latest operator package draft through the guarded package-intake helper only; it "
-            "never stages, commits, pushes, runs arbitrary shell commands, sends RIFT input, writes provider repos, "
-            "or touches CE/x64dbg."
+            "returns changed-file, validation, rollback, and commit-gate reporting after apply; it never stages, "
+            "commits, pushes, runs arbitrary shell commands, sends RIFT input, writes provider repos, or touches CE/x64dbg."
         ),
         read_only=False,
         destructive=False,

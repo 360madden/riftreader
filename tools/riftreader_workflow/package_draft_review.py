@@ -579,7 +579,7 @@ def apply_preflight_latest_package_draft(
         "generatedAtUtc": utc_iso(),
         "status": status,
         "ok": status == "ready",
-        "applyToolExposed": False,
+        "applyToolExposed": True,
         "operatorOnly": operator_only,
         "draft": draft,
         "dryRun": dry_run,
@@ -598,7 +598,7 @@ def apply_preflight_latest_package_draft(
             "movementSent": False,
             "x64dbgAttach": False,
             "noCheatEngine": True,
-            "mcpToolExposed": False,
+            "mcpToolExposed": True,
         },
         "next": [
             "Review approvalFacts before any future apply approval token is generated.",
@@ -627,6 +627,99 @@ def approval_token_for_facts(approval_facts: dict[str, Any]) -> str:
     }
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     return f"APPLY-{digest[:16]}"
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
+
+def _check_counts(summary: dict[str, Any]) -> dict[str, int]:
+    checks = summary.get("checks")
+    declared_checks = summary.get("declaredChecks")
+    if isinstance(checks, dict):
+        return {
+            "declaredCount": int(checks.get("declaredCount") or 0),
+            "runCount": int(checks.get("runCount") or 0),
+            "failedCount": int(checks.get("failedCount") or 0),
+        }
+    check_rows = checks if isinstance(checks, list) else []
+    declared_rows = declared_checks if isinstance(declared_checks, list) else []
+    return {
+        "declaredCount": len(declared_rows),
+        "runCount": len(check_rows),
+        "failedCount": len([item for item in check_rows if isinstance(item, dict) and item.get("ok") is not True]),
+    }
+
+
+def post_apply_validation_report(summary: Any) -> dict[str, Any]:
+    """Return changed-file, validation, and rollback guidance for an apply result."""
+
+    if not isinstance(summary, dict):
+        return {
+            "status": "blocked",
+            "ok": False,
+            "code": "APPLY_SUMMARY_MISSING",
+            "message": "Package intake did not return a JSON object to summarize.",
+            "validationCommands": [],
+            "commitGate": {"allowedNow": False, "reason": "apply-summary-missing"},
+        }
+
+    changed_files = _string_list(summary.get("changedFiles"))
+    changed_file_count = len(changed_files)
+    if changed_file_count == 0 and isinstance(summary.get("changedFileCount"), int):
+        changed_file_count = int(summary["changedFileCount"])
+    check_counts = _check_counts(summary)
+    status = str(summary.get("status") or "unknown")
+    applied = summary.get("dryRun") is False and status == "passed"
+    validation_commands: list[dict[str, Any]] = [
+        {
+            "label": "diff-check",
+            "args": ["git", "--no-pager", "diff", "--check"],
+            "why": "Check the applied source diff for whitespace errors or conflict markers before any commit.",
+        }
+    ]
+    python_files = [path for path in changed_files if path.endswith(".py")]
+    if python_files:
+        validation_commands.insert(
+            0,
+            {
+                "label": "py-compile-changed",
+                "args": ["python", "-m", "py_compile", *python_files],
+                "why": "Compile changed Python files before staging the applied package.",
+            },
+        )
+
+    return {
+        "status": "ready" if applied else "blocked" if status == "blocked" else "failed" if status == "failed" else "unknown",
+        "ok": applied,
+        "applied": applied,
+        "changedFiles": changed_files,
+        "changedFileCount": changed_file_count,
+        "checks": check_counts,
+        "blockers": _string_list(summary.get("blockers")),
+        "warnings": _string_list(summary.get("warnings")),
+        "errors": _string_list(summary.get("errors")),
+        "rollback": summary.get("rollback") if isinstance(summary.get("rollback"), dict) else {},
+        "artifacts": summary.get("artifacts") if isinstance(summary.get("artifacts"), dict) else {},
+        "validationCommands": validation_commands,
+        "commitGate": {
+            "allowedNow": False,
+            "reason": "commit-and-push-remain-separate-explicit-git-gates",
+            "requires": [
+                "review-applied-diff",
+                "run-relevant-validation",
+                "stage-explicit-paths-only",
+                "separate-git-approval",
+            ],
+        },
+        "next": [
+            "Review changedFiles, artifacts.diff, checks, blockers, errors, and rollback before any Git staging.",
+            "Run the recommended validation commands that match the changed paths.",
+            "Commit and push remain separate explicit Git gates.",
+        ],
+    }
 
 
 def apply_latest_package_draft_bridge(
@@ -683,7 +776,7 @@ def apply_latest_package_draft_bridge(
                 "movementSent": False,
                 "x64dbgAttach": False,
                 "noCheatEngine": True,
-                "mcpToolExposed": False,
+                "mcpToolExposed": True,
             },
             "next": [
                 "Review blockers and rerun preflight before retrying.",
@@ -733,6 +826,7 @@ def apply_latest_package_draft_bridge(
         },
         "commandEnvelope": envelope,
         "intakeCompactSummary": parsed_stdout,
+        "postApplyValidationReport": post_apply_validation_report(parsed_stdout),
         "blockers": [] if status == "passed" else [f"package-intake-apply-{status}:{exit_code}"],
         "warnings": warnings,
         "safety": {
@@ -745,7 +839,7 @@ def apply_latest_package_draft_bridge(
             "movementSent": False,
             "x64dbgAttach": False,
             "noCheatEngine": True,
-            "mcpToolExposed": False,
+            "mcpToolExposed": True,
         },
         "next": [
             "Review applied diff and validation output before any Git staging.",

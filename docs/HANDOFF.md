@@ -1,3 +1,17 @@
+# 2026-06-16 - MCP post-apply reporting prepared locally
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-post-apply-reporting-prep.md`.
+
+| Item | Current truth |
+|---|---|
+| Safe prep | `apply_latest_package_draft` now returns a post-apply validation report when package intake returns JSON. |
+| Report contents | Changed files/count, check counts, blockers/warnings/errors, rollback/artifact pointers, recommended validation commands, and an explicit separate Git commit gate. |
+| Boundary | No approved package apply was run by this slice; Stage 21 actual-client apply proof remains gated. |
+| Validation | `py_compile` and focused package-draft/MCP tests passed before commit. |
+| Next action | Use this report during Stage 21/22 proof after deliberate package-apply approval. |
+
+---
 # 2026-06-16 - repo_context_pack newest-handoff ordering fixed
 
 Fresh compact handoff:

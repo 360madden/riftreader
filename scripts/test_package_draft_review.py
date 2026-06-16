@@ -330,7 +330,7 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertEqual(payload["dryRun"]["runCheckCount"], 0)
         self.assertEqual(payload["dryRun"]["failedCheckCount"], 0)
         self.assertTrue(str(payload["expectedApprovalToken"]).startswith("APPLY-"))
-        self.assertFalse(payload["applyToolExposed"])
+        self.assertTrue(payload["applyToolExposed"])
         self.assertFalse(payload["safety"]["applyFlagSent"])
         self.assertFalse(payload["safety"]["repoSourceMutationExpected"])
 
@@ -478,7 +478,17 @@ class PackageDraftReviewTests(unittest.TestCase):
                 "label": "latest-package-draft-intake-apply",
                 "ok": True,
                 "exitCode": 0,
-                "stdout": json.dumps({"status": "passed", "dryRun": False, "changedFileCount": 1}),
+                "stdout": json.dumps(
+                    {
+                        "status": "passed",
+                        "dryRun": False,
+                        "changedFiles": ["tools/example.py"],
+                        "changedFileCount": 1,
+                        "checks": {"declaredCount": 1, "runCount": 1, "failedCount": 0},
+                        "rollback": {"performed": False, "restored": []},
+                        "artifacts": {"diff": ".riftreader-local/package-intake/test/package.diff"},
+                    }
+                ),
                 "stderr": "",
             }
             with mock.patch.object(package_draft_review, "run_command_envelope", return_value=envelope) as run_command:
@@ -496,6 +506,12 @@ class PackageDraftReviewTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["applyFlagSent"])
         self.assertTrue(payload["safety"]["repoSourceMutationExpected"])
         self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertTrue(payload["postApplyValidationReport"]["ok"])
+        self.assertEqual(payload["postApplyValidationReport"]["changedFiles"], ["tools/example.py"])
+        self.assertEqual(payload["postApplyValidationReport"]["checks"]["failedCount"], 0)
+        self.assertFalse(payload["postApplyValidationReport"]["commitGate"]["allowedNow"])
+        validation_labels = [item["label"] for item in payload["postApplyValidationReport"]["validationCommands"]]
+        self.assertEqual(validation_labels, ["py-compile-changed", "diff-check"])
         command_args = run_command.call_args.args[1]
         self.assertIn("--apply", command_args)
         self.assertIn("--compact-json", command_args)
