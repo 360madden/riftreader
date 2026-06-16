@@ -66,6 +66,18 @@ def make_validation(root: Path, head: str, *, status: str = "passed", ok: bool =
     return str(path.relative_to(root)).replace("\\", "/"), digest
 
 
+def make_fake_precommit(root: Path, *, exit_code: int = 0) -> list[str]:
+    fake_root = root / ".riftreader-local" / "test-bin"
+    fake_root.mkdir(parents=True, exist_ok=True)
+    script = fake_root / "fake_precommit.py"
+    script.write_text(
+        "import sys\n"
+        f"sys.exit({exit_code})\n",
+        encoding="utf-8",
+    )
+    return [sys.executable, str(script)]
+
+
 class CommitReviewedSlicePreflightTests(unittest.TestCase):
     def test_ready_for_safe_dirty_file_with_validation_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -199,6 +211,135 @@ class CommitReviewedSlicePreflightTests(unittest.TestCase):
         self.assertTrue(payload["ok"], payload.get("blockers"))
         self.assertEqual(payload["status"], "passed")
         self.assertTrue(all(payload["checks"].values()))
+
+
+class CommitReviewedSliceApplyTests(unittest.TestCase):
+    def test_apply_blocks_missing_token_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            head = make_repo(root)
+            (root / "docs" / "slice.md").write_text("after\n", encoding="utf-8")
+            validation_path, digest = make_validation(root, head)
+
+            payload = commit_preflight.commit_reviewed_slice_apply(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+                approval_token=None,
+                precommit_command=make_fake_precommit(root),
+            )
+            post_head = git(root, "rev-parse", "HEAD")
+            status = git(root, "status", "--porcelain=v1")
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertIn("COMMIT_APPROVAL_MISSING", payload["blockers"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertEqual(post_head, head)
+        self.assertIn("docs/slice.md", status)
+
+    def test_apply_creates_local_commit_with_fake_precommit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            head = make_repo(root)
+            (root / "docs" / "slice.md").write_text("after\n", encoding="utf-8")
+            validation_path, digest = make_validation(root, head)
+            preflight = commit_preflight.commit_preflight(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+            )
+
+            payload = commit_preflight.commit_reviewed_slice_apply(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+                approval_token=preflight["expectedApprovalToken"],
+                precommit_command=make_fake_precommit(root),
+            )
+            post_head = git(root, "rev-parse", "HEAD")
+            status = git(root, "status", "--porcelain=v1")
+            last_message = git(root, "log", "-1", "--pretty=%s")
+
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["committed"])
+        self.assertTrue(payload["safety"]["gitMutation"])
+        self.assertTrue(payload["safety"]["localCommitOnly"])
+        self.assertFalse(payload["safety"]["remoteMutation"])
+        self.assertNotEqual(post_head, head)
+        self.assertEqual(payload["commitHash"], post_head)
+        self.assertEqual(status, "")
+        self.assertEqual(last_message, "Update local commit test")
+
+    def test_apply_blocks_mismatched_token_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            head = make_repo(root)
+            (root / "docs" / "slice.md").write_text("after\n", encoding="utf-8")
+            validation_path, digest = make_validation(root, head)
+
+            payload = commit_preflight.commit_reviewed_slice_apply(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+                approval_token="COMMIT-badbadbadbadbad0",
+                precommit_command=make_fake_precommit(root),
+            )
+            post_head = git(root, "rev-parse", "HEAD")
+
+        self.assertFalse(payload["ok"])
+        self.assertIn("COMMIT_APPROVAL_TOKEN_MISMATCH", payload["blockers"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertEqual(post_head, head)
+
+    def test_apply_reports_precommit_failure_without_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            head = make_repo(root)
+            (root / "docs" / "slice.md").write_text("after\n", encoding="utf-8")
+            validation_path, digest = make_validation(root, head)
+            preflight = commit_preflight.commit_preflight(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+            )
+
+            payload = commit_preflight.commit_reviewed_slice_apply(
+                root,
+                expected_head=head,
+                paths=["docs/slice.md"],
+                commit_message="Update local commit test",
+                validation_summary_path=validation_path,
+                validation_digest=digest,
+                approval_token=preflight["expectedApprovalToken"],
+                precommit_command=make_fake_precommit(root, exit_code=7),
+            )
+            post_head = git(root, "rev-parse", "HEAD")
+            status = git(root, "status", "--porcelain=v1")
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "failed")
+        self.assertIn("COMMIT_PRECOMMIT_FAILED", payload["blockers"])
+        self.assertTrue(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["committed"])
+        self.assertEqual(post_head, head)
+        self.assertIn("M  docs/slice.md", status)
 
 
 if __name__ == "__main__":

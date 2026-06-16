@@ -1,3 +1,17 @@
+# 2026-06-16 - MCP commit execution helper
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-commit-execution-helper.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage | Stage 25 `commit_reviewed_slice` approval-gated local commit helper is complete locally. |
+| Helper | `scripts\riftreader-commit-reviewed-slice.cmd --commit` reruns Stage 24 preflight, checks `expectedApprovalToken`, stages explicit paths only, runs `pre-commit run --files`, and creates one local commit. |
+| Boundary | No MCP exposure yet, no push, reset, clean, stash, restore, branch rewrite, package apply, provider write, live RIFT input/movement, CE, or x64dbg. |
+| Validation | Targeted ledger `.riftreader-local\validation-runs\20260616-133407-058742\summary.md` passed in `9.297s` (`10` focused tests plus wrapper self-test with synthetic approved local commit). |
+| Next action | Stage 26 MCP exposure for `commit_reviewed_slice`, or the separate gated Stage 21 approved package-apply actual-client proof. |
+
+---
 # 2026-06-16 - MCP commit preflight helper
 
 Fresh compact handoff:

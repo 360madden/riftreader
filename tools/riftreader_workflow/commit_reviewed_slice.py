@@ -19,11 +19,11 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .common import find_repo_root, safety_flags, utc_iso
+    from .common import find_repo_root, run_command_envelope, safety_flags, utc_iso
     from .tracked_repo_context import ContextError, normalize_repo_path, path_policy
 except ImportError:  # pragma: no cover - direct script execution fallback.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.common import find_repo_root, safety_flags, utc_iso
+    from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, utc_iso
     from riftreader_workflow.tracked_repo_context import ContextError, normalize_repo_path, path_policy
 
 
@@ -480,6 +480,186 @@ def commit_preflight(
     }
 
 
+def commit_reviewed_slice_apply(
+    repo_root: Path,
+    *,
+    expected_head: str | None,
+    paths: list[str] | None,
+    commit_message: str | None,
+    validation_summary_path: str | None,
+    validation_digest: str | None,
+    approval_token: str | None,
+    timeout_seconds: float = 120.0,
+    precommit_command: list[str] | None = None,
+) -> dict[str, Any]:
+    """Create one local commit after re-running the Stage 24 preflight.
+
+    This helper intentionally never pushes, rewrites, resets, cleans, stashes,
+    or exposes arbitrary shell execution. If pre-commit fails after explicit
+    staging, the helper reports the staged state and stops rather than trying to
+    discard or rewrite the operator's worktree.
+    """
+
+    preflight = commit_preflight(
+        repo_root,
+        expected_head=expected_head,
+        paths=paths,
+        commit_message=commit_message,
+        validation_summary_path=validation_summary_path,
+        validation_digest=validation_digest,
+        timeout_seconds=timeout_seconds,
+    )
+    commands: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    warnings: list[str] = [str(item) for item in preflight.get("warnings") or []]
+    mutation_attempted = False
+    committed = False
+    pre_head = preflight.get("currentHead")
+    post_head = pre_head
+    post_dirty_state: dict[str, Any] | None = None
+    commit_hash: str | None = None
+
+    if not preflight.get("ok"):
+        blockers.extend(str(item) for item in preflight.get("blockers") or [])
+    expected_token = preflight.get("expectedApprovalToken")
+    if preflight.get("ok"):
+        if not isinstance(approval_token, str) or not approval_token.strip():
+            blockers.append("COMMIT_APPROVAL_MISSING")
+        elif approval_token.strip() != expected_token:
+            blockers.append("COMMIT_APPROVAL_TOKEN_MISMATCH")
+
+    if blockers:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-commit-reviewed-slice-apply",
+            "toolVersion": TOOL_VERSION,
+            "generatedAtUtc": utc_iso(),
+            "status": "blocked",
+            "ok": False,
+            "committed": False,
+            "commitHash": None,
+            "preflight": preflight,
+            "blockers": sorted(set(blockers)),
+            "warnings": sorted(set(warnings)),
+            "commands": commands,
+            "safety": {
+                **safety_flags(),
+                "readOnlyPreflight": False,
+                "gitMutation": False,
+                "localCommitOnly": True,
+                "remoteMutation": False,
+                "branchRewrite": False,
+                "destructiveCleanup": False,
+                "explicitPathsOnly": True,
+                "stagedFiles": False,
+                "committed": False,
+                "pushed": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "applyFlagSent": False,
+            },
+            "next": [
+                "Resolve blockers and re-run --preflight before attempting the local commit helper again.",
+                "No Git mutation was attempted for this blocked request.",
+            ],
+        }
+
+    requested_paths = [str(path) for path in preflight.get("requestedPaths") or []]
+    message = str((preflight.get("approvalFacts") or {}).get("commitMessage") or commit_message or "").strip()
+    git_add_args = ["git", "add", "--", *requested_paths]
+    mutation_attempted = True
+    add_result = run_command_envelope(
+        "git-add-explicit-paths",
+        git_add_args,
+        repo_root,
+        timeout_seconds=timeout_seconds,
+    )
+    commands.append(add_result)
+    if not add_result.get("ok"):
+        blockers.append("COMMIT_GIT_COMMAND_FAILED:git-add")
+    else:
+        precommit_prefix = precommit_command if precommit_command is not None else ["pre-commit"]
+        precommit_args = [*precommit_prefix, "run", "--files", *requested_paths]
+        precommit_result = run_command_envelope(
+            "pre-commit-explicit-paths",
+            precommit_args,
+            repo_root,
+            timeout_seconds=timeout_seconds,
+        )
+        commands.append(precommit_result)
+        if not precommit_result.get("ok"):
+            blockers.append("COMMIT_PRECOMMIT_FAILED")
+        else:
+            commit_result = run_command_envelope(
+                "git-commit",
+                ["git", "commit", "-m", message],
+                repo_root,
+                timeout_seconds=timeout_seconds,
+            )
+            commands.append(commit_result)
+            if not commit_result.get("ok"):
+                blockers.append("COMMIT_GIT_COMMAND_FAILED:git-commit")
+            else:
+                committed = True
+
+    try:
+        post_head = current_head(repo_root, timeout_seconds=30.0)
+        commit_hash = post_head if committed else None
+    except CommitPreflightError as exc:
+        warnings.append(f"post_head_read_failed:{exc.code}")
+    try:
+        post_dirty_state = git_dirty_state(repo_root, timeout_seconds=30.0)
+    except CommitPreflightError as exc:
+        warnings.append(f"post_status_read_failed:{exc.code}")
+
+    status = "passed" if committed and not blockers else "failed"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-commit-reviewed-slice-apply",
+        "toolVersion": TOOL_VERSION,
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "passed",
+        "committed": committed,
+        "commitHash": commit_hash,
+        "preHead": pre_head,
+        "postHead": post_head,
+        "stagedPaths": requested_paths if mutation_attempted else [],
+        "preflight": preflight,
+        "postDirtyState": post_dirty_state,
+        "commands": commands,
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "safety": {
+            **safety_flags(),
+            "readOnlyPreflight": False,
+            "gitMutation": mutation_attempted,
+            "localCommitOnly": True,
+            "remoteMutation": False,
+            "branchRewrite": False,
+            "destructiveCleanup": False,
+            "explicitPathsOnly": True,
+            "stagedFiles": mutation_attempted,
+            "committed": committed,
+            "pushed": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+            "applyFlagSent": False,
+        },
+        "next": [
+            "If passed, inspect commitHash and current git status before any separate push decision.",
+            "If failed after staging, do not retry blindly; inspect commands and staged state manually.",
+            "Push remains a separate future stage and is never performed by this helper.",
+        ],
+    }
+
+
 def _temp_git(root: Path, args: list[str]) -> None:
     proc = subprocess.run(
         ["git", *args],
@@ -595,6 +775,51 @@ def run_self_test() -> dict[str, Any]:
             missing_validation.get("ok") is False and "COMMIT_VALIDATION_MISSING" in missing_validation.get("blockers", [])
         )
 
+    with tempfile.TemporaryDirectory(prefix="riftreader-commit-apply-") as temp_dir:
+        root = Path(temp_dir)
+        (root / "agents.md").write_text("# test policy\n", encoding="utf-8")
+        (root / ".gitignore").write_text(".riftreader-local/\n", encoding="utf-8")
+        (root / "docs").mkdir()
+        tracked = root / "docs" / "apply.md"
+        tracked.write_text("before\n", encoding="utf-8")
+        _temp_git(root, ["init"])
+        _temp_git(root, ["config", "user.email", "test@example.invalid"])
+        _temp_git(root, ["config", "user.name", "RiftReader Test"])
+        _temp_git(root, ["add", ".gitignore", "agents.md", "docs/apply.md"])
+        _temp_git(root, ["commit", "-m", "initial"])
+        head = current_head(root)
+        tracked.write_text("after\n", encoding="utf-8")
+        validation_path, digest = _make_validation_summary(root, head)
+        preflight = commit_preflight(
+            root,
+            expected_head=head,
+            paths=["docs/apply.md"],
+            commit_message="Update apply test slice",
+            validation_summary_path=validation_path,
+            validation_digest=digest,
+        )
+        fake_root = root / ".riftreader-local" / "test-bin"
+        fake_root.mkdir(parents=True, exist_ok=True)
+        fake_precommit = fake_root / "fake_precommit.py"
+        fake_precommit.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+        apply_result = commit_reviewed_slice_apply(
+            root,
+            expected_head=head,
+            paths=["docs/apply.md"],
+            commit_message="Update apply test slice",
+            validation_summary_path=validation_path,
+            validation_digest=digest,
+            approval_token=preflight.get("expectedApprovalToken"),
+            precommit_command=[sys.executable, str(fake_precommit)],
+        )
+        checks["approved_local_commit"] = (
+            apply_result.get("ok") is True
+            and apply_result.get("committed") is True
+            and apply_result.get("preHead") == head
+            and apply_result.get("postHead") != head
+            and apply_result.get("safety", {}).get("remoteMutation") is False
+        )
+
     for name, ok in checks.items():
         if not ok:
             blockers.append(name)
@@ -631,9 +856,10 @@ def run_self_test() -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Read-only explicit-path commit preflight for RiftReader.")
+    parser = argparse.ArgumentParser(description="Explicit-path commit preflight and local commit helper for RiftReader.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--preflight", action="store_true", help="Run read-only commit preflight. Does not stage or commit.")
+    mode.add_argument("--commit", action="store_true", help="Run approval-gated local commit execution. Never pushes.")
     mode.add_argument("--self-test", action="store_true", help="Run a synthetic temp-repo self-test.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root; auto-detected by default.")
     parser.add_argument("--expected-head", default=None)
@@ -641,6 +867,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--commit-message", default=None)
     parser.add_argument("--validation-summary-path", default=None)
     parser.add_argument("--validation-digest", default=None)
+    parser.add_argument("--approval-token", default=None)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON. Present for wrapper consistency.")
     return parser
@@ -652,15 +879,27 @@ def main(argv: list[str] | None = None) -> int:
         payload = run_self_test()
     else:
         repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
-        payload = commit_preflight(
-            repo_root,
-            expected_head=args.expected_head,
-            paths=args.paths,
-            commit_message=args.commit_message,
-            validation_summary_path=args.validation_summary_path,
-            validation_digest=args.validation_digest,
-            timeout_seconds=args.timeout_seconds,
-        )
+        if args.commit:
+            payload = commit_reviewed_slice_apply(
+                repo_root,
+                expected_head=args.expected_head,
+                paths=args.paths,
+                commit_message=args.commit_message,
+                validation_summary_path=args.validation_summary_path,
+                validation_digest=args.validation_digest,
+                approval_token=args.approval_token,
+                timeout_seconds=args.timeout_seconds,
+            )
+        else:
+            payload = commit_preflight(
+                repo_root,
+                expected_head=args.expected_head,
+                paths=args.paths,
+                commit_message=args.commit_message,
+                validation_summary_path=args.validation_summary_path,
+                validation_digest=args.validation_digest,
+                timeout_seconds=args.timeout_seconds,
+            )
     print(json.dumps(payload, indent=2, sort_keys=True))
     if payload.get("ok"):
         return 0

@@ -21,6 +21,7 @@ Cloudflare named Tunnel path: proof replay is fresh, current-head CI is green,
 - Stage 20 MCP apply wrapper: `apply_latest_package_draft`; it is exposed-gated and still requires the local approval token.
 - Stage 23 commit design contract: `docs\workflow\riftreader-chatgpt-mcp-commit-tool-design.md`; it is design-only and does not implement or expose Git mutation.
 - Stage 24 commit preflight helper: `scripts\riftreader-commit-reviewed-slice.cmd --preflight`; it is read-only and returns blockers, approval facts, and exact future commands without staging or committing.
+- Stage 25 commit execution helper: `scripts\riftreader-commit-reviewed-slice.cmd --commit`; it is local-only, approval-token-gated, reruns preflight, stages explicit paths only, runs pre-commit, and creates one local commit without push/rewrite/reset/clean.
 
 ## Stage table
 
@@ -50,7 +51,7 @@ Cloudflare named Tunnel path: proof replay is fresh, current-head CI is green,
 | 22 | Post-apply validation reporting | Return validation commands/results, changed files, and rollback hints after apply. | ChatGPT can explain applied state without committing. | complete-local |
 | 23 | Safe commit design spec | Design commit_reviewed_slice using safeCommitPlan only, explicit paths, validation gate, and visible commit message. | Spec blocks git add dot, dirty unrelated files, reset/clean/rewrite, and push. | complete-local |
 | 24 | Commit preflight helper | Implement read-only commit preflight that validates stageable paths and required tests. | Preflight returns exact add/commit commands and blockers. | complete-local |
-| 25 | Commit execution helper | Implement local commit helper with explicit approval and no remote mutation. | Helper commits only approved staged paths after validation. | pending |
+| 25 | Commit execution helper | Implement local commit helper with explicit approval and no remote mutation. | Helper commits only approved staged paths after validation. | complete-local |
 | 26 | Expose commit_reviewed_slice | Expose local commit as an MCP tool with strict args and outputSchema. | ChatGPT can create local commits only through approved preflight. | pending |
 | 27 | Commit actual-client proof | Prove ChatGPT can request a local commit for a safe slice and receive hash/status. | Proof shows no push, no branch rewrite, and clean post-commit status. | pending |
 | 28 | Push design spec | Design push_current_branch as separate remote-mutation tool with explicit branch/upstream state and no force push. | Spec requires current-turn approval and CI follow-up. | pending |
@@ -82,14 +83,14 @@ Cloudflare named Tunnel path: proof replay is fresh, current-head CI is green,
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
 | 1 | 21 | Apply actual-client proof | Prove approved `apply_latest_package_draft` end-to-end without opening commit or push yet. |
-| 2 | 25 | Commit execution helper | Implement local commit behind explicit approval and validation gates. |
-| 3 | 26 | Expose commit_reviewed_slice | Expose local commit only after helper tests and actual safety copy are stable. |
-| 4 | 27 | Commit actual-client proof | Prove the local-commit lane through actual ChatGPT MCP before remote mutation. |
-| 5 | 28 | Push design spec | Keep push as a separate remote-mutation stage with no force/rewrite path. |
-| 6 | 29 | Push preflight helper | Implement read-only branch/upstream/CI expectation checks before exposing push. |
-| 7 | 30 | Expose push_current_branch | Expose push only after local commit flow is proven and separately approved. |
-| 8 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
-| 9 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
+| 2 | 26 | Expose commit_reviewed_slice | Expose local commit only after helper tests and actual safety copy are stable. |
+| 3 | 27 | Commit actual-client proof | Prove the local-commit lane through actual ChatGPT MCP before remote mutation. |
+| 4 | 28 | Push design spec | Keep push as a separate remote-mutation stage with no force/rewrite path. |
+| 5 | 29 | Push preflight helper | Implement read-only branch/upstream/CI expectation checks before exposing push. |
+| 6 | 30 | Expose push_current_branch | Expose push only after local commit flow is proven and separately approved. |
+| 7 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
+| 8 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
+| 9 | 33 | Command allowlist registry | Implement versioned allowlist for validation/status helpers only. |
 
 ## High-risk exposure order
 

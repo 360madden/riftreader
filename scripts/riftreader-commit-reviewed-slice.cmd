@@ -1,6 +1,6 @@
 @echo off
 REM Version: riftreader-commit-reviewed-slice-wrapper-v0.1.0
-REM Purpose: Thin CMD wrapper for read-only commit preflight and self-test.
+REM Purpose: Thin CMD wrapper for commit preflight, approved local commit, and self-test.
 setlocal
 cd /d "%~dp0\.."
 python "tools\riftreader_workflow\commit_reviewed_slice.py" %*
