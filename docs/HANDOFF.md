@@ -1,3 +1,19 @@
+# 2026-06-16 - MCP final readiness release handoff for 19-tool product
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-final-readiness-release-handoff-19-tool-current-product.md`.
+
+| Item | Current truth |
+|---|---|
+| Product state | Current 19-tool ChatGPT Web/Desktop MCP product is release-ready locally and on `origin/main`. |
+| Head / remote | `bfa1451ae8dbc5d8f71c5adec3d9819f5e21947e` on `main`, synchronized with `origin/main`. |
+| Final gate | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-16T12:18:51Z`: `ok=true`, `phase2Ready=true`, `ciStatus=passed`, `proofFreshnessStatus=fresh`, `proofReplayStatus=passed`, and `toolSurfaceStatus=passed`. |
+| CI | `.NET build and test` run `27616639036` passed; `RiftReader Policy` run `27616638928` passed. |
+| Proof artifacts | Fresh template `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260616-115630Z\proof-input.json`; recorded proof `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260616-115948Z\proof.json`. |
+| Safety | No RIFT input/movement, CE/x64dbg, provider writes, current-truth/proof promotion, tunnel start, branch rewrite, force push, or approved package apply occurred. |
+| Next action | Stage 21: prove approved `apply_latest_package_draft` end-to-end, or first do the lower-risk `repo_context_pack` newest-handoff ordering fix. |
+
+---
 # 2026-06-14 - ChatGPT proof-mode label refreshed for 19-tool surface
 
 Fresh compact handoff:
