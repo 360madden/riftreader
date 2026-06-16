@@ -1,3 +1,19 @@
+# 2026-06-16 - MCP commit tool exposed locally
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-commit-tool-exposed.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage | Stage 26 `commit_reviewed_slice` MCP wrapper is implemented locally. |
+| Surface | Full ChatGPT MCP profile now has 20 tools; `commit_reviewed_slice` is approval-gated and follows `apply_latest_package_draft`. |
+| Boundary | The tool can only create one local explicit-path commit after matching preflight facts and approval token; no push/rewrite/reset/clean/package apply/provider/live/CE/x64dbg path was added. |
+| Validation | Targeted ledger `.riftreader-local\validation-runs\20260616-135442-071811\summary.md` passed in `9.519s`; SDK registration and local trial readiness validated 20 tools. |
+| Final gate | Expected blocked until fresh actual-client proof is recorded for the 20-tool surface and current-head CI is green after commit. |
+| Next action | Refresh actual ChatGPT Web/Desktop 20-tool proof; Stage 21 approved apply and Stage 27 approved commit proofs remain gated. |
+
+---
+
 # 2026-06-16 - MCP commit execution helper
 
 Fresh compact handoff:

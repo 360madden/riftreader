@@ -42,7 +42,11 @@ FALSE_SAFETY_KEYS = (
 )
 TRUE_HEALTH_SAFETY_KEYS = (
     "noShellExecutionEndpoint",
-    "noGitMutationEndpoint",
+    "noBroadGitMutationEndpoint",
+    "gitMutationEndpointLimitedToCommitReviewedSlice",
+    "noRemoteGitMutationEndpoint",
+    "noBranchRewriteEndpoint",
+    "noDestructiveGitCleanupEndpoint",
     "noArbitraryFilesystemRead",
     "noArbitraryFilesystemWrite",
     "noRiftLiveInputEndpoint",

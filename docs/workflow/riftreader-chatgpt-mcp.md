@@ -95,8 +95,9 @@ Phase 0 exposes only:
 - `get_workflow_control_summary`
 - `get_workflow_control_plan`
 
-The default `--tool-profile full` path exposes the current 19-tool final proof
-surface and is not deleted or downgraded.
+The default `--tool-profile full` path exposes the current 20-tool final proof
+surface, including the approval-gated `commit_reviewed_slice` local commit
+tool, and is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 
@@ -474,7 +475,7 @@ Mission Control now emits:
 | `recommendedNextAction` / `rankedActions` | Final-gate-aligned operator routing; raw artifact presence cannot mark the dashboard ready when proof replay fails current rules. |
 | `--summary-md` | Human-readable progress and latest-artifact summary suitable for handoff context. |
 | `--checklist-md` | Paste-safe proof checklist covering final gate, optional local refreshes, explicit public trial, package review, proof recording, and final gate rerun. |
-| `--proof-run-packet-md` | Current ChatGPT Web/Desktop proof packet with the live Cloudflare Server URL, No Authentication mode, backend PID when visible, latest proof-template path, expected 19-tool list, safe ChatGPT call sequence, and check/record commands. |
+| `--proof-run-packet-md` | Current ChatGPT Web/Desktop proof packet with the live Cloudflare Server URL, No Authentication mode, backend PID when visible, latest proof-template path, expected current full-tool list, safe ChatGPT call sequence, and check/record commands. |
 | `--trial-command --json` | Prints the bounded public-trial command without running it. |
 
 Mission Control remains safe by default: it does not start a public tunnel,

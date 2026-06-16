@@ -352,6 +352,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["apply_latest_package_draft"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["commit_reviewed_slice"]["readOnlyHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
         self.assertEqual(allowed_args_by_name["get_workflow_control_summary"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
@@ -360,6 +361,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(
             allowed_args_by_name["apply_latest_package_draft"],
             ["approvalToken", "dryRunDiffSha256", "dryRunSummaryPath", "operatorOnly", "timeoutSeconds"],
+        )
+        self.assertEqual(
+            allowed_args_by_name["commit_reviewed_slice"],
+            [
+                "approvalToken",
+                "commitMessage",
+                "expectedHead",
+                "paths",
+                "timeoutSeconds",
+                "validationDigest",
+                "validationSummaryPath",
+            ],
         )
         self.assertEqual(allowed_args_by_name["repo_tree_tracked"], ["depth", "includeBlockedMeta", "limit", "prefix"])
         self.assertEqual(
@@ -388,6 +401,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertNotIn("submit_package_proposal", names)
         self.assertNotIn("dry_run_latest_package_draft", names)
         self.assertNotIn("apply_latest_package_draft", names)
+        self.assertNotIn("commit_reviewed_slice", names)
         self.assertTrue(all(item["annotations"]["readOnlyHint"] for item in manifest["tools"]))
         self.assertFalse(manifest["safety"]["writeLikeToolsExposed"])
         self.assertEqual(chatgpt_mcp.tool_manifest()["toolProfile"], chatgpt_mcp.TOOL_PROFILE_FULL)
@@ -407,6 +421,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["noRiftGameMcpProxy"])
         self.assertTrue(payload["safety"]["noWindowsMcpProxy"])
         self.assertTrue(payload["safety"]["noShellExecutionEndpoint"])
+        self.assertTrue(payload["safety"]["noBroadGitMutationEndpoint"])
+        self.assertTrue(payload["safety"]["gitMutationEndpointLimitedToCommitReviewedSlice"])
+        self.assertTrue(payload["safety"]["noRemoteGitMutationEndpoint"])
+        self.assertTrue(payload["safety"]["noBranchRewriteEndpoint"])
+        self.assertTrue(payload["safety"]["noDestructiveGitCleanupEndpoint"])
         self.assertTrue(payload["safety"]["auditUnderDotRiftReaderLocal"])
         self.assertFalse(payload["safety"]["absoluteRepoRootExposed"])
         self.assertEqual(payload["chatGptToolFacade"]["packageProofToolOrder"], list(chatgpt_mcp.PACKAGE_PROOF_TOOL_ORDER))
@@ -880,6 +899,66 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         run_command.assert_not_called()
         assert_repo_root_not_serialized(self, root, payload)
 
+    def test_commit_reviewed_slice_blocks_without_approval_and_does_not_mutate_git(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            helper_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-commit-reviewed-slice-apply",
+                "status": "blocked",
+                "ok": False,
+                "committed": False,
+                "commitHash": None,
+                "preflight": {
+                    "status": "ready",
+                    "ok": True,
+                    "expectedApprovalToken": "COMMIT-0123456789abcdef",
+                },
+                "blockers": ["COMMIT_APPROVAL_MISSING"],
+                "warnings": [],
+                "commands": [],
+                "safety": {
+                    "gitMutation": False,
+                    "localCommitOnly": True,
+                    "remoteMutation": False,
+                    "branchRewrite": False,
+                    "destructiveCleanup": False,
+                    "explicitPathsOnly": True,
+                    "stagedFiles": False,
+                    "committed": False,
+                    "pushed": False,
+                },
+            }
+            with mock.patch.object(
+                chatgpt_mcp.commit_reviewed_slice,
+                "commit_reviewed_slice_apply",
+                return_value=helper_payload,
+            ) as commit_apply:
+                payload = adapter.call_tool(
+                    "commit_reviewed_slice",
+                    {
+                        "expectedHead": "a" * 40,
+                        "paths": ["docs/HANDOFF.md"],
+                        "commitMessage": "Update handoff",
+                        "validationSummaryPath": ".riftreader-local/validation-runs/example/summary.json",
+                        "validationDigest": "b" * 64,
+                        "timeoutSeconds": 30,
+                    },
+                )
+
+        commit_apply.assert_called_once()
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["committed"])
+        self.assertIn("COMMIT_APPROVAL_MISSING", payload["blockers"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["remoteMutation"])
+        self.assertFalse(payload["safety"]["branchRewrite"])
+        self.assertFalse(payload["safety"]["destructiveCleanup"])
+        self.assertTrue(payload["safety"]["gitMutationEndpointLimitedToCommitReviewedSlice"])
+        assert_repo_root_not_serialized(self, root, payload)
+
     def test_invalid_operator_only_type_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1128,6 +1207,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(payload["controlMode"], "plan-only")
         self.assertIn("submit_package_proposal", payload["bidirectionalDataTransfer"]["writeToLocalInbox"])
         self.assertIn("apply_latest_package_draft", payload["bidirectionalDataTransfer"]["applyApprovedDraft"])
+        self.assertIn("commit_reviewed_slice", payload["bidirectionalDataTransfer"]["commitApprovedSlice"])
         self.assertEqual(payload["safeCommitPlan"]["stageablePaths"], ["docs/example.md"])
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
@@ -1138,10 +1218,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "exposed-gated")
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
-        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "apply-exposed-gated")
+        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "commit-exposed-gated")
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 20)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 21)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 26)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 27)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

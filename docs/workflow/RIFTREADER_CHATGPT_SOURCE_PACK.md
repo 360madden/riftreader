@@ -11,7 +11,7 @@ Compact operating manual for ChatGPT project Sources. Prefer this file plus live
 - Source-pack commit: `725cb3c Add RiftReader ChatGPT source pack`
 - Latest handoff at first creation: `docs/handoffs/2026-06-09-phase1b-git-state-mcp-tools-live.md`
 - Current lane: MCP/local repo automation, not live game work.
-- Updated local surface: Phase 1C-B0 exposes tracked repo context tools; expected full profile is now 19 tools before fresh actual-client proof.
+- Updated local surface: full profile is now 20 tools, including tracked repo context tools and approval-gated `commit_reviewed_slice`; fresh actual-client proof is required after this surface change.
 
 Start resumed tasks by checking:
 
@@ -52,7 +52,7 @@ Do not code from memory alone when relevant tracked repo files can be inspected.
 | Commit/push | Dedicated validated helper/tool only |
 
 ## MCP state
-Expected runtime health: full profile, 19 tools.
+Expected runtime health: full profile, 20 tools.
 
 Read/state tools include:
 - `health`
@@ -159,8 +159,8 @@ START_RIFTREADER_CHATGPT_MCP.cmd  MCP launcher
 
 ## Best next actions
 1. Use this file in the ChatGPT project Sources tab.
-2. Refresh connector/schema and actual-client proof for the 19-tool surface.
+2. Refresh connector/schema and actual-client proof for the 20-tool surface.
 3. Build `run_validation_suite`.
-4. Build `commit_reviewed_slice`.
+4. Prove `commit_reviewed_slice` through actual ChatGPT only after explicit local-commit approval.
 5. Build `push_current_branch`.
 6. Update this file when MCP surface or operating policy changes.

@@ -20,6 +20,7 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "review_latest_package_draft",
     "dry_run_latest_package_draft",
     "apply_latest_package_draft",
+    "commit_reviewed_slice",
     "get_workflow_control_plan",
     "get_dirty_paths",
     "get_recent_commits",

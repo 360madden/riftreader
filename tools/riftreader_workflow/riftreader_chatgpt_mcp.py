@@ -2,9 +2,10 @@
 """Narrow RiftReader MCP adapter for Desktop ChatGPT Developer Mode.
 
 This module intentionally exposes only a small allowlisted surface over the
-existing Local Artifact Bridge, package-draft review, and workflow-status
-helpers. It does not proxy broad local MCPs, does not expose shell/Git/live-game
-actions, and keeps ChatGPT-originated writes under ``.riftreader-local``.
+existing Local Artifact Bridge, package-draft review, commit-preflight, and
+workflow-status helpers. It does not proxy broad local MCPs, does not expose
+shell/live-game actions, and keeps ChatGPT-originated writes bounded to
+allowlisted package drafts plus approval-gated explicit-path local commits.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
+    from . import commit_reviewed_slice
     from . import local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import package_manifest
@@ -39,6 +41,7 @@ try:
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow import commit_reviewed_slice
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import package_manifest
@@ -48,7 +51,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 SERVER_NAME = "riftreader_chatgpt_mcp"
 DEFAULT_PAYLOAD_ROOT = Path("artifacts") / "chatgpt-payloads"
 DEFAULT_AUDIT_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "audit"
@@ -117,6 +120,17 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "dry_run_latest_package_draft": frozenset({"operatorOnly", "timeoutSeconds"}),
     "apply_latest_package_draft": frozenset(
         {"operatorOnly", "dryRunSummaryPath", "dryRunDiffSha256", "approvalToken", "timeoutSeconds"}
+    ),
+    "commit_reviewed_slice": frozenset(
+        {
+            "expectedHead",
+            "paths",
+            "commitMessage",
+            "validationSummaryPath",
+            "validationDigest",
+            "approvalToken",
+            "timeoutSeconds",
+        }
     ),
     "get_workflow_control_plan": frozenset(),
     "get_dirty_paths": frozenset(),
@@ -382,15 +396,16 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "commit-local-slice",
         "targetToolName": "commit_reviewed_slice",
-        "currentStatus": "not-exposed",
+        "currentStatus": "exposed-gated",
         "riskClass": "git-local-mutation",
-        "minimumGate": "explicit-operator-approval-plus-safe-commit-plan",
-        "safePrecursorTools": ["get_workflow_control_plan"],
+        "minimumGate": "explicit-operator-approval-plus-current-commit-preflight-token",
+        "safePrecursorTools": ["get_workflow_control_plan", "get_dirty_paths"],
         "requiredSafeguards": [
-            "stage explicit paths only from safeCommitPlan.stageablePaths",
+            "rerun local commit preflight immediately before staging",
+            "require exact expectedHead, validation digest, validation summary path, and approval token",
+            "stage explicit validated paths only",
             "never run git add .",
-            "validationCommandsBeforeCommit must pass in the same session",
-            "commit message must be visible before commit",
+            "run pre-commit on explicit files before git commit",
             "no push, branch rewrite, reset, clean, or remote mutation",
         ],
     },
@@ -463,15 +478,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 20,
-    "currentStageName": "Gated apply exposed locally",
+    "currentStage": 26,
+    "currentStageName": "Approval-gated local commit exposed locally",
     "currentTruth": (
-        f"Local {len(EXPECTED_TOOL_ORDER)}-tool MCP is validated locally with gated apply and a compact workflow-control summary; "
-        "full readiness is blocked on fresh actual ChatGPT Web/Desktop Cloudflare named Tunnel proof and any "
-        "unpushed local commits."
+        f"Local {len(EXPECTED_TOOL_ORDER)}-tool MCP is validated locally with gated apply, approval-gated explicit-path "
+        "local commit, and compact workflow-control summaries; full readiness requires a fresh actual ChatGPT "
+        "Web/Desktop Cloudflare named Tunnel proof and current-head CI after any surface change."
     ),
-    "nextStage": 21,
-    "nextStageName": "Apply actual-client proof",
+    "nextStage": 27,
+    "nextStageName": "Commit actual-client proof",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -485,11 +500,12 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "add end-to-end evals, dashboard, recovery, and release handoff",
     ],
     "immediateStages": [
-        {"stage": 21, "name": "Apply actual-client proof", "status": "pending"},
-        {"stage": 22, "name": "Post-apply validation reporting", "status": "pending"},
-        {"stage": 23, "name": "Safe commit design spec", "status": "pending"},
-        {"stage": 24, "name": "Commit preflight helper", "status": "pending"},
-        {"stage": 25, "name": "Commit execution helper", "status": "pending"},
+        {"stage": 21, "name": "Apply actual-client proof", "status": "gated"},
+        {"stage": 22, "name": "Post-apply validation reporting", "status": "complete-local"},
+        {"stage": 23, "name": "Safe commit design spec", "status": "complete-local"},
+        {"stage": 24, "name": "Commit preflight helper", "status": "complete-local"},
+        {"stage": 25, "name": "Commit execution helper", "status": "complete-local"},
+        {"stage": 26, "name": "Expose commit_reviewed_slice", "status": "complete-local"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -688,6 +704,19 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         destructive=False,
         open_world=False,
     ),
+    "commit_reviewed_slice": ToolSpec(
+        name="commit_reviewed_slice",
+        title="Commit Reviewed Slice",
+        description=(
+            "Use this when the local operator supplies an approval token from the local commit preflight. "
+            "This reruns commit preflight, stages only explicit validated paths, runs pre-commit for those files, "
+            "and creates one local commit; it never pushes, rewrites branches, resets, cleans, applies packages, "
+            "runs arbitrary shell commands, sends RIFT input, writes provider repos, or touches CE/x64dbg."
+        ),
+        read_only=False,
+        destructive=False,
+        open_world=False,
+    ),
     "get_workflow_control_plan": ToolSpec(
         name="get_workflow_control_plan",
         title="Get Workflow Control Plan",
@@ -820,7 +849,11 @@ def base_safety() -> dict[str, Any]:
         "noArbitraryFilesystemRead": True,
         "noArbitraryFilesystemWrite": True,
         "noShellExecutionEndpoint": True,
-        "noGitMutationEndpoint": True,
+        "noBroadGitMutationEndpoint": True,
+        "gitMutationEndpointLimitedToCommitReviewedSlice": True,
+        "noRemoteGitMutationEndpoint": True,
+        "noBranchRewriteEndpoint": True,
+        "noDestructiveGitCleanupEndpoint": True,
         "noRiftLiveInputEndpoint": True,
         "noTargetControlEndpoint": True,
         "noPersistentServerStartedByTool": True,
@@ -1208,6 +1241,17 @@ class RiftReaderChatGptMcpAdapter:
                     operator_only=optional_bool(call_args.get("operatorOnly"), field_name="operatorOnly", default=True),
                     dry_run_summary_path=optional_str(call_args.get("dryRunSummaryPath"), field_name="dryRunSummaryPath"),
                     dry_run_diff_sha256=optional_str(call_args.get("dryRunDiffSha256"), field_name="dryRunDiffSha256"),
+                    approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
+                    timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
+                ),
+                "commit_reviewed_slice": lambda call_args: self.commit_reviewed_slice(
+                    expected_head=required_str(call_args.get("expectedHead"), field_name="expectedHead"),
+                    paths=required_str_list(call_args.get("paths"), field_name="paths", max_items=20),
+                    commit_message=required_str(call_args.get("commitMessage"), field_name="commitMessage"),
+                    validation_summary_path=required_str(
+                        call_args.get("validationSummaryPath"), field_name="validationSummaryPath"
+                    ),
+                    validation_digest=required_str(call_args.get("validationDigest"), field_name="validationDigest"),
                     approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
                 ),
@@ -1747,6 +1791,62 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def commit_reviewed_slice(
+        self,
+        *,
+        expected_head: str,
+        paths: list[str],
+        commit_message: str,
+        validation_summary_path: str,
+        validation_digest: str,
+        approval_token: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        timeout = timeout_seconds if timeout_seconds is not None else self.config.dry_run_timeout_seconds
+        payload = commit_reviewed_slice.commit_reviewed_slice_apply(
+            self.config.repo_root,
+            expected_head=expected_head,
+            paths=paths,
+            commit_message=commit_message,
+            validation_summary_path=validation_summary_path,
+            validation_digest=validation_digest,
+            approval_token=approval_token,
+            timeout_seconds=timeout,
+        )
+        payload_safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-commit-reviewed-slice",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "committed": bool(payload.get("committed")),
+            "commitHash": payload.get("commitHash"),
+            "preHead": payload.get("preHead"),
+            "postHead": payload.get("postHead"),
+            "commitResult": payload,
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "gitMutation": bool(payload_safety.get("gitMutation")),
+                "localCommitOnly": bool(payload_safety.get("localCommitOnly")),
+                "remoteMutation": bool(payload_safety.get("remoteMutation")),
+                "branchRewrite": bool(payload_safety.get("branchRewrite")),
+                "destructiveCleanup": bool(payload_safety.get("destructiveCleanup")),
+                "explicitPathsOnly": payload_safety.get("explicitPathsOnly") is not False,
+                "stagedFiles": bool(payload_safety.get("stagedFiles")),
+                "committed": bool(payload_safety.get("committed")),
+                "pushed": bool(payload_safety.get("pushed")),
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "applyFlagSent": False,
+            },
+        }
+
     def get_workflow_control_summary(self) -> dict[str, Any]:
         """Return the smallest read-only workflow-control packet for ChatGPT MCP transport."""
 
@@ -1869,9 +1969,11 @@ class RiftReaderChatGptMcpAdapter:
                 "draftLocalPackage": ["create_package_draft_from_inbox"],
                 "validateLocalDraft": ["review_latest_package_draft", "dry_run_latest_package_draft"],
                 "applyApprovedDraft": ["apply_latest_package_draft"],
+                "commitApprovedSlice": ["commit_reviewed_slice"],
                 "writeBoundary": (
                     "ChatGPT-originated proposal writes are stored only under .riftreader-local inbox/package-draft "
-                    "artifacts until apply_latest_package_draft receives a local preflight approval token."
+                    "artifacts until apply_latest_package_draft receives a local preflight approval token; local Git commits "
+                    "are limited to commit_reviewed_slice after a current commit-preflight approval token."
                 ),
             },
             "missionControl": {
@@ -1890,7 +1992,7 @@ class RiftReaderChatGptMcpAdapter:
                 "apply_latest_package_draft": compact_apply_tool_contract(APPLY_TOOL_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "apply-exposed-gated",
+                "status": "commit-exposed-gated",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -5491,8 +5593,10 @@ def create_fastmcp_server(
             "create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, then "
             "apply_latest_package_draft without approvalToken. "
             "This is not ChatGPT Codex and not a broad local MCP proxy. Use only the exposed allowlisted tools. "
-            "Do not ask this server for shell, arbitrary filesystem, Git mutation, RIFT input, CE, x64dbg, "
-            "or tunnel control; those tools are intentionally absent. "
+            "Do not ask this server for shell, arbitrary filesystem, remote Git mutation, branch rewrite, reset, clean, "
+            "RIFT input, CE, x64dbg, or tunnel control; those tools are intentionally absent. "
+            "The only Git mutation endpoint is commit_reviewed_slice, which requires a current local preflight approval token "
+            "and can create one explicit-path local commit only. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -5621,6 +5725,30 @@ def create_fastmcp_server(
             },
         )
 
+    def commit_reviewed_slice(
+        expectedHead: str,  # noqa: N803 - MCP input name.
+        paths: list[str],
+        commitMessage: str,  # noqa: N803 - MCP input name.
+        validationSummaryPath: str,  # noqa: N803 - MCP input name.
+        validationDigest: str,  # noqa: N803 - MCP input name.
+        approvalToken: str | None = None,  # noqa: N803 - MCP input name.
+        timeoutSeconds: float | None = None,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this only after a local operator supplies the commit preflight approval token."""
+
+        return adapter.call_tool(
+            "commit_reviewed_slice",
+            {
+                "expectedHead": expectedHead,
+                "paths": paths,
+                "commitMessage": commitMessage,
+                "validationSummaryPath": validationSummaryPath,
+                "validationDigest": validationDigest,
+                "approvalToken": approvalToken,
+                "timeoutSeconds": timeoutSeconds,
+            },
+        )
+
     def get_workflow_control_plan() -> dict[str, Any]:
         """Use this when you need a read-only repo workflow control plan."""
 
@@ -5734,6 +5862,7 @@ def create_fastmcp_server(
         "review_latest_package_draft": review_latest_package_draft,
         "dry_run_latest_package_draft": dry_run_latest_package_draft,
         "apply_latest_package_draft": apply_latest_package_draft,
+        "commit_reviewed_slice": commit_reviewed_slice,
         "get_workflow_control_plan": get_workflow_control_plan,
         "get_dirty_paths": get_dirty_paths,
         "get_recent_commits": get_recent_commits,

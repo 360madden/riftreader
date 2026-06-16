@@ -1,9 +1,9 @@
 # ChatGPT MCP commit_reviewed_slice design
 
-Status: Stage 25 approval-gated local commit execution helper implemented
-locally. No MCP commit tool is exposed yet.
+Status: Stage 26 MCP wrapper exposed locally. Actual ChatGPT Web/Desktop
+proof for the commit lane is still pending and remains approval-gated.
 
-## Stage 24-25 implementation status
+## Stage 24-26 implementation status
 
 | Item | Current local surface |
 |---|---|
@@ -11,15 +11,17 @@ locally. No MCP commit tool is exposed yet.
 | Thin wrapper | `scripts\riftreader-commit-reviewed-slice.cmd` |
 | Read-only mode | `--preflight` reads `HEAD`, porcelain Git status, requested paths, commit message, and machine-readable validation evidence. |
 | Local commit mode | `--commit` reruns preflight, checks the approval token, stages explicit paths only, runs `pre-commit run --files`, and creates one local commit. |
+| MCP tool | `commit_reviewed_slice` wraps commit mode with strict arguments and output schema. |
 | Self-test | `scripts\riftreader-commit-reviewed-slice.cmd --self-test --json` |
-| Focused tests | `python -m unittest scripts.test_commit_reviewed_slice` |
+| Focused tests | `python -m unittest scripts.test_commit_reviewed_slice scripts.test_riftreader_chatgpt_mcp` |
 | Mutation boundary | Commit mode allows only `git add -- <explicit paths>`, `pre-commit run --files <explicit paths>`, and `git commit -m <message>` after approval. No push, reset, clean, branch rewrite, package apply, provider write, live input, CE, or x64dbg. |
 
 ## Purpose
 
-`commit_reviewed_slice` is the planned local Git commit tool for the
-RiftReader ChatGPT Web/Desktop MCP after a package apply has already happened
-and the operator has reviewed the resulting source diff.
+`commit_reviewed_slice` is the exposed local Git commit tool for the
+RiftReader ChatGPT Web/Desktop MCP after a package apply or another bounded
+source edit has already happened and the operator has reviewed the resulting
+diff plus validation evidence.
 
 The tool must keep Git mutation separate from package apply and push. Its only
 intended mutation is one local `git commit` containing an explicitly reviewed,
@@ -36,7 +38,7 @@ validated, bounded path set.
   x64dbg attach.
 - No committing ignored `.riftreader-local` artifacts.
 
-## Planned MCP tool shape
+## MCP tool shape
 
 | Field | Rule |
 |---|---|
@@ -90,7 +92,7 @@ validated, bounded path set.
 |---:|---|---|---|
 | 24 | `commit_reviewed_slice_preflight` | None | Implemented locally; reads Git status, validates paths/message/validation, and returns approval facts plus exact future commands. |
 | 25 | `commit_reviewed_slice_apply` | Local Git only | Implemented locally; re-validates preflight facts, stages explicit paths, runs pre-commit, and creates one local commit after approval. |
-| 26 | MCP wrapper | Local Git only | Exposes the Stage 25 helper as `commit_reviewed_slice` with strict argument caps and output schema. |
+| 26 | MCP wrapper | Local Git only | Implemented locally; exposes the Stage 25 helper as `commit_reviewed_slice` with strict argument caps and output schema. |
 | 27 | Actual-client proof | Local Git only | Proves ChatGPT can request a local commit without push/rewrite and receives commit hash/status. |
 
 ## Command policy

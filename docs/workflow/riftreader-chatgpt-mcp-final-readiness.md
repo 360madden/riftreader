@@ -168,7 +168,11 @@ publicTunnelStarted: false # except explicit public smoke/live-trial helpers
 persistentServerStarted: false # except explicit serve/live-trial helpers with teardown evidence
 savedVariablesUsedAsLiveTruth: false
 noShellExecutionEndpoint: true
-noGitMutationEndpoint: true
+noBroadGitMutationEndpoint: true
+gitMutationEndpointLimitedToCommitReviewedSlice: true
+noRemoteGitMutationEndpoint: true
+noBranchRewriteEndpoint: true
+noDestructiveGitCleanupEndpoint: true
 noArbitraryFilesystemRead: true
 noArbitraryFilesystemWrite: true
 noRiftLiveInputEndpoint: true
