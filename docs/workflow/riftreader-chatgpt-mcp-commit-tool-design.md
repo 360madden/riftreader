@@ -1,7 +1,18 @@
 # ChatGPT MCP commit_reviewed_slice design
 
-Status: Stage 23 design contract. No commit helper or MCP commit tool is
-implemented by this document.
+Status: Stage 24 read-only preflight implemented locally. No commit execution
+helper or MCP commit tool is exposed yet.
+
+## Stage 24 implementation status
+
+| Item | Current local surface |
+|---|---|
+| Python helper | `tools\riftreader_workflow\commit_reviewed_slice.py` |
+| Thin wrapper | `scripts\riftreader-commit-reviewed-slice.cmd` |
+| Read-only mode | `--preflight` reads `HEAD`, porcelain Git status, requested paths, commit message, and machine-readable validation evidence. |
+| Self-test | `scripts\riftreader-commit-reviewed-slice.cmd --self-test --json` |
+| Focused tests | `python -m unittest scripts.test_commit_reviewed_slice` |
+| Mutation boundary | No `git add`, `pre-commit`, `git commit`, `git push`, reset, clean, branch rewrite, package apply, provider write, live input, CE, or x64dbg. |
 
 ## Purpose
 
@@ -64,6 +75,8 @@ validated, bounded path set.
 | `COMMIT_PATH_FORBIDDEN` | Path is ignored/local, secret-like, binary, outside repo, or otherwise forbidden. |
 | `COMMIT_UNRELATED_DIRTY_PATHS` | Worktree contains dirty paths outside the requested commit set. |
 | `COMMIT_VALIDATION_MISSING` | Required validation evidence is absent. |
+| `COMMIT_VALIDATION_DIGEST_MISMATCH` | Supplied validation digest does not match the evidence file. |
+| `COMMIT_VALIDATION_HEAD_MISMATCH` | Validation evidence was generated against another `HEAD`. |
 | `COMMIT_VALIDATION_STALE` | Validation predates the latest requested path change. |
 | `COMMIT_VALIDATION_FAILED` | Validation evidence includes failures or blockers. |
 | `COMMIT_PRECOMMIT_FAILED` | Local pre-commit gate failed. |
@@ -74,7 +87,7 @@ validated, bounded path set.
 
 | Stage | Helper | Mutation | Purpose |
 |---:|---|---|---|
-| 24 | `commit_reviewed_slice_preflight` | None | Reads Git status, validates paths/message/validation, and returns approval facts plus exact future commands. |
+| 24 | `commit_reviewed_slice_preflight` | None | Implemented locally; reads Git status, validates paths/message/validation, and returns approval facts plus exact future commands. |
 | 25 | `commit_reviewed_slice_apply` | Local Git only | Re-validates preflight facts, stages explicit paths, runs the required validation gate, and creates one local commit after approval. |
 | 26 | MCP wrapper | Local Git only | Exposes the Stage 25 helper as `commit_reviewed_slice` with strict argument caps and output schema. |
 | 27 | Actual-client proof | Local Git only | Proves ChatGPT can request a local commit without push/rewrite and receives commit hash/status. |
@@ -140,7 +153,7 @@ same remote/live/provider safety fields.
 - Blocks unrelated dirty worktree paths.
 - Blocks stale `expectedHead`.
 - Blocks stale, missing, or failed validation evidence.
-- Blocks missing or mismatched approval token.
+- Preflight emits an approval token preview; missing or mismatched approval token checks are reserved for Stage 25 execution.
 - Emits exact explicit-path commands in preflight without mutating Git.
 - On approved execution, stages only explicit paths and creates one local
   commit.

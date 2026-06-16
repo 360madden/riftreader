@@ -1,3 +1,18 @@
+# 2026-06-16 - MCP commit preflight helper
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-commit-preflight-helper.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage | Stage 24 `commit_reviewed_slice` read-only preflight helper is complete locally. |
+| Helper | `tools\riftreader_workflow\commit_reviewed_slice.py` validates exact `HEAD`, explicit safe paths, no unrelated dirty files, validation digest/status/head/staleness, and commit message. |
+| Wrapper | `scripts\riftreader-commit-reviewed-slice.cmd --preflight` emits blockers, approval facts, expected approval token, and exact future command arrays without staging or committing. |
+| Validation | Targeted ledger `.riftreader-local\validation-runs\20260616-132315-624147\summary.md` passed in `5.316s`; real dirty-slice preflight returned ready without Git mutation. |
+| Boundary | No Git mutation, push, reset, clean, branch rewrite, package apply, provider write, live RIFT input/movement, CE, or x64dbg. |
+| Next action | Stage 25 approval-gated local commit execution helper; Stage 21 approved package-apply actual-client proof remains separate and gated. |
+
+---
 # 2026-06-16 - MCP commit tool design contract
 
 Fresh compact handoff:
