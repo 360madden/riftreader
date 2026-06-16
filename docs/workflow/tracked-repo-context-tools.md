@@ -1,6 +1,6 @@
 # Tracked Repo Context Tools v0.2
 
-Version: riftreader-tracked-repo-context-doc-v0.2.0
+Version: riftreader-tracked-repo-context-doc-v0.2.1
 Total-Character-Count: 0000002798
 Purpose: Document the read-only tracked repo context helper and MCP tool exposure.
 
@@ -85,7 +85,12 @@ Initial packs:
 | `mcp-adapter` | MCP adapter, wrapper, tests, and docs. |
 | `git-state` | Phase 1A/1B git-state helper and related handoff/docs. |
 | `package-flow` | Package-intake and artifact-bridge helper patterns. |
-| `workflow-docs` | Workflow docs and handoffs. |
+| `workflow-docs` | Current handoff pointer, active MCP workflow docs, newest handoffs, then remaining workflow docs if the file budget allows. |
+
+`workflow-docs` is intentionally ordered for resume context, not alphabetic
+inventory. It prioritizes `docs/HANDOFF.md`, the active ChatGPT MCP roadmap and
+workflow docs, and then sorts `docs/handoffs/*.md` newest-first by leading
+handoff date/time before filling any remaining budget with other workflow docs.
 
 ## Validation
 

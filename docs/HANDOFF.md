@@ -1,3 +1,17 @@
+# 2026-06-16 - repo_context_pack newest-handoff ordering fixed
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-repo-context-pack-newest-handoffs.md`.
+
+| Item | Current truth |
+|---|---|
+| Fix | `repo_context_pack(packName="workflow-docs")` now preserves curated pack order and sorts `docs/handoffs/*.md` newest-first by leading handoff date/time. |
+| Current pack priority | `docs/HANDOFF.md`, active ChatGPT MCP plan/workflow docs, newest handoffs, then remaining workflow docs if the `maxFiles` budget allows. |
+| Validation | `py_compile` passed; `python -m unittest scripts.test_tracked_repo_context scripts.test_riftreader_chatgpt_mcp` passed (`84` tests); direct `workflow-docs` context-pack smoke passed. |
+| Safety | Read-only context surface only; no package apply, live RIFT input/movement, CE/x64dbg, provider writes, proof promotion, or Git endpoint was added. |
+| Next action | Keep this as the default starter context for non-Codex ChatGPT MCP workflows; Stage 21 approved package-apply proof remains the next high-power MCP lane. |
+
+---
 # 2026-06-16 - MCP final readiness release handoff for 19-tool product
 
 Fresh compact handoff:

@@ -121,6 +121,40 @@ class TrackedRepoContextTests(unittest.TestCase):
         self.assertEqual(result["reason"], "unknown-context-pack")
         self.assertIn("mcp-adapter", result["availablePacks"])
 
+    def test_workflow_docs_context_pack_prefers_current_docs_and_newest_handoffs(self) -> None:
+        self._write("docs/HANDOFF.md", "# Current handoff\n")
+        self._write("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md", "# MCP plan\n")
+        self._write("docs/workflow/riftreader-chatgpt-mcp.md", "# MCP workflow\n")
+        self._write("docs/workflow/aaa-older-workflow-doc.md", "# Older workflow doc\n")
+        self._write("docs/handoffs/20260519-1805-mcp-final-readiness-release-handoff-maintenance.md", "# May handoff\n")
+        self._write("docs/handoffs/2026-06-14-chatgpt-proof-mode-label-handoff.md", "# Mid handoff\n")
+        self._write("docs/handoffs/2026-06-16-mcp-final-readiness-release-handoff-19-tool-current-product.md", "# New handoff\n")
+        self._git(
+            "add",
+            "docs/HANDOFF.md",
+            "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
+            "docs/workflow/riftreader-chatgpt-mcp.md",
+            "docs/workflow/aaa-older-workflow-doc.md",
+            "docs/handoffs/20260519-1805-mcp-final-readiness-release-handoff-maintenance.md",
+            "docs/handoffs/2026-06-14-chatgpt-proof-mode-label-handoff.md",
+            "docs/handoffs/2026-06-16-mcp-final-readiness-release-handoff-19-tool-current-product.md",
+        )
+
+        result = trc.repo_context_pack("workflow-docs", repo_root=self.root, max_files=6)
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(
+            result["selectedPaths"],
+            [
+                "docs/HANDOFF.md",
+                "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
+                "docs/workflow/riftreader-chatgpt-mcp.md",
+                "docs/handoffs/2026-06-16-mcp-final-readiness-release-handoff-19-tool-current-product.md",
+                "docs/handoffs/2026-06-14-chatgpt-proof-mode-label-handoff.md",
+                "docs/handoffs/20260519-1805-mcp-final-readiness-release-handoff-maintenance.md",
+            ],
+        )
+
     def test_self_test_passes(self) -> None:
         result = trc.run_self_test()
         self.assertTrue(result["ok"], json.dumps(result, indent=2))

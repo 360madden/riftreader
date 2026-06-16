@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: riftreader-tracked-repo-context-v0.1.0
+# Version: riftreader-tracked-repo-context-v0.1.1
 # Total-Character-Count: 0000025980
 # Purpose: Read and search only bounded git-tracked text files for RiftReader context tools.
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "riftreader-tracked-repo-context-v0.1.0"
+TOOL_VERSION = "riftreader-tracked-repo-context-v0.1.1"
 DEFAULT_MAX_FILE_BYTES = 1_048_576
 DEFAULT_MAX_TOTAL_BYTES = 2_097_152
 DEFAULT_MAX_MATCHES = 50
@@ -516,11 +516,40 @@ PACK_PATTERNS: dict[str, list[str]] = {
         "docs/workflow/*artifact*bridge*.md",
     ],
     "workflow-docs": [
-        "docs/workflow/*.md",
-        "docs/handoffs/*.md",
         "docs/HANDOFF.md",
+        "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
+        "docs/workflow/riftreader-chatgpt-mcp.md",
+        "docs/handoffs/*.md",
+        "docs/workflow/*.md",
     ],
 }
+
+
+def _handoff_sort_key(path: str) -> tuple[int, int, int, int, int, str]:
+    """Sort handoff filenames by their leading date/time, newest first."""
+
+    name = Path(path).name
+    match = re.match(
+        r"^(?P<year>\d{4})-?(?P<month>\d{2})-?(?P<day>\d{2})(?:[-T]?(?P<hour>\d{2})(?P<minute>\d{2})?)?",
+        name,
+    )
+    if not match:
+        return (0, 0, 0, 0, 0, path)
+    groups = match.groupdict()
+    return (
+        int(groups["year"]),
+        int(groups["month"]),
+        int(groups["day"]),
+        int(groups.get("hour") or 0),
+        int(groups.get("minute") or 0),
+        path,
+    )
+
+
+def _sort_pack_matches(pack_name: str, pattern: str, paths: list[str]) -> list[str]:
+    if pack_name == "workflow-docs" and pattern == "docs/handoffs/*.md":
+        return sorted(paths, key=_handoff_sort_key, reverse=True)
+    return sorted(paths)
 
 
 def _select_pack_paths(repo_root: Path, pack_name: str, limit: int) -> tuple[list[str], list[str]]:
@@ -529,18 +558,27 @@ def _select_pack_paths(repo_root: Path, pack_name: str, limit: int) -> tuple[lis
     if patterns is None:
         raise ContextError("unknown-context-pack")
     selected: list[str] = []
+    selected_set: set[str] = set()
     missing: list[str] = []
+
+    def append_once(path: str) -> None:
+        if path in selected_set:
+            return
+        selected.append(path)
+        selected_set.add(path)
+
     for pattern in patterns:
         if any(ch in pattern for ch in "*?["):
             found = [path for path in tracked if fnmatch.fnmatch(path, pattern)]
-            selected.extend(found)
+            for path in _sort_pack_matches(pack_name, pattern, found):
+                append_once(path)
             if not found:
                 missing.append(pattern)
         elif pattern in tracked:
-            selected.append(pattern)
+            append_once(pattern)
         else:
             missing.append(pattern)
-    return sorted(set(selected))[:limit], missing
+    return selected[:limit], missing
 
 
 def repo_context_pack(
