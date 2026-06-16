@@ -1,3 +1,17 @@
+# 2026-06-16 - MCP commit tool design contract
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-16-mcp-commit-tool-design.md`.
+
+| Item | Current truth |
+|---|---|
+| Design | Stage 23 `commit_reviewed_slice` design contract added at `docs/workflow/riftreader-chatgpt-mcp-commit-tool-design.md`. |
+| Boundary | Future commit tool is local-commit-only after explicit approval; no push, branch rewrite, reset, clean, package apply, provider write, live RIFT input, CE, or x64dbg. |
+| Required gates | Explicit path set, no unrelated dirty files, validation/pre-commit evidence, visible commit message, exact `HEAD`, and approval-token binding. |
+| Safety rule | `git add .`, `git add -A`, `git commit -a`, shell-string Git mutation, and ignored `.riftreader-local` artifacts are forbidden. |
+| Next action | Stage 24 read-only commit preflight helper; Stage 21 actual-client approved package-apply proof remains a separate gated lane. |
+
+---
 # 2026-06-16 - MCP post-apply reporting prepared locally
 
 Fresh compact handoff:

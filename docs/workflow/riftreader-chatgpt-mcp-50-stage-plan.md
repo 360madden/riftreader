@@ -2,12 +2,11 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 21 — approved apply actual-client proof is next**. The
+Current stage: **Stage 21 — approved apply actual-client proof is the next
+gated proof**, with safe local prep continuing on later design stages. The
 current 19-tool ChatGPT Web/Desktop MCP product is proven through the persistent
-Cloudflare named Tunnel path at head
-`bfa1451ae8dbc5d8f71c5adec3d9819f5e21947e`: proof replay is fresh, current-head
-CI is green, `main` is synchronized with `origin/main`, and the final readiness
-gate passes.
+Cloudflare named Tunnel path: proof replay is fresh, current-head CI is green,
+`main` is synchronized with `origin/main`, and the final readiness gate passes.
 
 ## Operating rules
 
@@ -20,6 +19,7 @@ gate passes.
 - Stage 18 local-only preflight helper: `tools\riftreader_workflow\package_draft_review.py --apply-preflight-latest-operator`; it never passes `--apply`.
 - Stage 19 local-only apply bridge: `tools\riftreader_workflow\package_draft_review.py --apply-latest-operator`; it requires the preflight approval token.
 - Stage 20 MCP apply wrapper: `apply_latest_package_draft`; it is exposed-gated and still requires the local approval token.
+- Stage 23 commit design contract: `docs\workflow\riftreader-chatgpt-mcp-commit-tool-design.md`; it is design-only and does not implement or expose Git mutation.
 
 ## Stage table
 
@@ -46,8 +46,8 @@ gate passes.
 | 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper blocks missing/mismatched approval tokens and only passes `--apply` after preflight approval. | complete-local |
 | 20 | Expose apply_latest_package_draft | Expose apply as an MCP tool only after helper gates pass and descriptions/outputSchema are complete. | Tool count intentionally changes with updated proof contract and tests. | complete-local |
 | 21 | Apply actual-client proof | Prove ChatGPT can apply only an approved reviewed draft and receive post-apply evidence. | Proof records repo source mutation truthfully and blocks unapproved apply. | current |
-| 22 | Post-apply validation reporting | Return validation commands/results, changed files, and rollback hints after apply. | ChatGPT can explain applied state without committing. | pending |
-| 23 | Safe commit design spec | Design commit_reviewed_slice using safeCommitPlan only, explicit paths, validation gate, and visible commit message. | Spec blocks git add dot, dirty unrelated files, reset/clean/rewrite, and push. | pending |
+| 22 | Post-apply validation reporting | Return validation commands/results, changed files, and rollback hints after apply. | ChatGPT can explain applied state without committing. | complete-local |
+| 23 | Safe commit design spec | Design commit_reviewed_slice using safeCommitPlan only, explicit paths, validation gate, and visible commit message. | Spec blocks git add dot, dirty unrelated files, reset/clean/rewrite, and push. | complete-local |
 | 24 | Commit preflight helper | Implement read-only commit preflight that validates stageable paths and required tests. | Preflight returns exact add/commit commands and blockers. | pending |
 | 25 | Commit execution helper | Implement local commit helper with explicit approval and no remote mutation. | Helper commits only approved staged paths after validation. | pending |
 | 26 | Expose commit_reviewed_slice | Expose local commit as an MCP tool with strict args and outputSchema. | ChatGPT can create local commits only through approved preflight. | pending |
@@ -82,13 +82,13 @@ gate passes.
 |---:|---:|---|---|
 | 1 | 21 | Apply actual-client proof | Prove approved `apply_latest_package_draft` end-to-end without opening commit or push yet. |
 | 2 | 22 | Post-apply validation reporting | Return changed files, validation evidence, and rollback hints after apply. |
-| 3 | 23 | Safe commit design spec | Design local commit as a separate approval-gated tool with explicit paths only. |
-| 4 | 24 | Commit preflight helper | Make ChatGPT-visible commit readiness read-only before any Git mutation. |
-| 5 | 25 | Commit execution helper | Implement local commit behind explicit approval and validation gates. |
-| 6 | 26 | Expose commit_reviewed_slice | Expose local commit only after helper tests and actual safety copy are stable. |
-| 7 | 27 | Commit actual-client proof | Prove the local-commit lane through actual ChatGPT MCP before remote mutation. |
-| 8 | 28 | Push design spec | Keep push as a separate remote-mutation stage with no force/rewrite path. |
-| 9 | 29 | Push preflight helper | Implement read-only branch/upstream/CI expectation checks before exposing push. |
+| 3 | 24 | Commit preflight helper | Make ChatGPT-visible commit readiness read-only before any Git mutation. |
+| 4 | 25 | Commit execution helper | Implement local commit behind explicit approval and validation gates. |
+| 5 | 26 | Expose commit_reviewed_slice | Expose local commit only after helper tests and actual safety copy are stable. |
+| 6 | 27 | Commit actual-client proof | Prove the local-commit lane through actual ChatGPT MCP before remote mutation. |
+| 7 | 28 | Push design spec | Keep push as a separate remote-mutation stage with no force/rewrite path. |
+| 8 | 29 | Push preflight helper | Implement read-only branch/upstream/CI expectation checks before exposing push. |
+| 9 | 30 | Expose push_current_branch | Expose push only after local commit flow is proven and separately approved. |
 
 ## High-risk exposure order
 
