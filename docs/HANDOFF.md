@@ -7,10 +7,10 @@ Fresh compact handoff:
 |---|---|
 | Stage 38 | Not active. It remains parked behind final readiness plus explicit live-boundary approval. |
 | New gate | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` checks runtime freshness, public route, final readiness, and `STAGE38-LIVE-BOUNDARY-APPROVED` before Stage 38 can be considered. |
-| Existing MCP tool path | `stage38_consideration_status` is now an allowlisted bounded command behind the existing `run_bounded_repo_command` tool; no new MCP tool was added. |
+| Existing MCP tool path | `stage38_consideration_status` is an allowlisted bounded command behind the existing `run_bounded_repo_command` tool; no new MCP tool was added. |
 | Approval packet path | `stage38_approval_packet` writes a fail-closed packet under ignored `.riftreader-local` artifacts through the same bounded-command surface; it does not start Stage 38. |
-| Commits | `9132605` added the Stage 38 gate. `b886e11` exposed it through the bounded command registry. |
-| Runtime | Stale PID `134652` was restarted through exact-PID preflight; fresh PID `130316` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
+| Commits | `9132605` added the Stage 38 gate. `b886e11` exposed status through the bounded command registry. `75efec9` added the fail-closed approval-packet writer. |
+| Runtime | Stale PID `130316` was restarted through exact-PID preflight after `75efec9`; fresh PID `129620` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
 | Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface before final readiness can pass. |
 
 ---
