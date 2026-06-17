@@ -2,9 +2,8 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 32 — bounded command design spec next**.
-Runtime dependency note: after Stage 31, the server-status helper was hardened to require live runtime `list_tools` + `health` agreement with the expected 22-tool surface. A matching PID/port/command line alone is no longer sufficient proof that the MCP backend is current.
-Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
+Current stage: **Stage 33 — command allowlist registry next**.
+Runtime dependency note: after Stage 31, the server-status helper was hardened to require live runtime `list_tools` + `health` agreement with the expected 22-tool surface. A matching PID/port/command line alone is no longer sufficient proof that the MCP backend is current.\nStage 32 design note: `docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md` defines the future `run_bounded_repo_command` contract; the command tool remains not exposed until Stage 34.\nStage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
 integration are complete-local. The MCP surface now includes `push_current_branch`
 and `get_current_head_ci_status`; arbitrary shell remains absent.
@@ -60,7 +59,7 @@ and `get_current_head_ci_status`; arbitrary shell remains absent.
 | 29 | Push preflight helper | Implement read-only push preflight with branch, upstream, ahead/behind, protected branch, and CI expectation checks. | Preflight blocks ambiguous or dangerous push cases. | complete-local |
 | 30 | Expose push_current_branch | Expose push tool only after local commit flow is proven. | Tool pushes current branch without force/rewrite and returns remote result. | complete-local |
 | 31 | CI monitor integration | Add ChatGPT-visible CI status after push using existing GitHub/gh-safe local surfaces. | ChatGPT can report current-head CI pass/fail links after push. | complete-local |
-| 32 | Bounded command design spec | Design run_bounded_repo_command with repo-owned allowlist, array args, timeout/output caps, and no shell strings. | Spec defines allowed commands and forbidden classes. | pending |
+| 32 | Bounded command design spec | Design run_bounded_repo_command with repo-owned allowlist, array args, timeout/output caps, and no shell strings. | Spec defines allowed commands and forbidden classes. | complete-local |
 | 33 | Command allowlist registry | Implement versioned allowlist for validation/build/status helpers only. | Tests prove blocked destructive commands and accepted safe commands. | pending |
 | 34 | Expose bounded command read/write-safe subset | Expose command tool for deterministic repo helpers, not arbitrary shell. | ChatGPT can run allowed validations and status helpers only. | pending |
 | 35 | Command audit and replay evidence | Add durable audit envelopes for command args, cwd, exit code, timing, stdout/stderr previews. | Every command call is explainable and bounded. | pending |

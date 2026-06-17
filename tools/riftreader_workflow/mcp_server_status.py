@@ -34,7 +34,7 @@ VERSION = "riftreader-mcp-server-status-v0.1.0"
 CURRENT_SERVER_MARKER = "riftreader_chatgpt_mcp.py"
 LEGACY_MODULE_MARKER = "tools.riftreader_mcp.http_server"
 LEGACY_FILE_MARKER = "riftreader_mcp/http_server.py"
-RUNTIME_SURFACE_TIMEOUT_SECONDS = 8.0
+RUNTIME_SURFACE_TIMEOUT_SECONDS = 15.0
 
 
 def normalize_command_line(value: str) -> str:

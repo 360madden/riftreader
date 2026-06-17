@@ -56,6 +56,18 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("scripts\\riftreader-chatgpt-mcp.cmd", text)
         self.assertIn("Do not confuse `scripts\\riftreader-bridge-tunnel-session.cmd`", text)
 
+    def test_bounded_command_design_forbids_arbitrary_shell_and_live_actions(self) -> None:
+        text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md")
+        self.assertIn("Stage: **32", text)
+        self.assertIn("run_bounded_repo_command", text)
+        self.assertIn("versioned allowlist registry", text)
+        self.assertIn("argvTemplate", text)
+        self.assertIn("Arbitrary shell", text)
+        self.assertIn("Live RIFT input", text)
+        self.assertIn("Provider writes", text)
+        self.assertIn("Debugger/CE", text)
+        self.assertIn("does not expose a\ncommand endpoint", text)
+
 
 if __name__ == "__main__":
     unittest.main()

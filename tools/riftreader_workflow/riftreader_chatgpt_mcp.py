@@ -364,6 +364,31 @@ def compact_push_tool_contract(contract: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_bounded_command_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    required_gates = contract.get("requiredGates") if isinstance(contract.get("requiredGates"), list) else []
+    forbidden = contract.get("forbiddenCommandClasses") if isinstance(contract.get("forbiddenCommandClasses"), list) else []
+    return {
+        "status": contract.get("status"),
+        "targetToolName": contract.get("targetToolName"),
+        "designPath": contract.get("designPath"),
+        "currentStage": contract.get("currentStage"),
+        "exposureStatus": contract.get("exposureStatus"),
+        "registryStatus": contract.get("registryStatus"),
+        "auditStatus": contract.get("auditStatus"),
+        "argumentKeys": [key for key in contract.get("argumentKeys") or [] if key == "commandKey"],
+        "requiredGates": [
+            gate
+            for gate in required_gates
+            if gate == "fixed-argv-template"
+        ],
+        "forbiddenCommandClasses": [
+            item
+            for item in forbidden
+            if item in {"arbitrary-shell", "provider-repo-write"}
+        ],
+    }
+
+
 def compact_ranked_actions(actions: Any) -> list[dict[str, Any]]:
     if not isinstance(actions, list):
         return []
@@ -465,8 +490,8 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "bounded-shell-command",
         "targetToolName": "run_bounded_repo_command",
-        "currentStatus": "not-exposed",
-        "riskClass": "shell-execution",
+        "currentStatus": "design-complete-not-exposed",
+        "riskClass": "bounded-command-execution",
         "minimumGate": "explicit-operator-approval-plus-command-allowlist",
         "safePrecursorTools": ["get_workflow_control_plan"],
         "requiredSafeguards": [
@@ -516,15 +541,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 32,
-    "currentStageName": "Bounded command design spec",
+    "currentStage": 33,
+    "currentStageName": "Command allowlist registry",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, and read-only current-head CI status. Stage 32 bounded "
-        "command design is next; arbitrary shell remains absent."
+        "command design is complete-local; Stage 33 allowlist registry is next; arbitrary shell remains absent."
     ),
-    "nextStage": 33,
-    "nextStageName": "Command allowlist registry",
+    "nextStage": 34,
+    "nextStageName": "Expose bounded command subset",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -549,7 +574,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 29, "name": "Push preflight helper", "status": "complete-local"},
         {"stage": 30, "name": "Expose push_current_branch", "status": "complete-local"},
         {"stage": 31, "name": "CI monitor integration", "status": "complete-local"},
-        {"stage": 32, "name": "Bounded command design spec", "status": "pending"},
+        {"stage": 32, "name": "Bounded command design spec", "status": "complete-local"},
+        {"stage": 33, "name": "Command allowlist registry", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -694,6 +720,61 @@ PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "mcpToolExposed": True,
         "forcePushAllowed": False,
         "branchRewriteAllowed": False,
+    },
+}
+
+
+BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
+    "schemaVersion": SCHEMA_VERSION,
+    "kind": "riftreader-chatgpt-mcp-bounded-command-design-contract",
+    "status": "design-complete-not-exposed",
+    "targetToolName": "run_bounded_repo_command",
+    "designPath": "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
+    "stageRange": [32, 33, 34, 35],
+    "currentStage": 32,
+    "exposureStatus": "not-exposed",
+    "registryStatus": "planned-stage-33",
+    "auditStatus": "planned-stage-35",
+    "argumentKeys": [
+        "commandKey",
+        "parameters",
+        "expectedRegistryVersion",
+        "approvalToken",
+        "timeoutSeconds",
+    ],
+    "requiredPrecursorTools": ["get_workflow_control_plan"],
+    "requiredGates": [
+        "repo-owned-command-key",
+        "versioned-command-registry",
+        "fixed-argv-template",
+        "typed-parameter-schema",
+        "fixed-repo-working-directory",
+        "finite-timeout",
+        "stdout-stderr-output-caps",
+        "durable-audit-envelope",
+        "explicit-approval-token-for-non-readonly-or-long-running-commands",
+        "no-shell-string-input",
+        "no-hidden-git-mutation",
+    ],
+    "forbiddenCommandClasses": [
+        "arbitrary-shell",
+        "arbitrary-filesystem-read-write",
+        "branch-rewrite-reset-clean-stash",
+        "force-push-or-ambiguous-refspec",
+        "live-rift-input",
+        "target-selection-or-reloadui",
+        "provider-repo-write",
+        "debugger-or-ce",
+        "proof-promotion-or-current-truth-update",
+        "secret-printing-or-env-dump",
+    ],
+    "safety": {
+        "mcpToolExposed": False,
+        "arbitraryShellAllowed": False,
+        "providerWrites": False,
+        "liveRiftInput": False,
+        "debuggerOrCe": False,
+        "gitMutationHiddenInCommands": False,
     },
 }
 
@@ -2230,9 +2311,10 @@ class RiftReaderChatGptMcpAdapter:
             "futureToolContracts": {
                 "apply_latest_package_draft": compact_apply_tool_contract(APPLY_TOOL_DESIGN_CONTRACT),
                 "push_current_branch": compact_push_tool_contract(PUSH_TOOL_DESIGN_CONTRACT),
+                "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "push-and-ci-exposed-gated-bounded-command-next",
+                "status": "bounded-command-design-complete-allowlist-registry-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

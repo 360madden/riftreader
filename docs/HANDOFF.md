@@ -1,3 +1,17 @@
+# 2026-06-17 - MCP Stage 32 bounded command design complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage32-bounded-command-design-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 32 | Complete-local: `docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md` added. |
+| Command exposure | `run_bounded_repo_command` remains not exposed; Stage 33 registry is next. |
+| Safety | No arbitrary shell, command endpoint, Git mutation, provider write, live RIFT, CE, or x64dbg action. |
+| Blocking proof | Actual-client proof replay still needs a fresh 22-tool observation before final readiness can pass. |
+| Next stage | Stage 33 versioned command allowlist registry. |
+
+---
 # 2026-06-17 - MCP runtime surface status guard
 
 Fresh compact handoff:

@@ -1327,10 +1327,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(roadmap_by_key["push-current-branch"]["currentStatus"], "exposed-gated")
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
-        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "push-and-ci-exposed-gated-bounded-command-next")
+        self.assertEqual(
+            payload["futureCapabilityPolicy"]["status"],
+            "bounded-command-design-complete-allowlist-registry-next",
+        )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 32)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 33)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 33)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 34)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -1373,6 +1376,20 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("expectedHead", push_contract["argumentKeys"])
         self.assertIn("no-force-push", push_contract["requiredGates"])
         self.assertIn("PUSH_APPROVAL_MISSING", push_contract["failClosedBlockers"])
+        command_contract = payload["futureToolContracts"]["run_bounded_repo_command"]
+        self.assertEqual(command_contract["status"], "design-complete-not-exposed")
+        self.assertEqual(command_contract["targetToolName"], "run_bounded_repo_command")
+        self.assertEqual(
+            command_contract["designPath"],
+            "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
+        )
+        self.assertEqual(command_contract["currentStage"], 32)
+        self.assertEqual(command_contract["exposureStatus"], "not-exposed")
+        self.assertEqual(command_contract["registryStatus"], "planned-stage-33")
+        self.assertIn("commandKey", command_contract["argumentKeys"])
+        self.assertIn("fixed-argv-template", command_contract["requiredGates"])
+        self.assertIn("arbitrary-shell", command_contract["forbiddenCommandClasses"])
+        self.assertIn("provider-repo-write", command_contract["forbiddenCommandClasses"])
         self.assertIn("apply_latest_package_draft", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
         self.assertIn("push_current_branch", chatgpt_mcp.EXPECTED_TOOL_ORDER)
