@@ -109,6 +109,8 @@ def write_actual_client_proof(root: Path) -> None:
                 "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
                 "publicMcpUrl": "https://mcp.360madden.com/mcp",
                 "chatgptRegistrationSucceeded": True,
+                "clientTransportStatus": recorder.CLIENT_TRANSPORT_SUCCEEDED,
+                "healthCallSucceeded": True,
                 "health": {
                     "repoRoot": ".",
                     "repoName": "RiftReader",

@@ -169,6 +169,8 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
         "publicTunnelStopped": public_tunnel_stopped,
         "chatGptRegistrationPerformed": safety.get("chatGptRegistrationPerformed"),
         "chatGptRegistrationSucceeded": proof_facts.get("chatgptRegistrationSucceeded"),
+        "clientTransportStatus": proof_facts.get("clientTransportStatus"),
+        "healthCallSucceeded": proof_facts.get("healthCallSucceeded"),
         "templateFetched": proof_facts.get("templateFetched"),
         "submitPackageProposalSucceeded": proof_facts.get("submitPackageProposalSucceeded"),
         "listInboxSawInboxId": proof_facts.get("listInboxSawInboxId"),

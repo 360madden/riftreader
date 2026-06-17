@@ -96,6 +96,9 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("approval-required", final)
         self.assertIn("--write-approval-packet", final)
         self.assertIn("does not implement or start live RIFT tooling", final)
+        self.assertIn("clientTransportStatus=tool-call-succeeded", final)
+        self.assertIn("healthCallSucceeded=true", final)
+        self.assertIn("Transport closed", plan)
 
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")

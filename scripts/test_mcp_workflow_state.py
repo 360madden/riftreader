@@ -145,6 +145,8 @@ class McpWorkflowStateTests(unittest.TestCase):
                     "proof": {
                         "connectionMode": "cloudflare-named-tunnel",
                         "chatgptRegistrationSucceeded": True,
+                        "clientTransportStatus": recorder.CLIENT_TRANSPORT_SUCCEEDED,
+                        "healthCallSucceeded": True,
                         "templateFetched": True,
                         "submitPackageProposalSucceeded": True,
                         "listInboxSawInboxId": True,
@@ -200,6 +202,8 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertEqual(latest["actual-client-proof"]["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(latest["actual-client-proof"]["connectionMode"], "cloudflare-named-tunnel")
         self.assertTrue(latest["actual-client-proof"]["chatGptRegistrationSucceeded"])
+        self.assertEqual(latest["actual-client-proof"]["clientTransportStatus"], recorder.CLIENT_TRANSPORT_SUCCEEDED)
+        self.assertTrue(latest["actual-client-proof"]["healthCallSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["templateFetched"])
         self.assertTrue(latest["actual-client-proof"]["submitPackageProposalSucceeded"])
         self.assertTrue(latest["actual-client-proof"]["listInboxSawInboxId"])

@@ -19,7 +19,7 @@ new MCP tool.
 | Runtime restart | Stale HTTP PID `130316` was restarted through the exact-PID guarded preflight after `75efec9`. Fresh PID `129620` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
 | Public route | The Stage 38 gate reports the Cloudflare named route `https://mcp.360madden.com/mcp` as passed. |
 | Tool surface | Source vs manifest and source vs runtime pass at 33/33 tools. Latest actual-client proof is still old 20-tool evidence. |
-| Final readiness | Still blocked until current-head CI is green and actual ChatGPT Web/Desktop records/replays a fresh 33-tool proof. |
+| Final readiness | Current-head CI is green for `72a798e`; the remaining blocker is actual ChatGPT Web/Desktop proof replay. The next proof must record 33 tools plus `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. |
 | Stage 38 gate status | `blocked`; `stage38Started=false`, `stage38Active=false`, and `stage38ToolSurfaceChanged=false`. |
 
 ## Remaining blockers before Stage 38 can be considered
@@ -27,7 +27,7 @@ new MCP tool.
 | # | Blocker | Meaning | Resolution |
 |---:|---|---|---|
 | 1 | Actual-client proof mismatch | The latest recorded ChatGPT proof saw 20 tools, but the current source/runtime surface is 33 tools. | Refresh/reconnect the ChatGPT Web/Desktop MCP app and record a new 33-tool proof. |
-| 2 | Current-head CI | CI must pass for the latest pushed commit before final readiness can pass. | Wait for `.NET build and test` and `RiftReader Policy` on current HEAD. |
+| 2 | Actual-client transport confirmation | A stale/closed client transport can make tool calls disappear even while the backend is running-current. | The new proof must explicitly set `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`; `Transport closed` blocks. |
 | 3 | Explicit live-boundary approval | Even after final readiness passes, Stage 38 remains blocked without the exact approval token. | Only provide/use `STAGE38-LIVE-BOUNDARY-APPROVED` after reviewing the Stage 38 approval packet. |
 
 ## Commands verified
@@ -58,17 +58,17 @@ python tools\riftreader_workflow\bounded_repo_commands.py --run stage38_approval
 | Auth | `No Authentication` |
 | Expected profile | Full final proof surface |
 | Expected tool count | `33` |
-| Fresh proof input | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json` |
-| Read-only check | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json --json` |
-| Record after filling real ChatGPT observations | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json --json` |
+| Fresh proof input | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-174546Z\proof-input.json` |
+| Read-only check | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-174546Z\proof-input.json --json` |
+| Record after filling real ChatGPT observations | `scripts\riftreader-chatgpt-trial-recorder.cmd --record --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-174546Z\proof-input.json --json` |
 
 ## Top 10 recommended next actions
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Wait for current-head CI to finish. | Final readiness cannot pass while CI is pending. |
-| 2 | Refresh/reconnect the ChatGPT Web/Desktop MCP app for `https://mcp.360madden.com/mcp`. | Forces the actual client to rescan the current 33-tool surface. |
-| 3 | From ChatGPT, call `health`. | Confirms the actual client sees the current server and reported tool count. |
+| 1 | Refresh/reconnect the ChatGPT Web/Desktop MCP app for `https://mcp.360madden.com/mcp`. | Forces the actual client to rescan the current 33-tool surface. |
+| 2 | From ChatGPT, call `health` and record `clientTransportStatus=tool-call-succeeded`. | Prevents repeating the stale/closed-client mistake. |
+| 3 | From ChatGPT, confirm `healthCallSucceeded=true`. | A `Transport closed` or unavailable-tool result is a client blocker. |
 | 4 | From ChatGPT, call `get_mcp_runtime_status`. | Confirms runtime freshness from the non-Codex client path. |
 | 5 | From ChatGPT, call `get_tool_surface_diff`. | Confirms the proof mismatch is visible and not a local-only assumption. |
 | 6 | Confirm ChatGPT reports all 33 tool names and output schemas. | This is the missing proof fact. |

@@ -11,7 +11,7 @@ Fresh compact handoff:
 | Approval packet path | `stage38_approval_packet` writes a fail-closed packet under ignored `.riftreader-local` artifacts through the same bounded-command surface; it does not start Stage 38. |
 | Commits | `9132605` added the Stage 38 gate. `b886e11` exposed status through the bounded command registry. `75efec9` added the fail-closed approval-packet writer. |
 | Runtime | Stale PID `130316` was restarted through exact-PID preflight after `75efec9`; fresh PID `129620` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
-| Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface before final readiness can pass. |
+| Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface before final readiness can pass. New proof must also declare `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`; `Transport closed` is a client-refresh blocker. |
 
 ---
 # 2026-06-17 - Pre-Stage-38 proof refresh gate started
@@ -29,7 +29,7 @@ Fresh compact handoff:
 | Stale stdio hazard | `mcp_server_status.py` now reports local/Codex stdio MCP counterparts separately; stale stdio PIDs `97436` and `116596` explained a 20-tool actual callable surface while HTTP PID `53740` was 33-tool/current. Those stale stdio PIDs were stopped after exact command-line verification. |
 | Post-recovery runtime | HTTP runtime restarted through guarded exact-PID flow; current PID `112004` reports 33/33 tools, source-fresh, and `stdioCounterparts.status=not-running`. |
 | Client refresh | The old `mcp__riftreader` stdio transport now returns `Transport closed`; refresh/restart the client-side MCP app before using it for proof. |
-| Proof template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json` is the fresh final-33-tool input template. |
+| Proof template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-174546Z\proof-input.json` is the fresh final-33-tool input template. |
 | Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface. |
 
 ---

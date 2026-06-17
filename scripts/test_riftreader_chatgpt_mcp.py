@@ -1349,7 +1349,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         proof.update(
             {
                 "chatgptRegistrationSucceeded": True,
+                "clientTransportStatus": chatgpt_mcp.chatgpt_trial_recorder.CLIENT_TRANSPORT_SUCCEEDED,
                 "toolOutputSchemasPresent": True,
+                "healthCallSucceeded": True,
                 "templateFetched": True,
                 "submitPackageProposalSucceeded": True,
                 "inboxId": "20260617T120000Z-abcdef",

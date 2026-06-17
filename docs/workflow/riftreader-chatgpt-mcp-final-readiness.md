@@ -72,7 +72,7 @@ The Phase 3 final gate should emit JSON with at least these top-level fields:
 | Upstream sync | Local branch has an upstream and is neither ahead nor behind when final-ready is claimed. | `git:upstream-not-synced` |
 | Current-head CI | Required GitHub workflows for current HEAD are completed and successful. | `ci:missing`, `ci:not-completed`, `ci:failed` |
 | Phase 2 gate | `scripts\riftreader-mcp-phase2.cmd --status --json` returns `status=passed`. | `phase2:not-ready` |
-| Actual-client proof replay | Latest actual-client proof exists and replays with required proof rules, including `connectionMode=cloudflare-named-tunnel`, `publicMcpUrl=https://mcp.360madden.com/mcp`, no retired tunnel host, draft review, and bounded `dryRun.diffPreview` confirmation. | `proof:missing`, `proof:replay-failed` |
+| Actual-client proof replay | Latest actual-client proof exists and replays with required proof rules, including `connectionMode=cloudflare-named-tunnel`, `publicMcpUrl=https://mcp.360madden.com/mcp`, `clientTransportStatus=tool-call-succeeded`, `healthCallSucceeded=true`, no retired tunnel host, draft review, and bounded `dryRun.diffPreview` confirmation. | `proof:missing`, `proof:replay-failed` |
 | Proof freshness | Latest proof age is within the final proof freshness budget. | `proof:stale` |
 | Trial readiness freshness | Latest trial-readiness artifact exists and is fresh. | `artifact:trial-readiness-stale` |
 | Proposal smoke freshness | Latest proposal transport smoke exists and is fresh. | `artifact:proposal-smoke-stale` |
@@ -232,9 +232,14 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
    stdio counterpart can make actual callable tools show an old tool count; use
    `stdioCounterparts` from `mcp_server_status.py` to recognize this and
    refresh/restart that client-side app/server before proof.
-7. Actual ChatGPT/MCP connector `health` sees the expected tools and output
+7. Actual ChatGPT/MCP connector `health` must be callable from the current
+   client surface, with `clientTransportStatus=tool-call-succeeded` and
+   `healthCallSucceeded=true`. A `Transport closed`, missing-tool, or stale
+   tool-facade result is a client-refresh blocker, not proof that final
+   readiness passed.
+8. Actual ChatGPT/MCP connector `health` sees the expected tools and output
    schemas.
-8. Only then fill/check/record proof input and rerun this final gate.
+9. Only then fill/check/record proof input and rerun this final gate.
 
 Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
 states mean the MCP backend dependency is not satisfied even if a connector
@@ -293,7 +298,9 @@ Phase 6 may be considered complete when:
    `dryRun.diffPreview`, with no public tunnel, ChatGPT registration, Git
    mutation, RIFT input, CE, x64dbg, package apply, or provider write.
 6. A fresh actual-client proof records `connectionMode=cloudflare-named-tunnel`,
-   uses `publicMcpUrl=https://mcp.360madden.com/mcp`, avoids retired tunnel hosts, and records the same
+   uses `publicMcpUrl=https://mcp.360madden.com/mcp`, records
+   `clientTransportStatus=tool-call-succeeded`, records
+   `healthCallSucceeded=true`, avoids retired tunnel hosts, and records the same
    review and bounded `dryRun.diffPreview` facts using the current proof
    template.
 

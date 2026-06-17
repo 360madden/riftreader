@@ -28,11 +28,13 @@ REQUIRED_FIELDS = (
     "connectionMode",
     "publicMcpUrl",
     "chatgptRegistrationSucceeded",
+    "clientTransportStatus",
     "toolCount",
     "toolNames",
     "toolOutputSchemasPresent",
     "toolOutputSchemaCount",
     "toolOutputSchemaToolNames",
+    "healthCallSucceeded",
     "health",
     "templateFetched",
     "submitPackageProposalSucceeded",
@@ -60,6 +62,7 @@ FINAL_TOOL_PROOF_MODE = f"final-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool"
 FINAL_12_TOOL_PROOF_MODE = FINAL_TOOL_PROOF_MODE
 DOMAIN_READ_ONLY_PROOF_MODE = "domain-read-only"
 ALLOWED_PROOF_MODES = (FINAL_TOOL_PROOF_MODE, DOMAIN_READ_ONLY_PROOF_MODE)
+CLIENT_TRANSPORT_SUCCEEDED = "tool-call-succeeded"
 MANUAL_PUBLIC_IP_CONNECTION_MODE = "manual-public-ip"
 CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE = "cloudflare-named-tunnel"
 CANONICAL_PUBLIC_MCP_URL = "https://mcp.360madden.com/mcp"
@@ -85,11 +88,13 @@ def proof_template(proof_mode: str = FINAL_TOOL_PROOF_MODE) -> dict[str, Any]:
         "connectionMode": CLOUDFLARE_NAMED_TUNNEL_CONNECTION_MODE,
         "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
         "chatgptRegistrationSucceeded": False,
+        "clientTransportStatus": "unverified",
         "toolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": False,
         "toolOutputSchemaCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolOutputSchemaToolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+        "healthCallSucceeded": False,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -303,6 +308,8 @@ def validate_final_tool_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append(f"public-mcp-url-not-domain-route:{public_url!r}")
     if not public_url.startswith("https://"):
         blockers.append("public-mcp-url-not-https")
+    if proof.get("clientTransportStatus") != CLIENT_TRANSPORT_SUCCEEDED:
+        blockers.append(f"client-transport-not-succeeded:{proof.get('clientTransportStatus')!r}")
     if proof.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
         blockers.append(f"tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{proof.get('toolCount')!r}")
     blockers.extend(_tool_name_list_blockers("tool-names", proof.get("toolNames")))
@@ -319,6 +326,8 @@ def validate_final_tool_proof(proof: dict[str, Any]) -> list[str]:
         blockers.append(f"health-repo-name-not-riftreader:{health.get('repoName')!r}")
     if health.get("absoluteRepoRootExposed") is not False:
         blockers.append(f"health-absolute-repo-root-exposed:{health.get('absoluteRepoRootExposed')!r}")
+    if proof.get("healthCallSucceeded") is not True:
+        blockers.append("health-call-not-confirmed")
     if proof.get("submitPackageProposalSucceeded") is not True:
         blockers.append("submit-package-proposal-not-confirmed")
     if proof.get("submitPackageProposalSucceeded") is True and not proof.get("inboxId"):
@@ -403,11 +412,13 @@ def render_markdown(record: dict[str, Any]) -> str:
         f"- Proof mode: `{proof.get('proofMode')}`",
         f"- Connection mode: `{proof.get('connectionMode')}`",
         f"- Public MCP URL: `{proof.get('publicMcpUrl')}`",
+        f"- Client transport status: `{proof.get('clientTransportStatus')}`",
         f"- Tool count: `{proof.get('toolCount')}`",
         f"- Tool names: `{proof.get('toolNames')}`",
         f"- Tool output schemas present: `{proof.get('toolOutputSchemasPresent')}`",
         f"- Tool output schema count: `{proof.get('toolOutputSchemaCount')}`",
         f"- Tool output schema tool names: `{proof.get('toolOutputSchemaToolNames')}`",
+        f"- Health call succeeded: `{proof.get('healthCallSucceeded')}`",
         f"- Health repoRoot: `{health.get('repoRoot')}`",
         f"- Health repoName: `{health.get('repoName')}`",
         f"- absoluteRepoRootExposed: `{health.get('absoluteRepoRootExposed')}`",
@@ -561,7 +572,9 @@ def self_test() -> dict[str, Any]:
         {
             "publicMcpUrl": CANONICAL_PUBLIC_MCP_URL,
             "chatgptRegistrationSucceeded": True,
+            "clientTransportStatus": CLIENT_TRANSPORT_SUCCEEDED,
             "toolOutputSchemasPresent": True,
+            "healthCallSucceeded": True,
             "templateFetched": True,
             "submitPackageProposalSucceeded": True,
             "inboxId": "self-test-inbox",

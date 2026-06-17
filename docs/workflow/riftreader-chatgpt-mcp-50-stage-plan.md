@@ -5,7 +5,8 @@ Status: living plan from current Cloudflare named Tunnel proof gap to full ChatG
 Current holding point: **Pre-Stage-38 final-readiness / actual-client proof
 refresh**. Stage 38 is the next live-boundary stage, but it is not active and
 must not be considered until a fresh 33-tool actual ChatGPT Web/Desktop proof,
-Phase 2, and final readiness all pass.
+including `clientTransportStatus=tool-call-succeeded` and
+`healthCallSucceeded=true`, Phase 2, and final readiness all pass.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -69,13 +70,17 @@ Pre-Stage-38 gate note:
 Before any Stage 38 approval packet is drafted, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
-33-tool proof recorded and replayed, Phase 2 passed, and final readiness
-passed. A saved ChatGPT connector entry is configuration only; it does not
-start the local MCP server or prove the current tool surface.
+33-tool proof recorded and replayed with a successful actual client transport
+call, Phase 2 passed, and final readiness passed. A saved ChatGPT connector
+entry is configuration only; it does not start the local MCP server or prove the
+current tool surface.
 Also inspect `stdioCounterparts` in the MCP server-status payload: stale
 Codex/local stdio counterparts are not the Cloudflare HTTP runtime, but they can
 explain why an actual callable client surface still reports an old tool count
 after the HTTP runtime is already current.
+If the ChatGPT/Codex client returns `Transport closed` for a RiftReader tool,
+record that as a client-refresh blocker rather than treating the saved connector
+or local backend as sufficient proof.
 Use the local-only Stage 38 consideration gate as the final pre-approval
 summary:
 

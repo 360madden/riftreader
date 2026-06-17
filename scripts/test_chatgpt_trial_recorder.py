@@ -32,11 +32,13 @@ def valid_proof() -> dict[str, object]:
         "connectionMode": "cloudflare-named-tunnel",
         "publicMcpUrl": "https://mcp.360madden.com/mcp",
         "chatgptRegistrationSucceeded": True,
+        "clientTransportStatus": recorder.CLIENT_TRANSPORT_SUCCEEDED,
         "toolCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
         "toolOutputSchemasPresent": True,
         "toolOutputSchemaCount": recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
         "toolOutputSchemaToolNames": list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+        "healthCallSucceeded": True,
         "health": {
             "repoRoot": ".",
             "repoName": "RiftReader",
@@ -83,6 +85,8 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
         self.assertEqual(payload["toolOutputSchemaCount"], recorder.EXPECTED_CHATGPT_MCP_TOOL_COUNT)
         self.assertEqual(payload["toolOutputSchemaToolNames"], list(recorder.EXPECTED_CHATGPT_MCP_TOOL_NAMES))
         self.assertEqual(payload["connectionMode"], "cloudflare-named-tunnel")
+        self.assertEqual(payload["clientTransportStatus"], "unverified")
+        self.assertFalse(payload["healthCallSucceeded"])
         self.assertNotIn("trycloudflare.com", str(payload["publicMcpUrl"]))
         self.assertEqual(payload["health"]["repoRoot"], ".")
         self.assertFalse(payload["health"]["absoluteRepoRootExposed"])
@@ -168,6 +172,8 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
             self.assertTrue(proof_md.is_file())
             self.assertIn("RiftReader ChatGPT MCP Actual-Client Proof", markdown)
             self.assertIn("Connection mode", markdown)
+            self.assertIn("Client transport status", markdown)
+            self.assertIn("Health call succeeded", markdown)
             self.assertIn("Tool names", markdown)
             self.assertIn("Tool output schemas present", markdown)
             self.assertFalse(payload["safety"]["chatGptApiCalled"])
@@ -270,6 +276,16 @@ class ChatGptTrialRecorderTests(unittest.TestCase):
             "chatgpt-tool-facade-unavailable:get_package_proposal_template,submit_package_proposal",
             blockers,
         )
+
+    def test_rejects_failed_actual_client_transport_before_tool_count_claims(self) -> None:
+        proof = valid_proof()
+        proof["clientTransportStatus"] = "transport-closed"
+        proof["healthCallSucceeded"] = False
+
+        blockers = recorder.validate_proof(proof)
+
+        self.assertIn("client-transport-not-succeeded:'transport-closed'", blockers)
+        self.assertIn("health-call-not-confirmed", blockers)
 
     def test_accepts_valid_domain_read_only_phase0_proof(self) -> None:
         proof = recorder.domain_read_only_proof_template()
