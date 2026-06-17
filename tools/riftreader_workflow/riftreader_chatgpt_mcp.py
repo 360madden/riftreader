@@ -161,6 +161,7 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "repo_context_pack": frozenset({"packName", "maxFiles", "maxFileBytes", "maxTotalBytes"}),
 }
 TOOL_ARGUMENT_SIZE_OVERHEAD_BYTES = 16 * 1024
+DIRECT_STATUS_MINIFIED_BYTES_TARGET = 8 * 1024
 
 
 def tool_order_for_profile(tool_profile: str = TOOL_PROFILE_FULL) -> tuple[str, ...]:
@@ -239,10 +240,15 @@ def compact_tunnel_client_status(tunnel_client: Any) -> dict[str, Any]:
     }
 
 
-def compact_final_status(final_status: dict[str, Any]) -> dict[str, Any]:
+def compact_final_status(
+    final_status: dict[str, Any],
+    *,
+    include_lists: bool = False,
+    include_details: bool = False,
+) -> dict[str, Any]:
     all_blockers = final_status.get("blockers") if isinstance(final_status.get("blockers"), list) else []
     all_warnings = final_status.get("warnings") if isinstance(final_status.get("warnings"), list) else []
-    return {
+    compact = {
         "status": final_status.get("status"),
         "ok": final_status.get("ok"),
         "currentHead": final_status.get("currentHead"),
@@ -260,6 +266,108 @@ def compact_final_status(final_status: dict[str, Any]) -> dict[str, Any]:
         "blockerCount": len(all_blockers),
         "warningCount": final_status.get("warningCount", len(all_warnings)),
         "safety": compact_safety_flags(final_status.get("safety")),
+    }
+    if include_details:
+        compact.update(
+            {
+                "phase2Ready": final_status.get("phase2Ready"),
+                "artifactFreshnessStatus": final_status.get("artifactFreshnessStatus"),
+                "publicSessionStatus": final_status.get("publicSessionStatus"),
+                "publicSessionStates": final_status.get("publicSessionStates"),
+                "releaseHandoffPath": final_status.get("releaseHandoffPath"),
+                "latestMcpHandoffPath": final_status.get("latestMcpHandoffPath"),
+                "requiredDependencies": final_status.get("requiredDependencies"),
+            }
+        )
+    if include_lists:
+        compact["blockers"] = compact_text_list(all_blockers, limit=10)
+        compact["warnings"] = compact_text_list(all_warnings, limit=10)
+    return compact
+
+
+def minified_json_size(value: Any) -> int:
+    return len(json.dumps(value, separators=(",", ":"), sort_keys=True))
+
+
+def _compact_surface_comparison(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        "status": value.get("status"),
+        "ok": value.get("ok"),
+        "expectedCount": value.get("expectedCount"),
+        "observedCount": value.get("observedCount"),
+        "missing": compact_text_list(value.get("missing"), limit=2),
+        "extra": compact_text_list(value.get("extra"), limit=2),
+        "orderMatches": value.get("orderMatches"),
+        "comparisonMode": value.get("comparisonMode"),
+    }
+
+
+def compact_tool_surface_diff(diff: dict[str, Any]) -> dict[str, Any]:
+    expected = diff.get("expected") if isinstance(diff.get("expected"), dict) else {}
+    runtime = diff.get("runtime") if isinstance(diff.get("runtime"), dict) else {}
+    selected_listener = runtime.get("selectedListener") if isinstance(runtime.get("selectedListener"), dict) else {}
+    runtime_source = runtime.get("runtimeSourceFreshness") if isinstance(runtime.get("runtimeSourceFreshness"), dict) else {}
+    actual_proof = diff.get("actualClientProof") if isinstance(diff.get("actualClientProof"), dict) else {}
+    proof_freshness = actual_proof.get("proofFreshness") if isinstance(actual_proof.get("proofFreshness"), dict) else {}
+    proof_summary = actual_proof.get("proofSummary") if isinstance(actual_proof.get("proofSummary"), dict) else {}
+    blockers = diff.get("blockers") if isinstance(diff.get("blockers"), list) else []
+    warnings = diff.get("warnings") if isinstance(diff.get("warnings"), list) else []
+    return {
+        "schemaVersion": diff.get("schemaVersion"),
+        "kind": diff.get("kind"),
+        "version": diff.get("version"),
+        "generatedAtUtc": diff.get("generatedAtUtc"),
+        "status": diff.get("status"),
+        "ok": diff.get("ok"),
+        "activeProfile": diff.get("activeProfile"),
+        "expected": {
+            "source": expected.get("source"),
+            "toolCount": expected.get("toolCount"),
+        },
+        "sourceVsManifest": _compact_surface_comparison(diff.get("sourceVsManifest")),
+        "sourceVsRuntime": _compact_surface_comparison(diff.get("sourceVsRuntime")),
+        "sourceVsActualClientProof": _compact_surface_comparison(diff.get("sourceVsActualClientProof")),
+        "runtime": {
+            "status": runtime.get("status"),
+            "ok": runtime.get("ok"),
+            "pid": selected_listener.get("owningProcess"),
+            "runtimeSourceFreshnessStatus": runtime_source.get("status"),
+            "runtimeSourceFreshnessOk": runtime_source.get("ok"),
+        },
+        "actualClientProof": {
+            "status": actual_proof.get("status"),
+            "ok": actual_proof.get("ok"),
+            "proofPath": actual_proof.get("proofPath"),
+            "proofFreshness": {
+                "status": proof_freshness.get("status"),
+                "ageSeconds": proof_freshness.get("ageSeconds"),
+                "budgetSeconds": proof_freshness.get("budgetSeconds"),
+            },
+            "toolCount": proof_summary.get("toolCount"),
+            "toolOutputSchemasPresent": proof_summary.get("toolOutputSchemasPresent"),
+            "toolOutputSchemaCount": proof_summary.get("toolOutputSchemaCount"),
+            "clientTransportStatus": proof_summary.get("clientTransportStatus"),
+            "healthCallSucceeded": proof_summary.get("healthCallSucceeded"),
+        },
+        "blockerCount": len(blockers),
+        "blockers": compact_text_list(blockers, limit=5),
+        "warningCount": len(warnings),
+        "warnings": compact_text_list(warnings, limit=5),
+        "safety": compact_safety_flags(diff.get("safety")),
+    }
+
+
+def response_compaction(original: Any, compact: Any) -> dict[str, Any]:
+    original_bytes = minified_json_size(original)
+    compact_bytes = minified_json_size(compact)
+    return {
+        "status": "compact",
+        "originalMinifiedBytes": original_bytes,
+        "compactMinifiedBytes": compact_bytes,
+        "targetMinifiedBytes": DIRECT_STATUS_MINIFIED_BYTES_TARGET,
+        "reduced": compact_bytes < original_bytes,
     }
 
 
@@ -2042,21 +2150,23 @@ class RiftReaderChatGptMcpAdapter:
             manifest_tool_names=list(TOOL_SPECS.keys()),
             active_profile=self.config.tool_profile,
         )
+        compact = compact_tool_surface_diff(payload)
+        expected = compact.get("expected") if isinstance(compact.get("expected"), dict) else {}
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-tool-surface-diff",
             "generatedAtUtc": utc_iso(),
-            "status": payload.get("status"),
-            "ok": bool(payload.get("ok")),
-            "diff": payload,
-            "expectedToolCount": payload.get("expected", {}).get("toolCount")
-            if isinstance(payload.get("expected"), dict)
-            else len(EXPECTED_TOOL_ORDER),
-            "sourceVsManifest": payload.get("sourceVsManifest"),
-            "sourceVsRuntime": payload.get("sourceVsRuntime"),
-            "sourceVsActualClientProof": payload.get("sourceVsActualClientProof"),
-            "blockers": list(payload.get("blockers") or []),
-            "warnings": list(payload.get("warnings") or []),
+            "status": compact.get("status"),
+            "ok": bool(compact.get("ok")),
+            "diff": compact,
+            "expectedToolCount": expected.get("toolCount", len(EXPECTED_TOOL_ORDER)),
+            "sourceVsManifest": compact.get("sourceVsManifest"),
+            "sourceVsRuntime": compact.get("sourceVsRuntime"),
+            "sourceVsActualClientProof": compact.get("sourceVsActualClientProof"),
+            "actualClientProof": compact.get("actualClientProof"),
+            "responseCompaction": response_compaction(payload, compact),
+            "blockers": list(compact.get("blockers") or []),
+            "warnings": list(compact.get("warnings") or []),
             "safety": {
                 **base_safety(),
                 "readOnlyDiff": True,
@@ -2230,7 +2340,8 @@ class RiftReaderChatGptMcpAdapter:
 
     def get_final_readiness_status(self) -> dict[str, Any]:
         payload = mcp_final_readiness.final_readiness(self.config.repo_root)
-        compact = mcp_final_readiness.compact_final_readiness(payload)
+        final_compact = mcp_final_readiness.compact_final_readiness(payload)
+        compact = compact_final_status(final_compact, include_lists=True, include_details=True)
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-final-readiness-status",
@@ -2238,10 +2349,11 @@ class RiftReaderChatGptMcpAdapter:
             "status": payload.get("status"),
             "ok": bool(payload.get("ok")),
             "compact": compact,
-            "recommendedNextAction": payload.get("recommendedNextAction"),
-            "currentHead": payload.get("currentHead"),
-            "blockers": list(payload.get("blockers") or []),
-            "warnings": list(payload.get("warnings") or []),
+            "recommendedNextAction": compact.get("recommendedNextAction"),
+            "currentHead": compact.get("currentHead"),
+            "responseCompaction": response_compaction(final_compact, compact),
+            "blockers": list(compact.get("blockers") or []),
+            "warnings": list(compact.get("warnings") or []),
             "safety": {
                 **base_safety(),
                 "finalGateReadOnly": True,

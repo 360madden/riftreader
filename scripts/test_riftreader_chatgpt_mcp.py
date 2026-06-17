@@ -1323,7 +1323,15 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 "kind": "riftreader-mcp-final-compact-status",
                 "status": "blocked",
                 "ok": False,
+                "currentHead": "b" * 40,
+                "gitDirty": False,
+                "phase2Ready": False,
+                "proofReplayStatus": "blocked",
+                "proofFreshnessStatus": "stale",
+                "recommendedNextAction": {"key": "refresh-proof"},
                 "blockers": ["proof:stale"],
+                "warnings": ["actual-client-proof-refresh-required"],
+                "safety": {"finalGateReadOnly": True, "gitMutation": False},
             }
             with (
                 mock.patch.object(chatgpt_mcp.mcp_final_readiness, "final_readiness", return_value=final_payload) as final_status,
@@ -1338,10 +1346,17 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         final_status.assert_called_once_with(root)
         compact_status.assert_called_once_with(final_payload)
         self.assertFalse(payload["ok"])
-        self.assertEqual(payload["compact"], compact_payload)
+        self.assertEqual(payload["compact"]["status"], "blocked")
+        self.assertEqual(payload["compact"]["blockerCount"], 1)
+        self.assertEqual(payload["compact"]["blockers"], ["proof:stale"])
+        self.assertEqual(payload["compact"]["warningCount"], 1)
+        self.assertEqual(payload["recommendedNextAction"], {"key": "refresh-proof"})
+        self.assertEqual(payload["responseCompaction"]["status"], "compact")
         self.assertIn("proof:stale", payload["blockers"])
         self.assertTrue(payload["safety"]["finalGateReadOnly"])
         self.assertFalse(payload["safety"]["gitMutation"])
+        minified_size = len(json.dumps(payload, separators=(",", ":")))
+        self.assertLessEqual(minified_size, chatgpt_mcp.DIRECT_STATUS_MINIFIED_BYTES_TARGET)
         assert_repo_root_not_serialized(self, root, payload)
 
     def test_submit_actual_client_observation_records_ignored_proof_artifact(self) -> None:
@@ -1478,17 +1493,53 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["arbitraryCommand"])
 
     def test_get_tool_surface_diff_wraps_runtime_control_without_mutation(self) -> None:
+        large_tool_names = [f"tool_{index:02d}_{'x' * 120}" for index in range(50)]
         diff_payload = {
             "schemaVersion": 1,
             "kind": "riftreader-chatgpt-mcp-tool-surface-diff",
             "status": "blocked",
             "ok": False,
-            "expected": {"toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
-            "sourceVsManifest": {"status": "passed", "ok": True},
-            "sourceVsRuntime": {"status": "not-checked", "ok": None},
-            "sourceVsActualClientProof": {"status": "blocked", "ok": False},
+            "expected": {"source": "unit-test", "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER), "toolNames": large_tool_names},
+            "runtime": {
+                "status": "running-current",
+                "ok": True,
+                "selectedListener": {"owningProcess": 12345, "commandLine": "python " + ("x" * 5000)},
+                "runtimeSourceFreshness": {"status": "fresh", "ok": True, "details": "y" * 5000},
+            },
+            "actualClientProof": {
+                "status": "passed",
+                "ok": True,
+                "proofPath": ".riftreader-local/proof.json",
+                "proofFreshness": {"status": "fresh", "ageSeconds": 12, "budgetSeconds": 300},
+                "proofSummary": {
+                    "toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                    "toolNames": large_tool_names,
+                    "toolOutputSchemasPresent": True,
+                    "toolOutputSchemaCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                    "toolOutputSchemaToolNames": large_tool_names,
+                    "clientTransportStatus": "succeeded",
+                    "healthCallSucceeded": True,
+                },
+            },
+            "sourceVsManifest": {
+                "status": "passed",
+                "ok": True,
+                "expectedCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "observedCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "missing": [],
+                "extra": [],
+            },
+            "sourceVsRuntime": {"status": "not-checked", "ok": None, "missing": large_tool_names, "extra": large_tool_names},
+            "sourceVsActualClientProof": {
+                "status": "blocked",
+                "ok": False,
+                "expectedCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+                "observedCount": 19,
+                "missing": large_tool_names,
+                "extra": large_tool_names,
+            },
             "blockers": ["tool-count-not-current"],
-            "warnings": ["runtime-observed-tool-surface-not-checked-from-mcp-tool"],
+            "warnings": [f"runtime-warning-{index}-" + ("w" * 120) for index in range(50)],
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1508,6 +1559,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         )
         self.assertFalse(payload["ok"])
         self.assertIn("tool-count-not-current", payload["blockers"])
+        self.assertEqual(payload["responseCompaction"]["status"], "compact")
+        self.assertEqual(payload["diff"]["expected"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertNotIn("toolNames", payload["diff"]["expected"])
+        self.assertNotIn("toolNames", payload["actualClientProof"])
+        self.assertEqual(payload["sourceVsActualClientProof"]["observedCount"], 19)
+        minified_size = len(json.dumps(payload, separators=(",", ":")))
+        self.assertLessEqual(minified_size, chatgpt_mcp.DIRECT_STATUS_MINIFIED_BYTES_TARGET)
         self.assertTrue(payload["safety"]["readOnlyDiff"])
         self.assertFalse(payload["safety"]["serverStarted"])
         self.assertFalse(payload["safety"]["serverStopped"])
