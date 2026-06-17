@@ -40,17 +40,27 @@ FINAL_PRODUCT_PHASES = (
 )
 
 
-def latest_release_handoff_path(repo_root: Path) -> str | None:
-    """Return the newest repo-relative MCP final release handoff path, if present."""
-
+def latest_matching_handoff_path(repo_root: Path, pattern: str) -> str | None:
     handoff_root = repo_root / "docs" / "handoffs"
     if not handoff_root.is_dir():
         return None
-    matches = [path for path in handoff_root.glob("*mcp-final-readiness-release-handoff*.md") if path.is_file()]
+    matches = [path for path in handoff_root.glob(pattern) if path.is_file()]
     if not matches:
         return None
     newest = max(matches, key=lambda path: (path.stat().st_mtime_ns, path.name))
     return str(newest.relative_to(repo_root))
+
+
+def latest_release_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative MCP final release handoff path, if present."""
+
+    return latest_matching_handoff_path(repo_root, "*mcp-final-readiness-release-handoff*.md")
+
+
+def latest_mcp_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative MCP handoff path, not only release handoffs."""
+
+    return latest_matching_handoff_path(repo_root, "*mcp*.md")
 
 
 def _matches_expected_tool_names(value: Any) -> bool:
@@ -118,6 +128,7 @@ def build_final_product_progress(
     latest_artifacts = latest_artifacts if isinstance(latest_artifacts, dict) else {}
     actual_client_proof_completed = _actual_client_proof_completed(latest_artifacts)
     release_handoff_path = latest_release_handoff_path(repo_root)
+    current_mcp_handoff_path = latest_mcp_handoff_path(repo_root)
     phase7_completed = final_ok and public_session_passed and proof_replay_passed and proof_fresh and actual_client_proof_completed
     phase8_completed = phase7_completed and bool(release_handoff_path)
     phase_rows = [
@@ -215,6 +226,7 @@ def build_final_product_progress(
         "phases": phase_rows,
         "recommendedNextAction": recommended,
         "releaseHandoffPath": release_handoff_path,
+        "latestMcpHandoffPath": current_mcp_handoff_path,
         "actualClientProofCompleted": actual_client_proof_completed,
         "externalTrialExplicitOnly": True,
         "recommendedConnection": "cloudflare-named-tunnel",

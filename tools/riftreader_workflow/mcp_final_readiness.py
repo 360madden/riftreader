@@ -530,17 +530,27 @@ def _unsafe_safety_blockers(safety: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def _latest_release_handoff_path(repo_root: Path) -> str | None:
-    """Return the newest repo-relative final MCP release handoff path."""
-
+def _latest_matching_handoff_path(repo_root: Path, pattern: str) -> str | None:
     handoff_root = repo_root / "docs" / "handoffs"
     if not handoff_root.is_dir():
         return None
-    matches = [path for path in handoff_root.glob("*mcp-final-readiness-release-handoff*.md") if path.is_file()]
+    matches = [path for path in handoff_root.glob(pattern) if path.is_file()]
     if not matches:
         return None
     newest = max(matches, key=lambda path: (path.stat().st_mtime_ns, path.name))
     return str(newest.relative_to(repo_root))
+
+
+def _latest_release_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative final MCP release handoff path."""
+
+    return _latest_matching_handoff_path(repo_root, "*mcp-final-readiness-release-handoff*.md")
+
+
+def _latest_mcp_handoff_path(repo_root: Path) -> str | None:
+    """Return the newest repo-relative MCP handoff path, not only release handoffs."""
+
+    return _latest_matching_handoff_path(repo_root, "*mcp*.md")
 
 
 def _next_action(
@@ -673,6 +683,7 @@ def final_readiness(
     blockers = unique(blockers)
     status = "passed" if not blockers else "blocked"
     release_handoff_path = _latest_release_handoff_path(repo_root)
+    latest_mcp_handoff_path = _latest_mcp_handoff_path(repo_root)
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-readiness",
@@ -689,6 +700,7 @@ def final_readiness(
             "freshness": artifact_freshness,
             "latest": state_payload.get("latestArtifacts"),
             "releaseHandoffPath": release_handoff_path,
+            "latestMcpHandoffPath": latest_mcp_handoff_path,
             "toolSurface": tool_surface_payload,
         },
         "dependencies": dependency_payload,
@@ -719,6 +731,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     dep_map = deps.get("dependencies") if isinstance(deps.get("dependencies"), dict) else {}
     tool_surface = ((payload.get("artifacts") or {}).get("toolSurface") if isinstance(payload.get("artifacts"), dict) else {}) or {}
     release_handoff_path = ((payload.get("artifacts") or {}).get("releaseHandoffPath") if isinstance(payload.get("artifacts"), dict) else None)
+    latest_mcp_handoff_path = ((payload.get("artifacts") or {}).get("latestMcpHandoffPath") if isinstance(payload.get("artifacts"), dict) else None)
     public_session = payload.get("publicSession") if isinstance(payload.get("publicSession"), dict) else {}
     return {
         "schemaVersion": 1,
@@ -749,6 +762,7 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
         "publicSessionStatus": public_session.get("status"),
         "publicSessionStates": public_session.get("states"),
         "releaseHandoffPath": release_handoff_path,
+        "latestMcpHandoffPath": latest_mcp_handoff_path,
         "recommendedNextAction": payload.get("recommendedNextAction"),
         "blockers": payload.get("blockers") or [],
         "warningCount": len(payload.get("warnings") or []),

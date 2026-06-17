@@ -191,8 +191,12 @@ class McpFinalReadinessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             handoff = root / "docs" / "handoffs" / "20260519-1645-mcp-final-readiness-release-handoff.md"
+            current_handoff = root / "docs" / "handoffs" / "20260617-mcp-stage21-apply-stage27-commit-proof.md"
             handoff.parent.mkdir(parents=True)
             handoff.write_text("# release handoff\n", encoding="utf-8")
+            current_handoff.write_text("# current MCP handoff\n", encoding="utf-8")
+            os.utime(handoff, (1000, 1000))
+            os.utime(current_handoff, (2000, 2000))
 
             payload = final.final_readiness(
                 root,
@@ -204,8 +208,10 @@ class McpFinalReadinessTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["artifacts"]["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")  # type: ignore[index]
+        self.assertEqual(payload["artifacts"]["latestMcpHandoffPath"], "docs\\handoffs\\20260617-mcp-stage21-apply-stage27-commit-proof.md")  # type: ignore[index]
         self.assertEqual(payload["recommendedNextAction"]["key"], "maintenance-loop")  # type: ignore[index]
         self.assertEqual(compact["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")
+        self.assertEqual(compact["latestMcpHandoffPath"], "docs\\handoffs\\20260617-mcp-stage21-apply-stage27-commit-proof.md")
 
     def test_dirty_tree_blocks_final_readiness(self) -> None:
         payload = final_status(state=base_state(dirty=True))

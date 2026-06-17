@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -197,8 +198,12 @@ class McpMissionControlTests(unittest.TestCase):
             contract.parent.mkdir(parents=True)
             contract.write_text("# Final readiness contract\n", encoding="utf-8")
             handoff = root / "docs" / "handoffs" / "20260519-1645-mcp-final-readiness-release-handoff.md"
+            current_handoff = root / "docs" / "handoffs" / "20260617-mcp-stage21-apply-stage27-commit-proof.md"
             handoff.parent.mkdir(parents=True)
             handoff.write_text("# Release handoff\n", encoding="utf-8")
+            current_handoff.write_text("# Current MCP handoff\n", encoding="utf-8")
+            os.utime(handoff, (1000, 1000))
+            os.utime(current_handoff, (2000, 2000))
             progress = mission.build_final_product_progress(
                 root,
                 {
@@ -255,6 +260,7 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertEqual(progress["phases"][7]["status"], "completed")
         self.assertTrue(progress["actualClientProofCompleted"])
         self.assertEqual(progress["releaseHandoffPath"], "docs\\handoffs\\20260519-1645-mcp-final-readiness-release-handoff.md")
+        self.assertEqual(progress["latestMcpHandoffPath"], "docs\\handoffs\\20260617-mcp-stage21-apply-stage27-commit-proof.md")
 
     def test_actual_client_completion_blocks_on_malformed_tool_name_lists(self) -> None:
         self.assertFalse(
