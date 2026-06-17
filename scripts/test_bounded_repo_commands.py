@@ -30,6 +30,7 @@ class BoundedRepoCommandsTests(unittest.TestCase):
                 "current_head_ci_status",
                 "mcp_final_status",
                 "mcp_server_status",
+                "stage38_consideration_status",
                 "test_mcp_server_status",
                 "validate_mcp_sdk",
             ],
@@ -49,6 +50,22 @@ class BoundedRepoCommandsTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["providerWrites"])
         self.assertFalse(payload["safety"]["commandExecuted"])
+
+    def test_stage38_consideration_plan_is_fixed_status_command(self) -> None:
+        payload = commands.plan_command("stage38_consideration_status")
+
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertEqual(
+            payload["argv"],
+            ["cmd", "/c", "scripts\\riftreader-stage38-consideration.cmd", "--status", "--compact-json"],
+        )
+        self.assertEqual(payload["expectedExitCodes"], [0, 1, 2])
+        self.assertEqual(payload["timeoutSeconds"], 45.0)
+        self.assertTrue(payload["readOnly"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["providerWrites"])
+        self.assertFalse(payload["safety"]["inputSent"])
+        self.assertFalse(payload["safety"]["movementSent"])
 
     def test_unknown_command_key_blocks(self) -> None:
         payload = commands.plan_command("git_reset_hard")

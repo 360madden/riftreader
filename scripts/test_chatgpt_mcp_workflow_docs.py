@@ -67,6 +67,8 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Provider writes", text)
         self.assertIn("Debugger/CE", text)
         self.assertIn("does not accept shell strings", text)
+        self.assertIn("stage38_consideration_status", text)
+        self.assertIn("Does not add an MCP tool or start live RIFT tooling", text)
 
     def test_mcp_doc_includes_runtime_and_proof_status_tools(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")

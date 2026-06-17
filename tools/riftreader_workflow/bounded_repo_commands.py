@@ -164,6 +164,18 @@ def build_registry() -> dict[str, BoundedCommandSpec]:
             max_stderr_bytes=20_000,
             safety_flags=base_safety,
         ),
+        "stage38_consideration_status": BoundedCommandSpec(
+            key="stage38_consideration_status",
+            title="Stage 38 consideration status",
+            description="Run the local-only Stage 38 consideration gate without starting live RIFT tooling.",
+            risk_class="external-status-read",
+            argv_template=("cmd", "/c", "scripts\\riftreader-stage38-consideration.cmd", "--status", "--compact-json"),
+            expected_exit_codes=(0, 1, 2),
+            timeout_seconds=45.0,
+            max_stdout_bytes=80_000,
+            max_stderr_bytes=20_000,
+            safety_flags=base_safety,
+        ),
         "current_head_ci_status": BoundedCommandSpec(
             key="current_head_ci_status",
             title="Current HEAD CI status",
