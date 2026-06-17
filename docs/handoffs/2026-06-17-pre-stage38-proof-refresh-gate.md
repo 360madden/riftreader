@@ -11,9 +11,9 @@ the current 33-tool surface.
 
 | Area | Evidence |
 |---|---|
-| Git | At the start of this pre-Stage-38 pass, `main` was synced with `origin/main` at `c5ebba418ffdfd114738c5e95cb6be55ee79a5f1` (`Document pre-Stage-38 proof gate`). |
-| CI | `.NET build and test` and `RiftReader Policy` passed for `c5ebba418ffdfd114738c5e95cb6be55ee79a5f1`; rerun current-head CI after committing this detector update. |
-| Runtime | `get_mcp_runtime_status` reported `status=running-current` for PID `53740`, full profile, source freshness passed. |
+| Git | `main` is synced with `origin/main` at `e6debe79b2e0115c1d4555648c75e8530e9d9767` (`Detect stale MCP stdio counterparts`). |
+| CI | `.NET build and test` and `RiftReader Policy` passed for `e6debe79b2e0115c1d4555648c75e8530e9d9767`. |
+| Runtime | `mcp_server_status.py --json` reports `status=running-current` for PID `112004`, full profile, source freshness passed, and 33/33 tools observed. |
 | Tunnel | `get_tunnel_status` reported Cloudflared service running and public MCP initialize passed at `https://mcp.360madden.com/mcp`. |
 | Tool surface | Source/runtime expected 33 tools; latest actual-client proof still records 20 tools. |
 | Stale stdio counterpart detection | Added after this handoff started: local status now reports Codex/local stdio MCP adapter counterparts separately from the Cloudflare HTTP runtime. In this pass, stale stdio PIDs `97436` and `116596` explained why an actual callable `mcp__riftreader.health` surface still showed 20 tools while HTTP PID `53740` showed 33. Those exact stale stdio PIDs were then stopped after command-line verification. |
@@ -56,6 +56,9 @@ python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_final_read
 scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json
 python tools\riftreader_workflow\mcp_server_status.py --skip-runtime-surface-check --json
+python tools\riftreader_workflow\mcp_server_status.py --json
+python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_current_head_ci_status --json
+scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json --json
 ```
 
 ## Actual-client proof refresh packet
