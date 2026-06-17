@@ -1,3 +1,23 @@
+# 2026-06-17 - MCP compact response final-green baseline
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-compact-response-final-green.md`.
+
+| Item | Current truth |
+|---|---|
+| Baseline commit | `a5bff4d21437a85fb23f7ad4252cad11c47f96f2` (`Compact MCP direct status responses`) is pushed to `origin/main`. |
+| CI | Current head passed `.NET build and test` run `27723546997` and `RiftReader Policy` run `27723547005`. |
+| HTTP MCP runtime | PID `108940` reports `running-current`, source-fresh, full profile, and 33/33 observed tools. |
+| Direct compact responses | Current-source direct calls pass with no blockers: final readiness `5331` bytes and tool-surface diff `3854` bytes, both under the `8192` byte target. |
+| Final readiness | Latest bounded final gate passed; summary `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands\20260617-223740Z-mcp_final_status\run-summary.json`. |
+| Actual-client proof | Fresh replay passed from `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260617-194828Z\proof.json` with 33 tools, output schemas, `clientTransportStatus=tool-call-succeeded`, and `healthCallSucceeded=true`. |
+| Stdio connector | Stale Codex stdio counterpart was exact-matched and stopped; this thread's `mcp__riftreader` transport remains closed and needs reconnect/reload before in-thread MCP calls work. |
+| RIFT target discovery | Read-only discovery currently finds `rift_x64` count `0`; no input/focus/debugger was used. |
+| Safety | No live RIFT input, movement, CE, x64dbg, proof promotion, provider write, branch rewrite, reset, or cleanup was performed. |
+| Next command | `scripts\riftreader-mcp-final.cmd --status --compact-json` before release/demo; reconnect stdio MCP only if in-thread tools are needed. |
+
+---
+
 # 2026-06-17 - Pre-Stage-38 surface/runtime refresh
 
 Fresh compact handoff:
