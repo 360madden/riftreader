@@ -1,7 +1,7 @@
 # ChatGPT MCP live RIFT control design
 
 Status: **plan-only draft**. No live-control MCP tools are exposed by this
-document, and the current 19-tool ChatGPT Web/Desktop proof contract remains
+document, and the current 33-tool ChatGPT Web/Desktop proof contract remains
 unchanged by this live-control design.
 
 This design is for the later Stage 38-43 live-read/live-control ladder after
@@ -13,8 +13,9 @@ stimulus tests, or eventually control player movement.
 
 | Boundary | Rule |
 |---|---|
-| Current MCP product | Keep the existing 19-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
-| Tool exposure | Do not add live RIFT tools until the current 19-tool actual-client proof is fresh and final readiness passes. |
+| Current MCP product | Keep the existing 33-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
+| Actual-client transport | Do not treat local backend status as sufficient; the actual ChatGPT client proof must record `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. `Transport closed` blocks this ladder. |
+| Tool exposure | Do not add live RIFT tools until the current 33-tool actual-client proof is fresh, final readiness passes, and Stage 38 consideration approval is explicit. |
 | Live input | Do not send key input, target selection, movement, turn stimulus, `/reloadui`, or screenshot-key input without explicit live approval. |
 | Debugger/CE | Do not attach x64dbg, Cheat Engine, breakpoints, or watchpoints from this lane. |
 | Promotion | Do not promote current truth, actor chains, coordinates, yaw/facing, or proof anchors from a live-control tool. |
@@ -108,8 +109,9 @@ no action.
 ## Minimal implementation sequence
 
 1. Add a read-only exact-target identity helper with JSON and unit tests.
-2. Add `get_live_rift_status` only after the current 19-tool product proof
-   passes and the tool-count/proof contract is intentionally updated.
+2. Add `get_live_rift_status` only after the current 33-tool product proof
+   passes with actual-client transport success and the tool-count/proof
+   contract is intentionally updated.
 3. Add read-only no-input proof summary exposure, preserving candidate-only
    status and current blockers.
 4. Add plan-only live-control action output with no execution path.
@@ -121,7 +123,7 @@ no action.
 
 | Blocker | Effect |
 |---|---|
-| Current 19-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route. | Do not expose high-power live tools yet. |
+| Current 33-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not expose high-power live tools yet. |
 | Current static-owner readback root pointer is blocked/null after the game update. | Live navigation/control is not route-actionable. |
 | Latest no-input rediscovery is candidate-only and reports PID/HWND mismatch blockers. | Exact-target proof must be rebuilt before movement. |
 

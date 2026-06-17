@@ -89,6 +89,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
     def test_stage38_docs_require_local_consideration_gate_without_mcp_surface_change(self) -> None:
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
         final = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-final-readiness.md")
+        live_control = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-live-control-design.md")
         self.assertIn("scripts\\riftreader-stage38-consideration.cmd --status --compact-json", plan)
         self.assertIn("scripts\\riftreader-stage38-consideration.cmd --write-approval-packet --json", plan)
         self.assertIn("does not add an MCP tool", plan)
@@ -99,6 +100,13 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("clientTransportStatus=tool-call-succeeded", final)
         self.assertIn("healthCallSucceeded=true", final)
         self.assertIn("Transport closed", plan)
+        self.assertIn("prior 19-tool product", plan)
+        self.assertNotIn("current 19-tool product", plan)
+        self.assertIn("current 33-tool ChatGPT Web/Desktop proof contract", live_control)
+        self.assertIn("clientTransportStatus=tool-call-succeeded", live_control)
+        self.assertIn("healthCallSucceeded=true", live_control)
+        self.assertIn("Transport closed", live_control)
+        self.assertNotIn("current 19-tool", live_control)
 
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")

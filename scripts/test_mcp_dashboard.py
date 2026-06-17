@@ -61,6 +61,8 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("Desktop Readiness Commands", html)
         self.assertIn("Status JSON", html)
         self.assertIn("legacy Caddy/router is deprecated", html)
+        self.assertIn("Full ${esc(s.toolSurface.fullFinalProofToolCount)}-tool final proof", html)
+        self.assertNotIn("Full 12-tool final proof", html)
 
     def test_render_html_embeds_initial_status_for_fetch_blocked_browsers(self) -> None:
         html = dashboard.render_html(
