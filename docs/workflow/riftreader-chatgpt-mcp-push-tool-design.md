@@ -1,8 +1,9 @@
 # RiftReader ChatGPT MCP `push_current_branch` design
 
-Status: **Stage 29 complete-local preflight**. The design spec exists and the
-read-only preflight helper exists. The tool is intentionally **not exposed**
-until Stage 30 push execution and MCP wrapper tests pass.
+Status: **Stage 30 complete-local exposure**. The design spec, read-only
+preflight helper, approval-gated push execution helper, and MCP wrapper exist.
+The tool is exposed only as an approval-gated normal current-branch push path;
+force/rewrite/reset/clean/stash and arbitrary refspecs remain forbidden.
 
 ## Purpose
 
@@ -29,8 +30,8 @@ binds the exact branch, upstream, HEAD, ahead/behind state, and approval token.
 |---:|---|---|
 | 28 | This design spec plus MCP control-plan contract. | No |
 | 29 | `push_current_branch.py --preflight` read-only branch/upstream/ahead-behind checker. | No — implemented |
-| 30 | `push_current_branch.py --push` and MCP `push_current_branch` wrapper after preflight tests. | Yes, normal remote push only |
-| 31 | ChatGPT-visible current-head CI monitor after push. | No |
+| 30 | `push_current_branch.py --push` and MCP `push_current_branch` wrapper after preflight tests. | Yes, normal remote push only — implemented |
+| 31 | ChatGPT-visible current-head CI monitor after push. | No — implemented |
 
 ## Proposed MCP arguments
 
@@ -125,7 +126,8 @@ operator or ChatGPT to verify required GitHub Actions for the pushed HEAD.
 
 ## Exposure rule
 
-Do not add `push_current_branch` to `EXPECTED_CHATGPT_MCP_TOOL_NAMES` until:
+`push_current_branch` may stay in `EXPECTED_CHATGPT_MCP_TOOL_NAMES` only while
+all of these remain true:
 
 1. Stage 29 preflight helper exists.
 2. Stage 29 tests pass for ready, dirty, missing upstream, behind/diverged, and

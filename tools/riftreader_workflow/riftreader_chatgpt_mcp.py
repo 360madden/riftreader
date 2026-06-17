@@ -35,6 +35,7 @@ try:
     from . import commit_reviewed_slice
     from . import local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
+    from . import mcp_ci_status, push_current_branch
     from . import package_manifest
     from . import package_draft_review, status_packet, tracked_repo_context
     from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
@@ -44,6 +45,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from riftreader_workflow import commit_reviewed_slice
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
+    from riftreader_workflow import mcp_ci_status, push_current_branch
     from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet, tracked_repo_context
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
@@ -132,6 +134,8 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
             "timeoutSeconds",
         }
     ),
+    "push_current_branch": frozenset({"expectedHead", "branch", "upstream", "approvalToken", "timeoutSeconds"}),
+    "get_current_head_ci_status": frozenset({"timeoutSeconds"}),
     "get_workflow_control_plan": frozenset(),
     "get_dirty_paths": frozenset(),
     "get_recent_commits": frozenset({"limit"}),
@@ -446,7 +450,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "push-current-branch",
         "targetToolName": "push_current_branch",
-        "currentStatus": "preflight-implemented-not-exposed",
+        "currentStatus": "exposed-gated",
         "riskClass": "git-remote-mutation",
         "minimumGate": "explicit-operator-approval-in-current-turn",
         "safePrecursorTools": ["get_repo_status", "get_workflow_control_plan"],
@@ -512,16 +516,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 30,
-    "currentStageName": "Expose push_current_branch after safe preflight",
+    "currentStage": 32,
+    "currentStageName": "Bounded command design spec",
     "currentTruth": (
-        f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP is proven for gated apply and approval-gated explicit-path "
-        "local commit. Stage 28 push design and Stage 29 read-only push preflight are complete-local; "
-        "push_current_branch remains not exposed until the Stage 30 approval-token push execution helper "
-        "and MCP wrapper tests are implemented."
+        f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
+        "approval-gated normal current-branch push, and read-only current-head CI status. Stage 32 bounded "
+        "command design is next; arbitrary shell remains absent."
     ),
-    "nextStage": 31,
-    "nextStageName": "CI monitor integration",
+    "nextStage": 33,
+    "nextStageName": "Command allowlist registry",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -544,7 +547,9 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 27, "name": "Commit actual-client proof", "status": "complete"},
         {"stage": 28, "name": "Push design spec", "status": "complete-local"},
         {"stage": 29, "name": "Push preflight helper", "status": "complete-local"},
-        {"stage": 30, "name": "Expose push_current_branch", "status": "pending"},
+        {"stage": 30, "name": "Expose push_current_branch", "status": "complete-local"},
+        {"stage": 31, "name": "CI monitor integration", "status": "complete-local"},
+        {"stage": 32, "name": "Bounded command design spec", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -620,12 +625,12 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
 PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-push-tool-design-contract",
-    "status": "preflight-implemented-not-exposed",
+    "status": "exposed-gated",
     "targetToolName": "push_current_branch",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md",
     "stageRange": [28, 29, 30, 31],
-    "currentStage": 29,
-    "exposureStatus": "not-exposed",
+    "currentStage": 30,
+    "exposureStatus": "exposed-gated",
     "preflightHelper": {
         "status": "implemented-local-only",
         "module": "tools/riftreader_workflow/push_current_branch.py",
@@ -635,12 +640,12 @@ PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "requiresApprovalToken": False,
     },
     "pushExecutionHelper": {
-        "status": "planned-stage-30",
+        "status": "implemented-and-mcp-wrapped",
         "module": "tools/riftreader_workflow/push_current_branch.py",
         "cliMode": "--push",
         "requiresApprovalToken": True,
         "remoteMutation": True,
-        "mcpToolExposed": False,
+        "mcpToolExposed": True,
     },
     "argumentKeys": [
         "expectedHead",
@@ -686,7 +691,7 @@ PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "gitMutation": False,
         "remoteMutationOnlyAfterApproval": True,
         "providerWrites": False,
-        "mcpToolExposed": False,
+        "mcpToolExposed": True,
         "forcePushAllowed": False,
         "branchRewriteAllowed": False,
     },
@@ -831,6 +836,32 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         read_only=False,
         destructive=False,
         open_world=False,
+    ),
+    "push_current_branch": ToolSpec(
+        name="push_current_branch",
+        title="Push Current Branch",
+        description=(
+            "Use this when the local operator supplies an approval token from the local push preflight. "
+            "This reruns push preflight, verifies exact HEAD, branch, upstream, and token, performs one normal "
+            "non-force push of the current branch to its origin upstream, and verifies the remote head; it never "
+            "commits, force-pushes, rewrites branches, resets, cleans, runs arbitrary shell commands, sends RIFT "
+            "input, writes provider repos, or touches CE/x64dbg."
+        ),
+        read_only=False,
+        destructive=False,
+        open_world=True,
+    ),
+    "get_current_head_ci_status": ToolSpec(
+        name="get_current_head_ci_status",
+        title="Get Current HEAD CI Status",
+        description=(
+            "Use this when you need read-only GitHub Actions status for the current RiftReader HEAD after a push. "
+            "This reads current-head CI using the GitHub CLI and never pushes, stages, commits, rewrites branches, "
+            "runs arbitrary shell commands, sends RIFT input, writes provider repos, or touches CE/x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
     ),
     "get_workflow_control_plan": ToolSpec(
         name="get_workflow_control_plan",
@@ -1369,6 +1400,16 @@ class RiftReaderChatGptMcpAdapter:
                     validation_digest=required_str(call_args.get("validationDigest"), field_name="validationDigest"),
                     approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
+                ),
+                "push_current_branch": lambda call_args: self.push_current_branch(
+                    expected_head=required_str(call_args.get("expectedHead"), field_name="expectedHead"),
+                    branch=required_str(call_args.get("branch"), field_name="branch"),
+                    upstream=required_str(call_args.get("upstream"), field_name="upstream"),
+                    approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
+                    timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), self.config.dry_run_timeout_seconds),
+                ),
+                "get_current_head_ci_status": lambda call_args: self.get_current_head_ci_status(
+                    timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), 30.0),
                 ),
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
                 "get_dirty_paths": lambda _: self.get_dirty_paths(),
@@ -1962,6 +2003,86 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def push_current_branch(
+        self,
+        *,
+        expected_head: str,
+        branch: str,
+        upstream: str,
+        approval_token: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        timeout = timeout_seconds if timeout_seconds is not None else self.config.dry_run_timeout_seconds
+        payload = push_current_branch.push_current_branch_apply(
+            self.config.repo_root,
+            expected_head=expected_head,
+            branch=branch,
+            upstream=upstream,
+            approval_token=approval_token,
+            timeout_seconds=timeout,
+        )
+        payload_safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-push-current-branch",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "pushed": bool(payload.get("pushed")),
+            "currentHead": payload.get("currentHead"),
+            "branch": payload.get("branch"),
+            "upstream": payload.get("upstream"),
+            "remoteHead": payload.get("remoteHead"),
+            "pushResult": payload,
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "gitMutation": bool(payload_safety.get("gitMutation")),
+                "remoteMutation": bool(payload_safety.get("remoteMutation")),
+                "localCommitOnly": False,
+                "forcePush": bool(payload_safety.get("forcePush")),
+                "branchRewrite": bool(payload_safety.get("branchRewrite")),
+                "destructiveCleanup": bool(payload_safety.get("destructiveCleanup")),
+                "resetOrClean": bool(payload_safety.get("resetOrClean")),
+                "stashMutation": bool(payload_safety.get("stashMutation")),
+                "arbitraryRefspec": bool(payload_safety.get("arbitraryRefspec")),
+                "pushed": bool(payload_safety.get("pushed")),
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "applyFlagSent": False,
+            },
+        }
+
+    def get_current_head_ci_status(self, *, timeout_seconds: float = 30.0) -> dict[str, Any]:
+        payload = mcp_ci_status.current_head_ci_status(self.config.repo_root, timeout_seconds=timeout_seconds)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-current-head-ci-status",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "currentHead": payload.get("currentHead"),
+            "ciStatus": payload,
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "readOnlyGitHubCliInspection": True,
+                "gitMutation": False,
+                "remoteMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "applyFlagSent": False,
+            },
+        }
+
     def get_workflow_control_summary(self) -> dict[str, Any]:
         """Return the smallest read-only workflow-control packet for ChatGPT MCP transport."""
 
@@ -2085,10 +2206,13 @@ class RiftReaderChatGptMcpAdapter:
                 "validateLocalDraft": ["review_latest_package_draft", "dry_run_latest_package_draft"],
                 "applyApprovedDraft": ["apply_latest_package_draft"],
                 "commitApprovedSlice": ["commit_reviewed_slice"],
+                "pushApprovedBranch": ["push_current_branch"],
+                "inspectCurrentHeadCi": ["get_current_head_ci_status"],
                 "writeBoundary": (
                     "ChatGPT-originated proposal writes are stored only under .riftreader-local inbox/package-draft "
                     "artifacts until apply_latest_package_draft receives a local preflight approval token; local Git commits "
-                    "are limited to commit_reviewed_slice after a current commit-preflight approval token."
+                    "are limited to commit_reviewed_slice after a current commit-preflight approval token; remote pushes "
+                    "are limited to push_current_branch after a current push-preflight approval token."
                 ),
             },
             "missionControl": {
@@ -2108,7 +2232,7 @@ class RiftReaderChatGptMcpAdapter:
                 "push_current_branch": compact_push_tool_contract(PUSH_TOOL_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "push-design-complete-preflight-next",
+                "status": "push-and-ci-exposed-gated-bounded-command-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -5709,10 +5833,10 @@ def create_fastmcp_server(
             "create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, then "
             "apply_latest_package_draft without approvalToken. "
             "This is not ChatGPT Codex and not a broad local MCP proxy. Use only the exposed allowlisted tools. "
-            "Do not ask this server for shell, arbitrary filesystem, remote Git mutation, branch rewrite, reset, clean, "
+            "Do not ask this server for shell, arbitrary filesystem, force push, branch rewrite, reset, clean, "
             "RIFT input, CE, x64dbg, or tunnel control; those tools are intentionally absent. "
-            "The only Git mutation endpoint is commit_reviewed_slice, which requires a current local preflight approval token "
-            "and can create one explicit-path local commit only. "
+            "Git mutation endpoints are commit_reviewed_slice for one explicit-path local commit and push_current_branch "
+            "for one approval-gated normal non-force current-branch push after local preflight. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -5865,6 +5989,31 @@ def create_fastmcp_server(
             },
         )
 
+    def push_current_branch(
+        expectedHead: str,  # noqa: N803 - MCP input name.
+        branch: str,
+        upstream: str,
+        approvalToken: str | None = None,  # noqa: N803 - MCP input name.
+        timeoutSeconds: float | None = None,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this only after a local operator supplies the push preflight approval token."""
+
+        return adapter.call_tool(
+            "push_current_branch",
+            {
+                "expectedHead": expectedHead,
+                "branch": branch,
+                "upstream": upstream,
+                "approvalToken": approvalToken,
+                "timeoutSeconds": timeoutSeconds,
+            },
+        )
+
+    def get_current_head_ci_status(timeoutSeconds: float | None = None) -> dict[str, Any]:  # noqa: N803 - MCP input name.
+        """Use this when you need read-only current HEAD GitHub Actions status."""
+
+        return adapter.call_tool("get_current_head_ci_status", {"timeoutSeconds": timeoutSeconds})
+
     def get_workflow_control_plan() -> dict[str, Any]:
         """Use this when you need a read-only repo workflow control plan."""
 
@@ -5979,6 +6128,8 @@ def create_fastmcp_server(
         "dry_run_latest_package_draft": dry_run_latest_package_draft,
         "apply_latest_package_draft": apply_latest_package_draft,
         "commit_reviewed_slice": commit_reviewed_slice,
+        "push_current_branch": push_current_branch,
+        "get_current_head_ci_status": get_current_head_ci_status,
         "get_workflow_control_plan": get_workflow_control_plan,
         "get_dirty_paths": get_dirty_paths,
         "get_recent_commits": get_recent_commits,

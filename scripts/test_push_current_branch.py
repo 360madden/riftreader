@@ -142,12 +142,79 @@ class PushCurrentBranchPreflightTests(unittest.TestCase):
         self.assertIn("PUSH_BRANCH_MISMATCH", payload["blockers"])
         self.assertIn("PUSH_UPSTREAM_MISMATCH", payload["blockers"])
 
+    def test_apply_blocks_missing_token_without_remote_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, origin = make_repo_with_origin(Path(temp_dir))
+            head = add_local_commit(root)
+            preflight = push_preflight.push_preflight(root)
+
+            payload = push_preflight.push_current_branch_apply(
+                root,
+                expected_head=head,
+                branch="main",
+                upstream="origin/main",
+                approval_token=None,
+            )
+            remote_head = git(root, "ls-remote", str(origin), "refs/heads/main").split()[0]
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["pushed"])
+        self.assertIn("PUSH_APPROVAL_MISSING", payload["blockers"])
+        self.assertNotEqual(remote_head, head)
+        self.assertEqual(preflight["ahead"], 1)
+        self.assertFalse(payload["safety"]["remoteMutation"])
+
+    def test_apply_blocks_mismatched_token_without_remote_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, origin = make_repo_with_origin(Path(temp_dir))
+            head = add_local_commit(root)
+
+            payload = push_preflight.push_current_branch_apply(
+                root,
+                expected_head=head,
+                branch="main",
+                upstream="origin/main",
+                approval_token="PUSH-wrong",
+            )
+            remote_head = git(root, "ls-remote", str(origin), "refs/heads/main").split()[0]
+
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["pushed"])
+        self.assertIn("PUSH_APPROVAL_TOKEN_MISMATCH", payload["blockers"])
+        self.assertNotEqual(remote_head, head)
+        self.assertFalse(payload["safety"]["remoteMutation"])
+
+    def test_apply_pushes_current_branch_with_matching_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, origin = make_repo_with_origin(Path(temp_dir))
+            head = add_local_commit(root)
+            preflight = push_preflight.push_preflight(root)
+
+            payload = push_preflight.push_current_branch_apply(
+                root,
+                expected_head=head,
+                branch="main",
+                upstream="origin/main",
+                approval_token=preflight["expectedApprovalToken"],
+            )
+            remote_head = git(root, "ls-remote", str(origin), "refs/heads/main").split()[0]
+
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertTrue(payload["pushed"])
+        self.assertEqual(payload["remoteHead"], head)
+        self.assertEqual(remote_head, head)
+        self.assertTrue(payload["safety"]["gitMutation"])
+        self.assertTrue(payload["safety"]["remoteMutation"])
+        self.assertFalse(payload["safety"]["forcePush"])
+        self.assertFalse(payload["safety"]["branchRewrite"])
+
     def test_self_test_passes(self) -> None:
         payload = push_preflight.run_self_test()
 
         self.assertTrue(payload["ok"], payload.get("blockers"))
         self.assertEqual(payload["status"], "passed")
         self.assertTrue(payload["checks"]["ready_preflight"])
+        self.assertTrue(payload["checks"]["approved_push"])
         self.assertTrue(payload["checks"]["dirty_blocks"])
 
 

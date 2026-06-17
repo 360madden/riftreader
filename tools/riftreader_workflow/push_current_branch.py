@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,7 @@ SCHEMA_VERSION = 1
 TOOL_VERSION = "riftreader-push-current-branch-v0.1.0"
 KIND = "riftreader-push-current-branch-preflight"
 PROTECTED_BRANCHES = {"main", "master"}
+SAFE_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
 
 class PushPreflightError(RuntimeError):
@@ -99,6 +101,17 @@ def remote_url(repo_root: Path, remote_name: str = "origin", *, timeout_seconds:
         return None
     text = _decode(proc.stdout).strip()
     return text.splitlines()[0].strip() if text else None
+
+
+def branch_name_is_safe(branch: str | None) -> bool:
+    if not branch or not SAFE_BRANCH_RE.match(branch):
+        return False
+    forbidden_fragments = ("..", "@{", "\\", "//")
+    if any(fragment in branch for fragment in forbidden_fragments):
+        return False
+    if branch.startswith(("-", "/", ".")) or branch.endswith(("/", ".", ".lock")):
+        return False
+    return True
 
 
 def parse_ahead_behind(text: str) -> tuple[int | None, int | None]:
@@ -242,6 +255,8 @@ def push_preflight(
             warnings.append(str(exc))
     if not current_branch_name:
         blockers.append("PUSH_BRANCH_UNNAMED")
+    elif not branch_name_is_safe(current_branch_name):
+        blockers.append("PUSH_BRANCH_UNSAFE")
 
     upstream_ref = current_upstream(repo_root, timeout_seconds=timeout_seconds)
     if not upstream_ref:
@@ -332,6 +347,157 @@ def push_preflight(
     }
 
 
+def parse_ls_remote_head(stdout: str, expected_ref: str) -> str | None:
+    for line in stdout.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2 and parts[1] == expected_ref:
+            return parts[0]
+    return None
+
+
+def push_execution_safety(*, mutation_attempted: bool, pushed: bool) -> dict[str, Any]:
+    return {
+        **safety_flags(),
+        "readOnlyPreflight": False,
+        "gitMutation": mutation_attempted,
+        "remoteMutation": mutation_attempted,
+        "localCommitOnly": False,
+        "forcePush": False,
+        "branchRewrite": False,
+        "destructiveCleanup": False,
+        "resetOrClean": False,
+        "stashMutation": False,
+        "arbitraryRefspec": False,
+        "pushed": pushed,
+        "providerWrites": False,
+        "inputSent": False,
+        "movementSent": False,
+        "x64dbgAttach": False,
+        "noCheatEngine": True,
+        "applyFlagSent": False,
+    }
+
+
+def push_current_branch_apply(
+    repo_root: Path,
+    *,
+    expected_head: str | None,
+    branch: str | None,
+    upstream: str | None,
+    approval_token: str | None,
+    timeout_seconds: float = 120.0,
+) -> dict[str, Any]:
+    """Perform one normal non-force push after re-running read-only preflight."""
+
+    preflight = push_preflight(
+        repo_root,
+        expected_head=expected_head,
+        branch=branch,
+        upstream=upstream,
+        timeout_seconds=min(timeout_seconds, 30.0),
+    )
+    blockers: list[str] = []
+    warnings: list[str] = [str(item) for item in preflight.get("warnings") or []]
+    commands: list[dict[str, Any]] = []
+    mutation_attempted = False
+    pushed = False
+    remote_head: str | None = None
+    local_head = preflight.get("currentHead")
+    branch_name = preflight.get("branch")
+    remote_name = preflight.get("remoteName") or "origin"
+
+    if not preflight.get("ok"):
+        blockers.extend(str(item) for item in preflight.get("blockers") or [])
+    expected_token = preflight.get("expectedApprovalToken")
+    if preflight.get("ok"):
+        if not isinstance(approval_token, str) or not approval_token.strip():
+            blockers.append("PUSH_APPROVAL_MISSING")
+        elif approval_token.strip() != expected_token:
+            blockers.append("PUSH_APPROVAL_TOKEN_MISMATCH")
+    if not branch_name_is_safe(str(branch_name) if branch_name is not None else None):
+        blockers.append("PUSH_BRANCH_UNSAFE")
+
+    if blockers:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-push-current-branch-apply",
+            "toolVersion": TOOL_VERSION,
+            "generatedAtUtc": utc_iso(),
+            "status": "blocked",
+            "ok": False,
+            "pushed": False,
+            "currentHead": local_head,
+            "branch": branch_name,
+            "upstream": preflight.get("upstream"),
+            "remoteHead": None,
+            "preflight": preflight,
+            "commands": commands,
+            "blockers": sorted(set(blockers)),
+            "warnings": sorted(set(warnings)),
+            "safety": push_execution_safety(mutation_attempted=False, pushed=False),
+            "next": [
+                "Resolve blockers and rerun --preflight before attempting push execution again.",
+                "No Git remote mutation was attempted for this blocked request.",
+            ],
+        }
+
+    assert isinstance(branch_name, str)
+    expected_ref = f"refs/heads/{branch_name}"
+    push_args = ["git", "push", str(remote_name), f"HEAD:{branch_name}"]
+    mutation_attempted = True
+    push_result = run_command_envelope(
+        "git-push-current-branch",
+        push_args,
+        repo_root,
+        timeout_seconds=timeout_seconds,
+    )
+    commands.append(push_result)
+    if not push_result.get("ok"):
+        blockers.append("PUSH_GIT_COMMAND_FAILED")
+    else:
+        verify_args = ["git", "ls-remote", str(remote_name), expected_ref]
+        verify_result = run_command_envelope(
+            "git-ls-remote-verify-head",
+            verify_args,
+            repo_root,
+            timeout_seconds=min(timeout_seconds, 30.0),
+            capture_full_output=True,
+        )
+        commands.append({key: value for key, value in verify_result.items() if key not in {"stdout", "stderr"}})
+        if not verify_result.get("ok"):
+            blockers.append("PUSH_REMOTE_HEAD_VERIFY_FAILED")
+        else:
+            remote_head = parse_ls_remote_head(str(verify_result.get("stdout") or ""), expected_ref)
+            if remote_head != local_head:
+                blockers.append("PUSH_REMOTE_HEAD_VERIFY_FAILED")
+            else:
+                pushed = True
+
+    status = "passed" if pushed and not blockers else "failed"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-push-current-branch-apply",
+        "toolVersion": TOOL_VERSION,
+        "generatedAtUtc": utc_iso(),
+        "status": status,
+        "ok": status == "passed",
+        "pushed": pushed,
+        "currentHead": local_head,
+        "branch": branch_name,
+        "upstream": preflight.get("upstream"),
+        "remoteHead": remote_head,
+        "preflight": preflight,
+        "commands": commands,
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+        "safety": push_execution_safety(mutation_attempted=mutation_attempted, pushed=pushed),
+        "next": [
+            "If passed, verify current-head CI with tools/riftreader_workflow/mcp_ci_status.py --status --json.",
+            "Push success is not CI success; keep remote mutation and CI reporting as separate evidence.",
+        ],
+    }
+
+
 def _temp_git(root: Path, args: list[str]) -> None:
     proc = subprocess.run(
         ["git", *args],
@@ -378,6 +544,21 @@ def run_self_test() -> dict[str, Any]:
             and str(ready.get("expectedApprovalToken") or "").startswith("PUSH-")
             and ready.get("safety", {}).get("gitMutation") is False
         )
+        approved_push = push_current_branch_apply(
+            root,
+            expected_head=str(ready.get("currentHead") or ""),
+            branch=str(ready.get("branch") or ""),
+            upstream=str(ready.get("upstream") or ""),
+            approval_token=str(ready.get("expectedApprovalToken") or ""),
+        )
+        checks["approved_push"] = (
+            approved_push.get("ok") is True
+            and approved_push.get("pushed") is True
+            and approved_push.get("remoteHead") == ready.get("currentHead")
+            and approved_push.get("safety", {}).get("forcePush") is False
+            and approved_push.get("safety", {}).get("branchRewrite") is False
+        )
+        details["approvedPush"] = approved_push
 
         (root / "untracked.txt").write_text("dirty\n", encoding="utf-8")
         dirty = push_preflight(root)
@@ -403,14 +584,16 @@ def run_self_test() -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Read-only push_current_branch preflight helper.")
+    parser = argparse.ArgumentParser(description="Safe push_current_branch preflight and approval-gated execution helper.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--preflight", action="store_true", help="Run read-only push preflight.")
+    mode.add_argument("--push", action="store_true", help="Run approval-gated normal non-force push after preflight.")
     mode.add_argument("--self-test", action="store_true", help="Run local self-test without touching the caller repo.")
     parser.add_argument("--repo-root", default=None, help="RiftReader repo root. Defaults to auto-detect.")
     parser.add_argument("--expected-head", default=None, help="Optional expected HEAD SHA to bind.")
     parser.add_argument("--branch", default=None, help="Optional expected current branch to bind.")
     parser.add_argument("--upstream", default=None, help="Optional expected upstream ref to bind.")
+    parser.add_argument("--approval-token", default=None, help="Required PUSH-* approval token for --push.")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     return parser
@@ -425,6 +608,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.self_test:
             payload = run_self_test()
+        elif args.push:
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
+            payload = push_current_branch_apply(
+                repo_root,
+                expected_head=args.expected_head,
+                branch=args.branch,
+                upstream=args.upstream,
+                approval_token=args.approval_token,
+                timeout_seconds=args.timeout_seconds,
+            )
         else:
             repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
             payload = push_preflight(
@@ -454,4 +647,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

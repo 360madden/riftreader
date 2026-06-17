@@ -1,3 +1,47 @@
+# 2026-06-17 - MCP Stage 30 push exposure and Stage 31 CI monitor complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage30-stage31-push-ci-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Repo | `C:\RIFT MODDING\RiftReader` |
+| Pre-slice HEAD | Stage 29 preflight commit `9862ce38e989bc5204bbb66a9335bff1dd521aa4` was pushed, CI-passed, and final-gate-passed before Stage 30/31 work. |
+| Stage 30 | Complete-local: `push_current_branch` helper execution and MCP wrapper added behind approval-token gate. |
+| Stage 31 | Complete-local: `get_current_head_ci_status` MCP surface added as read-only CI monitor. |
+| MCP surface | Full profile changes from 20 tools to 22 tools; fresh server restart and actual-client proof are required after commit. |
+| Next stage | Stage 32: bounded command design spec. |
+| Safety | No force push, branch rewrite, reset, clean, stash, arbitrary shell MCP endpoint, provider writes, RIFT input/movement, CE, or x64dbg. |
+
+## Fast resume commands
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+git --no-pager status --short --branch
+scripts\riftreader-push-current-branch.cmd --preflight --json
+python -m unittest scripts.test_push_current_branch scripts.test_riftreader_chatgpt_mcp
+scripts\riftreader-mcp-server-status.cmd --json
+scripts\riftreader-mcp-final.cmd --status --compact-json
+```
+
+## Top 10 recommended next actions
+
+| # | Action | Why |
+|---:|---|---|
+| 1 | Validate and commit the Stage 30/31 surface expansion with explicit paths. | Makes push/CI tool wiring reviewable. |
+| 2 | Restart the local MCP server after commit so the 22-tool surface is actually loaded. | The saved ChatGPT connector entry does not start or reload the backend. |
+| 3 | Require `scripts\riftreader-mcp-server-status.cmd --json` to report `running-current` before MCP proof. | Prevents stale/missing server proof waste. |
+| 4 | Use `push_current_branch` only with a fresh preflight token. | Keeps remote mutation separate from commit and bounded to normal push. |
+| 5 | Verify current-head CI through `get_current_head_ci_status` after push. | Push success is not CI success. |
+| 6 | Refresh final MCP proof for the new 22-tool surface. | Tool count changed from 20 to 22. |
+| 7 | Implement Stage 32 bounded command design before any command tool. | Keeps arbitrary shell out of scope. |
+| 8 | Implement Stage 33 allowlist registry before command exposure. | Deterministic command keys must exist before Stage 34. |
+| 9 | Keep provider repo writes disabled through Stage 37. | Only planning/labeling is allowed before external repo mutation approval. |
+| 10 | Stop before Stage 38 unless explicitly approved. | Stage 38 is the first live-RIFT boundary. |
+
+Generated UTC: `2026-06-17T11:09:03Z`.
+
+---
 # 2026-06-17 - MCP Stage 29 push preflight complete-local
 
 Fresh compact handoff:
