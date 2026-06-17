@@ -83,6 +83,15 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("list_bounded_repo_commands", text)
         self.assertIn("final 33-tool proof", text)
 
+    def test_stage38_docs_require_local_consideration_gate_without_mcp_surface_change(self) -> None:
+        plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
+        final = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-final-readiness.md")
+        self.assertIn("scripts\\riftreader-stage38-consideration.cmd --status --compact-json", plan)
+        self.assertIn("does not add an MCP tool", plan)
+        self.assertIn("Stage 38 consideration guard", final)
+        self.assertIn("approval-required", final)
+        self.assertIn("does not implement or start live RIFT tooling", final)
+
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")
         self.assertIn("Stage: **36", text)

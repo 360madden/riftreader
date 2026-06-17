@@ -76,6 +76,16 @@ Also inspect `stdioCounterparts` in the MCP server-status payload: stale
 Codex/local stdio counterparts are not the Cloudflare HTTP runtime, but they can
 explain why an actual callable client surface still reports an old tool count
 after the HTTP runtime is already current.
+Use the local-only Stage 38 consideration gate as the final pre-approval
+summary:
+
+```cmd
+scripts\riftreader-stage38-consideration.cmd --status --compact-json
+```
+
+This helper does not add an MCP tool and does not start Stage 38. It checks the
+current local runtime, public route, final readiness, and the explicit
+live-boundary approval requirement before an approval packet can be drafted.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor

@@ -30,6 +30,7 @@ before any Stage 38 approval packet.
 | Public route plan | Refreshed artifact: `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260617T155406Z-manual-public-ip-plan.json`. |
 | Proof template | Fresh final-33-tool template: `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json`. |
 | Final readiness | Still blocked: `phase2:not-ready` plus proof replay failures because the latest proof is 20-tool evidence, not 33-tool evidence. Artifact freshness is now classified correctly: readiness/proposal smoke artifacts are final-readiness requirements; expired public-session smoke artifacts are warning-only while `publicSessionStatus=passed`. |
+| Stage 38 consideration gate | Local-only helper added after this handoff was first written: `scripts\riftreader-stage38-consideration.cmd --status --compact-json`. It does not add an MCP tool or start Stage 38; it summarizes runtime, route, final readiness, and explicit live-boundary approval before an approval packet can be drafted. |
 
 ## Root cause / blocker
 
@@ -68,6 +69,7 @@ ready.
 | 8 | Public route forwards to the current backend. | `get_tunnel_status` passes for `https://mcp.360madden.com/mcp`. | Fix/start Cloudflare tunnel; do not use local SDK proof as a substitute. |
 | 9 | Actual ChatGPT client observes the same surface. | ChatGPT Web/Desktop reports 33 tools and schemas. | Refresh/reconnect ChatGPT MCP app; do not record final proof. |
 | 10 | Recorded proof replays. | Filled template passes `--check-input`, then `--record`, then Phase 2/final readiness pass. | Keep Stage 38 inactive and resolve the proof mismatch. |
+| 11 | Stage 38 consideration gate passes. | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` reports `passed` only after runtime, route, final readiness, and explicit live-boundary approval are satisfied. | Treat `blocked` or `approval-required` as not ready; do not start Stage 38. |
 
 ## Commands run in this pre-Stage-38 pass
 
@@ -124,8 +126,9 @@ scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-
 | 8 | Fresh proof is recorded and replay passes. | **Blocked until actual ChatGPT proof is recorded.** |
 | 9 | `scripts\riftreader-mcp-phase2.cmd --status --json` passes. | **Blocked by proof replay.** |
 | 10 | `get_final_readiness_status` passes. | **Blocked by Phase 2/proof replay.** |
+| 11 | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` passes. | **Blocked until runtime/route/final readiness pass and explicit live-boundary approval is supplied.** |
 
-Only after all ten items pass should the workflow draft a Stage 38 approval
+Only after all eleven items pass should the workflow draft a Stage 38 approval
 packet. Stage 38 implementation still requires explicit live-boundary approval.
 
 ## Top 10 recommended next actions

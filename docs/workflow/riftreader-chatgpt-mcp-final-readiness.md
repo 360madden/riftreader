@@ -240,6 +240,25 @@ Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
 states mean the MCP backend dependency is not satisfied even if a connector
 entry or stale proof artifact exists.
 
+## Stage 38 consideration guard
+
+Stage 38 is the first live RIFT boundary. Even after this final-readiness gate
+passes, do not treat Stage 38 as active until the local-only consideration gate
+also passes:
+
+```cmd
+scripts\riftreader-stage38-consideration.cmd --status --compact-json
+```
+
+That helper is intentionally not an MCP tool and must not change the 33-tool
+ChatGPT surface. It combines the current runtime-status check, Cloudflare named
+Tunnel public-route check, final-readiness result, and explicit live-boundary
+approval requirement. It reports `blocked` while any prerequisite is missing,
+`approval-required` when all local prerequisites pass but no live-boundary
+approval token was supplied, and `passed` only after the required approval token
+is supplied. Passing this helper allows drafting a Stage 38 approval packet; it
+does not implement or start live RIFT tooling.
+
 ## Phase 6 safety fixture acceptance criteria
 
 Phase 6 may be considered complete when:
