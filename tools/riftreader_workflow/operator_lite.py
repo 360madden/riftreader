@@ -488,7 +488,7 @@ def build_command_specs(repo_root: Path) -> dict[str, CommandSpec]:
             timeout_seconds=60,
             description=(
                 "Print the current ChatGPT Web/Desktop MCP proof run packet with Server URL, No Auth, "
-                "12-tool checklist, proof input path, blockers, and safety boundaries."
+                "expected-tool checklist, transport-health fields, proof input path, blockers, and safety boundaries."
             ),
         ),
         "desktop-control-readiness": CommandSpec(

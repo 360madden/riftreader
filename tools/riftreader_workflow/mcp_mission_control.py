@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .chatgpt_trial_recorder import CLIENT_TRANSPORT_SUCCEEDED
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from .common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from .mcp_ci_status import current_head_ci_status
@@ -18,6 +19,7 @@ try:
     from .workflow_router import ranked_actions
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from riftreader_workflow.chatgpt_trial_recorder import CLIENT_TRANSPORT_SUCCEEDED
     from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
     from riftreader_workflow.common import find_repo_root, run_command_envelope, safety_flags, unique, utc_iso
     from riftreader_workflow.mcp_ci_status import current_head_ci_status
@@ -67,6 +69,8 @@ def _actual_client_proof_completed(latest_artifacts: dict[str, Any]) -> bool:
         and actual_client.get("status") == "passed"
         and actual_client.get("selfTest") is not True
         and actual_client.get("chatGptRegistrationSucceeded") is True
+        and actual_client.get("clientTransportStatus") == CLIENT_TRANSPORT_SUCCEEDED
+        and actual_client.get("healthCallSucceeded") is True
         and actual_client.get("templateFetched") is True
         and actual_client.get("toolCount") == EXPECTED_CHATGPT_MCP_TOOL_COUNT
         and _matches_expected_tool_names(actual_client.get("toolNames"))
@@ -512,7 +516,9 @@ def render_proof_checklist(payload: dict[str, Any]) -> str:
             "- [ ] Start the local MCP server outside Codex and keep the Cloudflared Windows service healthy; do not recreate Caddy/router forwarding.",
             "- [ ] Generate the current proof template before the ChatGPT-side run.",
             f"  - `{' '.join(commands.get('trialProofTemplate') or [])}`",
-            f"- [ ] In ChatGPT Developer Mode, confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
+            "- [ ] In ChatGPT Developer Mode, call `health`; if ChatGPT reports `Transport closed`, unavailable tool, or no response, refresh/reconnect the client before continuing.",
+            f"- [ ] Record `clientTransportStatus=tool-call-succeeded`, `healthCallSucceeded=true`, `health.repoRoot == \".\"`, and `absoluteRepoRootExposed == false`.",
+            f"- [ ] Confirm {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools are visible and record the exact tool-name list.",
             f"- [ ] Confirm output schemas are present for all {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tools and record the exact tool-name list.",
             "- [ ] Call `get_package_proposal_template` through actual ChatGPT and record `templateFetched: true`.",
             "- [ ] Submit one tiny package proposal through actual ChatGPT.",
@@ -599,22 +605,25 @@ def render_proof_run_packet(payload: dict[str, Any], domain_payload: dict[str, A
         "",
         f"- Latest proof input: `{proof_input_json or 'missing'}`",
         f"- Template status: `{proof_template.get('status', 'missing')}`",
+        "- Required transport fields: `clientTransportStatus=tool-call-succeeded`, `healthCallSucceeded=true`; `Transport closed` is a blocker.",
         f"- Check filled input: `{' '.join(check_command)}`",
         f"- Record after check passes: `{' '.join(record_command)}`",
         "",
         "## ChatGPT call sequence",
         "",
         "1. Connect this MCP in ChatGPT Web/Desktop with the Server URL above and No Authentication.",
-        "2. Call `health` and confirm `repoRoot == \".\"` and `absoluteRepoRootExposed == false`.",
-        f"3. Confirm ChatGPT sees exactly {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tool names listed below and output schemas for all {EXPECTED_CHATGPT_MCP_TOOL_COUNT}.",
-        "4. Call `get_repo_status`, `get_latest_handoff`, and `get_workflow_control_summary`.",
-        "5. Call `get_package_proposal_template` and record `templateFetched: true`.",
-        "6. Submit one tiny harmless `package-proposal` via `submit_package_proposal`.",
-        "7. Call `list_inbox` and record that it sees the returned `inboxId`.",
-        "8. Call `create_package_draft_from_inbox` for that `inboxId`.",
-        "9. Call `review_latest_package_draft` and record that the review is read-only.",
-        "10. Call `dry_run_latest_package_draft` and record `diffPreview` path, length, bounded-bytes flag, and truncated flag.",
-        "11. Call `apply_latest_package_draft` without an approval token and record that it blocks with `APPLY_APPROVAL_MISSING` and `applied=false`.",
+        "2. Call `health`; if ChatGPT reports `Transport closed`, unavailable tool, or no response, stop and refresh/reconnect the client.",
+        "3. Record `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true` only after the actual `health` call succeeds.",
+        "4. Confirm `health.repoRoot == \".\"` and `absoluteRepoRootExposed == false`.",
+        f"5. Confirm ChatGPT sees exactly {EXPECTED_CHATGPT_MCP_TOOL_COUNT} tool names listed below and output schemas for all {EXPECTED_CHATGPT_MCP_TOOL_COUNT}.",
+        "6. Call `get_repo_status`, `get_latest_handoff`, and `get_workflow_control_summary`.",
+        "7. Call `get_package_proposal_template` and record `templateFetched: true`.",
+        "8. Submit one tiny harmless `package-proposal` via `submit_package_proposal`.",
+        "9. Call `list_inbox` and record that it sees the returned `inboxId`.",
+        "10. Call `create_package_draft_from_inbox` for that `inboxId`.",
+        "11. Call `review_latest_package_draft` and record that the review is read-only.",
+        "12. Call `dry_run_latest_package_draft` and record `diffPreview` path, length, bounded-bytes flag, and truncated flag.",
+        "13. Call `apply_latest_package_draft` without an approval token and record that it blocks with `APPLY_APPROVAL_MISSING` and `applied=false`.",
         "",
         "## Expected tool names",
         "",
@@ -642,6 +651,7 @@ def render_proof_run_packet(payload: dict[str, Any], domain_payload: dict[str, A
             "- Do not attach CE/x64dbg or promote coordinate/current-truth artifacts.",
             "- Do not apply packages with an approval token, commit, push, or write provider repos during this proof.",
             "- Keep the MCP backend narrow and stop if ChatGPT observes unexpected tools or missing output schemas.",
+            "- Treat `Transport closed` as a client-refresh blocker, not as proof that the backend is missing or ready.",
             "",
         ]
     )

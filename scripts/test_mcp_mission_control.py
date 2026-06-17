@@ -37,6 +37,41 @@ def make_repo(root: Path) -> None:
 
 
 class McpMissionControlTests(unittest.TestCase):
+    def test_actual_client_completion_requires_transport_health_fields(self) -> None:
+        proof = {
+            "ok": True,
+            "status": "passed",
+            "selfTest": False,
+            "chatGptRegistrationSucceeded": True,
+            "templateFetched": True,
+            "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "toolOutputSchemasPresent": True,
+            "toolOutputSchemaCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+            "toolOutputSchemaToolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+            "submitPackageProposalSucceeded": True,
+            "listInboxSawInboxId": True,
+            "createPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftSucceeded": True,
+            "reviewLatestPackageDraftReadOnly": True,
+            "dryRunSucceeded": True,
+            "dryRunDiffPreviewOk": True,
+            "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+            "dryRunDiffPreviewBoundedBytes": True,
+            "dryRunDiffPreviewTextLength": 100,
+            "dryRunDiffPreviewTruncated": False,
+            "applyLatestPackageDraftWithoutApprovalBlocked": True,
+            "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+            "applyLatestPackageDraftWithoutApprovalApplied": False,
+        }
+
+        self.assertFalse(mission._actual_client_proof_completed({"actual-client-proof": proof}))
+
+        proof["clientTransportStatus"] = mission.CLIENT_TRANSPORT_SUCCEEDED
+        proof["healthCallSucceeded"] = True
+
+        self.assertTrue(mission._actual_client_proof_completed({"actual-client-proof": proof}))
+
     def test_dashboard_lists_commands_without_starting_public_tunnel(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -185,6 +220,8 @@ class McpMissionControlTests(unittest.TestCase):
                         "status": "passed",
                         "selfTest": False,
                         "chatGptRegistrationSucceeded": True,
+                        "clientTransportStatus": mission.CLIENT_TRANSPORT_SUCCEEDED,
+                        "healthCallSucceeded": True,
                         "templateFetched": True,
                         "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
                         "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -244,6 +281,8 @@ class McpMissionControlTests(unittest.TestCase):
             "status": "passed",
             "selfTest": False,
             "chatGptRegistrationSucceeded": True,
+            "clientTransportStatus": mission.CLIENT_TRANSPORT_SUCCEEDED,
+            "healthCallSucceeded": True,
             "templateFetched": True,
             "toolCount": mission.EXPECTED_CHATGPT_MCP_TOOL_COUNT,
             "toolNames": list(mission.EXPECTED_CHATGPT_MCP_TOOL_NAMES),
@@ -329,6 +368,9 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("Explicit ChatGPT Cloudflare named Tunnel proof", checklist)
         self.assertIn("riftreader-chatgpt-mcp.cmd --manual-public-ip-plan", checklist)
         self.assertIn("riftreader-chatgpt-trial-recorder.cmd --write-template --json", checklist)
+        self.assertIn("clientTransportStatus=tool-call-succeeded", checklist)
+        self.assertIn("healthCallSucceeded=true", checklist)
+        self.assertIn("Transport closed", checklist)
         self.assertIn("Confirm output schemas are present", checklist)
         self.assertIn("get_package_proposal_template", checklist)
         self.assertIn("create_package_draft_from_inbox", checklist)
@@ -343,6 +385,9 @@ class McpMissionControlTests(unittest.TestCase):
         self.assertIn("127.0.0.1:8770", packet)
         self.assertIn("12345", packet)
         self.assertNotIn("PID(s) `0", packet)
+        self.assertIn("clientTransportStatus=tool-call-succeeded", packet)
+        self.assertIn("healthCallSucceeded=true", packet)
+        self.assertIn("Transport closed", packet)
         self.assertIn("Expected tool names", packet)
         self.assertIn("apply_latest_package_draft", packet)
         self.assertIn("APPLY_APPROVAL_MISSING", packet)
