@@ -331,12 +331,13 @@ x64dbg action.
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
 | Run bounded repo command | Exposed and audit-replay hardened | Stage 32 design, Stage 33 registry, Stage 34 exposure, and Stage 35 local audit/replay evidence are complete-local; the lane remains registry-key only and never accepts shell strings or arbitrary argv. |
+| Provider repo writes | Planning only; not exposed | Stage 36 design: `docs\workflow\riftreader-chatgpt-mcp-provider-write-planning.md`; provider intent must be separately labeled and cannot write ChromaLink, RiftScan, or any external checkout by default. |
 | Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan; plan-only gates are drafted in `docs\workflow\riftreader-chatgpt-mcp-live-control-design.md`. |
 | Debugger/CE assist | Planned; not exposed | Explicit debugger approval with crash-risk statement and candidate-only proof boundaries. |
 
 Default development order: apply-package dry-run-to-apply bridge first, local
-commit second, push third, bounded shell fourth, live RIFT control fifth, and
-debugger/CE assist last.
+commit second, push third, bounded command fourth, provider planning/labels
+fifth, live RIFT control sixth, and debugger/CE assist last.
 
 ## Local checks
 

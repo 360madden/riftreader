@@ -68,6 +68,15 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Debugger/CE", text)
         self.assertIn("does not accept shell strings", text)
 
+    def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
+        text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")
+        self.assertIn("Stage: **36", text)
+        self.assertIn("providerWriteIntent", text)
+        self.assertIn("Provider roots must not be discovered through arbitrary filesystem search", text)
+        self.assertIn("Provider repo write support remains **not exposed**", text)
+        self.assertIn("No provider root should be written", text)
+        self.assertIn("Stage 37 should extend the proposal/draft flow", text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -548,15 +548,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 35,
-    "currentStageName": "Command audit and replay evidence",
+    "currentStage": 37,
+    "currentStageName": "Provider-safe proposal flow",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
-        "execution for registry keys only. Stage 35 command audit/replay evidence is next; arbitrary shell remains absent."
+        "execution for registry keys only. Stage 36 provider write planning is complete-local; provider writes remain absent."
     ),
-    "nextStage": 36,
-    "nextStageName": "Provider repo write planning",
+    "nextStage": 38,
+    "nextStageName": "Live RIFT read-only state surface",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -584,7 +584,9 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 32, "name": "Bounded command design spec", "status": "complete-local"},
         {"stage": 33, "name": "Command allowlist registry", "status": "complete-local"},
         {"stage": 34, "name": "Expose bounded command subset", "status": "complete-local"},
-        {"stage": 35, "name": "Command audit and replay evidence", "status": "pending"},
+        {"stage": 35, "name": "Command audit and replay evidence", "status": "complete-local"},
+        {"stage": 36, "name": "Provider repo write planning", "status": "complete-local"},
+        {"stage": 37, "name": "Provider-safe proposal flow", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -2425,7 +2427,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "provider-planning-next",
+                "status": "provider-labeling-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

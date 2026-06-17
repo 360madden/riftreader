@@ -1445,11 +1445,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "provider-planning-next",
+            "provider-labeling-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 35)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 36)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 37)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 38)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

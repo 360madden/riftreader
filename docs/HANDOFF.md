@@ -1,3 +1,19 @@
+# 2026-06-17 - MCP Stage 36 provider write planning complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage36-provider-write-planning-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 36 | Complete-local: provider repo write boundaries are documented as planning-only. |
+| Design doc | `docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md`. |
+| Provider rule | Provider roots such as ChromaLink/RiftScan require separate root identity, authorization, validation, commit, and push gates. |
+| Default behavior | Provider writes remain not exposed and disabled by default. |
+| MCP surface | Unchanged at 23 tools; no provider-write MCP tool was added. |
+| Validation | Syntax, 84 focused docs/adapter tests, and `git diff --check` passed locally. |
+| Next stage | Stage 37 provider-safe proposal labels without provider writes. |
+
+---
 # 2026-06-17 - MCP Stage 35 command audit/replay complete-local
 
 Fresh compact handoff:

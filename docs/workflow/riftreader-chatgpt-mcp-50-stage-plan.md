@@ -2,7 +2,7 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 36 — provider repo write planning next**.
+Current stage: **Stage 37 — provider-safe proposal flow next**.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -30,6 +30,11 @@ Stage 35 audit note:
 inspect durable `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands\*\run-summary.json`
 envelopes without rerunning child commands and block paths outside the
 bounded-command audit root.
+
+Stage 36 provider planning note:
+`docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md` defines
+provider repo write boundaries for ChromaLink/RiftScan-style external roots.
+Provider work remains planning-only; no external repo writes are enabled.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
@@ -91,7 +96,7 @@ and `get_current_head_ci_status`; arbitrary shell remains absent.
 | 33 | Command allowlist registry | Implement versioned allowlist for validation/build/status helpers only. | Tests prove blocked destructive commands and accepted safe commands. | complete-local |
 | 34 | Expose bounded command read/write-safe subset | Expose command tool for deterministic repo helpers, not arbitrary shell. | ChatGPT can run allowed validations and status helpers only. | complete-local |
 | 35 | Command audit and replay evidence | Add durable audit envelopes for command args, cwd, exit code, timing, stdout/stderr previews. | Every command call is explainable and bounded. | complete-local |
-| 36 | Provider repo write planning | Design external/provider repo write boundaries for ChromaLink/RiftScan-style integrations. | Plan requires explicit provider authorization and separate roots. | pending |
+| 36 | Provider repo write planning | Design external/provider repo write boundaries for ChromaLink/RiftScan-style integrations. | Plan requires explicit provider authorization and separate roots. | complete-local |
 | 37 | Provider-safe proposal flow | Extend proposal/draft model to label provider writes separately without enabling them by default. | ChatGPT cannot silently mix RiftReader and provider repo mutations. | pending |
 | 38 | Live RIFT read-only state surface | Expose read-only current target/status facts if exact PID/HWND proof is fresh. | No input/movement; stale target blocks closed. | pending |
 | 39 | Live target identity gate | Implement reusable exact-target gate: PID, HWND, process start, module base, duplicate detection. | All live tools depend on this gate. | pending |
@@ -111,12 +116,11 @@ and `get_current_head_ci_status`; arbitrary shell remains absent.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
-| 2 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
-| 3 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
-| 4 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 5 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 6 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
+| 2 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
+| 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 
 ## High-risk exposure order
 
