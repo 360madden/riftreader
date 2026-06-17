@@ -19,7 +19,7 @@ new MCP tool.
 | Runtime restart | Stale HTTP PID `129620` was restarted through the exact-PID guarded preflight after `d12a06a`. Fresh PID `134792` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
 | Public route | The Stage 38 gate reports the Cloudflare named route `https://mcp.360madden.com/mcp` as passed. |
 | Tool surface | Source vs manifest and source vs runtime pass at 33/33 tools. Latest actual-client proof is still old 20-tool evidence and lacks the new transport-success fields. |
-| Final readiness | Current-head CI is green for `d12a06a`; the remaining blocker is actual ChatGPT Web/Desktop proof replay. The next proof must record 33 tools plus `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. |
+| Final readiness | Current-head CI was green at this refresh; rerun `python tools\riftreader_workflow\mcp_ci_status.py --status --json` after any new push. The remaining blocker is actual ChatGPT Web/Desktop proof replay. The next proof must record 33 tools plus `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. |
 | Stage 38 gate status | `blocked`; `stage38Started=false`, `stage38Active=false`, and `stage38ToolSurfaceChanged=false`. |
 
 ## Remaining blockers before Stage 38 can be considered
