@@ -1,3 +1,19 @@
+# 2026-06-17 - MCP Stage 35 command audit/replay complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage35-command-audit-replay-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 35 | Complete-local: bounded command run summaries now have local audit index/latest/replay helpers. |
+| Replay boundary | `--replay-summary` validates saved envelopes under `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands` without rerunning child commands. |
+| MCP surface | Unchanged at 23 tools; no arbitrary shell/filesystem, provider write, live RIFT, debugger, proof-promotion, or broad Git endpoint was added. |
+| Runtime dependency | Stale backend PID `126908` was detected after source edits, stopped only after command-line verification, and replaced by fresh PID `115656`, now `running-current`. |
+| Validation | Syntax, 99 focused tests, registry self-test, audit index/latest replay, SDK validation, server status, bounded `mcp_server_status`, and current-head CI passed. |
+| Final gate | Blocked while this slice is dirty and because actual-client proof remains stale 20-tool evidence for the current 23-tool surface. |
+| Next stage | Stage 36 provider repo write planning only; no external provider repo writes. |
+
+---
 # 2026-06-17 - MCP Stage 34 bounded command exposure complete-local
 
 Fresh compact handoff:

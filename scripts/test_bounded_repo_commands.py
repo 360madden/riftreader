@@ -177,6 +177,83 @@ class BoundedRepoCommandsTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["arbitraryCommand"])
         self.assertEqual(payload["stdoutPreview"], "{\"ok\":true}")
 
+    def test_replay_run_summary_validates_successful_envelope_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").mkdir()
+            (root / "agents.md").write_text("# test\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess(
+                args=["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"],
+                returncode=0,
+                stdout="{\"ok\":true,\"status\":\"passed\"}",
+                stderr="",
+            )
+            with mock.patch.object(commands.subprocess, "run", return_value=completed):
+                run_payload = commands.run_command("mcp_server_status", repo_root=root)
+            with mock.patch.object(commands.subprocess, "run") as run:
+                replay = commands.replay_run_summary(run_payload["summaryPath"], repo_root=root)
+
+        run.assert_not_called()
+        self.assertTrue(replay["ok"], replay.get("blockers"))
+        self.assertTrue(replay["summaryEnvelopeValid"])
+        self.assertEqual(replay["commandKey"], "mcp_server_status")
+        self.assertEqual(replay["commandStatus"], "passed")
+        self.assertTrue(replay["commandOk"])
+        self.assertEqual(replay["argv"], ["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"])
+        self.assertEqual(len(replay["summarySha256"]), 64)
+        self.assertFalse(replay["safety"]["commandExecuted"])
+        self.assertTrue(replay["safety"]["auditReplay"])
+
+    def test_list_run_summaries_indexes_successful_and_blocked_envelopes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").mkdir()
+            (root / "agents.md").write_text("# test\n", encoding="utf-8")
+            passed = subprocess.CompletedProcess(
+                args=["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"],
+                returncode=0,
+                stdout="{\"ok\":true,\"status\":\"passed\"}",
+                stderr="",
+            )
+            blocked = subprocess.CompletedProcess(
+                args=["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"],
+                returncode=1,
+                stdout='{"ok":false,"status":"blocked","blockers":["runtime-stale"]}',
+                stderr="",
+            )
+            with mock.patch.object(commands.subprocess, "run", side_effect=[passed, blocked]):
+                commands.run_command("mcp_server_status", repo_root=root)
+                commands.run_command("mcp_server_status", repo_root=root)
+            with mock.patch.object(commands.subprocess, "run") as run:
+                index = commands.list_run_summaries("mcp_server_status", repo_root=root, limit=5)
+
+        run.assert_not_called()
+        self.assertTrue(index["ok"], index.get("blockers"))
+        self.assertEqual(index["runCount"], 2)
+        self.assertTrue(index["runs"][0]["summaryPath"].endswith("run-summary.json"))
+        self.assertEqual(
+            sorted(item["commandStatus"] for item in index["runs"]),
+            ["blocked", "passed"],
+        )
+        self.assertFalse(index["safety"]["commandExecuted"])
+        self.assertTrue(index["safety"]["auditReplay"])
+
+    def test_replay_run_summary_blocks_paths_outside_audit_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "repo"
+            root.mkdir()
+            (root / ".git").mkdir()
+            (root / "agents.md").write_text("# test\n", encoding="utf-8")
+            outside = Path(temp_dir) / "run-summary.json"
+            outside.write_text("{}", encoding="utf-8")
+
+            replay = commands.replay_run_summary(outside, repo_root=root)
+
+        self.assertFalse(replay["ok"])
+        self.assertFalse(replay["summaryEnvelopeValid"])
+        self.assertIn("summary-path-outside-audit-root", replay["blockers"])
+        self.assertFalse(replay["safety"]["commandExecuted"])
+
     def test_run_command_blocks_unknown_without_execution(self) -> None:
         with mock.patch.object(commands.subprocess, "run") as run:
             payload = commands.run_command("git_reset_hard")

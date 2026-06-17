@@ -1,7 +1,7 @@
 # RiftReader ChatGPT MCP bounded repo command design
 
 Stage: **32 — bounded command design spec**  
-Status: **Stage 32 design complete-local; Stage 33 registry complete-local; Stage 34 MCP exposure complete-local**
+Status: **Stage 32 design complete-local; Stage 33 registry complete-local; Stage 34 MCP exposure complete-local; Stage 35 audit/replay complete-local**
 
 This document defines the safety contract for a future
 `run_bounded_repo_command` MCP tool. It is intentionally design-only: Stage 32
@@ -108,6 +108,9 @@ Registry facts:
 | CLI inspection | `python tools\riftreader_workflow\bounded_repo_commands.py --list --json` |
 | CLI plan mode | `python tools\riftreader_workflow\bounded_repo_commands.py --plan mcp_server_status --json` |
 | CLI self-test | `python tools\riftreader_workflow\bounded_repo_commands.py --self-test --json` |
+| CLI audit index | `python tools\riftreader_workflow\bounded_repo_commands.py --list-runs --json` |
+| CLI latest replay | `python tools\riftreader_workflow\bounded_repo_commands.py --latest-run mcp_server_status --json` |
+| CLI explicit replay | `python tools\riftreader_workflow\bounded_repo_commands.py --replay-summary .riftreader-local\riftreader-chatgpt-mcp\bounded-commands\<UTC>-<commandKey>\run-summary.json --json` |
 | MCP exposure | `run_bounded_repo_command` exposed in Stage 34. |
 | Command execution | Registry-key only; no shell strings or arbitrary argv. |
 
@@ -172,6 +175,18 @@ Envelope fields:
 MCP output may be compact, but it must include the summary path, command key,
 verdict, exit code, duration, capped previews, and safety flags.
 
+Stage 35 adds local replay/inspection affordances for these envelopes:
+
+| Helper | Behavior |
+|---|---|
+| `--list-runs --json` | Lists bounded command summaries under `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands` without executing commands. |
+| `--latest-run [COMMAND_KEY] --json` | Replays the newest summary overall or for one command key. |
+| `--replay-summary <path> --json` | Validates one `run-summary.json`, computes its SHA-256, confirms it lives under the bounded-command audit root, checks registry argv/safety facts, and reports the saved command verdict without rerunning the child command. |
+
+Replay status validates the **audit envelope**, not the child command outcome.
+A command summary whose child result was `blocked` remains replayable when the
+envelope is complete, capped, and safety-consistent.
+
 ## Approval-token policy
 
 Stage 34 should treat command execution as a high-power MCP action even when the
@@ -206,7 +221,7 @@ Fail closed when:
 |---:|---|
 | 33 | Complete-local: registry code, tests for allowed keys, tests for denied destructive/live/provider/debugger classes. |
 | 34 | Complete-local: MCP tool wrapper, argument allowlist, local adapter tests, unknown command denial, and local safe status command run. Actual-client proof remains a separate proof-refresh gate. |
-| 35 | Durable audit/replay helper, tests for envelope contents, replay of at least one successful and one blocked command. |
+| 35 | Complete-local: durable audit/replay helper, tests for envelope contents, replay/index of successful and blocked command summaries, and path confinement under the bounded-command audit root. |
 
 ## Safety statement
 

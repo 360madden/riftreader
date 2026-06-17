@@ -1,6 +1,7 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: MVP plus gated apply tool, narrow tool-only adapter.
+Status: 23-tool narrow adapter with gated apply, commit, push, CI, tracked-context,
+and bounded repo-command lanes.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -42,7 +43,12 @@ The adapter is designed for this safe loop:
 | `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
 | `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`; returns a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff` when available. |
 | `apply_latest_package_draft` | Approval-token gated action | Applies the latest operator package draft only through package intake after matching dry-run summary, diff SHA-256, and local approval token; never stages, commits, pushes, runs shell, sends RIFT input, writes providers, or touches CE/x64dbg. |
+| `commit_reviewed_slice` | Approval-token gated local Git action | Creates one explicit-path local commit only after current preflight/validation facts match; never pushes, rewrites, resets, cleans, or stages broad paths. |
+| `push_current_branch` | Approval-token gated remote Git action | Performs one normal non-force current-branch push only after a fresh safe push preflight; never commits, force-pushes, rewrites, resets, cleans, or uses ambiguous refspecs. |
+| `get_current_head_ci_status` | Read-only external status | Reads current HEAD GitHub Actions status through the repo helper; never mutates GitHub state. |
+| `run_bounded_repo_command` | Registry-key bounded action | Runs only versioned allowlisted repo status/validation helpers, never shell strings or arbitrary argv; writes capped audit summaries under `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands`. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
+| `get_dirty_paths`, `get_recent_commits`, `repo_tree_tracked`, `repo_search_tracked`, `repo_read_tracked_file`, `repo_read_many_tracked_files`, `repo_context_pack` | Read-only tracked-repo context | Provides bounded Git/status/tracked-file context only; no arbitrary filesystem endpoint. |
 
 Each tool has an explicit allowlist of accepted argument keys. Unknown wrapper
 arguments are blocked fail-closed instead of being silently ignored, and the
@@ -109,7 +115,7 @@ Dependency order for proof work:
 2. local backend listener is present on `127.0.0.1:8770`;
 3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
    adapter, not legacy/foreign;
-4. tool profile matches the intended proof (`full` for final 20-tool proof);
+4. tool profile matches the intended proof (`full` for the current 23-tool proof);
 5. Cloudflare named Tunnel/public route forwards to that backend;
 6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
 7. proof input is checked and recorded, then final readiness is rerun.
@@ -324,7 +330,7 @@ x64dbg action.
 | Apply latest package draft to repo | Stage 20 exposed-gated | Explicit operator approval token plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
 | Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
 | Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
-| Run bounded repo command | Design complete; not exposed | Stage 32 design: `docs\workflow\riftreader-chatgpt-mcp-bounded-command-design.md`; future exposure requires repo-owned command allowlist, argument-array invocation, timeout/output caps, and audit envelopes. |
+| Run bounded repo command | Exposed and audit-replay hardened | Stage 32 design, Stage 33 registry, Stage 34 exposure, and Stage 35 local audit/replay evidence are complete-local; the lane remains registry-key only and never accepts shell strings or arbitrary argv. |
 | Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan; plan-only gates are drafted in `docs\workflow\riftreader-chatgpt-mcp-live-control-design.md`. |
 | Debugger/CE assist | Planned; not exposed | Explicit debugger approval with crash-risk statement and candidate-only proof boundaries. |
 

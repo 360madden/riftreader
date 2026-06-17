@@ -380,6 +380,7 @@ def compact_bounded_command_contract(contract: dict[str, Any]) -> dict[str, Any]
         "registryVersion": contract.get("registryVersion"),
         "registryCommandCount": contract.get("registryCommandCount"),
         "registryCommandKeys": limited_list(contract.get("registryCommandKeys"), limit=1),
+        "auditStatus": contract.get("auditStatus"),
         "executionStatus": contract.get("executionStatus"),
         "argumentKeys": [key for key in contract.get("argumentKeys") or [] if key == "commandKey"],
         "requiredGates": [
@@ -739,7 +740,7 @@ BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
     "targetToolName": "run_bounded_repo_command",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
     "stageRange": [32, 33, 34, 35],
-    "currentStage": 34,
+    "currentStage": 35,
     "exposureStatus": "exposed-gated",
     "registryStatus": "implemented-local-only",
     "registryModule": "tools/riftreader_workflow/bounded_repo_commands.py",
@@ -749,7 +750,7 @@ BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
         "mcp_server_status",
         *[key for key in bounded_repo_commands.command_keys() if key != "mcp_server_status"],
     ],
-    "auditStatus": "planned-stage-35",
+    "auditStatus": "implemented-local-replay",
     "executionStatus": "implemented-and-mcp-wrapped",
     "argumentKeys": [
         "commandKey",
@@ -2424,7 +2425,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "bounded-command-exposure-complete-audit-next",
+                "status": "provider-planning-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

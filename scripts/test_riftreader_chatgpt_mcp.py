@@ -1445,7 +1445,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "bounded-command-exposure-complete-audit-next",
+            "provider-planning-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
         self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 35)
@@ -1499,11 +1499,12 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             command_contract["designPath"],
             "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
         )
-        self.assertEqual(command_contract["currentStage"], 34)
+        self.assertEqual(command_contract["currentStage"], 35)
         self.assertEqual(command_contract["exposureStatus"], "exposed-gated")
         self.assertEqual(command_contract["registryStatus"], "implemented-local-only")
         self.assertEqual(command_contract["registryVersion"], "bounded-repo-command-registry-v1")
         self.assertEqual(command_contract["registryCommandCount"], 5)
+        self.assertEqual(command_contract["auditStatus"], "implemented-local-replay")
         self.assertEqual(command_contract["executionStatus"], "implemented-and-mcp-wrapped")
         self.assertIn("mcp_server_status", command_contract["registryCommandKeys"])
         self.assertIn("commandKey", command_contract["argumentKeys"])
