@@ -1,8 +1,8 @@
 # RiftReader ChatGPT MCP `push_current_branch` design
 
-Status: **Stage 28 complete-local design**. The tool is intentionally
-**not exposed** until Stage 29 read-only preflight and Stage 30 MCP wrapper
-tests pass.
+Status: **Stage 29 complete-local preflight**. The design spec exists and the
+read-only preflight helper exists. The tool is intentionally **not exposed**
+until Stage 30 push execution and MCP wrapper tests pass.
 
 ## Purpose
 
@@ -28,7 +28,7 @@ binds the exact branch, upstream, HEAD, ahead/behind state, and approval token.
 | Stage | Deliverable | Mutation? |
 |---:|---|---|
 | 28 | This design spec plus MCP control-plan contract. | No |
-| 29 | `push_current_branch.py --preflight` read-only branch/upstream/ahead-behind checker. | No |
+| 29 | `push_current_branch.py --preflight` read-only branch/upstream/ahead-behind checker. | No — implemented |
 | 30 | `push_current_branch.py --push` and MCP `push_current_branch` wrapper after preflight tests. | Yes, normal remote push only |
 | 31 | ChatGPT-visible current-head CI monitor after push. | No |
 
@@ -47,7 +47,7 @@ accepted by the MCP tool.
 
 ## Read-only preflight contract
 
-The Stage 29 helper must gather:
+The Stage 29 helper gathers:
 
 | Fact | Required check |
 |---|---|
@@ -137,4 +137,3 @@ Do not add `push_current_branch` to `EXPECTED_CHATGPT_MCP_TOOL_NAMES` until:
 5. Actual MCP connector proof starts only after
    `scripts\riftreader-mcp-server-status.cmd --json` reports
    `status=running-current`.
-

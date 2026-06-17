@@ -2,12 +2,11 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 29 — `push_current_branch` read-only preflight helper next**.
+Current stage: **Stage 30 — expose `push_current_branch` after safe preflight**.
 Stage 21 approved package-apply proof and Stage 27 approved local-commit proof
-are complete. Stage 28 push design is complete-local in
-`docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md`; the push tool is
-not exposed until the Stage 29 preflight helper, Stage 30 approval-gated push
-wrapper, and Stage 31 CI monitor surfaces are validated.
+are complete. Stage 28 push design and Stage 29 read-only push preflight are
+complete-local; the push tool is not exposed until the Stage 30 approval-gated
+push execution helper and MCP wrapper tests pass.
 
 ## Operating rules
 
@@ -57,7 +56,7 @@ wrapper, and Stage 31 CI monitor surfaces are validated.
 | 26 | Expose commit_reviewed_slice | Expose local commit as an MCP tool with strict args and outputSchema. | ChatGPT can create local commits only through approved preflight. | complete-local |
 | 27 | Commit actual-client proof | Prove ChatGPT can request a local commit for a safe slice and receive hash/status. | Proof shows no push, no branch rewrite, and clean post-commit status. | complete |
 | 28 | Push design spec | Design push_current_branch as separate remote-mutation tool with explicit branch/upstream state and no force push. | Spec requires current-turn approval and CI follow-up. | complete-local |
-| 29 | Push preflight helper | Implement read-only push preflight with branch, upstream, ahead/behind, protected branch, and CI expectation checks. | Preflight blocks ambiguous or dangerous push cases. | pending |
+| 29 | Push preflight helper | Implement read-only push preflight with branch, upstream, ahead/behind, protected branch, and CI expectation checks. | Preflight blocks ambiguous or dangerous push cases. | complete-local |
 | 30 | Expose push_current_branch | Expose push tool only after local commit flow is proven. | Tool pushes current branch without force/rewrite and returns remote result. | pending |
 | 31 | CI monitor integration | Add ChatGPT-visible CI status after push using existing GitHub/gh-safe local surfaces. | ChatGPT can report current-head CI pass/fail links after push. | pending |
 | 32 | Bounded command design spec | Design run_bounded_repo_command with repo-owned allowlist, array args, timeout/output caps, and no shell strings. | Spec defines allowed commands and forbidden classes. | pending |
@@ -84,16 +83,16 @@ wrapper, and Stage 31 CI monitor surfaces are validated.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 29 | Push preflight helper | Implement read-only branch/upstream/ahead-behind checks before exposing push. |
-| 2 | 30 | Expose push_current_branch | Expose push only after preflight, tests, token binding, and normal non-force push proof. |
-| 3 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
-| 4 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
-| 5 | 33 | Command allowlist registry | Implement versioned allowlist for validation/status helpers only. |
-| 6 | 34 | Expose bounded command subset | Expose deterministic repo helpers only; never arbitrary shell. |
-| 7 | 35 | Command audit and replay evidence | Make every allowed command call replayable and bounded. |
-| 8 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
-| 9 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
-| 10 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
+| 1 | 30 | Expose push_current_branch | Implement approved normal non-force push execution and strict MCP wrapper tests. |
+| 2 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
+| 3 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
+| 4 | 33 | Command allowlist registry | Implement versioned allowlist for validation/status helpers only. |
+| 5 | 34 | Expose bounded command subset | Expose deterministic repo helpers only; never arbitrary shell. |
+| 6 | 35 | Command audit and replay evidence | Make every allowed command call replayable and bounded. |
+| 7 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
+| 8 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
+| 9 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
+| 10 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
 
 ## High-risk exposure order
 

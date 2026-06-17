@@ -1,3 +1,45 @@
+# 2026-06-17 - MCP Stage 29 push preflight complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage29-push-preflight-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Repo | `C:\RIFT MODDING\RiftReader` |
+| Pre-slice HEAD | Stage 28 design commit `acf6086e390564923fef987c0c3643f68f301d4d` was pushed, CI-passed, and final-gate-passed before Stage 29 work. |
+| Stage 29 | Complete-local: read-only `push_current_branch` preflight helper added; it never pushes. |
+| MCP surface | Still existing 20-tool full profile; `push_current_branch` remains not exposed. |
+| Next stage | Stage 30: add approval-gated normal non-force push execution and MCP wrapper tests. |
+| Safety | No push execution, MCP push exposure, force/rewrite/reset/clean/stash, provider writes, arbitrary shell MCP endpoint, RIFT input/movement, CE, or x64dbg. |
+
+## Fast resume commands
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+git --no-pager status --short --branch
+scripts\riftreader-push-current-branch.cmd --preflight --json
+python -m unittest scripts.test_push_current_branch scripts.test_riftreader_chatgpt_mcp
+scripts\riftreader-mcp-final.cmd --status --compact-json
+```
+
+## Top 10 recommended next actions
+
+| # | Action | Why |
+|---:|---|---|
+| 1 | Validate and commit the Stage 29 preflight helper with explicit paths. | Makes read-only push safety gates durable before push execution. |
+| 2 | Implement Stage 30 `--push` execution only after preflight rerun and token match. | Keeps remote mutation behind fresh facts. |
+| 3 | Add MCP `push_current_branch` wrapper only after local execution tests pass. | Prevents premature high-power surface expansion. |
+| 4 | Prove missing-token and token-mismatch denials through local and MCP tests. | Ensures ChatGPT cannot push without current approval. |
+| 5 | Verify remote head after any approved push with `git ls-remote`. | Confirms remote mutation did exactly one branch update. |
+| 6 | Expose current-head CI status as Stage 31. | Separates push success from CI success. |
+| 7 | Keep bounded commands design-only until Stage 32. | Avoids accidental arbitrary shell drift. |
+| 8 | Add command allowlist registry as Stage 33 before exposing command calls. | Keeps future repo commands deterministic and reviewable. |
+| 9 | Keep provider repo writes disabled through Stage 37. | Only planning/labeling is in scope before live stages. |
+| 10 | Stop before Stage 38 unless explicitly approved. | Stage 38 is the first live-RIFT boundary. |
+
+Generated UTC: `2026-06-17T10:54:10Z`.
+
+---
 # 2026-06-17 - MCP Stage 28 push design complete-local
 
 Fresh compact handoff:

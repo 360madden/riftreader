@@ -446,7 +446,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "push-current-branch",
         "targetToolName": "push_current_branch",
-        "currentStatus": "designed-not-exposed",
+        "currentStatus": "preflight-implemented-not-exposed",
         "riskClass": "git-remote-mutation",
         "minimumGate": "explicit-operator-approval-in-current-turn",
         "safePrecursorTools": ["get_repo_status", "get_workflow_control_plan"],
@@ -512,15 +512,16 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 29,
-    "currentStageName": "Push preflight helper",
+    "currentStage": 30,
+    "currentStageName": "Expose push_current_branch after safe preflight",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP is proven for gated apply and approval-gated explicit-path "
-        "local commit. Stage 28 push design is complete; push_current_branch remains not exposed until "
-        "the read-only preflight helper, tests, approval-token gate, and CI follow-up contract are implemented."
+        "local commit. Stage 28 push design and Stage 29 read-only push preflight are complete-local; "
+        "push_current_branch remains not exposed until the Stage 30 approval-token push execution helper "
+        "and MCP wrapper tests are implemented."
     ),
-    "nextStage": 30,
-    "nextStageName": "Expose push_current_branch after safe preflight",
+    "nextStage": 31,
+    "nextStageName": "CI monitor integration",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -542,7 +543,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 26, "name": "Expose commit_reviewed_slice", "status": "complete-local"},
         {"stage": 27, "name": "Commit actual-client proof", "status": "complete"},
         {"stage": 28, "name": "Push design spec", "status": "complete-local"},
-        {"stage": 29, "name": "Push preflight helper", "status": "pending"},
+        {"stage": 29, "name": "Push preflight helper", "status": "complete-local"},
+        {"stage": 30, "name": "Expose push_current_branch", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -618,14 +620,14 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
 PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-push-tool-design-contract",
-    "status": "designed-not-exposed",
+    "status": "preflight-implemented-not-exposed",
     "targetToolName": "push_current_branch",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md",
     "stageRange": [28, 29, 30, 31],
-    "currentStage": 28,
+    "currentStage": 29,
     "exposureStatus": "not-exposed",
     "preflightHelper": {
-        "status": "planned-stage-29",
+        "status": "implemented-local-only",
         "module": "tools/riftreader_workflow/push_current_branch.py",
         "cliMode": "--preflight",
         "mutatesRepo": False,
