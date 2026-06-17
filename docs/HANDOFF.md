@@ -1,3 +1,18 @@
+# 2026-06-17 - MCP 20-tool Control Center post-commit
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-20-tool-control-center-post-commit.md`.
+
+| Item | Current truth |
+|---|---|
+| HEAD | `58988ad Add MCP control center GUI`; branch is `main...origin/main [ahead 1]`. |
+| GUI | `scripts\riftreader-mcp-control-center.cmd --open` serves the localhost-only Control Center at `http://127.0.0.1:8790/`. |
+| MCP surface | Local full profile is 20 tools and includes `commit_reviewed_slice`. |
+| Final gate | Blocked: ahead 1/no current-head CI plus stale 19-tool actual-client proof replay. |
+| Next proof step | Fill/check `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-073901Z\proof-input.json` with actual ChatGPT Web/Desktop observations. |
+| Boundaries | No push, approved package apply, approved commit proof, Cloudflare/ChatGPT mutation, RIFT input, CE, or x64dbg action has been taken. |
+
+---
 # 2026-06-17 - MCP Control Center GUI
 
 Fresh compact handoff:
