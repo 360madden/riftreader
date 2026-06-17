@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import sys
+import subprocess
+import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -39,6 +42,7 @@ class BoundedRepoCommandsTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"], payload.get("blockers"))
         self.assertEqual(payload["argv"], ["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"])
+        self.assertEqual(payload["expectedExitCodes"], [0, 1, 2])
         self.assertEqual(payload["cwd"], "repo-root")
         self.assertFalse(payload["shellStringAccepted"])
         self.assertTrue(payload["readOnly"])
@@ -143,6 +147,63 @@ class BoundedRepoCommandsTests(unittest.TestCase):
         self.assertTrue(payload["ok"], payload.get("blockers"))
         self.assertFalse(payload["safety"]["commandExecuted"])
         self.assertFalse(payload["safety"]["mcpToolExposed"])
+
+    def test_run_command_executes_only_registry_argv_and_writes_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").mkdir()
+            (root / "agents.md").write_text("# test\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess(
+                args=["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"],
+                returncode=0,
+                stdout="{\"ok\":true}",
+                stderr="",
+            )
+            with mock.patch.object(commands.subprocess, "run", return_value=completed) as run:
+                payload = commands.run_command("mcp_server_status", repo_root=root)
+            summary_path = Path(payload["summaryPath"])
+            self.assertTrue(summary_path.is_file())
+            self.assertTrue(summary_path.resolve().is_relative_to(root.resolve()))
+
+        run.assert_called_once()
+        called = run.call_args.kwargs
+        self.assertEqual(run.call_args.args[0], ["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"])
+        self.assertEqual(called["cwd"], root.resolve())
+        self.assertFalse(called["check"])
+        self.assertEqual(called["stdin"], subprocess.DEVNULL)
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertTrue(payload["commandExecuted"])
+        self.assertFalse(payload["safety"]["shellStringAccepted"])
+        self.assertFalse(payload["safety"]["arbitraryCommand"])
+        self.assertEqual(payload["stdoutPreview"], "{\"ok\":true}")
+
+    def test_run_command_blocks_unknown_without_execution(self) -> None:
+        with mock.patch.object(commands.subprocess, "run") as run:
+            payload = commands.run_command("git_reset_hard")
+
+        run.assert_not_called()
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["commandExecuted"])
+        self.assertIn("unknown-command-key:git_reset_hard", payload["blockers"])
+
+    def test_run_command_propagates_blocked_json_child_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").mkdir()
+            (root / "agents.md").write_text("# test\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess(
+                args=["cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"],
+                returncode=1,
+                stdout='{"ok":false,"status":"blocked","blockers":["runtime-stale"]}',
+                stderr="",
+            )
+            with mock.patch.object(commands.subprocess, "run", return_value=completed):
+                payload = commands.run_command("mcp_server_status", repo_root=root)
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status"], "blocked")
+        self.assertTrue(payload["commandExecuted"])
+        self.assertIn("child:runtime-stale", payload["blockers"])
 
 
 if __name__ == "__main__":

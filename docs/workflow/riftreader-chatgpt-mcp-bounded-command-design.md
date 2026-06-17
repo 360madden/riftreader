@@ -1,7 +1,7 @@
 # RiftReader ChatGPT MCP bounded repo command design
 
 Stage: **32 — bounded command design spec**  
-Status: **Stage 32 design complete-local; Stage 33 registry complete-local; no command tool exposed by this file**
+Status: **Stage 32 design complete-local; Stage 33 registry complete-local; Stage 34 MCP exposure complete-local**
 
 This document defines the safety contract for a future
 `run_bounded_repo_command` MCP tool. It is intentionally design-only: Stage 32
@@ -108,14 +108,14 @@ Registry facts:
 | CLI inspection | `python tools\riftreader_workflow\bounded_repo_commands.py --list --json` |
 | CLI plan mode | `python tools\riftreader_workflow\bounded_repo_commands.py --plan mcp_server_status --json` |
 | CLI self-test | `python tools\riftreader_workflow\bounded_repo_commands.py --self-test --json` |
-| MCP exposure | Not exposed until Stage 34. |
-| Command execution | Not implemented in Stage 33. |
+| MCP exposure | `run_bounded_repo_command` exposed in Stage 34. |
+| Command execution | Registry-key only; no shell strings or arbitrary argv. |
 
 Initial keys:
 
 | Key | Command family | Why safe enough for first subset |
 |---|---|---|
-| `mcp_server_status` | `scripts\riftreader-mcp-server-status.cmd --json` | Read-only backend dependency truth, now checks live runtime surface. |
+| `mcp_server_status` | `scripts\riftreader-mcp-server-status.cmd --json` | Read-only backend dependency truth, now checks live runtime surface. Accepts exit codes `0`, `1`, or `2` because blocked status is a valid status result. |
 | `mcp_final_status` | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Read-only final readiness gate. |
 | `current_head_ci_status` | `python tools\riftreader_workflow\mcp_ci_status.py --status --json` | Read-only GitHub Actions inspection through existing helper. |
 | `validate_mcp_sdk` | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --validate-sdk --tool-profile full --json` | Local metadata validation; no persistent server or tunnel. |
@@ -205,12 +205,12 @@ Fail closed when:
 | Stage | Required evidence |
 |---:|---|
 | 33 | Complete-local: registry code, tests for allowed keys, tests for denied destructive/live/provider/debugger classes. |
-| 34 | MCP tool wrapper, argument allowlist, local adapter tests, actual connector denial proof for unknown command, and successful proof for one safe status command. |
+| 34 | Complete-local: MCP tool wrapper, argument allowlist, local adapter tests, unknown command denial, and local safe status command run. Actual-client proof remains a separate proof-refresh gate. |
 | 35 | Durable audit/replay helper, tests for envelope contents, replay of at least one successful and one blocked command. |
 
 ## Safety statement
 
-This design plus the Stage 33 registry keep the bounded command lane non-live
-and non-mutating so far. It does not expose a command endpoint through MCP, run
-allowlisted commands from ChatGPT, mutate Git, send RIFT input, attach
-CE/x64dbg, write provider repos, or promote any proof/truth.
+This design, the Stage 33 registry, and the Stage 34 MCP wrapper keep the
+bounded command lane non-live and non-mutating. The exposed command endpoint
+does not accept shell strings, user argv, broad paths, Git mutation, RIFT input,
+CE/x64dbg, provider writes, or proof/truth promotion.

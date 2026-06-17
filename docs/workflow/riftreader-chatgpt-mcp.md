@@ -631,10 +631,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `cloudflare-named-tunnel` (legacy recorder packets may still say `manual-public-ip`) | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 12 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 23 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `12` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 12 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `23` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 23 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 

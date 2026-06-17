@@ -23,6 +23,7 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "commit_reviewed_slice",
     "push_current_branch",
     "get_current_head_ci_status",
+    "run_bounded_repo_command",
     "get_workflow_control_plan",
     "get_dirty_paths",
     "get_recent_commits",

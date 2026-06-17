@@ -43,6 +43,7 @@ RUNTIME_SOURCE_PATHS = (
     Path("tools/riftreader_workflow/commit_reviewed_slice.py"),
     Path("tools/riftreader_workflow/push_current_branch.py"),
     Path("tools/riftreader_workflow/mcp_ci_status.py"),
+    Path("tools/riftreader_workflow/bounded_repo_commands.py"),
     Path("tools/riftreader_workflow/local_artifact_bridge.py"),
     Path("tools/riftreader_workflow/package_draft_review.py"),
     Path("tools/riftreader_workflow/tracked_repo_context.py"),

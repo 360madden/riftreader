@@ -2,10 +2,10 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 34 — expose bounded command subset next**.
+Current stage: **Stage 35 — command audit and replay evidence next**.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
-22-tool surface. A matching PID/port/command line alone is no longer sufficient
+loaded tool surface. A matching PID/port/command line alone is no longer sufficient
 proof that the MCP backend is current. It also checks that the adapter process
 started after current adapter source files were last modified, so
 same-tool-count stale runtimes fail closed.
@@ -17,8 +17,12 @@ future `run_bounded_repo_command` contract.
 Stage 33 registry note:
 `tools/riftreader_workflow/bounded_repo_commands.py` implements the versioned
 local-only allowlist registry (`bounded-repo-command-registry-v1`) for five
-safe status/validation command keys. The command tool remains not exposed until
-Stage 34.
+safe status/validation command keys.
+
+Stage 34 exposure note:
+`run_bounded_repo_command` is exposed for versioned registry keys only. It never
+accepts shell strings or arbitrary argv, and the current full MCP surface is
+23 tools.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
@@ -78,7 +82,7 @@ and `get_current_head_ci_status`; arbitrary shell remains absent.
 | 31 | CI monitor integration | Add ChatGPT-visible CI status after push using existing GitHub/gh-safe local surfaces. | ChatGPT can report current-head CI pass/fail links after push. | complete-local |
 | 32 | Bounded command design spec | Design run_bounded_repo_command with repo-owned allowlist, array args, timeout/output caps, and no shell strings. | Spec defines allowed commands and forbidden classes. | complete-local |
 | 33 | Command allowlist registry | Implement versioned allowlist for validation/build/status helpers only. | Tests prove blocked destructive commands and accepted safe commands. | complete-local |
-| 34 | Expose bounded command read/write-safe subset | Expose command tool for deterministic repo helpers, not arbitrary shell. | ChatGPT can run allowed validations and status helpers only. | pending |
+| 34 | Expose bounded command read/write-safe subset | Expose command tool for deterministic repo helpers, not arbitrary shell. | ChatGPT can run allowed validations and status helpers only. | complete-local |
 | 35 | Command audit and replay evidence | Add durable audit envelopes for command args, cwd, exit code, timing, stdout/stderr previews. | Every command call is explainable and bounded. | pending |
 | 36 | Provider repo write planning | Design external/provider repo write boundaries for ChromaLink/RiftScan-style integrations. | Plan requires explicit provider authorization and separate roots. | pending |
 | 37 | Provider-safe proposal flow | Extend proposal/draft model to label provider writes separately without enabling them by default. | ChatGPT cannot silently mix RiftReader and provider repo mutations. | pending |
@@ -100,14 +104,13 @@ and `get_current_head_ci_status`; arbitrary shell remains absent.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 34 | Expose bounded command subset | Expose deterministic repo helpers only; never arbitrary shell. |
-| 2 | 35 | Command audit and replay evidence | Make every allowed command call replayable and bounded. |
-| 3 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
-| 4 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
-| 5 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
-| 6 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 7 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 8 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 35 | Command audit and replay evidence | Make every allowed command call replayable and bounded. |
+| 2 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
+| 3 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
+| 4 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
+| 5 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 6 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 7 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 
 ## High-risk exposure order
 

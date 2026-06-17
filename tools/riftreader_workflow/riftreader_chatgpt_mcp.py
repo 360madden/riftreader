@@ -136,6 +136,9 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     ),
     "push_current_branch": frozenset({"expectedHead", "branch", "upstream", "approvalToken", "timeoutSeconds"}),
     "get_current_head_ci_status": frozenset({"timeoutSeconds"}),
+    "run_bounded_repo_command": frozenset(
+        {"commandKey", "parameters", "expectedRegistryVersion", "approvalToken", "timeoutSeconds"}
+    ),
     "get_workflow_control_plan": frozenset(),
     "get_dirty_paths": frozenset(),
     "get_recent_commits": frozenset({"limit"}),
@@ -281,7 +284,7 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
         "nextStage": stage_plan.get("nextStage"),
         "nextStageName": stage_plan.get("nextStageName"),
         "planPath": stage_plan.get("planPath"),
-        "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=120),
+        "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=80),
         "immediateStages": limited_list(stage_plan.get("immediateStages")),
         "phaseOrderCount": len(phase_order),
     }
@@ -376,7 +379,8 @@ def compact_bounded_command_contract(contract: dict[str, Any]) -> dict[str, Any]
         "registryStatus": contract.get("registryStatus"),
         "registryVersion": contract.get("registryVersion"),
         "registryCommandCount": contract.get("registryCommandCount"),
-        "registryCommandKeys": limited_list(contract.get("registryCommandKeys"), limit=3),
+        "registryCommandKeys": limited_list(contract.get("registryCommandKeys"), limit=1),
+        "executionStatus": contract.get("executionStatus"),
         "argumentKeys": [key for key in contract.get("argumentKeys") or [] if key == "commandKey"],
         "requiredGates": [
             gate
@@ -492,7 +496,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "bounded-shell-command",
         "targetToolName": "run_bounded_repo_command",
-        "currentStatus": "allowlist-registry-complete-not-exposed",
+        "currentStatus": "exposed-gated",
         "riskClass": "bounded-command-execution",
         "minimumGate": "explicit-operator-approval-plus-command-allowlist",
         "safePrecursorTools": ["get_workflow_control_plan"],
@@ -543,15 +547,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 34,
-    "currentStageName": "Expose bounded command subset",
+    "currentStage": 35,
+    "currentStageName": "Command audit and replay evidence",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
-        "approval-gated normal current-branch push, and read-only current-head CI status. Stage 33 bounded "
-        "command allowlist registry is complete-local; Stage 34 command exposure is next; arbitrary shell remains absent."
+        "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
+        "execution for registry keys only. Stage 35 command audit/replay evidence is next; arbitrary shell remains absent."
     ),
-    "nextStage": 35,
-    "nextStageName": "Command audit and replay evidence",
+    "nextStage": 36,
+    "nextStageName": "Provider repo write planning",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -578,7 +582,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 31, "name": "CI monitor integration", "status": "complete-local"},
         {"stage": 32, "name": "Bounded command design spec", "status": "complete-local"},
         {"stage": 33, "name": "Command allowlist registry", "status": "complete-local"},
-        {"stage": 34, "name": "Expose bounded command subset", "status": "pending"},
+        {"stage": 34, "name": "Expose bounded command subset", "status": "complete-local"},
+        {"stage": 35, "name": "Command audit and replay evidence", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -730,18 +735,22 @@ PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
 BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-bounded-command-design-contract",
-    "status": "allowlist-registry-complete-not-exposed",
+    "status": "exposed-gated",
     "targetToolName": "run_bounded_repo_command",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
     "stageRange": [32, 33, 34, 35],
-    "currentStage": 33,
-    "exposureStatus": "not-exposed",
+    "currentStage": 34,
+    "exposureStatus": "exposed-gated",
     "registryStatus": "implemented-local-only",
     "registryModule": "tools/riftreader_workflow/bounded_repo_commands.py",
     "registryVersion": bounded_repo_commands.REGISTRY_VERSION,
     "registryCommandCount": len(bounded_repo_commands.command_keys()),
-    "registryCommandKeys": bounded_repo_commands.command_keys(),
+    "registryCommandKeys": [
+        "mcp_server_status",
+        *[key for key in bounded_repo_commands.command_keys() if key != "mcp_server_status"],
+    ],
     "auditStatus": "planned-stage-35",
+    "executionStatus": "implemented-and-mcp-wrapped",
     "argumentKeys": [
         "commandKey",
         "parameters",
@@ -776,7 +785,7 @@ BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
         "secret-printing-or-env-dump",
     ],
     "safety": {
-        "mcpToolExposed": False,
+        "mcpToolExposed": True,
         "arbitraryShellAllowed": False,
         "providerWrites": False,
         "liveRiftInput": False,
@@ -948,6 +957,20 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             "runs arbitrary shell commands, sends RIFT input, writes provider repos, or touches CE/x64dbg."
         ),
         read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "run_bounded_repo_command": ToolSpec(
+        name="run_bounded_repo_command",
+        title="Run Bounded Repo Command",
+        description=(
+            "Use this when the operator wants to run one repo-owned bounded command from the versioned allowlist, "
+            "such as MCP status, final-readiness status, current-head CI status, SDK validation, or a focused unit test. "
+            "This accepts a commandKey only, never accepts shell strings or arbitrary argv, enforces registry timeout/output "
+            "caps, writes a local run summary under .riftreader-local, and never mutates Git, sends RIFT input, writes "
+            "provider repos, promotes proof/truth, or touches CE/x64dbg."
+        ),
+        read_only=False,
         destructive=False,
         open_world=True,
     ),
@@ -1247,6 +1270,14 @@ def optional_str(value: Any, *, field_name: str) -> str | None:
     return stripped or None
 
 
+def optional_mapping(value: Any, *, field_name: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise AdapterError("INVALID_OBJECT", f"{field_name} must be a JSON object when supplied.")
+    return value
+
+
 def required_str(value: Any, *, field_name: str) -> str:
     text = optional_str(value, field_name=field_name)
     if text is None:
@@ -1498,6 +1529,19 @@ class RiftReaderChatGptMcpAdapter:
                 ),
                 "get_current_head_ci_status": lambda call_args: self.get_current_head_ci_status(
                     timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), 30.0),
+                ),
+                "run_bounded_repo_command": lambda call_args: self.run_bounded_repo_command(
+                    command_key=required_str(call_args.get("commandKey"), field_name="commandKey"),
+                    parameters=optional_mapping(call_args.get("parameters"), field_name="parameters"),
+                    expected_registry_version=optional_str(
+                        call_args.get("expectedRegistryVersion"), field_name="expectedRegistryVersion"
+                    ),
+                    approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
+                    timeout_seconds=(
+                        bounded_timeout(call_args.get("timeoutSeconds"), 120.0)
+                        if call_args.get("timeoutSeconds") is not None
+                        else None
+                    ),
                 ),
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
                 "get_dirty_paths": lambda _: self.get_dirty_paths(),
@@ -2171,6 +2215,63 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def run_bounded_repo_command(
+        self,
+        *,
+        command_key: str,
+        parameters: dict[str, Any] | None = None,
+        expected_registry_version: str | None = None,
+        approval_token: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        payload = bounded_repo_commands.run_command(
+            command_key,
+            parameters,
+            expected_registry_version=expected_registry_version,
+            timeout_seconds=timeout_seconds,
+            approval_token=approval_token,
+            repo_root=self.config.repo_root,
+        )
+        payload_safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-run-bounded-repo-command",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "registryVersion": payload.get("registryVersion"),
+            "commandKey": payload.get("commandKey"),
+            "summaryPath": payload.get("summaryPathRel") or payload.get("summaryPath"),
+            "exitCode": payload.get("exitCode"),
+            "timedOut": bool(payload.get("timedOut")),
+            "durationSeconds": payload.get("durationSeconds"),
+            "stdoutPreview": payload.get("stdoutPreview"),
+            "stderrPreview": payload.get("stderrPreview"),
+            "stdoutTruncated": bool(payload.get("stdoutTruncated")),
+            "stderrTruncated": bool(payload.get("stderrTruncated")),
+            "commandResult": payload,
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "boundedCommand": True,
+                "commandExecuted": bool(payload_safety.get("commandExecuted")),
+                "shellStringAccepted": False,
+                "arbitraryCommand": False,
+                "gitMutation": bool(payload_safety.get("gitMutation")),
+                "remoteMutation": bool(payload_safety.get("remoteMutation")),
+                "providerWrites": bool(payload_safety.get("providerWrites")),
+                "inputSent": bool(payload_safety.get("inputSent")),
+                "movementSent": bool(payload_safety.get("movementSent")),
+                "reloaduiSent": bool(payload_safety.get("reloaduiSent")),
+                "screenshotKeySent": bool(payload_safety.get("screenshotKeySent")),
+                "x64dbgAttach": bool(payload_safety.get("x64dbgAttach")),
+                "noCheatEngine": payload_safety.get("noCheatEngine") is not False,
+                "proofPromotion": bool(payload_safety.get("proofPromotion")),
+                "mcpToolExposed": True,
+            },
+        }
+
     def get_workflow_control_summary(self) -> dict[str, Any]:
         """Return the smallest read-only workflow-control packet for ChatGPT MCP transport."""
 
@@ -2296,11 +2397,13 @@ class RiftReaderChatGptMcpAdapter:
                 "commitApprovedSlice": ["commit_reviewed_slice"],
                 "pushApprovedBranch": ["push_current_branch"],
                 "inspectCurrentHeadCi": ["get_current_head_ci_status"],
+                "runBoundedRepoCommand": ["run_bounded_repo_command"],
                 "writeBoundary": (
                     "ChatGPT-originated proposal writes are stored only under .riftreader-local inbox/package-draft "
                     "artifacts until apply_latest_package_draft receives a local preflight approval token; local Git commits "
                     "are limited to commit_reviewed_slice after a current commit-preflight approval token; remote pushes "
-                    "are limited to push_current_branch after a current push-preflight approval token."
+                    "are limited to push_current_branch after a current push-preflight approval token; bounded commands "
+                    "are limited to versioned registry keys and never accept shell strings."
                 ),
             },
             "missionControl": {
@@ -2321,7 +2424,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "bounded-command-allowlist-registry-complete-exposure-next",
+                "status": "bounded-command-exposure-complete-audit-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -5926,6 +6029,7 @@ def create_fastmcp_server(
             "RIFT input, CE, x64dbg, or tunnel control; those tools are intentionally absent. "
             "Git mutation endpoints are commit_reviewed_slice for one explicit-path local commit and push_current_branch "
             "for one approval-gated normal non-force current-branch push after local preflight. "
+            "run_bounded_repo_command executes only versioned registry keys and never accepts shell strings. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -6103,6 +6207,26 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_current_head_ci_status", {"timeoutSeconds": timeoutSeconds})
 
+    def run_bounded_repo_command(
+        commandKey: str,  # noqa: N803 - MCP input name.
+        parameters: dict[str, Any] | None = None,
+        expectedRegistryVersion: str | None = None,  # noqa: N803 - MCP input name.
+        approvalToken: str | None = None,  # noqa: N803 - MCP input name.
+        timeoutSeconds: float | None = None,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need one allowlisted repo command by commandKey only."""
+
+        return adapter.call_tool(
+            "run_bounded_repo_command",
+            {
+                "commandKey": commandKey,
+                "parameters": parameters,
+                "expectedRegistryVersion": expectedRegistryVersion,
+                "approvalToken": approvalToken,
+                "timeoutSeconds": timeoutSeconds,
+            },
+        )
+
     def get_workflow_control_plan() -> dict[str, Any]:
         """Use this when you need a read-only repo workflow control plan."""
 
@@ -6219,6 +6343,7 @@ def create_fastmcp_server(
         "commit_reviewed_slice": commit_reviewed_slice,
         "push_current_branch": push_current_branch,
         "get_current_head_ci_status": get_current_head_ci_status,
+        "run_bounded_repo_command": run_bounded_repo_command,
         "get_workflow_control_plan": get_workflow_control_plan,
         "get_dirty_paths": get_dirty_paths,
         "get_recent_commits": get_recent_commits,

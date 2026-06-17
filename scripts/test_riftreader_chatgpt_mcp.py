@@ -354,9 +354,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(annotation_by_name["apply_latest_package_draft"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["commit_reviewed_slice"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["push_current_branch"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["run_bounded_repo_command"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_current_head_ci_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["push_current_branch"]["openWorldHint"])
         self.assertTrue(annotation_by_name["get_current_head_ci_status"]["openWorldHint"])
+        self.assertTrue(annotation_by_name["run_bounded_repo_command"]["openWorldHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
         self.assertEqual(allowed_args_by_name["get_workflow_control_summary"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
@@ -383,6 +385,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             ["approvalToken", "branch", "expectedHead", "timeoutSeconds", "upstream"],
         )
         self.assertEqual(allowed_args_by_name["get_current_head_ci_status"], ["timeoutSeconds"])
+        self.assertEqual(
+            allowed_args_by_name["run_bounded_repo_command"],
+            ["approvalToken", "commandKey", "expectedRegistryVersion", "parameters", "timeoutSeconds"],
+        )
         self.assertEqual(allowed_args_by_name["repo_tree_tracked"], ["depth", "includeBlockedMeta", "limit", "prefix"])
         self.assertEqual(
             allowed_args_by_name["repo_search_tracked"],
@@ -397,7 +403,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         for annotations in annotation_by_name.values():
             self.assertFalse(annotations["destructiveHint"])
         for name, annotations in annotation_by_name.items():
-            if name in {"push_current_branch", "get_current_head_ci_status"}:
+            if name in {"push_current_branch", "get_current_head_ci_status", "run_bounded_repo_command"}:
                 self.assertTrue(annotations["openWorldHint"])
             else:
                 self.assertFalse(annotations["openWorldHint"])
@@ -1065,6 +1071,115 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["readOnlyGitHubCliInspection"])
         assert_repo_root_not_serialized(self, root, payload)
 
+    def test_run_bounded_repo_command_executes_registry_key_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            helper_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-bounded-repo-command-run",
+                "status": "passed",
+                "ok": True,
+                "registryVersion": "bounded-repo-command-registry-v1",
+                "commandKey": "mcp_server_status",
+                "summaryPathRel": ".riftreader-local\\riftreader-chatgpt-mcp\\bounded-commands\\x\\run-summary.json",
+                "exitCode": 0,
+                "timedOut": False,
+                "durationSeconds": 0.1,
+                "stdoutPreview": "{\"ok\":true}",
+                "stderrPreview": "",
+                "stdoutTruncated": False,
+                "stderrTruncated": False,
+                "blockers": [],
+                "warnings": [],
+                "safety": {
+                    "commandExecuted": True,
+                    "shellStringAccepted": False,
+                    "arbitraryCommand": False,
+                    "gitMutation": False,
+                    "remoteMutation": False,
+                    "providerWrites": False,
+                    "inputSent": False,
+                    "movementSent": False,
+                    "x64dbgAttach": False,
+                    "noCheatEngine": True,
+                    "proofPromotion": False,
+                },
+            }
+            with mock.patch.object(
+                chatgpt_mcp.bounded_repo_commands,
+                "run_command",
+                return_value=helper_payload,
+            ) as run_command:
+                payload = adapter.call_tool(
+                    "run_bounded_repo_command",
+                    {
+                        "commandKey": "mcp_server_status",
+                        "parameters": {},
+                        "expectedRegistryVersion": "bounded-repo-command-registry-v1",
+                        "timeoutSeconds": 20,
+                    },
+                )
+
+        run_command.assert_called_once_with(
+            "mcp_server_status",
+            {},
+            expected_registry_version="bounded-repo-command-registry-v1",
+            timeout_seconds=20.0,
+            approval_token=None,
+            repo_root=root,
+        )
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertEqual(payload["commandKey"], "mcp_server_status")
+        self.assertTrue(payload["safety"]["commandExecuted"])
+        self.assertFalse(payload["safety"]["shellStringAccepted"])
+        self.assertFalse(payload["safety"]["arbitraryCommand"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["providerWrites"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_run_bounded_repo_command_blocks_unknown_key_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            helper_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-bounded-repo-command-run",
+                "status": "blocked",
+                "ok": False,
+                "registryVersion": "bounded-repo-command-registry-v1",
+                "commandKey": "git_reset_hard",
+                "summaryPath": None,
+                "exitCode": None,
+                "timedOut": False,
+                "blockers": ["unknown-command-key:git_reset_hard"],
+                "warnings": [],
+                "safety": {
+                    "commandExecuted": False,
+                    "shellStringAccepted": False,
+                    "arbitraryCommand": False,
+                    "gitMutation": False,
+                    "providerWrites": False,
+                    "inputSent": False,
+                    "movementSent": False,
+                    "x64dbgAttach": False,
+                    "noCheatEngine": True,
+                },
+            }
+            with mock.patch.object(
+                chatgpt_mcp.bounded_repo_commands,
+                "run_command",
+                return_value=helper_payload,
+            ) as run_command:
+                payload = adapter.call_tool("run_bounded_repo_command", {"commandKey": "git_reset_hard"})
+
+        run_command.assert_called_once()
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["safety"]["commandExecuted"])
+        self.assertIn("unknown-command-key:git_reset_hard", payload["blockers"])
+
     def test_invalid_operator_only_type_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1316,6 +1431,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit_reviewed_slice", payload["bidirectionalDataTransfer"]["commitApprovedSlice"])
         self.assertIn("push_current_branch", payload["bidirectionalDataTransfer"]["pushApprovedBranch"])
         self.assertIn("get_current_head_ci_status", payload["bidirectionalDataTransfer"]["inspectCurrentHeadCi"])
+        self.assertIn("run_bounded_repo_command", payload["bidirectionalDataTransfer"]["runBoundedRepoCommand"])
         self.assertEqual(payload["safeCommitPlan"]["stageablePaths"], ["docs/example.md"])
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
@@ -1329,11 +1445,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "bounded-command-allowlist-registry-complete-exposure-next",
+            "bounded-command-exposure-complete-audit-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 34)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 35)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 35)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 36)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -1377,17 +1493,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("no-force-push", push_contract["requiredGates"])
         self.assertIn("PUSH_APPROVAL_MISSING", push_contract["failClosedBlockers"])
         command_contract = payload["futureToolContracts"]["run_bounded_repo_command"]
-        self.assertEqual(command_contract["status"], "allowlist-registry-complete-not-exposed")
+        self.assertEqual(command_contract["status"], "exposed-gated")
         self.assertEqual(command_contract["targetToolName"], "run_bounded_repo_command")
         self.assertEqual(
             command_contract["designPath"],
             "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
         )
-        self.assertEqual(command_contract["currentStage"], 33)
-        self.assertEqual(command_contract["exposureStatus"], "not-exposed")
+        self.assertEqual(command_contract["currentStage"], 34)
+        self.assertEqual(command_contract["exposureStatus"], "exposed-gated")
         self.assertEqual(command_contract["registryStatus"], "implemented-local-only")
         self.assertEqual(command_contract["registryVersion"], "bounded-repo-command-registry-v1")
         self.assertEqual(command_contract["registryCommandCount"], 5)
+        self.assertEqual(command_contract["executionStatus"], "implemented-and-mcp-wrapped")
         self.assertIn("mcp_server_status", command_contract["registryCommandKeys"])
         self.assertIn("commandKey", command_contract["argumentKeys"])
         self.assertIn("fixed-argv-template", command_contract["requiredGates"])
@@ -1399,7 +1516,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("push_current_branch", chatgpt_mcp.TOOL_SPECS)
         self.assertIn("get_current_head_ci_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("get_current_head_ci_status", chatgpt_mcp.TOOL_SPECS)
-        self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
+        self.assertIn("run_bounded_repo_command", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 
     def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1513,7 +1631,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         for registration in server.registrations:
             self.assertIn("Use this when", registration["description"])
             self.assertFalse(registration["annotations"].destructiveHint)
-            if registration["name"] in {"push_current_branch", "get_current_head_ci_status"}:
+            if registration["name"] in {"push_current_branch", "get_current_head_ci_status", "run_bounded_repo_command"}:
                 self.assertTrue(registration["annotations"].openWorldHint)
             else:
                 self.assertFalse(registration["annotations"].openWorldHint)

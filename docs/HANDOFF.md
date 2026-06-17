@@ -1,3 +1,18 @@
+# 2026-06-17 - MCP Stage 34 bounded command exposure complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage34-bounded-command-exposure-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 34 | Complete-local: `run_bounded_repo_command` exposed through the MCP adapter. |
+| Tool surface | Full profile is now 23 tools; restart the local backend before proof/status. |
+| Boundary | Only registry `commandKey` values are accepted; no shell strings or arbitrary argv. |
+| Evidence | Bounded command runs write ignored summaries under `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands\`. |
+| Next stage | Stage 35 command audit and replay evidence. |
+| Remaining proof blocker | Actual-client proof replay still needs a fresh 23-tool observation before final readiness can pass. |
+
+---
 # 2026-06-17 - MCP Stage 33 command allowlist registry complete-local
 
 Fresh compact handoff:

@@ -8,23 +8,27 @@ execute commands and it is not an MCP tool surface.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 try:
-    from .common import find_repo_root, safety_flags, utc_iso
+    from .common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
 except ImportError:  # pragma: no cover - direct script execution fallback.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.common import find_repo_root, safety_flags, utc_iso
+    from riftreader_workflow.common import find_repo_root, repo_rel, safety_flags, utc_iso, utc_stamp
 
 
 SCHEMA_VERSION = 1
 REGISTRY_VERSION = "bounded-repo-command-registry-v1"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 MAX_PARAMETER_VALUE_CHARS = 400
+DEFAULT_OUTPUT_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "bounded-commands"
 FORBIDDEN_ARGV_FRAGMENTS = (
     "&&",
     "|",
@@ -139,7 +143,7 @@ def build_registry() -> dict[str, BoundedCommandSpec]:
             description="Verify local ChatGPT MCP backend process, live tool surface, and source freshness.",
             risk_class="status-read",
             argv_template=("cmd", "/c", "scripts\\riftreader-mcp-server-status.cmd", "--json"),
-            expected_exit_codes=(0, 2),
+            expected_exit_codes=(0, 1, 2),
             timeout_seconds=25.0,
             max_stdout_bytes=80_000,
             max_stderr_bytes=20_000,
@@ -349,6 +353,195 @@ def command_plan_payload(
     }
 
 
+def _truncate_bytes(text: str | None, max_bytes: int) -> tuple[str, bool, int]:
+    if not text:
+        return "", False, 0
+    data = text.encode("utf-8", errors="replace")
+    original_bytes = len(data)
+    if original_bytes <= max_bytes:
+        return text, False, original_bytes
+    truncated = data[:max_bytes].decode("utf-8", errors="replace")
+    return truncated, True, original_bytes
+
+
+def _sha256_text(text: str | None) -> str | None:
+    if text is None or text == "":
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _parse_json_object(text: str) -> dict[str, Any] | None:
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return None
+    try:
+        value = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _run_summary_path(repo_root: Path, command_key: str) -> Path:
+    safe_key = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in command_key)
+    output_dir = repo_root / DEFAULT_OUTPUT_ROOT / f"{utc_stamp()}-{safe_key}"
+    suffix = 2
+    while output_dir.exists():
+        output_dir = repo_root / DEFAULT_OUTPUT_ROOT / f"{utc_stamp()}-{safe_key}-{suffix}"
+        suffix += 1
+    output_dir.mkdir(parents=True, exist_ok=False)
+    return output_dir / "run-summary.json"
+
+
+def run_command(
+    command_key: str,
+    parameters: dict[str, Any] | None = None,
+    *,
+    expected_registry_version: str | None = None,
+    timeout_seconds: float | None = None,
+    approval_token: str | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    plan = plan_command(
+        command_key,
+        parameters,
+        expected_registry_version=expected_registry_version,
+        timeout_seconds=timeout_seconds,
+    )
+    spec = command_spec(command_key)
+    blockers = list(plan.get("blockers") or [])
+    if spec is not None and spec.requires_approval_token and not approval_token:
+        blockers.append(f"approval-token-required:{command_key}")
+    if blockers or spec is None:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-bounded-repo-command-run",
+            "generatedAtUtc": utc_iso(),
+            "status": "blocked",
+            "ok": False,
+            "registryVersion": REGISTRY_VERSION,
+            "commandKey": command_key,
+            "parameters": parameters or {},
+            "plan": plan,
+            "summaryPath": None,
+            "exitCode": None,
+            "timedOut": False,
+            "commandExecuted": False,
+            "blockers": blockers,
+            "warnings": [],
+            "safety": {
+                **safety_flags(),
+                **default_command_safety_flags(),
+                "mcpToolExposed": True,
+                "commandExecuted": False,
+                "shellStringAccepted": False,
+                "arbitraryCommand": False,
+                "gitMutation": False,
+                "providerWrites": False,
+            },
+        }
+
+    root = find_repo_root(repo_root or Path.cwd())
+    argv = list(spec.argv_template)
+    started_at = utc_iso()
+    start = time.monotonic()
+    stdout_text = ""
+    stderr_text = ""
+    exit_code: int | None = None
+    timed_out = False
+    error: str | None = None
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=root,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=plan.get("timeoutSeconds"),
+        )
+        exit_code = completed.returncode
+        stdout_text = completed.stdout or ""
+        stderr_text = completed.stderr or ""
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        error = f"TimeoutExpired:{exc}"
+        stdout_text = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr_text = exc.stderr if isinstance(exc.stderr, str) else ""
+    except FileNotFoundError as exc:
+        error = f"FileNotFoundError:{exc}"
+    except Exception as exc:  # noqa: BLE001 - command envelopes must capture unexpected local failures.
+        error = f"{type(exc).__name__}:{exc}"
+    ended_at = utc_iso()
+    duration = round(time.monotonic() - start, 3)
+    stdout_preview, stdout_truncated, stdout_bytes = _truncate_bytes(stdout_text, spec.max_stdout_bytes)
+    stderr_preview, stderr_truncated, stderr_bytes = _truncate_bytes(stderr_text, spec.max_stderr_bytes)
+    run_blockers: list[str] = []
+    if timed_out:
+        run_blockers.append(f"command-timeout:{command_key}")
+    if error and not timed_out:
+        run_blockers.append(f"command-error:{error.split(':', 1)[0]}")
+    if exit_code is not None and exit_code not in spec.expected_exit_codes:
+        run_blockers.append(f"exit-code-unexpected:{exit_code}")
+    child_payload = _parse_json_object(stdout_text)
+    child_status = child_payload.get("status") if isinstance(child_payload, dict) else None
+    child_ok = child_payload.get("ok") if isinstance(child_payload, dict) else None
+    if child_ok is False:
+        child_blockers = child_payload.get("blockers") if isinstance(child_payload.get("blockers"), list) else []
+        if child_blockers:
+            run_blockers.extend(f"child:{blocker}" for blocker in child_blockers[:10] if isinstance(blocker, str))
+        else:
+            run_blockers.append(f"child-status:{child_status or 'blocked'}")
+    ok = not run_blockers
+    status = "passed" if ok else ("blocked" if child_ok is False or child_status == "blocked" else "failed")
+    summary_path = _run_summary_path(root, command_key)
+    payload = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-bounded-repo-command-run",
+        "generatedAtUtc": ended_at,
+        "registryVersion": REGISTRY_VERSION,
+        "commandKey": command_key,
+        "parameters": parameters or {},
+        "status": status,
+        "ok": ok,
+        "plan": plan,
+        "cwd": str(root),
+        "argv": argv,
+        "startedAtUtc": started_at,
+        "endedAtUtc": ended_at,
+        "durationSeconds": duration,
+        "exitCode": exit_code,
+        "timedOut": timed_out,
+        "error": error,
+        "stdoutPreview": stdout_preview,
+        "stderrPreview": stderr_preview,
+        "stdoutTruncated": stdout_truncated,
+        "stderrTruncated": stderr_truncated,
+        "stdoutBytes": stdout_bytes,
+        "stderrBytes": stderr_bytes,
+        "stdoutSha256": _sha256_text(stdout_text),
+        "stderrSha256": _sha256_text(stderr_text),
+        "childStatus": child_status,
+        "childOk": child_ok,
+        "summaryPath": str(summary_path),
+        "summaryPathRel": repo_rel(root, summary_path),
+        "commandExecuted": True,
+        "blockers": run_blockers,
+        "warnings": [],
+        "safety": {
+            **safety_flags(),
+            **(spec.safety_flags or default_command_safety_flags()),
+            "mcpToolExposed": True,
+            "commandExecuted": True,
+            "shellStringAccepted": False,
+            "arbitraryCommand": False,
+            "gitMutation": False,
+            "providerWrites": False,
+        },
+    }
+    summary_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
+
+
 def registry_payload() -> dict[str, Any]:
     blockers = validate_registry_integrity()
     return {
@@ -380,6 +573,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--plan", metavar="COMMAND_KEY")
+    parser.add_argument("--run", metavar="COMMAND_KEY")
     parser.add_argument("--parameters-json", default="{}")
     parser.add_argument("--expected-registry-version", default=None)
     parser.add_argument("--timeout-seconds", type=float, default=None)
@@ -445,6 +639,14 @@ def main(argv: list[str] | None = None) -> int:
             load_parameters(args.parameters_json),
             expected_registry_version=args.expected_registry_version,
             timeout_seconds=args.timeout_seconds,
+        )
+    elif args.run:
+        payload = run_command(
+            args.run,
+            load_parameters(args.parameters_json),
+            expected_registry_version=args.expected_registry_version,
+            timeout_seconds=args.timeout_seconds,
+            repo_root=Path(args.repo_root) if args.repo_root else None,
         )
     else:
         payload = registry_payload()
