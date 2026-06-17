@@ -7,10 +7,11 @@ Fresh compact handoff:
 |---|---|
 | Stage 38 | Not active. It remains parked behind final readiness plus explicit live-boundary approval. |
 | Safe work completed | Stale proof/tool-count wording was refreshed; final readiness now distinguishes historical `releaseHandoffPath` from current `latestMcpHandoffPath`; stale runtime after source edits was detected and fixed with guarded exact-PID restart. |
-| Commits | `d734640` refreshed pre-Stage-38 proof surfaces. `657bba5` surfaced latest MCP handoff status. Both are pushed to `origin/main`. |
-| CI | Head `657bba5460199ee4762bd24c5c08496da1ab1632` passed `.NET build and test` run `27710878467` and `RiftReader Policy` run `27710878242`. |
+| Commits | `d734640` refreshed pre-Stage-38 proof surfaces. `657bba5` surfaced latest MCP handoff status. `0ee43ba`/`1f17f3b` refreshed and discovery-aligned this handoff. All are pushed to `origin/main`. |
+| CI | Current head `1f17f3be16d54238e389e6582517ffc2799bd25c` passed `.NET build and test` run `27711471918` and `RiftReader Policy` run `27711471903`. |
 | Runtime | Current PID `132248` reports `running-current`, source-fresh, full profile, 33/33 tools, and no stdio counterparts. |
 | Route | Cloudflare named Tunnel route `https://mcp.360madden.com/mcp` passes Stage 38 route criterion. |
+| Client transport | Direct `mcp__riftreader.health` probe from this session returned `Transport closed`; refresh/reconnect the ChatGPT MCP app before recording proof. |
 | Remaining blocker | Actual ChatGPT Web/Desktop proof is still old 20-tool evidence and lacks `clientTransportStatus=tool-call-succeeded` plus `healthCallSucceeded=true`. |
 | Next command | `scripts\riftreader-chatgpt-trial-recorder.cmd --check-input --input .riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-174546Z\proof-input.json --json` after filling actual-client observations. |
 
