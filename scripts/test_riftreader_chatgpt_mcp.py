@@ -353,7 +353,17 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["repo_read_tracked_file"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["repo_read_many_tracked_files"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["repo_context_pack"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_mcp_runtime_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_tool_surface_diff"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["run_mcp_restart_preflight"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["restart_mcp_runtime"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_tunnel_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_chatgpt_connector_setup_packet"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_final_readiness_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_actual_client_proof_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["list_bounded_repo_commands"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["submit_actual_client_observation"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["create_package_draft_from_inbox"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["dry_run_latest_package_draft"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["apply_latest_package_draft"]["readOnlyHint"])
@@ -364,8 +374,21 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["push_current_branch"]["openWorldHint"])
         self.assertTrue(annotation_by_name["get_current_head_ci_status"]["openWorldHint"])
         self.assertTrue(annotation_by_name["run_bounded_repo_command"]["openWorldHint"])
+        self.assertTrue(annotation_by_name["get_tunnel_status"]["openWorldHint"])
         self.assertEqual(allowed_args_by_name["health"], [])
         self.assertEqual(allowed_args_by_name["get_workflow_control_summary"], [])
+        self.assertEqual(allowed_args_by_name["get_mcp_runtime_status"], [])
+        self.assertEqual(allowed_args_by_name["get_tool_surface_diff"], [])
+        self.assertEqual(allowed_args_by_name["run_mcp_restart_preflight"], [])
+        self.assertEqual(
+            allowed_args_by_name["restart_mcp_runtime"],
+            ["approvalToken", "commandLineSha256", "processCreationDate", "targetPid", "timeoutSeconds"],
+        )
+        self.assertEqual(allowed_args_by_name["get_tunnel_status"], [])
+        self.assertEqual(allowed_args_by_name["get_chatgpt_connector_setup_packet"], [])
+        self.assertEqual(allowed_args_by_name["get_final_readiness_status"], [])
+        self.assertEqual(allowed_args_by_name["submit_actual_client_observation"], ["observation"])
+        self.assertEqual(allowed_args_by_name["get_actual_client_proof_status"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
         self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
@@ -394,6 +417,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             allowed_args_by_name["run_bounded_repo_command"],
             ["approvalToken", "commandKey", "expectedRegistryVersion", "parameters", "timeoutSeconds"],
         )
+        self.assertEqual(allowed_args_by_name["list_bounded_repo_commands"], [])
         self.assertEqual(allowed_args_by_name["repo_tree_tracked"], ["depth", "includeBlockedMeta", "limit", "prefix"])
         self.assertEqual(
             allowed_args_by_name["repo_search_tracked"],
@@ -408,7 +432,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         for tool_annotations in annotation_by_name.values():
             self.assertFalse(tool_annotations["destructiveHint"])
         for name, tool_annotations in annotation_by_name.items():
-            if name in {"push_current_branch", "get_current_head_ci_status", "run_bounded_repo_command"}:
+            if name in {
+                "push_current_branch",
+                "get_current_head_ci_status",
+                "run_bounded_repo_command",
+                "get_final_readiness_status",
+                "get_tunnel_status",
+            }:
                 self.assertTrue(tool_annotations["openWorldHint"])
             else:
                 self.assertFalse(tool_annotations["openWorldHint"])
@@ -427,6 +457,16 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertNotIn("apply_latest_package_draft", names)
         self.assertNotIn("commit_reviewed_slice", names)
         self.assertNotIn("push_current_branch", names)
+        self.assertNotIn("submit_actual_client_observation", names)
+        self.assertNotIn("restart_mcp_runtime", names)
+        self.assertIn("get_mcp_runtime_status", names)
+        self.assertIn("get_tool_surface_diff", names)
+        self.assertIn("run_mcp_restart_preflight", names)
+        self.assertIn("get_tunnel_status", names)
+        self.assertIn("get_chatgpt_connector_setup_packet", names)
+        self.assertIn("get_final_readiness_status", names)
+        self.assertIn("get_actual_client_proof_status", names)
+        self.assertIn("list_bounded_repo_commands", names)
         self.assertTrue(all(item["annotations"]["readOnlyHint"] for item in manifest["tools"]))
         self.assertFalse(manifest["safety"]["writeLikeToolsExposed"])
         self.assertEqual(chatgpt_mcp.tool_manifest()["toolProfile"], chatgpt_mcp.TOOL_PROFILE_FULL)
@@ -1229,6 +1269,399 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["commandExecuted"])
         self.assertIn("unknown-command-key:git_reset_hard", payload["blockers"])
 
+    def test_get_mcp_runtime_status_reports_dependency_sequence_without_recursive_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            helper_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-chatgpt-mcp-server-status",
+                "status": "running-current",
+                "ok": True,
+                "dependencySequence": [{"key": "saved-connector-is-not-runtime", "status": "info", "ok": True}],
+                "runtimeSourceFreshness": {"status": "passed", "ok": True},
+                "runtimeSurface": {"status": "skipped", "ok": None},
+                "operatorRule": "saved-chatgpt-connector-config-does-not-start-local-backend",
+                "blockers": [],
+                "warnings": [],
+                "safety": {"readOnlyStatus": True},
+            }
+            with mock.patch(
+                "riftreader_workflow.mcp_server_status.build_status_payload",
+                return_value=helper_payload,
+            ) as build_status:
+                payload = adapter.call_tool("get_mcp_runtime_status", {})
+
+        build_status.assert_called_once_with(root, check_runtime_surface=False)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "running-current")
+        self.assertEqual(payload["operatorRule"], "saved-chatgpt-connector-config-does-not-start-local-backend")
+        self.assertEqual(payload["inProcessToolSurface"]["expectedToolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertFalse(payload["safety"]["serverStarted"])
+        self.assertIn("runtime-surface-http-probe-skipped-inside-mcp-tool-to-avoid-recursive-self-call", payload["warnings"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_get_final_readiness_status_wraps_compact_read_only_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            final_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-mcp-final-readiness",
+                "status": "blocked",
+                "ok": False,
+                "currentHead": "b" * 40,
+                "recommendedNextAction": {"key": "refresh-proof"},
+                "blockers": ["proof:stale"],
+                "warnings": ["actual-client-proof-refresh-required"],
+                "safety": {"finalGateReadOnly": True},
+            }
+            compact_payload = {
+                "schemaVersion": 1,
+                "kind": "riftreader-mcp-final-compact-status",
+                "status": "blocked",
+                "ok": False,
+                "blockers": ["proof:stale"],
+            }
+            with (
+                mock.patch.object(chatgpt_mcp.mcp_final_readiness, "final_readiness", return_value=final_payload) as final_status,
+                mock.patch.object(
+                    chatgpt_mcp.mcp_final_readiness,
+                    "compact_final_readiness",
+                    return_value=compact_payload,
+                ) as compact_status,
+            ):
+                payload = adapter.call_tool("get_final_readiness_status", {})
+
+        final_status.assert_called_once_with(root)
+        compact_status.assert_called_once_with(final_payload)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["compact"], compact_payload)
+        self.assertIn("proof:stale", payload["blockers"])
+        self.assertTrue(payload["safety"]["finalGateReadOnly"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_submit_actual_client_observation_records_ignored_proof_artifact(self) -> None:
+        proof = chatgpt_mcp.chatgpt_trial_recorder.proof_template()
+        proof.update(
+            {
+                "chatgptRegistrationSucceeded": True,
+                "toolOutputSchemasPresent": True,
+                "templateFetched": True,
+                "submitPackageProposalSucceeded": True,
+                "inboxId": "20260617T120000Z-abcdef",
+                "listInboxSawInboxId": True,
+                "createPackageDraftSucceeded": True,
+                "draftId": "20260617T120100Z-abcdef",
+                "reviewLatestPackageDraftSucceeded": True,
+                "reviewLatestPackageDraftReadOnly": True,
+                "dryRunSucceeded": True,
+                "dryRunDiffPreviewOk": True,
+                "dryRunDiffPreviewArtifactUnderPackageIntake": True,
+                "dryRunDiffPreviewBoundedBytes": True,
+                "dryRunDiffPreviewTextLength": 123,
+                "dryRunDiffPreviewTruncated": False,
+                "applyLatestPackageDraftWithoutApprovalBlocked": True,
+                "applyLatestPackageDraftWithoutApprovalBlockers": ["APPLY_APPROVAL_MISSING"],
+                "applyLatestPackageDraftWithoutApprovalApplied": False,
+            }
+        )
+        replay_payload = {
+            "status": "passed",
+            "ok": True,
+            "proofFreshness": {"status": "fresh"},
+            "proofSummary": {"toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
+            "blockers": [],
+            "warnings": [],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_proof_replay,
+                "replay_actual_client_proof",
+                return_value=replay_payload,
+            ) as replay:
+                payload = adapter.call_tool("submit_actual_client_observation", {"observation": proof})
+
+            proof_json = root / payload["artifactPaths"]["proofJson"]
+            proof_md = root / payload["artifactPaths"]["proofMarkdown"]
+            proof_json_exists = proof_json.is_file()
+            proof_md_exists = proof_md.is_file()
+
+        replay.assert_called_once()
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertTrue(proof_json_exists)
+        self.assertTrue(proof_md_exists)
+        self.assertEqual(payload["record"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertTrue(payload["safety"]["localIgnoredArtifactWrite"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        assert_repo_root_not_serialized(self, root, payload)
+
+    def test_submit_actual_client_observation_rejects_secret_like_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            payload = adapter.call_tool(
+                "submit_actual_client_observation",
+                {"observation": {"notes": "do not store sk-proj-abcdefghijklmnopqrstuvwxyz012345"}},
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["code"], "ACTUAL_CLIENT_OBSERVATION_CONTAINS_SECRET_LIKE_VALUE")
+        self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_get_actual_client_proof_status_wraps_replay(self) -> None:
+        replay_payload = {
+            "status": "blocked",
+            "ok": False,
+            "proofPath": None,
+            "proofFreshness": {"status": "missing"},
+            "proofSummary": {"toolCount": None},
+            "artifactConsistency": {"status": "not-run"},
+            "blockers": ["actual-client-proof-missing"],
+            "warnings": [],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_proof_replay,
+                "replay_actual_client_proof",
+                return_value=replay_payload,
+            ) as replay:
+                payload = adapter.call_tool("get_actual_client_proof_status", {})
+
+        replay.assert_called_once_with(root)
+        self.assertFalse(payload["ok"])
+        self.assertIn("actual-client-proof-missing", payload["blockers"])
+        self.assertEqual(payload["expectedToolSurface"]["toolCount"], len(chatgpt_mcp.EXPECTED_TOOL_ORDER))
+        self.assertTrue(payload["safety"]["proofReplayReadOnly"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_list_bounded_repo_commands_reads_registry_without_execution(self) -> None:
+        registry_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-bounded-repo-command-registry",
+            "status": "passed",
+            "ok": True,
+            "registryVersion": "bounded-repo-command-registry-v1",
+            "commandCount": 1,
+            "commands": [{"key": "mcp_server_status", "title": "MCP server status"}],
+            "blockers": [],
+            "warnings": [],
+            "safety": {"registryOnly": True, "commandExecuted": False},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.bounded_repo_commands,
+                "registry_payload",
+                return_value=registry_payload,
+            ) as registry:
+                payload = adapter.call_tool("list_bounded_repo_commands", {})
+
+        registry.assert_called_once_with()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["commandKeys"], ["mcp_server_status"])
+        self.assertFalse(payload["safety"]["commandExecuted"])
+        self.assertFalse(payload["safety"]["arbitraryCommand"])
+
+    def test_get_tool_surface_diff_wraps_runtime_control_without_mutation(self) -> None:
+        diff_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-mcp-tool-surface-diff",
+            "status": "blocked",
+            "ok": False,
+            "expected": {"toolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
+            "sourceVsManifest": {"status": "passed", "ok": True},
+            "sourceVsRuntime": {"status": "not-checked", "ok": None},
+            "sourceVsActualClientProof": {"status": "blocked", "ok": False},
+            "blockers": ["tool-count-not-current"],
+            "warnings": ["runtime-observed-tool-surface-not-checked-from-mcp-tool"],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_runtime_control,
+                "build_tool_surface_diff",
+                return_value=diff_payload,
+            ) as build_diff:
+                payload = adapter.call_tool("get_tool_surface_diff", {})
+
+        build_diff.assert_called_once_with(
+            root,
+            manifest_tool_names=list(chatgpt_mcp.TOOL_SPECS.keys()),
+            active_profile=chatgpt_mcp.TOOL_PROFILE_FULL,
+        )
+        self.assertFalse(payload["ok"])
+        self.assertIn("tool-count-not-current", payload["blockers"])
+        self.assertTrue(payload["safety"]["readOnlyDiff"])
+        self.assertFalse(payload["safety"]["serverStarted"])
+        self.assertFalse(payload["safety"]["serverStopped"])
+
+    def test_run_mcp_restart_preflight_returns_exact_pid_token_without_mutation(self) -> None:
+        preflight_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-mcp-runtime-restart-preflight",
+            "status": "ready",
+            "ok": True,
+            "approvalFacts": {
+                "targetPid": 1234,
+                "processCreationDate": "2026-06-17T09:00:00.0000000-04:00",
+                "commandLineSha256": "a" * 64,
+            },
+            "expectedApprovalToken": "MCPRESTART-1234567890abcdef",
+            "runtimeStatus": {"status": "running-current"},
+            "nextAction": "pass token",
+            "blockers": [],
+            "warnings": [],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_runtime_control,
+                "build_restart_preflight",
+                return_value=preflight_payload,
+            ) as preflight:
+                payload = adapter.call_tool("run_mcp_restart_preflight", {})
+
+        preflight.assert_called_once_with(root)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["approvalFacts"]["targetPid"], 1234)
+        self.assertEqual(payload["expectedApprovalToken"], "MCPRESTART-1234567890abcdef")
+        self.assertTrue(payload["safety"]["readOnlyPreflight"])
+        self.assertFalse(payload["safety"]["serverStopped"])
+
+    def test_restart_mcp_runtime_schedules_only_after_preflight_token(self) -> None:
+        restart_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-mcp-runtime-restart",
+            "status": "scheduled",
+            "ok": True,
+            "restartScheduled": True,
+            "targetPid": 1234,
+            "helperPid": 5678,
+            "summaryJson": ".riftreader-local/riftreader-chatgpt-mcp/runtime-control/restarts/test.json",
+            "preflight": {"status": "ready"},
+            "blockers": [],
+            "warnings": ["mcp-runtime-restart-scheduled-connection-will-drop"],
+            "safety": {"serverStopScheduled": True, "serverStartScheduled": True},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_runtime_control,
+                "schedule_runtime_restart",
+                return_value=restart_payload,
+            ) as restart:
+                payload = adapter.call_tool(
+                    "restart_mcp_runtime",
+                    {
+                        "targetPid": 1234,
+                        "processCreationDate": "2026-06-17T09:00:00.0000000-04:00",
+                        "commandLineSha256": "a" * 64,
+                        "approvalToken": "MCPRESTART-1234567890abcdef",
+                        "timeoutSeconds": 30,
+                    },
+                )
+
+        restart.assert_called_once_with(
+            root,
+            target_pid=1234,
+            process_creation_date="2026-06-17T09:00:00.0000000-04:00",
+            command_line_sha256="a" * 64,
+            approval_token="MCPRESTART-1234567890abcdef",
+            timeout_seconds=30.0,
+        )
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["restartScheduled"])
+        self.assertTrue(payload["safety"]["serverStopScheduled"])
+        self.assertTrue(payload["safety"]["serverStartScheduled"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+
+    def test_get_tunnel_status_wraps_named_tunnel_status_without_starting_tunnel(self) -> None:
+        tunnel_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-mcp-tunnel-status",
+            "status": "passed",
+            "ok": True,
+            "publicMcpUrl": "https://mcp.360madden.com/mcp",
+            "connectionMode": "cloudflare-named-tunnel",
+            "cloudflared": {"status": "service_only"},
+            "localRuntime": {"status": "running-current"},
+            "publicRouteProbe": {"status": "passed", "ok": True},
+            "blockers": [],
+            "warnings": [],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_runtime_control,
+                "build_tunnel_status",
+                return_value=tunnel_payload,
+            ) as tunnel:
+                payload = adapter.call_tool("get_tunnel_status", {})
+
+        tunnel.assert_called_once_with(root)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["connectionMode"], "cloudflare-named-tunnel")
+        self.assertTrue(payload["safety"]["readOnlyTunnelStatus"])
+        self.assertFalse(payload["safety"]["publicTunnelStarted"])
+
+    def test_get_chatgpt_connector_setup_packet_surfaces_no_auth_setup(self) -> None:
+        setup_payload = {
+            "schemaVersion": 1,
+            "kind": "riftreader-chatgpt-mcp-connector-setup-packet",
+            "status": "passed",
+            "ok": True,
+            "appNameSuggestion": "rift-mcp",
+            "serverUrl": "https://mcp.360madden.com/mcp",
+            "authMode": "No Authentication",
+            "connectionMode": "cloudflare-named-tunnel",
+            "expectedToolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "expectedToolNames": list(chatgpt_mcp.EXPECTED_TOOL_ORDER),
+            "localRuntimeStatus": {"status": "running-current"},
+            "setupSteps": ["refresh app"],
+            "firstToolCalls": ["health", "get_mcp_runtime_status"],
+            "proofChecklist": {"mustObserveToolCount": len(chatgpt_mcp.EXPECTED_TOOL_ORDER)},
+            "blockers": [],
+            "warnings": ["operator-owned-startup-required-saved-connector-does-not-run-local-server"],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with mock.patch.object(
+                chatgpt_mcp.mcp_runtime_control,
+                "build_connector_setup_packet",
+                return_value=setup_payload,
+            ) as setup:
+                payload = adapter.call_tool("get_chatgpt_connector_setup_packet", {})
+
+        setup.assert_called_once_with(root)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["serverUrl"], "https://mcp.360madden.com/mcp")
+        self.assertEqual(payload["authMode"], "No Authentication")
+        self.assertTrue(payload["safety"]["readOnlySetupPacket"])
+        self.assertFalse(payload["safety"]["secretMaterialIncluded"])
+
     def test_invalid_operator_only_type_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1570,6 +2003,16 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("get_current_head_ci_status", chatgpt_mcp.TOOL_SPECS)
         self.assertIn("run_bounded_repo_command", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
+        self.assertIn("get_mcp_runtime_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_tool_surface_diff", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("run_mcp_restart_preflight", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("restart_mcp_runtime", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_tunnel_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_chatgpt_connector_setup_packet", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_final_readiness_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("submit_actual_client_observation", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_actual_client_proof_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("list_bounded_repo_commands", chatgpt_mcp.EXPECTED_TOOL_ORDER)
 
     def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1683,7 +2126,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         for registration in server.registrations:
             self.assertIn("Use this when", registration["description"])
             self.assertFalse(registration["annotations"].destructiveHint)
-            if registration["name"] in {"push_current_branch", "get_current_head_ci_status", "run_bounded_repo_command"}:
+            if registration["name"] in {
+                "push_current_branch",
+                "get_current_head_ci_status",
+                "run_bounded_repo_command",
+                "get_final_readiness_status",
+                "get_tunnel_status",
+            }:
                 self.assertTrue(registration["annotations"].openWorldHint)
             else:
                 self.assertFalse(registration["annotations"].openWorldHint)

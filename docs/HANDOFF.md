@@ -1,3 +1,19 @@
+# 2026-06-17 - MCP runtime-recovery tool bundle complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-runtime-recovery-tool-bundle-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Tool surface | Full profile is now 33 tools; public read-only profile is 13 tools. |
+| New bundle | `get_tool_surface_diff`, `run_mcp_restart_preflight`, `restart_mcp_runtime`, `get_tunnel_status`, and `get_chatgpt_connector_setup_packet`. |
+| Runtime recovery | Restart requires exact-PID preflight facts and an approval token; no arbitrary shell, tunnel mutation, Git mutation, RIFT input, provider write, CE, or x64dbg endpoint was added. |
+| Runtime validation | Guarded restart recovered stale 23-tool runtime and verified live 33/33 tool surface with source freshness passed. |
+| Tunnel validation | Public route `https://mcp.360madden.com/mcp` responds to MCP `initialize`; Cloudflared service status is present. |
+| Validation | Syntax, 216 focused tests, SDK full/public validation, server status, tunnel status, and `git diff --check` passed locally. |
+| Remaining final-gate blocker | Actual-client proof replay still needs a fresh 33-tool ChatGPT Web/Desktop observation; current latest proof is stale 20-tool evidence. |
+
+---
 # 2026-06-17 - MCP Stage 37 provider-safe proposal flow complete-local
 
 Fresh compact handoff:

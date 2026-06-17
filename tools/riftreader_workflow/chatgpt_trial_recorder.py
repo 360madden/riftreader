@@ -12,12 +12,16 @@ from typing import Any
 try:
     from .common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
     from .mcp_workflow_state import ACTUAL_CLIENT_PROOF_ROOT
-    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, timestamped_output_dir, utc_iso
     from riftreader_workflow.mcp_workflow_state import ACTUAL_CLIENT_PROOF_ROOT
-    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from riftreader_workflow.mcp_tool_surface import (
+        EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        EXPECTED_CHATGPT_MCP_TOOL_NAMES,
+        PUBLIC_READ_ONLY_TOOL_NAMES,
+    )
 
 
 REQUIRED_FIELDS = (
@@ -48,13 +52,7 @@ REQUIRED_FIELDS = (
     "applyLatestPackageDraftWithoutApprovalBlockers",
     "applyLatestPackageDraftWithoutApprovalApplied",
 )
-EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = (
-    "health",
-    "get_repo_status",
-    "get_latest_handoff",
-    "get_workflow_control_summary",
-    "get_workflow_control_plan",
-)
+EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES = PUBLIC_READ_ONLY_TOOL_NAMES
 EXPECTED_DOMAIN_READ_ONLY_TOOL_COUNT = len(EXPECTED_DOMAIN_READ_ONLY_TOOL_NAMES)
 FINAL_TOOL_PROOF_MODE = f"final-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool"
 # Backward-compatible import alias. The proof surface count is now dynamic, so
@@ -435,8 +433,7 @@ def render_markdown(record: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
-    value = json.loads(input_path.read_text(encoding="utf-8"))
+def record_proof_value(repo_root: Path, value: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("proof-input-not-json-object")
     blockers = validate_proof(value)
@@ -469,6 +466,11 @@ def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
     (output_dir / "proof.json").write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     (output_dir / "proof.md").write_text(render_markdown(record), encoding="utf-8")
     return record
+
+
+def record_proof(repo_root: Path, input_path: Path) -> dict[str, Any]:
+    value = json.loads(input_path.read_text(encoding="utf-8"))
+    return record_proof_value(repo_root, value)
 
 
 def check_proof_input(repo_root: Path, input_path: Path) -> dict[str, Any]:

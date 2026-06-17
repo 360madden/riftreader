@@ -96,6 +96,15 @@ updates this list:
 | `get_repo_status` | Read-only | Must not mutate Git, repo files, provider repos, RIFT, CE, or x64dbg. |
 | `get_latest_handoff` | Read-only | Must read only `docs/handoffs`. |
 | `get_workflow_control_summary` | Read-only | Must return a tiny transport-safe workflow summary without Mission Control, Git mutation, shell, tunnel, RIFT, CE, or x64dbg side effects. |
+| `get_mcp_runtime_status` | Read-only | Must report local backend/runtime/source freshness without starting servers or tunnels. |
+| `get_tool_surface_diff` | Read-only | Must compare source, loaded manifest, runtime status, and actual-client proof tool surfaces without starting servers or tunnels. |
+| `run_mcp_restart_preflight` | Read-only | Must return exact-PID restart facts and approval token without stopping or starting processes. |
+| `restart_mcp_runtime` | Approval-token gated local process action | May schedule restart only for the exact verified current MCP PID after token/fact match; must never accept arbitrary commands, start tunnels, register ChatGPT, mutate Git, send RIFT input, write providers, or touch CE/x64dbg. |
+| `get_tunnel_status` | Read-only external status | Must inspect Cloudflared/local-runtime/public-route status only; must never start, stop, or mutate tunnel configuration. |
+| `get_chatgpt_connector_setup_packet` | Read-only | Must return non-secret ChatGPT Web/Desktop setup instructions, expected tool count, and proof checklist only. |
+| `get_final_readiness_status` | Read-only external status | Must compactly report final gate blockers without mutating GitHub or local state. |
+| `submit_actual_client_observation` | Guarded local proof write | May write only operator-supplied actual-client proof artifacts under `.riftreader-local`; must never start ChatGPT/tunnels or mutate Git/repo/provider/RIFT state. |
+| `get_actual_client_proof_status` | Read-only | Must replay the latest actual-client proof without starting ChatGPT, tunnels, or servers. |
 | `get_package_proposal_template` | Read-only | Must return the accepted package-proposal shape only. |
 | `submit_package_proposal` | Guarded local write | May write only inert proposal artifacts under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Must list inbox metadata only. |
@@ -103,7 +112,19 @@ updates this list:
 | `review_latest_package_draft` | Read-only | Must review inert draft summaries only. |
 | `dry_run_latest_package_draft` | Explicit dry-run action | May run dry-run only; must never pass `--apply`; may return only a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff`. |
 | `apply_latest_package_draft` | Approval-token gated action | May apply only the latest approved operator draft through package intake after matching dry-run summary, diff SHA-256, and approval token; must never stage, commit, push, run shell, send RIFT input, write providers, or touch CE/x64dbg. |
+| `commit_reviewed_slice` | Approval-token gated local Git action | May create one explicit-path local commit after matching preflight facts; must never push, rewrite, reset, clean, or broad-stage. |
+| `push_current_branch` | Approval-token gated remote Git action | May perform one normal non-force current-branch push after matching preflight facts; must never commit, force-push, rewrite, reset, clean, or use ambiguous refspecs. |
+| `get_current_head_ci_status` | Read-only external status | Must inspect current HEAD CI without mutating GitHub state. |
+| `run_bounded_repo_command` | Registry-key bounded action | May run only versioned allowlisted repo commands; must never accept shell strings or arbitrary argv. |
+| `list_bounded_repo_commands` | Read-only | Must list bounded-command registry metadata without executing commands. |
 | `get_workflow_control_plan` | Read-only | Must report Mission Control, safe commit-plan guidance, bidirectional data-flow steps, and gated boundaries without executing shell, Git, tunnel, RIFT, CE, x64dbg, or provider actions. |
+| `get_dirty_paths` | Read-only | Must inspect Git dirty-path state only. |
+| `get_recent_commits` | Read-only | Must inspect recent local commits only. |
+| `repo_tree_tracked` | Read-only tracked-repo context | Must list bounded git-tracked file metadata only. |
+| `repo_search_tracked` | Read-only tracked-repo context | Must search bounded git-tracked text content only. |
+| `repo_read_tracked_file` | Read-only tracked-repo context | Must read one bounded git-tracked text file only. |
+| `repo_read_many_tracked_files` | Read-only tracked-repo context | Must read multiple bounded git-tracked text files only. |
+| `repo_context_pack` | Read-only tracked-repo context | Must read predefined bounded tracked-file context packs only. |
 
 Any extra tool is a final-readiness blocker until the contract is updated and
 tests prove the new tool stays within the safety model.
@@ -165,7 +186,7 @@ gitMutation: false
 applyFlagSent: false
 chatGptRegistrationPerformed: false # except explicitly recorded actual-client proof metadata
 publicTunnelStarted: false # except explicit public smoke/live-trial helpers
-persistentServerStarted: false # except explicit serve/live-trial helpers with teardown evidence
+persistentServerStarted: false # except explicit serve/live-trial helpers with teardown evidence or approval-token gated restart_mcp_runtime scheduling
 savedVariablesUsedAsLiveTruth: false
 noShellExecutionEndpoint: true
 noBroadGitMutationEndpoint: true
@@ -177,7 +198,7 @@ noArbitraryFilesystemRead: true
 noArbitraryFilesystemWrite: true
 noRiftLiveInputEndpoint: true
 noTargetControlEndpoint: true
-noPersistentServerStartedByTool: true
+noPersistentServerStartedByTool: true # except restart_mcp_runtime, which is exact-PID and approval-token gated
 noTunnelStartedByTool: true
 chatGptOriginatedWritesLocalOnly: true
 noExistingMcpProxy: true
@@ -196,7 +217,7 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 3. The selected listener command line is the current
    `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
    legacy `tools.riftreader_mcp.http_server`.
-4. The selected listener uses the intended profile (`full` for final 20-tool
+4. The selected listener uses the intended profile (`full` for final 33-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
 6. Actual ChatGPT/MCP connector `health` sees the expected tools and output

@@ -32,20 +32,22 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
-    from . import bounded_repo_commands, commit_reviewed_slice
+    from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
     from . import local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
+    from . import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
     from . import package_manifest
     from . import package_draft_review, status_packet, tracked_repo_context
     from .common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow import bounded_repo_commands, commit_reviewed_slice
+    from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
+    from riftreader_workflow import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
     from riftreader_workflow import package_manifest
     from riftreader_workflow import package_draft_review, status_packet, tracked_repo_context
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, run_command_envelope, safety_flags, utc_iso
@@ -53,7 +55,7 @@ except ImportError:  # pragma: no cover - supports direct script execution.
 
 
 SCHEMA_VERSION = 1
-VERSION = "0.1.2"
+VERSION = "0.1.4"
 SERVER_NAME = "riftreader_chatgpt_mcp"
 DEFAULT_PAYLOAD_ROOT = Path("artifacts") / "chatgpt-payloads"
 DEFAULT_AUDIT_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "audit"
@@ -114,6 +116,15 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_repo_status": frozenset(),
     "get_latest_handoff": frozenset(),
     "get_workflow_control_summary": frozenset(),
+    "get_mcp_runtime_status": frozenset(),
+    "get_tool_surface_diff": frozenset(),
+    "run_mcp_restart_preflight": frozenset(),
+    "restart_mcp_runtime": frozenset({"targetPid", "processCreationDate", "commandLineSha256", "approvalToken", "timeoutSeconds"}),
+    "get_tunnel_status": frozenset(),
+    "get_chatgpt_connector_setup_packet": frozenset(),
+    "get_final_readiness_status": frozenset(),
+    "submit_actual_client_observation": frozenset({"observation"}),
+    "get_actual_client_proof_status": frozenset(),
     "get_package_proposal_template": frozenset(),
     "submit_package_proposal": frozenset({"proposal"}),
     "list_inbox": frozenset(),
@@ -139,6 +150,7 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "run_bounded_repo_command": frozenset(
         {"commandKey", "parameters", "expectedRegistryVersion", "approvalToken", "timeoutSeconds"}
     ),
+    "list_bounded_repo_commands": frozenset(),
     "get_workflow_control_plan": frozenset(),
     "get_dirty_paths": frozenset(),
     "get_recent_commits": frozenset({"limit"}),
@@ -857,6 +869,108 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         destructive=False,
         open_world=False,
     ),
+    "get_mcp_runtime_status": ToolSpec(
+        name="get_mcp_runtime_status",
+        title="Get MCP Runtime Status",
+        description=(
+            "Use this when you need to prove the local RiftReader MCP backend is actually running, "
+            "using the current adapter source, and not merely present as a saved ChatGPT app connector."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_tool_surface_diff": ToolSpec(
+        name="get_tool_surface_diff",
+        title="Get MCP Tool Surface Diff",
+        description=(
+            "Use this when you need to compare the current source manifest, loaded adapter manifest, "
+            "local runtime status, and latest actual ChatGPT proof so stale or partial MCP tool surfaces are explicit."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "run_mcp_restart_preflight": ToolSpec(
+        name="run_mcp_restart_preflight",
+        title="Run MCP Restart Preflight",
+        description=(
+            "Use this when you need a read-only exact-PID preflight and approval token before restarting "
+            "the local RiftReader ChatGPT MCP runtime. This never stops or starts a process."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "restart_mcp_runtime": ToolSpec(
+        name="restart_mcp_runtime",
+        title="Restart MCP Runtime",
+        description=(
+            "Use this when the local operator supplies the approval token from run_mcp_restart_preflight "
+            "and wants to schedule an exact-PID restart of only the current RiftReader ChatGPT MCP runtime. "
+            "This never starts tunnels, registers ChatGPT, mutates Git, runs arbitrary shell commands, sends RIFT input, "
+            "writes provider repos, or touches CE/x64dbg."
+        ),
+        read_only=False,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_tunnel_status": ToolSpec(
+        name="get_tunnel_status",
+        title="Get MCP Tunnel Status",
+        description=(
+            "Use this when you need read-only status for the Cloudflare named Tunnel route, local backend, "
+            "and public HTTPS /mcp reachability without starting or modifying a tunnel."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "get_chatgpt_connector_setup_packet": ToolSpec(
+        name="get_chatgpt_connector_setup_packet",
+        title="Get ChatGPT Connector Setup Packet",
+        description=(
+            "Use this when the operator needs the exact non-Codex ChatGPT Web/Desktop app setup packet, "
+            "including Server URL, No Authentication mode, expected tool count, refresh steps, and proof checklist."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_final_readiness_status": ToolSpec(
+        name="get_final_readiness_status",
+        title="Get Final Readiness Status",
+        description=(
+            "Use this when you need the compact final-readiness gate for the RiftReader ChatGPT MCP lane, "
+            "including stale actual-client proof, CI, local dependency, and tool-surface blockers."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "submit_actual_client_observation": ToolSpec(
+        name="submit_actual_client_observation",
+        title="Submit Actual Client Observation",
+        description=(
+            "Use this when the operator explicitly wants to record structured ChatGPT Web/Desktop MCP observations "
+            "as a local ignored proof artifact under .riftreader-local. This validates the observation and never "
+            "calls ChatGPT, starts tunnels, stages, commits, pushes, sends RIFT input, writes provider repos, or touches CE/x64dbg."
+        ),
+        read_only=False,
+        destructive=False,
+        open_world=False,
+    ),
+    "get_actual_client_proof_status": ToolSpec(
+        name="get_actual_client_proof_status",
+        title="Get Actual Client Proof Status",
+        description=(
+            "Use this when you need to know whether the latest actual ChatGPT Web/Desktop proof is missing, stale, "
+            "blocked, or valid against the current RiftReader MCP tool surface."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
+    ),
     "get_package_proposal_template": ToolSpec(
         name="get_package_proposal_template",
         title="Get Package Proposal Template",
@@ -990,6 +1104,17 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         read_only=False,
         destructive=False,
         open_world=True,
+    ),
+    "list_bounded_repo_commands": ToolSpec(
+        name="list_bounded_repo_commands",
+        title="List Bounded Repo Commands",
+        description=(
+            "Use this when you need to inspect the versioned bounded repo command allowlist before asking to run one. "
+            "This lists command metadata only, never accepts shell strings, and never executes commands."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=False,
     ),
     "get_workflow_control_plan": ToolSpec(
         name="get_workflow_control_plan",
@@ -1510,6 +1635,33 @@ class RiftReaderChatGptMcpAdapter:
                 "get_repo_status": lambda _: self.get_repo_status(),
                 "get_latest_handoff": lambda _: self.get_latest_handoff(),
                 "get_workflow_control_summary": lambda _: self.get_workflow_control_summary(),
+                "get_mcp_runtime_status": lambda _: self.get_mcp_runtime_status(),
+                "get_tool_surface_diff": lambda _: self.get_tool_surface_diff(),
+                "run_mcp_restart_preflight": lambda _: self.run_mcp_restart_preflight(),
+                "restart_mcp_runtime": lambda call_args: self.restart_mcp_runtime(
+                    target_pid=bounded_int(
+                        call_args.get("targetPid"),
+                        field_name="targetPid",
+                        default=0,
+                        min_value=1,
+                        max_value=2_147_483_647,
+                    ),
+                    process_creation_date=required_str(
+                        call_args.get("processCreationDate"), field_name="processCreationDate"
+                    ),
+                    command_line_sha256=required_str(
+                        call_args.get("commandLineSha256"), field_name="commandLineSha256"
+                    ),
+                    approval_token=optional_str(call_args.get("approvalToken"), field_name="approvalToken"),
+                    timeout_seconds=bounded_timeout(call_args.get("timeoutSeconds"), 30.0),
+                ),
+                "get_tunnel_status": lambda _: self.get_tunnel_status(),
+                "get_chatgpt_connector_setup_packet": lambda _: self.get_chatgpt_connector_setup_packet(),
+                "get_final_readiness_status": lambda _: self.get_final_readiness_status(),
+                "submit_actual_client_observation": lambda call_args: self.submit_actual_client_observation(
+                    call_args.get("observation")
+                ),
+                "get_actual_client_proof_status": lambda _: self.get_actual_client_proof_status(),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
                 "list_inbox": lambda _: self.list_inbox(),
@@ -1562,6 +1714,7 @@ class RiftReaderChatGptMcpAdapter:
                         else None
                     ),
                 ),
+                "list_bounded_repo_commands": lambda _: self.list_bounded_repo_commands(),
                 "get_workflow_control_plan": lambda _: self.get_workflow_control_plan(),
                 "get_dirty_paths": lambda _: self.get_dirty_paths(),
                 "get_recent_commits": lambda call_args: self.get_recent_commits(call_args.get("limit")),
@@ -1826,6 +1979,381 @@ class RiftReaderChatGptMcpAdapter:
                 **base_safety(),
                 "handoffDirAllowlisted": True,
                 "arbitraryPathInputAccepted": False,
+            },
+        }
+
+    def get_mcp_runtime_status(self) -> dict[str, Any]:
+        """Return local backend process/source status without recursively probing this server."""
+
+        try:
+            from . import mcp_server_status
+        except ImportError:  # pragma: no cover - direct script execution.
+            from riftreader_workflow import mcp_server_status
+
+        server_payload = mcp_server_status.build_status_payload(
+            self.config.repo_root,
+            check_runtime_surface=False,
+        )
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-runtime-status",
+            "generatedAtUtc": utc_iso(),
+            "status": server_payload.get("status"),
+            "ok": bool(server_payload.get("ok")),
+            "serverStatus": server_payload,
+            "dependencySequence": server_payload.get("dependencySequence") or [],
+            "runtimeSourceFreshness": server_payload.get("runtimeSourceFreshness"),
+            "runtimeSurface": server_payload.get("runtimeSurface"),
+            "inProcessToolSurface": {
+                "toolProfile": self.config.tool_profile,
+                "expectedToolCount": len(tool_order_for_profile(self.config.tool_profile)),
+                "expectedToolNames": list(tool_order_for_profile(self.config.tool_profile)),
+                "runtimeSurfaceCheckMode": "in-process-call-plus-source-freshness",
+                "why": (
+                    "This tool avoids a recursive HTTP list_tools probe from inside the server. "
+                    "A successful call proves this process exposes the tool, while source freshness proves whether "
+                    "the process was restarted after adapter source changes."
+                ),
+            },
+            "operatorRule": server_payload.get("operatorRule"),
+            "blockers": list(server_payload.get("blockers") or []),
+            "warnings": [
+                *(str(warning) for warning in server_payload.get("warnings") or []),
+                "runtime-surface-http-probe-skipped-inside-mcp-tool-to-avoid-recursive-self-call",
+            ],
+            "safety": {
+                **base_safety(),
+                "readOnlyStatus": True,
+                "serverStarted": False,
+                "publicTunnelStarted": False,
+                "chatGptRegistrationPerformed": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def get_tool_surface_diff(self) -> dict[str, Any]:
+        payload = mcp_runtime_control.build_tool_surface_diff(
+            self.config.repo_root,
+            manifest_tool_names=list(TOOL_SPECS.keys()),
+            active_profile=self.config.tool_profile,
+        )
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-tool-surface-diff",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "diff": payload,
+            "expectedToolCount": payload.get("expected", {}).get("toolCount")
+            if isinstance(payload.get("expected"), dict)
+            else len(EXPECTED_TOOL_ORDER),
+            "sourceVsManifest": payload.get("sourceVsManifest"),
+            "sourceVsRuntime": payload.get("sourceVsRuntime"),
+            "sourceVsActualClientProof": payload.get("sourceVsActualClientProof"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "readOnlyDiff": True,
+                "runtimeSurfaceHttpProbeSkipped": True,
+                "serverStarted": False,
+                "serverStopped": False,
+                "publicTunnelStarted": False,
+                "chatGptRegistrationPerformed": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def run_mcp_restart_preflight(self) -> dict[str, Any]:
+        payload = mcp_runtime_control.build_restart_preflight(self.config.repo_root)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-runtime-restart-preflight",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "approvalFacts": payload.get("approvalFacts"),
+            "expectedApprovalToken": payload.get("expectedApprovalToken"),
+            "runtimeStatus": payload.get("runtimeStatus"),
+            "nextAction": payload.get("nextAction"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "readOnlyPreflight": True,
+                "serverStarted": False,
+                "serverStopped": False,
+                "exactPidRequiredForRestart": True,
+                "arbitraryCommandAccepted": False,
+                "publicTunnelStarted": False,
+                "chatGptRegistrationPerformed": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def restart_mcp_runtime(
+        self,
+        *,
+        target_pid: int,
+        process_creation_date: str,
+        command_line_sha256: str,
+        approval_token: str | None,
+        timeout_seconds: float = 30.0,
+    ) -> dict[str, Any]:
+        payload = mcp_runtime_control.schedule_runtime_restart(
+            self.config.repo_root,
+            target_pid=target_pid,
+            process_creation_date=process_creation_date,
+            command_line_sha256=command_line_sha256,
+            approval_token=approval_token,
+            timeout_seconds=timeout_seconds,
+        )
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-runtime-restart",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "restartScheduled": bool(payload.get("restartScheduled")),
+            "targetPid": payload.get("targetPid"),
+            "helperPid": payload.get("helperPid"),
+            "summaryJson": payload.get("summaryJson"),
+            "preflight": payload.get("preflight"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "serverStopScheduled": bool((payload.get("safety") or {}).get("serverStopScheduled"))
+                if isinstance(payload.get("safety"), dict)
+                else False,
+                "serverStartScheduled": bool((payload.get("safety") or {}).get("serverStartScheduled"))
+                if isinstance(payload.get("safety"), dict)
+                else False,
+                "exactPidRequiredForRestart": True,
+                "approvalTokenRequired": True,
+                "arbitraryCommandAccepted": False,
+                "publicTunnelStarted": False,
+                "chatGptRegistrationPerformed": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def get_tunnel_status(self) -> dict[str, Any]:
+        payload = mcp_runtime_control.build_tunnel_status(self.config.repo_root)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-tunnel-status",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "publicMcpUrl": payload.get("publicMcpUrl"),
+            "connectionMode": payload.get("connectionMode"),
+            "cloudflared": payload.get("cloudflared"),
+            "localRuntime": payload.get("localRuntime"),
+            "publicRouteProbe": payload.get("publicRouteProbe"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "readOnlyTunnelStatus": True,
+                "publicHttpsProbeSent": True,
+                "publicTunnelStarted": False,
+                "cloudflareMutationEndpoint": False,
+                "chatGptRegistrationPerformed": False,
+                "serverStarted": False,
+                "serverStopped": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def get_chatgpt_connector_setup_packet(self) -> dict[str, Any]:
+        payload = mcp_runtime_control.build_connector_setup_packet(self.config.repo_root)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-connector-setup-packet",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "appNameSuggestion": payload.get("appNameSuggestion"),
+            "serverUrl": payload.get("serverUrl"),
+            "authMode": payload.get("authMode"),
+            "connectionMode": payload.get("connectionMode"),
+            "expectedToolCount": payload.get("expectedToolCount"),
+            "expectedToolNames": payload.get("expectedToolNames"),
+            "localRuntimeStatus": payload.get("localRuntimeStatus"),
+            "setupSteps": payload.get("setupSteps"),
+            "firstToolCalls": payload.get("firstToolCalls"),
+            "proofChecklist": payload.get("proofChecklist"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "readOnlySetupPacket": True,
+                "serverStarted": False,
+                "serverStopped": False,
+                "publicTunnelStarted": False,
+                "chatGptRegistrationPerformed": False,
+                "secretMaterialIncluded": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def get_final_readiness_status(self) -> dict[str, Any]:
+        payload = mcp_final_readiness.final_readiness(self.config.repo_root)
+        compact = mcp_final_readiness.compact_final_readiness(payload)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-final-readiness-status",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "compact": compact,
+            "recommendedNextAction": payload.get("recommendedNextAction"),
+            "currentHead": payload.get("currentHead"),
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "finalGateReadOnly": True,
+                "chatGptApiCalled": False,
+                "publicTunnelStarted": False,
+                "persistentServerStarted": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def submit_actual_client_observation(self, observation: Any) -> dict[str, Any]:
+        if not isinstance(observation, dict):
+            raise AdapterError(
+                "ACTUAL_CLIENT_OBSERVATION_NOT_OBJECT",
+                "Actual-client observation must be a JSON object matching the proof-input template.",
+            )
+        secret_findings = find_secret_like_values(observation)
+        if secret_findings:
+            raise AdapterError(
+                "ACTUAL_CLIENT_OBSERVATION_CONTAINS_SECRET_LIKE_VALUE",
+                "Actual-client observation appears to contain a secret-like value; remove tokens or keys before recording.",
+                extra={"secretFindings": secret_findings},
+            )
+        proof_value = observation.get("proof") if isinstance(observation.get("proof"), dict) else observation
+        record = chatgpt_trial_recorder.record_proof_value(self.config.repo_root, proof_value)
+        artifacts = record.get("artifacts") if isinstance(record.get("artifacts"), dict) else {}
+        proof_path_value = artifacts.get("proofJson")
+        proof_path = (self.config.repo_root / str(proof_path_value)).resolve() if isinstance(proof_path_value, str) else None
+        replay = mcp_proof_replay.replay_actual_client_proof(self.config.repo_root, proof_path=proof_path)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-actual-client-observation-submit",
+            "generatedAtUtc": utc_iso(),
+            "status": record.get("status"),
+            "ok": bool(record.get("ok")),
+            "record": {
+                "kind": record.get("kind"),
+                "generatedAtUtc": record.get("generatedAtUtc"),
+                "status": record.get("status"),
+                "ok": record.get("ok"),
+                "proofMode": proof_value.get("proofMode"),
+                "toolCount": proof_value.get("toolCount"),
+                "toolOutputSchemaCount": proof_value.get("toolOutputSchemaCount"),
+            },
+            "proofReplay": {
+                "status": replay.get("status"),
+                "ok": replay.get("ok"),
+                "proofFreshness": replay.get("proofFreshness"),
+                "proofSummary": replay.get("proofSummary"),
+                "blockers": replay.get("blockers") or [],
+                "warnings": replay.get("warnings") or [],
+            },
+            "artifactPaths": artifacts,
+            "blockers": list(record.get("blockers") or []),
+            "warnings": list(record.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "operatorSuppliedFactsOnly": True,
+                "localIgnoredArtifactWrite": True,
+                "chatGptApiCalled": False,
+                "publicTunnelStarted": False,
+                "persistentServerStarted": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "applyFlagSent": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+            },
+        }
+
+    def get_actual_client_proof_status(self) -> dict[str, Any]:
+        replay = mcp_proof_replay.replay_actual_client_proof(self.config.repo_root)
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-actual-client-proof-status",
+            "generatedAtUtc": utc_iso(),
+            "status": replay.get("status"),
+            "ok": bool(replay.get("ok")),
+            "proofPath": replay.get("proofPath"),
+            "proofFreshness": replay.get("proofFreshness"),
+            "proofSummary": replay.get("proofSummary"),
+            "artifactConsistency": replay.get("artifactConsistency"),
+            "expectedToolSurface": {
+                "toolCount": len(EXPECTED_TOOL_ORDER),
+                "toolNames": list(EXPECTED_TOOL_ORDER),
+            },
+            "nextAction": (
+                "Submit a fresh actual ChatGPT Web/Desktop observation with submit_actual_client_observation."
+                if not replay.get("ok")
+                else "Actual-client proof currently replays cleanly; rerun final readiness before release."
+            ),
+            "blockers": list(replay.get("blockers") or []),
+            "warnings": list(replay.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "proofReplayReadOnly": True,
+                "chatGptApiCalled": False,
+                "publicTunnelStarted": False,
+                "persistentServerStarted": False,
+                "gitMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
             },
         }
 
@@ -2308,11 +2836,50 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def list_bounded_repo_commands(self) -> dict[str, Any]:
+        payload = bounded_repo_commands.registry_payload()
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-chatgpt-mcp-bounded-repo-command-registry",
+            "generatedAtUtc": utc_iso(),
+            "status": payload.get("status"),
+            "ok": bool(payload.get("ok")),
+            "registryVersion": payload.get("registryVersion"),
+            "commandCount": payload.get("commandCount"),
+            "commandKeys": [item.get("key") for item in payload.get("commands") or [] if isinstance(item, dict)],
+            "commands": payload.get("commands") or [],
+            "blockers": list(payload.get("blockers") or []),
+            "warnings": list(payload.get("warnings") or []),
+            "safety": {
+                **base_safety(),
+                "registryOnly": True,
+                "commandExecuted": False,
+                "shellStringAccepted": False,
+                "arbitraryCommand": False,
+                "gitMutation": False,
+                "remoteMutation": False,
+                "providerWrites": False,
+                "inputSent": False,
+                "movementSent": False,
+                "x64dbgAttach": False,
+                "noCheatEngine": True,
+                "mcpToolExposed": True,
+            },
+        }
+
     def get_workflow_control_summary(self) -> dict[str, Any]:
         """Return the smallest read-only workflow-control packet for ChatGPT MCP transport."""
 
         safe_read_sequence = [
             "health",
+            "get_mcp_runtime_status",
+            "get_tool_surface_diff",
+            "run_mcp_restart_preflight",
+            "get_tunnel_status",
+            "get_chatgpt_connector_setup_packet",
+            "get_final_readiness_status",
+            "get_actual_client_proof_status",
+            "list_bounded_repo_commands",
             "get_repo_status",
             "get_latest_handoff",
             "get_workflow_control_summary",
@@ -2350,7 +2917,7 @@ class RiftReaderChatGptMcpAdapter:
             },
             "transportFallback": {
                 "ifFullPlanTimesOut": (
-                    "Use this summary plus get_repo_status and get_latest_handoff instead of "
+                    "Use this summary plus get_mcp_runtime_status, get_repo_status, and get_latest_handoff instead of "
                     "get_workflow_control_plan."
                 ),
                 "localCliSmokeCommand": (
@@ -2374,6 +2941,8 @@ class RiftReaderChatGptMcpAdapter:
             "actualClientProofRecovery": {
                 "status": "if-package-tools-unavailable-refresh-app-and-select-developer-mode-rift-mcp",
                 "packageProofToolOrder": list(PACKAGE_PROOF_TOOL_ORDER),
+                "proofStatusTool": "get_actual_client_proof_status",
+                "proofSubmitTool": "submit_actual_client_observation",
                 "operatorPrompt": (
                     "Use only rift-mcp. Call the packageProofToolOrder tools in order; call "
                     "apply_latest_package_draft without approvalToken to prove APPLY_APPROVAL_MISSING."
@@ -5830,7 +6399,7 @@ def run_chatgpt_trial_session(
                         "In ChatGPT web, enable Developer mode under Settings -> Apps -> Advanced settings.",
                         "Create an app from this remote MCP URL while this session is still running.",
                         "Use No Authentication and streamable HTTP if prompted.",
-                        "In a Developer Mode conversation, first call health and confirm the 12-tool surface.",
+                        "In a Developer Mode conversation, first call health and confirm the current tool surface.",
                         "For Stage 21 proof, call apply_latest_package_draft without approval and confirm APPLY_APPROVAL_MISSING.",
                     ],
                 }
@@ -6067,9 +6636,12 @@ def create_fastmcp_server(
         SERVER_NAME,
         instructions=(
             "Narrow RiftReader MCP adapter for ChatGPT Web/Desktop Developer Mode only. "
+            "First call get_mcp_runtime_status when you need to prove the local backend is running-current; "
+            "a saved app connector does not start this server. "
             "For package-loop proof call get_package_proposal_template, submit_package_proposal, list_inbox, "
             "create_package_draft_from_inbox, review_latest_package_draft, dry_run_latest_package_draft, then "
             "apply_latest_package_draft without approvalToken. "
+            "Use get_actual_client_proof_status and submit_actual_client_observation for actual-client proof freshness. "
             "This is not ChatGPT Codex and not a broad local MCP proxy. Use only the exposed allowlisted tools. "
             "Do not ask this server for shell, arbitrary filesystem, force push, branch rewrite, reset, clean, "
             "RIFT input, CE, x64dbg, or tunnel control; those tools are intentionally absent. "
@@ -6142,6 +6714,66 @@ def create_fastmcp_server(
         """Use this when you need the smallest read-only repo workflow control summary."""
 
         return adapter.call_tool("get_workflow_control_summary", {})
+
+    def get_mcp_runtime_status() -> dict[str, Any]:
+        """Use this when you need to prove the local MCP backend is running-current."""
+
+        return adapter.call_tool("get_mcp_runtime_status", {})
+
+    def get_tool_surface_diff() -> dict[str, Any]:
+        """Use this when you need source/runtime/actual-client MCP tool-surface differences."""
+
+        return adapter.call_tool("get_tool_surface_diff", {})
+
+    def run_mcp_restart_preflight() -> dict[str, Any]:
+        """Use this when you need a read-only exact-PID preflight before restarting MCP."""
+
+        return adapter.call_tool("run_mcp_restart_preflight", {})
+
+    def restart_mcp_runtime(
+        targetPid: int,  # noqa: N803 - MCP input name.
+        processCreationDate: str,  # noqa: N803 - MCP input name.
+        commandLineSha256: str,  # noqa: N803 - MCP input name.
+        approvalToken: str | None = None,  # noqa: N803 - MCP input name.
+        timeoutSeconds: float | None = None,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this only after the local operator supplies the restart preflight token."""
+
+        return adapter.call_tool(
+            "restart_mcp_runtime",
+            {
+                "targetPid": targetPid,
+                "processCreationDate": processCreationDate,
+                "commandLineSha256": commandLineSha256,
+                "approvalToken": approvalToken,
+                "timeoutSeconds": timeoutSeconds,
+            },
+        )
+
+    def get_tunnel_status() -> dict[str, Any]:
+        """Use this when you need read-only Cloudflare named Tunnel/public route status."""
+
+        return adapter.call_tool("get_tunnel_status", {})
+
+    def get_chatgpt_connector_setup_packet() -> dict[str, Any]:
+        """Use this when you need exact ChatGPT Web/Desktop connector setup and proof steps."""
+
+        return adapter.call_tool("get_chatgpt_connector_setup_packet", {})
+
+    def get_final_readiness_status() -> dict[str, Any]:
+        """Use this when you need the compact final-readiness gate and current blockers."""
+
+        return adapter.call_tool("get_final_readiness_status", {})
+
+    def submit_actual_client_observation(observation: dict[str, Any]) -> dict[str, Any]:
+        """Use this when the operator explicitly approves recording actual ChatGPT MCP observations."""
+
+        return adapter.call_tool("submit_actual_client_observation", {"observation": model_to_plain_json(observation)})
+
+    def get_actual_client_proof_status() -> dict[str, Any]:
+        """Use this when you need latest actual ChatGPT client proof freshness and replay status."""
+
+        return adapter.call_tool("get_actual_client_proof_status", {})
 
     def get_package_proposal_template() -> dict[str, Any]:
         """Use this when you need the guarded package-proposal JSON template."""
@@ -6273,6 +6905,11 @@ def create_fastmcp_server(
             },
         )
 
+    def list_bounded_repo_commands() -> dict[str, Any]:
+        """Use this when you need to inspect bounded command keys before running one."""
+
+        return adapter.call_tool("list_bounded_repo_commands", {})
+
     def get_workflow_control_plan() -> dict[str, Any]:
         """Use this when you need a read-only repo workflow control plan."""
 
@@ -6379,6 +7016,15 @@ def create_fastmcp_server(
         "get_repo_status": get_repo_status,
         "get_latest_handoff": get_latest_handoff,
         "get_workflow_control_summary": get_workflow_control_summary,
+        "get_mcp_runtime_status": get_mcp_runtime_status,
+        "get_tool_surface_diff": get_tool_surface_diff,
+        "run_mcp_restart_preflight": run_mcp_restart_preflight,
+        "restart_mcp_runtime": restart_mcp_runtime,
+        "get_tunnel_status": get_tunnel_status,
+        "get_chatgpt_connector_setup_packet": get_chatgpt_connector_setup_packet,
+        "get_final_readiness_status": get_final_readiness_status,
+        "submit_actual_client_observation": submit_actual_client_observation,
+        "get_actual_client_proof_status": get_actual_client_proof_status,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,
@@ -6390,6 +7036,7 @@ def create_fastmcp_server(
         "push_current_branch": push_current_branch,
         "get_current_head_ci_status": get_current_head_ci_status,
         "run_bounded_repo_command": run_bounded_repo_command,
+        "list_bounded_repo_commands": list_bounded_repo_commands,
         "get_workflow_control_plan": get_workflow_control_plan,
         "get_dirty_paths": get_dirty_paths,
         "get_recent_commits": get_recent_commits,

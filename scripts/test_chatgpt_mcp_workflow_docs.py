@@ -68,6 +68,21 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Debugger/CE", text)
         self.assertIn("does not accept shell strings", text)
 
+    def test_mcp_doc_includes_runtime_and_proof_status_tools(self) -> None:
+        text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")
+        self.assertIn("33-tool narrow adapter", text)
+        self.assertIn("get_mcp_runtime_status", text)
+        self.assertIn("get_tool_surface_diff", text)
+        self.assertIn("run_mcp_restart_preflight", text)
+        self.assertIn("restart_mcp_runtime", text)
+        self.assertIn("get_tunnel_status", text)
+        self.assertIn("get_chatgpt_connector_setup_packet", text)
+        self.assertIn("get_final_readiness_status", text)
+        self.assertIn("submit_actual_client_observation", text)
+        self.assertIn("get_actual_client_proof_status", text)
+        self.assertIn("list_bounded_repo_commands", text)
+        self.assertIn("final 33-tool proof", text)
+
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")
         self.assertIn("Stage: **36", text)

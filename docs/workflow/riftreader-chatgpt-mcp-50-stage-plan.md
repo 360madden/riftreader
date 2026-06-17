@@ -22,7 +22,7 @@ safe status/validation command keys.
 Stage 34 exposure note:
 `run_bounded_repo_command` is exposed for versioned registry keys only. It never
 accepts shell strings or arbitrary argv, and the current full MCP surface is
-23 tools.
+33 tools after the post-Stage-37 operational proof and runtime-recovery bundles.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -43,10 +43,30 @@ preserved through submit, draft, review, dry-run blocking, and apply preflight
 blocking, but provider repo writes remain disabled by default and are not
 exposed as an MCP tool.
 
+Post-Stage-37 operational proof bundle note:
+`get_mcp_runtime_status`, `get_final_readiness_status`,
+`submit_actual_client_observation`, `get_actual_client_proof_status`, and
+`list_bounded_repo_commands` are exposed so ChatGPT can verify backend runtime
+freshness, final-readiness blockers, actual-client proof state, and bounded
+command registry metadata without guessing or assuming that a saved connector
+started anything. Stage 38 remains the next live-boundary stage and still
+requires explicit approval.
+
+Post-Stage-37 runtime-recovery bundle note:
+`get_tool_surface_diff`, `run_mcp_restart_preflight`, `restart_mcp_runtime`,
+`get_tunnel_status`, and `get_chatgpt_connector_setup_packet` are exposed so
+ChatGPT can distinguish source/runtime/client proof drift, obtain exact-PID
+restart approval facts, schedule a guarded restart of only the verified MCP
+runtime, check the Cloudflare named Tunnel route, and give the operator a
+copy-safe non-Codex connector setup packet. The restart tool is approval-token
+gated and does not expose arbitrary shell, tunnel mutation, Git mutation, RIFT
+input, provider writes, CE, or x64dbg.
+
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
 integration are complete-local. The MCP surface now includes `push_current_branch`
-and `get_current_head_ci_status`; arbitrary shell remains absent.
+and `get_current_head_ci_status`; the operational proof bundle adds status/proof
+tools only; arbitrary shell remains absent.
 
 ## Operating rules
 

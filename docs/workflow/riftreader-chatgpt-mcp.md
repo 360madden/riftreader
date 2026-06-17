@@ -1,7 +1,9 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: 23-tool narrow adapter with gated apply, commit, push, CI, tracked-context,
-bounded repo-command lanes, and provider-intent labels that remain blocked by default.
+Status: 33-tool narrow adapter with runtime/final-readiness/proof-status,
+tool-surface diff, guarded restart preflight/restart, tunnel-status, connector
+setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
+lanes, and provider-intent labels that remain blocked by default.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -38,6 +40,15 @@ The adapter is designed for this safe loop:
 | `get_repo_status` | Read-only | Returns compact repo/workflow truth using existing status helper logic. |
 | `get_latest_handoff` | Read-only | Reads only the newest Markdown file under `docs/handoffs`. |
 | `get_workflow_control_summary` | Read-only | Returns the smallest safe workflow-control summary for MCP clients that time out on the full plan. |
+| `get_mcp_runtime_status` | Read-only | Reports whether the local backend is actually running-current, source-fresh, and not merely a saved ChatGPT app connector. |
+| `get_tool_surface_diff` | Read-only | Compares source manifest, loaded adapter manifest, local runtime status, and latest actual-client proof so stale/partial tool surfaces are explicit. |
+| `run_mcp_restart_preflight` | Read-only | Produces exact-PID restart facts and approval token for the current MCP process; never stops or starts a process. |
+| `restart_mcp_runtime` | Approval-token gated local process action | Schedules an exact-PID restart of only the verified current MCP runtime after preflight token match; never starts tunnels, registers ChatGPT, mutates Git, sends RIFT input, writes providers, or touches CE/x64dbg. |
+| `get_tunnel_status` | Read-only external status | Reports Cloudflared service/process status, local backend status, and fixed public `/mcp` route reachability without starting or modifying tunnels. |
+| `get_chatgpt_connector_setup_packet` | Read-only | Returns the exact ChatGPT Web/Desktop Server URL, No Authentication mode, expected tool count, refresh steps, and actual-client proof checklist. |
+| `get_final_readiness_status` | Read-only external status | Returns the compact final-readiness gate and current blockers, including stale proof and CI state. |
+| `submit_actual_client_observation` | Guarded local write | Records operator-supplied actual ChatGPT Web/Desktop observations as ignored proof artifacts under `.riftreader-local`; never calls ChatGPT, starts tunnels, stages, commits, pushes, sends RIFT input, writes providers, or touches CE/x64dbg. |
+| `get_actual_client_proof_status` | Read-only | Replays the latest actual-client proof and reports whether it is missing, stale, blocked, or valid for the current tool surface. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`; provider-write intent metadata is preserved as a blocked-by-default label. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
@@ -49,6 +60,7 @@ The adapter is designed for this safe loop:
 | `push_current_branch` | Approval-token gated remote Git action | Performs one normal non-force current-branch push only after a fresh safe push preflight; never commits, force-pushes, rewrites, resets, cleans, or uses ambiguous refspecs. |
 | `get_current_head_ci_status` | Read-only external status | Reads current HEAD GitHub Actions status through the repo helper; never mutates GitHub state. |
 | `run_bounded_repo_command` | Registry-key bounded action | Runs only versioned allowlisted repo status/validation helpers, never shell strings or arbitrary argv; writes capped audit summaries under `.riftreader-local\riftreader-chatgpt-mcp\bounded-commands`. |
+| `list_bounded_repo_commands` | Read-only | Lists the versioned bounded-command registry without executing anything. |
 | `get_workflow_control_plan` | Read-only | Returns Mission Control status, safe commit-plan guidance, bidirectional data-flow steps, and gated action boundaries without executing them. |
 | `get_dirty_paths`, `get_recent_commits`, `repo_tree_tracked`, `repo_search_tracked`, `repo_read_tracked_file`, `repo_read_many_tracked_files`, `repo_context_pack` | Read-only tracked-repo context | Provides bounded Git/status/tracked-file context only; no arbitrary filesystem endpoint. |
 
@@ -100,7 +112,7 @@ Required current-lane result:
 |---|---|
 | `status` | `running-current` |
 | `ok` | `true` |
-| `selectedListener.classification.toolProfile` | `full` for final 20-tool proof |
+| `selectedListener.classification.toolProfile` | `full` for final 33-tool proof |
 | `selectedListener.classification.transport` | `streamable-http` |
 
 Fail closed on these states:
@@ -117,7 +129,7 @@ Dependency order for proof work:
 2. local backend listener is present on `127.0.0.1:8770`;
 3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
    adapter, not legacy/foreign;
-4. tool profile matches the intended proof (`full` for the current 23-tool proof);
+4. tool profile matches the intended proof (`full` for the current 33-tool proof);
 5. Cloudflare named Tunnel/public route forwards to that backend;
 6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
 7. proof input is checked and recorded, then final readiness is rerun.
@@ -136,11 +148,20 @@ Phase 0 exposes only:
 - `get_repo_status`
 - `get_latest_handoff`
 - `get_workflow_control_summary`
+- `get_mcp_runtime_status`
+- `get_tool_surface_diff`
+- `run_mcp_restart_preflight`
+- `get_tunnel_status`
+- `get_chatgpt_connector_setup_packet`
+- `get_final_readiness_status`
+- `get_actual_client_proof_status`
+- `list_bounded_repo_commands`
 - `get_workflow_control_plan`
 
-The default `--tool-profile full` path exposes the current 20-tool final proof
-surface, including the approval-gated `commit_reviewed_slice` local commit
-tool, and is not deleted or downgraded.
+The default `--tool-profile full` path exposes the current 33-tool final proof
+surface, including runtime/final-readiness/proof-status helpers, tool-surface
+diff, guarded restart, tunnel status, connector setup, and the approval-gated
+apply, local-commit, and push tools. It is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 
@@ -640,10 +661,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `cloudflare-named-tunnel` (legacy recorder packets may still say `manual-public-ip`) | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 23 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 33 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `23` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 23 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `33` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 33 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 
