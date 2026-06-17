@@ -1987,7 +1987,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(command_contract["exposureStatus"], "exposed-gated")
         self.assertEqual(command_contract["registryStatus"], "implemented-local-only")
         self.assertEqual(command_contract["registryVersion"], "bounded-repo-command-registry-v1")
-        self.assertEqual(command_contract["registryCommandCount"], 6)
+        self.assertEqual(command_contract["registryCommandCount"], 7)
         self.assertEqual(command_contract["auditStatus"], "implemented-local-replay")
         self.assertEqual(command_contract["executionStatus"], "implemented-and-mcp-wrapped")
         self.assertIn("mcp_server_status", command_contract["registryCommandKeys"])

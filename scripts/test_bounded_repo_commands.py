@@ -30,6 +30,7 @@ class BoundedRepoCommandsTests(unittest.TestCase):
                 "current_head_ci_status",
                 "mcp_final_status",
                 "mcp_server_status",
+                "stage38_approval_packet",
                 "stage38_consideration_status",
                 "test_mcp_server_status",
                 "validate_mcp_sdk",
@@ -62,6 +63,23 @@ class BoundedRepoCommandsTests(unittest.TestCase):
         self.assertEqual(payload["expectedExitCodes"], [0, 1, 2])
         self.assertEqual(payload["timeoutSeconds"], 45.0)
         self.assertTrue(payload["readOnly"])
+        self.assertFalse(payload["safety"]["gitMutation"])
+        self.assertFalse(payload["safety"]["providerWrites"])
+        self.assertFalse(payload["safety"]["inputSent"])
+        self.assertFalse(payload["safety"]["movementSent"])
+
+    def test_stage38_approval_packet_plan_writes_ignored_artifacts_only(self) -> None:
+        payload = commands.plan_command("stage38_approval_packet")
+
+        self.assertTrue(payload["ok"], payload.get("blockers"))
+        self.assertEqual(
+            payload["argv"],
+            ["cmd", "/c", "scripts\\riftreader-stage38-consideration.cmd", "--write-approval-packet", "--json"],
+        )
+        self.assertEqual(payload["expectedExitCodes"], [0, 1, 2])
+        self.assertEqual(payload["timeoutSeconds"], 45.0)
+        self.assertFalse(payload["readOnly"])
+        self.assertTrue(payload["writesIgnoredArtifacts"])
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["providerWrites"])
         self.assertFalse(payload["safety"]["inputSent"])

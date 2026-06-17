@@ -144,6 +144,29 @@ class Stage38ConsiderationTests(unittest.TestCase):
         self.assertEqual(payload["status"], "passed")
         self.assertTrue(payload["ok"])
 
+    def test_approval_packet_ready_to_review_when_prerequisites_wait_for_approval(self) -> None:
+        status = self.status()
+
+        packet = stage38.build_stage38_approval_packet(status)
+
+        self.assertEqual(packet["status"], "ready-to-review")
+        self.assertTrue(packet["ok"])
+        self.assertFalse(packet["stage38Started"])
+        self.assertIn(stage38.STAGE38_APPROVAL_TOKEN, packet["markdown"])
+        self.assertIn("--approval-token", packet["approvalCommand"])
+
+    def test_approval_packet_blocks_when_consideration_gate_is_blocked(self) -> None:
+        status = self.status(final_ok=False)
+
+        packet = stage38.build_stage38_approval_packet(status)
+
+        self.assertEqual(packet["status"], "blocked")
+        self.assertFalse(packet["ok"])
+        self.assertIn("stage38-approval-packet-not-ready:blocked", packet["blockers"])
+        self.assertIn("proof:replay-failed:tool-count-not-33:20", packet["blockers"])
+        self.assertFalse(packet["safety"]["stage38Started"])  # type: ignore[index]
+        self.assertFalse(packet["safety"]["inputSent"])  # type: ignore[index]
+
 
 if __name__ == "__main__":
     unittest.main()

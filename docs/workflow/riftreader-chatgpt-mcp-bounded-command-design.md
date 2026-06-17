@@ -121,6 +121,7 @@ Initial keys:
 | `mcp_server_status` | `scripts\riftreader-mcp-server-status.cmd --json` | Read-only backend dependency truth, now checks live runtime surface. Accepts exit codes `0`, `1`, or `2` because blocked status is a valid status result. |
 | `mcp_final_status` | `scripts\riftreader-mcp-final.cmd --status --compact-json` | Read-only final readiness gate. |
 | `stage38_consideration_status` | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` | Read-only/local-only Stage 38 consideration gate. Does not add an MCP tool or start live RIFT tooling. |
+| `stage38_approval_packet` | `scripts\riftreader-stage38-consideration.cmd --write-approval-packet --json` | Writes a fail-closed Stage 38 approval packet under ignored `.riftreader-local` artifacts. Does not add an MCP tool or start live RIFT tooling. |
 | `current_head_ci_status` | `python tools\riftreader_workflow\mcp_ci_status.py --status --json` | Read-only GitHub Actions inspection through existing helper. |
 | `validate_mcp_sdk` | `python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --validate-sdk --tool-profile full --json` | Local metadata validation; no persistent server or tunnel. |
 | `test_mcp_server_status` | `python -m unittest scripts.test_mcp_server_status` | Focused unit test for runtime dependency guard. |

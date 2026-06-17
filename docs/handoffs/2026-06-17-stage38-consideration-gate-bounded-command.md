@@ -14,6 +14,7 @@ new MCP tool.
 | Stage 38 | Not active. It remains parked behind final readiness plus the explicit live-boundary token `STAGE38-LIVE-BOUNDARY-APPROVED`. |
 | Gate helper | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` checks runtime freshness, public route, final readiness, and live-boundary approval. |
 | Bounded command | `stage38_consideration_status` is now in the bounded command registry, so the existing `run_bounded_repo_command` MCP tool can run the gate without adding another MCP tool. |
+| Approval packet writer | `stage38_approval_packet` writes a fail-closed approval packet under ignored `.riftreader-local` artifacts through the existing bounded-command surface. It does not start Stage 38. |
 | Commits | `9132605` added the Stage 38 consideration gate. `b886e11` exposed that gate as a bounded command. |
 | Runtime restart | Stale HTTP PID `134652` was restarted through the exact-PID guarded preflight. Fresh PID `130316` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
 | Public route | The Stage 38 gate reports the Cloudflare named route `https://mcp.360madden.com/mcp` as passed. |
@@ -45,6 +46,7 @@ python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_tool_surfa
 python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_final_readiness_status --json
 scripts\riftreader-stage38-consideration.cmd --status --compact-json
 python tools\riftreader_workflow\bounded_repo_commands.py --run stage38_consideration_status --json
+scripts\riftreader-stage38-consideration.cmd --write-approval-packet --json
 ```
 
 ## Actual-client proof refresh packet

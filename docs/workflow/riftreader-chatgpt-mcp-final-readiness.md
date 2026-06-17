@@ -259,6 +259,19 @@ approval token was supplied, and `passed` only after the required approval token
 is supplied. Passing this helper allows drafting a Stage 38 approval packet; it
 does not implement or start live RIFT tooling.
 
+To make that review reproducible, generate the packet through the fail-closed
+local writer:
+
+```cmd
+scripts\riftreader-stage38-consideration.cmd --write-approval-packet --json
+```
+
+When the consideration gate is still blocked, this command writes a blocked
+packet under ignored `.riftreader-local` artifacts and returns a blocked status.
+When all prerequisites pass but live-boundary approval is still missing, the
+packet status is `ready-to-review`. The packet is evidence for review only; it
+does not start Stage 38 or change the MCP tool surface.
+
 ## Phase 6 safety fixture acceptance criteria
 
 Phase 6 may be considered complete when:

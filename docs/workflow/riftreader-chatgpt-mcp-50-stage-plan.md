@@ -19,8 +19,8 @@ future `run_bounded_repo_command` contract.
 
 Stage 33 registry note:
 `tools/riftreader_workflow/bounded_repo_commands.py` implements the versioned
-local-only allowlist registry (`bounded-repo-command-registry-v1`) for five
-safe status/validation command keys.
+local-only allowlist registry (`bounded-repo-command-registry-v1`) for the
+current safe status, validation, and ignored-artifact command keys.
 
 Stage 34 exposure note:
 `run_bounded_repo_command` is exposed for versioned registry keys only. It never
@@ -86,6 +86,16 @@ scripts\riftreader-stage38-consideration.cmd --status --compact-json
 This helper does not add an MCP tool and does not start Stage 38. It checks the
 current local runtime, public route, final readiness, and the explicit
 live-boundary approval requirement before an approval packet can be drafted.
+The approval packet itself must also be generated through the fail-closed local
+writer:
+
+```cmd
+scripts\riftreader-stage38-consideration.cmd --write-approval-packet --json
+```
+
+This writes ignored `.riftreader-local` evidence only. It reports `blocked` while
+final readiness or proof replay is blocked, `ready-to-review` when all
+prerequisites pass but approval has not been supplied, and never starts Stage 38.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor

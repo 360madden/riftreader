@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .common import find_repo_root, safety_flags, unique, utc_iso
+    from .common import find_repo_root, repo_rel, safety_flags, unique, utc_iso, utc_stamp
     from .mcp_final_readiness import compact_final_readiness, final_readiness
     from .mcp_runtime_control import DEFAULT_PUBLIC_MCP_URL, build_tunnel_status
     from .mcp_server_status import build_status_payload
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow.common import find_repo_root, safety_flags, unique, utc_iso
+    from riftreader_workflow.common import find_repo_root, repo_rel, safety_flags, unique, utc_iso, utc_stamp
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
     from riftreader_workflow.mcp_runtime_control import DEFAULT_PUBLIC_MCP_URL, build_tunnel_status
     from riftreader_workflow.mcp_server_status import build_status_payload
@@ -33,6 +33,8 @@ SCHEMA_VERSION = 1
 KIND = "riftreader-stage38-consideration-status"
 VERSION = "riftreader-stage38-consideration-v0.1.0"
 STAGE38_APPROVAL_TOKEN = "STAGE38-LIVE-BOUNDARY-APPROVED"
+APPROVAL_PACKET_KIND = "riftreader-stage38-approval-packet"
+DEFAULT_APPROVAL_PACKET_ROOT = Path(".riftreader-local") / "riftreader-chatgpt-mcp" / "stage38-approval-packets"
 
 
 def _criterion(
@@ -327,6 +329,184 @@ def compact_stage38_status(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _markdown_bullets(values: list[Any]) -> str:
+    if not values:
+        return "- None"
+    return "\n".join(f"- `{value}`" for value in values)
+
+
+def _criterion_markdown_rows(criteria: list[dict[str, Any]]) -> list[str]:
+    rows = ["| Criterion | Status | Key evidence | Blockers |", "|---|---|---|---|"]
+    for item in criteria:
+        evidence = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
+        evidence_bits: list[str] = []
+        for key in (
+            "status",
+            "observedToolCount",
+            "stdioCounterpartsStatus",
+            "sourceFreshnessStatus",
+            "publicRouteProbeStatus",
+            "ciStatus",
+            "phase2Status",
+            "proofReplayStatus",
+            "proofFreshnessStatus",
+            "approvalTokenAccepted",
+        ):
+            if key in evidence and evidence.get(key) is not None:
+                evidence_bits.append(f"{key}={evidence.get(key)}")
+        blockers = item.get("blockers") if isinstance(item.get("blockers"), list) else []
+        rows.append(
+            "| {key} | {status} | {evidence} | {blockers} |".format(
+                key=item.get("key"),
+                status=item.get("status"),
+                evidence="<br>".join(evidence_bits) if evidence_bits else "-",
+                blockers="<br>".join(f"`{blocker}`" for blocker in blockers) if blockers else "-",
+            )
+        )
+    return rows
+
+
+def render_stage38_approval_packet_markdown(packet: dict[str, Any]) -> str:
+    status_payload = packet.get("stage38Status") if isinstance(packet.get("stage38Status"), dict) else {}
+    criteria = status_payload.get("criteria") if isinstance(status_payload.get("criteria"), list) else []
+    next_action = (
+        status_payload.get("recommendedNextAction")
+        if isinstance(status_payload.get("recommendedNextAction"), dict)
+        else {}
+    )
+    approval_command = " ".join(str(part) for part in packet.get("approvalCommand") or [])
+    lines = [
+        "# Stage 38 approval packet",
+        "",
+        "# **⚠️ LIVE BOUNDARY — DO NOT START STAGE 38 FROM THIS PACKET**",
+        "",
+        "| Item | Value |",
+        "|---|---|",
+        f"| Packet status | `{packet.get('status')}` |",
+        f"| Stage 38 status | `{status_payload.get('status')}` |",
+        f"| Generated UTC | `{packet.get('generatedAtUtc')}` |",
+        f"| Stage 38 active | `{status_payload.get('stage38Active')}` |",
+        f"| Stage 38 started | `{status_payload.get('stage38Started')}` |",
+        f"| Required approval token | `{STAGE38_APPROVAL_TOKEN}` |",
+        "",
+        "## Gate criteria",
+        "",
+        *_criterion_markdown_rows([item for item in criteria if isinstance(item, dict)]),
+        "",
+        "## Current blockers",
+        "",
+        _markdown_bullets([str(item) for item in packet.get("blockers") or []]),
+        "",
+        "## Next action",
+        "",
+        f"- Key: `{next_action.get('key')}`",
+        f"- Reason: {next_action.get('reason')}",
+        f"- Command: `{' '.join(str(part) for part in next_action.get('command') or [])}`",
+        "",
+        "## Approval command after human review",
+        "",
+        f"```cmd\n{approval_command}\n```",
+        "",
+        "Supplying the approval token only allows the consideration gate to pass.",
+        "It does not implement Stage 38, start live RIFT tooling, send input, attach CE/x64dbg,",
+        "write provider repositories, promote proof/current truth, or change the MCP tool surface.",
+        "",
+        "## Safety",
+        "",
+        "- `stage38Started=false`",
+        "- `stage38Active=false`",
+        "- `inputSent=false`",
+        "- `movementSent=false`",
+        "- `providerWrites=false`",
+        "- `x64dbgAttach=false`",
+        "- `noCheatEngine=true`",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def build_stage38_approval_packet(status_payload: dict[str, Any]) -> dict[str, Any]:
+    """Build a local-only approval packet from a Stage 38 consideration payload."""
+
+    stage_status = str(status_payload.get("status") or "unknown")
+    if stage_status == "approval-required":
+        packet_status = "ready-to-review"
+        blockers: list[str] = []
+    elif stage_status == "passed":
+        packet_status = "approved-ready-to-draft"
+        blockers = []
+    else:
+        packet_status = "blocked"
+        blockers = unique(
+            [
+                f"stage38-approval-packet-not-ready:{stage_status}",
+                *[str(item) for item in status_payload.get("blockers") or []],
+            ]
+        )
+
+    compact_status = compact_stage38_status(status_payload)
+    packet: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": APPROVAL_PACKET_KIND,
+        "generatedAtUtc": utc_iso(),
+        "status": packet_status,
+        "ok": packet_status != "blocked",
+        "stage": 38,
+        "stageName": "Live RIFT read-only state surface",
+        "stage38Active": False,
+        "stage38Started": False,
+        "blockers": blockers,
+        "warnings": [str(item) for item in status_payload.get("warnings") or []],
+        "stage38Status": compact_status,
+        "requiredApprovalToken": STAGE38_APPROVAL_TOKEN,
+        "approvalCommand": [
+            "scripts\\riftreader-stage38-consideration.cmd",
+            "--status",
+            "--approval-token",
+            STAGE38_APPROVAL_TOKEN,
+            "--json",
+        ],
+        "safety": {
+            **safety_flags(),
+            "stage38Started": False,
+            "stage38Active": False,
+            "stage38ToolSurfaceChanged": False,
+            "approvalPacketOnly": True,
+            "writesIgnoredArtifacts": False,
+            "gitMutation": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "reloaduiSent": False,
+            "screenshotKeySent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+        },
+    }
+    packet["markdown"] = render_stage38_approval_packet_markdown(packet)
+    return packet
+
+
+def write_stage38_approval_packet(repo_root: Path, packet: dict[str, Any]) -> dict[str, Any]:
+    output_root = repo_root / DEFAULT_APPROVAL_PACKET_ROOT
+    packet_dir = output_root / f"{utc_stamp()}-{packet.get('status') or 'unknown'}"
+    packet_dir.mkdir(parents=True, exist_ok=False)
+    markdown = str(packet.get("markdown") or "")
+    markdown_path = packet_dir / "approval-packet.md"
+    json_path = packet_dir / "approval-packet.json"
+    markdown_path.write_text(markdown, encoding="utf-8")
+
+    json_payload = dict(packet)
+    json_payload.pop("markdown", None)
+    json_payload["markdownPath"] = repo_rel(repo_root, markdown_path)
+    json_payload["jsonPath"] = repo_rel(repo_root, json_path)
+    json_payload["safety"] = {
+        **(json_payload.get("safety") if isinstance(json_payload.get("safety"), dict) else {}),
+        "writesIgnoredArtifacts": True,
+    }
+    json_path.write_text(json.dumps(json_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return json_payload
+
+
 def self_test() -> dict[str, Any]:
     final_ok = {
         "status": "passed",
@@ -412,6 +592,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Check whether Stage 38 can be considered.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--status", action="store_true", help="Print Stage 38 consideration status.")
+    mode.add_argument(
+        "--write-approval-packet",
+        action="store_true",
+        help="Write a fail-closed local Stage 38 approval packet under .riftreader-local.",
+    )
     mode.add_argument("--self-test", action="store_true", help="Run deterministic self-test fixtures.")
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--public-mcp-url", default=DEFAULT_PUBLIC_MCP_URL)
@@ -429,11 +614,25 @@ def main(argv: list[str] | None = None) -> int:
         payload = (
             self_test()
             if args.self_test
-            else build_stage38_consideration_status(
-                repo_root,
-                approval_token=args.approval_token,
-                public_mcp_url=args.public_mcp_url,
-                check_tunnel=not args.skip_tunnel_status,
+            else (
+                write_stage38_approval_packet(
+                    repo_root,
+                    build_stage38_approval_packet(
+                        build_stage38_consideration_status(
+                            repo_root,
+                            approval_token=args.approval_token,
+                            public_mcp_url=args.public_mcp_url,
+                            check_tunnel=not args.skip_tunnel_status,
+                        )
+                    ),
+                )
+                if args.write_approval_packet
+                else build_stage38_consideration_status(
+                    repo_root,
+                    approval_token=args.approval_token,
+                    public_mcp_url=args.public_mcp_url,
+                    check_tunnel=not args.skip_tunnel_status,
+                )
             )
         )
     except Exception as exc:  # noqa: BLE001 - CLI must fail closed with structured error.
@@ -450,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
             "warnings": [],
             "safety": safety_flags(),
         }
-    output_payload = compact_stage38_status(payload) if args.compact_json else payload
+    output_payload = compact_stage38_status(payload) if args.compact_json and payload.get("kind") == KIND else payload
     if args.json or args.compact_json:
         print(json.dumps(output_payload, indent=2, sort_keys=True))
     else:

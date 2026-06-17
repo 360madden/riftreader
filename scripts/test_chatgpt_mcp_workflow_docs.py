@@ -68,6 +68,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Debugger/CE", text)
         self.assertIn("does not accept shell strings", text)
         self.assertIn("stage38_consideration_status", text)
+        self.assertIn("stage38_approval_packet", text)
         self.assertIn("Does not add an MCP tool or start live RIFT tooling", text)
 
     def test_mcp_doc_includes_runtime_and_proof_status_tools(self) -> None:
@@ -89,9 +90,11 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
         final = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-final-readiness.md")
         self.assertIn("scripts\\riftreader-stage38-consideration.cmd --status --compact-json", plan)
+        self.assertIn("scripts\\riftreader-stage38-consideration.cmd --write-approval-packet --json", plan)
         self.assertIn("does not add an MCP tool", plan)
         self.assertIn("Stage 38 consideration guard", final)
         self.assertIn("approval-required", final)
+        self.assertIn("--write-approval-packet", final)
         self.assertIn("does not implement or start live RIFT tooling", final)
 
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
