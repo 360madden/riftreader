@@ -220,9 +220,14 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 4. The selected listener uses the intended profile (`full` for final 33-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
-6. Actual ChatGPT/MCP connector `health` sees the expected tools and output
+6. If a local/Codex stdio MCP counterpart is present, treat it as a separate
+   optional client-side process, not as the Cloudflare HTTP runtime. A stale
+   stdio counterpart can make actual callable tools show an old tool count; use
+   `stdioCounterparts` from `mcp_server_status.py` to recognize this and
+   refresh/restart that client-side app/server before proof.
+7. Actual ChatGPT/MCP connector `health` sees the expected tools and output
    schemas.
-7. Only then fill/check/record proof input and rerun this final gate.
+8. Only then fill/check/record proof input and rerun this final gate.
 
 Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
 states mean the MCP backend dependency is not satisfied even if a connector

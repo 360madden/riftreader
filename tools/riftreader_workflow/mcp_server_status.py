@@ -39,6 +39,7 @@ RUNTIME_SURFACE_TIMEOUT_SECONDS = 15.0
 RUNTIME_SOURCE_FRESHNESS_TOLERANCE_SECONDS = 1.0
 RUNTIME_SOURCE_PATHS = (
     Path("tools/riftreader_workflow/riftreader_chatgpt_mcp.py"),
+    Path("tools/riftreader_workflow/mcp_server_status.py"),
     Path("tools/riftreader_workflow/mcp_tool_surface.py"),
     Path("tools/riftreader_workflow/mcp_runtime_control.py"),
     Path("tools/riftreader_workflow/chatgpt_trial_recorder.py"),
@@ -160,6 +161,142 @@ foreach ($conn in $connections) {{
             "stdout": completed.stdout[-1000:],
         }
     return payload if isinstance(payload, dict) else {"ok": False, "exists": False, "listeners": []}
+
+
+def query_stdio_counterparts(repo_root: Path, *, timeout_seconds: int = 10) -> dict[str, Any]:
+    """Find local stdio adapter processes that can keep old MCP tool surfaces alive.
+
+    The Cloudflare ChatGPT route uses the loopback streamable-HTTP server.  Codex
+    and local MCP clients may also have stdio instances of the same adapter
+    running.  Those processes are not proof that the public route is current, but
+    if they started before the latest adapter source change they can mislead an
+    operator because actual callable tools in the current client can still show an
+    older surface.
+    """
+
+    repo_root_text = str(repo_root.resolve())
+    script = f"""
+$ErrorActionPreference = 'SilentlyContinue'
+$repoRoot = {json.dumps(repo_root_text)}
+$repoRootSlash = $repoRoot.Replace('\\', '/')
+$items = @()
+$processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {{
+  $cmd = [string]$_.CommandLine
+  if (-not $cmd) {{ return $false }}
+  $normalized = $cmd.Replace('\\', '/')
+  return (
+    $normalized -like '*riftreader_chatgpt_mcp.py*' -and
+    $normalized -like '*--serve*' -and
+    ($normalized -match '--transport(?:=|\\s+)stdio') -and
+    ($normalized -like "*$repoRootSlash*" -or $normalized -like '*tools/riftreader_workflow/riftreader_chatgpt_mcp.py*')
+  )
+}})
+foreach ($proc in $processes) {{
+  $items += [ordered]@{{
+    processId = [int]$proc.ProcessId
+    parentProcessId = [int]$proc.ParentProcessId
+    processExists = $true
+    processName = [string]$proc.Name
+    executablePath = [string]$proc.ExecutablePath
+    creationDate = [string]$proc.CreationDate.ToString("o")
+    commandLine = [string]$proc.CommandLine
+  }}
+}}
+[ordered]@{{
+  ok = $true
+  count = $items.Count
+  processes = $items
+}} | ConvertTo-Json -Depth 6 -Compress
+"""
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            check=False,
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "status": "query-failed",
+            "count": 0,
+            "processes": [],
+            "queryTimedOut": True,
+            "error": f"TimeoutExpired:{exc}",
+            "warnings": [],
+        }
+    if completed.returncode != 0:
+        return {
+            "ok": False,
+            "status": "query-failed",
+            "count": 0,
+            "processes": [],
+            "exitCode": completed.returncode,
+            "stderr": completed.stderr[-1000:],
+            "warnings": [],
+        }
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return {
+            "ok": False,
+            "status": "query-failed",
+            "count": 0,
+            "processes": [],
+            "error": f"JSONDecodeError:{exc}",
+            "stdout": completed.stdout[-1000:],
+            "warnings": [],
+        }
+    return summarize_stdio_counterparts(repo_root, payload if isinstance(payload, dict) else {})
+
+
+def summarize_stdio_counterparts(repo_root: Path, query: dict[str, Any]) -> dict[str, Any]:
+    processes = query.get("processes") if isinstance(query.get("processes"), list) else []
+    summarized: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    stale_pids: list[int] = []
+    for item in processes:
+        if not isinstance(item, dict):
+            continue
+        classification = classify_command_line(str(item.get("commandLine") or ""))
+        freshness = check_runtime_source_freshness(repo_root, item)
+        pid = item.get("processId")
+        if freshness.get("ok") is False and isinstance(pid, int):
+            stale_pids.append(pid)
+            warnings.append(f"codex-stdio-counterpart-stale:{pid}")
+        summarized.append({**item, "classification": classification, "runtimeSourceFreshness": freshness})
+
+    if not query.get("ok", True):
+        status = "query-failed"
+        ok = False
+    elif not summarized:
+        status = "not-running"
+        ok = True
+    elif stale_pids:
+        status = "stale-running"
+        ok = False
+    else:
+        status = "running-current"
+        ok = True
+
+    if summarized:
+        warnings.append("codex-stdio-counterparts-are-not-cloudflare-http-runtime-proof")
+
+    return {
+        "status": status,
+        "ok": ok,
+        "count": len(summarized),
+        "processes": summarized,
+        "staleProcessIds": stale_pids,
+        "warnings": list(dict.fromkeys(warnings)),
+        "why": (
+            "These stdio MCP adapter processes are optional local/Codex counterparts. "
+            "They do not prove the Cloudflare HTTP route, but stale instances can keep "
+            "an actual callable client surface on an older tool count until the client/app restarts."
+        ),
+    }
 
 
 def _redact_repo_root(value: Any, repo_root: Path) -> Any:
@@ -341,6 +478,7 @@ def build_status_payload(
     listener_query: dict[str, Any] | None = None,
     runtime_surface_probe: dict[str, Any] | None = None,
     runtime_source_freshness_probe: dict[str, Any] | None = None,
+    stdio_counterpart_query: dict[str, Any] | None = None,
     check_runtime_surface: bool = True,
 ) -> dict[str, Any]:
     query = listener_query if listener_query is not None else query_windows_listeners(host, port)
@@ -418,6 +556,21 @@ def build_status_payload(
             "ok": None,
             "reason": "no-current-full-profile-listener",
         }
+    if stdio_counterpart_query is not None:
+        stdio_counterparts = summarize_stdio_counterparts(repo_root, stdio_counterpart_query)
+    elif listener_query is not None:
+        stdio_counterparts = {
+            "status": "not-checked",
+            "ok": None,
+            "count": None,
+            "processes": [],
+            "warnings": [],
+            "reason": "injected-listener-query-test-mode",
+        }
+    else:
+        stdio_counterparts = query_stdio_counterparts(repo_root)
+    if stdio_counterparts.get("status") == "stale-running":
+        warnings.extend(str(item) for item in stdio_counterparts.get("warnings") or [])
     connector_note = "saved-chatgpt-connector-config-does-not-start-local-backend"
     sequence = [
         {
@@ -464,6 +617,15 @@ def build_status_payload(
             "why": "The MCP adapter process must have started after current adapter source files were last modified.",
         },
         {
+            "key": "codex-stdio-counterparts",
+            "status": "warning" if stdio_counterparts.get("status") == "stale-running" else stdio_counterparts.get("status"),
+            "ok": stdio_counterparts.get("ok"),
+            "why": (
+                "Codex/local stdio MCP counterparts are not the Cloudflare HTTP runtime, but stale stdio "
+                "instances can explain why actual callable tools still show an old tool surface."
+            ),
+        },
+        {
             "key": "public-route-forwarding",
             "status": "not-checked",
             "ok": None,
@@ -490,6 +652,7 @@ def build_status_payload(
         "listeners": classified_listeners,
         "runtimeSurface": runtime_surface,
         "runtimeSourceFreshness": runtime_source_freshness,
+        "stdioCounterparts": stdio_counterparts,
         "blockers": blockers,
         "warnings": warnings,
         "dependencySequence": sequence,

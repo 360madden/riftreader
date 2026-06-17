@@ -72,6 +72,10 @@ current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
 33-tool proof recorded and replayed, Phase 2 passed, and final readiness
 passed. A saved ChatGPT connector entry is configuration only; it does not
 start the local MCP server or prove the current tool surface.
+Also inspect `stdioCounterparts` in the MCP server-status payload: stale
+Codex/local stdio counterparts are not the Cloudflare HTTP runtime, but they can
+explain why an actual callable client surface still reports an old tool count
+after the HTTP runtime is already current.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor

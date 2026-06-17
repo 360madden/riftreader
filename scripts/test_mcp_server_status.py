@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -65,7 +67,20 @@ def source_freshness(ok: bool = True) -> dict[str, object]:
     }
 
 
+def write_runtime_source(root: Path, *, mtime_utc: datetime) -> None:
+    source = root / "tools" / "riftreader_workflow" / "riftreader_chatgpt_mcp.py"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("# test source\n", encoding="utf-8")
+    os.utime(source, (mtime_utc.timestamp(), mtime_utc.timestamp()))
+
+
 class McpServerStatusTests(unittest.TestCase):
+    def test_runtime_source_freshness_watches_status_helper_itself(self) -> None:
+        self.assertIn(
+            Path("tools/riftreader_workflow/mcp_server_status.py"),
+            mcp_server_status.RUNTIME_SOURCE_PATHS,
+        )
+
     def test_current_full_profile_server_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             payload = mcp_server_status.build_status_payload(
@@ -155,6 +170,46 @@ class McpServerStatusTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual("running-legacy", payload["status"])
         self.assertIn("current-chatgpt-mcp-server-not-running:legacy-server-listening", payload["blockers"])
+
+    def test_stale_stdio_counterpart_warns_without_blocking_http_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_runtime_source(root, mtime_utc=datetime(2026, 6, 17, 11, 0, tzinfo=timezone.utc))
+            payload = mcp_server_status.build_status_payload(
+                root,
+                listener_query=listener(
+                    r'python "tools\riftreader_workflow\riftreader_chatgpt_mcp.py" --serve '
+                    r"--tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http "
+                    r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
+                ),
+                runtime_surface_probe=runtime_surface(),
+                runtime_source_freshness_probe=source_freshness(),
+                stdio_counterpart_query={
+                    "ok": True,
+                    "processes": [
+                        {
+                            "processId": 999,
+                            "parentProcessId": 100,
+                            "processExists": True,
+                            "processName": "python.exe",
+                            "executablePath": r"C:\Python\python.exe",
+                            "creationDate": "2026-06-17T10:00:00+00:00",
+                            "commandLine": (
+                                r'python "tools\riftreader_workflow\riftreader_chatgpt_mcp.py" '
+                                r'--serve --transport stdio --repo-root "C:\RIFT MODDING\RiftReader"'
+                            ),
+                        }
+                    ],
+                },
+            )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("running-current", payload["status"])
+        self.assertEqual("stale-running", payload["stdioCounterparts"]["status"])
+        self.assertEqual([999], payload["stdioCounterparts"]["staleProcessIds"])
+        self.assertIn("codex-stdio-counterpart-stale:999", payload["warnings"])
+        by_key = {item["key"]: item for item in payload["dependencySequence"]}
+        self.assertEqual("warning", by_key["codex-stdio-counterparts"]["status"])
 
 
 if __name__ == "__main__":

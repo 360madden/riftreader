@@ -9,6 +9,9 @@ Fresh compact handoff:
 | Safe work completed | Runtime/tunnel/readiness status refreshed; proof template and public route plan regenerated. |
 | Runtime | `get_mcp_runtime_status` reports PID `53740` as `running-current`, full profile, source-fresh. |
 | Tunnel | `get_tunnel_status` reports `https://mcp.360madden.com/mcp` initialize passed through the Cloudflare named Tunnel. |
+| Stale stdio hazard | `mcp_server_status.py` now reports local/Codex stdio MCP counterparts separately; stale stdio PIDs `97436` and `116596` explained a 20-tool actual callable surface while HTTP PID `53740` was 33-tool/current. Those stale stdio PIDs were stopped after exact command-line verification. |
+| Post-recovery runtime | HTTP runtime restarted through guarded exact-PID flow; current PID `112004` reports 33/33 tools, source-fresh, and `stdioCounterparts.status=not-running`. |
+| Client refresh | The old `mcp__riftreader` stdio transport now returns `Transport closed`; refresh/restart the client-side MCP app before using it for proof. |
 | Proof template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json` is the fresh final-33-tool input template. |
 | Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface. |
 

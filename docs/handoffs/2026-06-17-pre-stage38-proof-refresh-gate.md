@@ -11,11 +11,14 @@ the current 33-tool surface.
 
 | Area | Evidence |
 |---|---|
-| Git | `main` is synced with `origin/main` at `15349ce126f55a90a6c8fd6185e0c08df6cd05dd` (`Add MCP runtime recovery tools`). |
-| CI | Current-head `.NET build and test` and `RiftReader Policy` workflows passed for `15349ce126f55a90a6c8fd6185e0c08df6cd05dd`. |
+| Git | At the start of this pre-Stage-38 pass, `main` was synced with `origin/main` at `c5ebba418ffdfd114738c5e95cb6be55ee79a5f1` (`Document pre-Stage-38 proof gate`). |
+| CI | `.NET build and test` and `RiftReader Policy` passed for `c5ebba418ffdfd114738c5e95cb6be55ee79a5f1`; rerun current-head CI after committing this detector update. |
 | Runtime | `get_mcp_runtime_status` reported `status=running-current` for PID `53740`, full profile, source freshness passed. |
 | Tunnel | `get_tunnel_status` reported Cloudflared service running and public MCP initialize passed at `https://mcp.360madden.com/mcp`. |
 | Tool surface | Source/runtime expected 33 tools; latest actual-client proof still records 20 tools. |
+| Stale stdio counterpart detection | Added after this handoff started: local status now reports Codex/local stdio MCP adapter counterparts separately from the Cloudflare HTTP runtime. In this pass, stale stdio PIDs `97436` and `116596` explained why an actual callable `mcp__riftreader.health` surface still showed 20 tools while HTTP PID `53740` showed 33. Those exact stale stdio PIDs were then stopped after command-line verification. |
+| Post-recovery runtime | HTTP runtime restarted through guarded exact-PID preflight. Current HTTP PID is `112004`; `mcp_server_status.py --json` observed 33/33 tools, `healthVersion=0.1.4`, source freshness passed, and `stdioCounterparts.status=not-running`. |
+| Remaining client refresh | The stale callable `mcp__riftreader` stdio transport is now closed after stopping the old process. Refresh/restart the ChatGPT/Codex MCP app/client before using that stdio surface again. |
 | Local trial readiness | Fresh artifact: `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260617T155223Z-trial-readiness.json`. |
 | Public route plan | Refreshed artifact: `.riftreader-local\riftreader-chatgpt-mcp\transport-smoke\20260617T155406Z-manual-public-ip-plan.json`. |
 | Proof template | Fresh final-33-tool template: `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json`. |
@@ -31,6 +34,15 @@ This is not an MCP-server-running problem right now: the local server and
 Cloudflare route are running and current. The blocker is that the actual
 ChatGPT client has not yet produced a fresh 33-tool observation.
 
+There is also a second local-client hazard: Codex/local stdio MCP adapter
+processes can remain alive after source/tool-surface changes. Those processes
+are not the Cloudflare HTTP runtime, but they can make an actual callable tool
+surface report an older tool count. Treat `stdioCounterparts.status=stale-running`
+as a client-refresh/restart signal, not as proof that the HTTP route is wrong.
+After stopping stale stdio PIDs, a `Transport closed` result from that same
+client-side tool is expected until the client/app refreshes and starts a fresh
+stdio server.
+
 ## Commands run in this pre-Stage-38 pass
 
 ```cmd
@@ -43,6 +55,7 @@ scripts\riftreader-mcp-phase2.cmd --status --json
 python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_final_readiness_status --json
 scripts\riftreader-chatgpt-trial-recorder.cmd --write-template --json
 scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp.360madden.com --json
+python tools\riftreader_workflow\mcp_server_status.py --skip-runtime-surface-check --json
 ```
 
 ## Actual-client proof refresh packet
@@ -63,6 +76,7 @@ scripts\riftreader-chatgpt-mcp.cmd --manual-public-ip-plan --public-mcp-host mcp
 | Do not | Why |
 |---|---|
 | Do not treat the saved ChatGPT app/connector entry as the running backend. | The saved entry is only configuration; it does not start the local MCP server or Cloudflared. |
+| Do not treat a local/Codex stdio MCP counterpart as the Cloudflare HTTP runtime. | Stdio counterparts can be stale and can explain an old actual callable tool surface. |
 | Do not substitute local `list_tools`, SDK validation, or tunnel initialize for actual-client proof. | Final readiness requires evidence from ChatGPT Web/Desktop. |
 | Do not move into Stage 38 live RIFT read-only tooling yet. | Final readiness and explicit live-boundary approval are both still required. |
 | Do not send RIFT input, attach CE/x64dbg, write provider repos, or promote proof/current truth. | These are separate hard gates. |
@@ -91,11 +105,11 @@ packet. Stage 38 implementation still requires explicit live-boundary approval.
 |---:|---|---|
 | 1 | Refresh/reconnect the ChatGPT Web/Desktop MCP app for `https://mcp.360madden.com/mcp`. | Forces ChatGPT to rescan the current 33-tool surface. |
 | 2 | From ChatGPT, call `get_mcp_runtime_status`. | Confirms the actual client sees the current local backend. |
-| 3 | From ChatGPT, call `get_tool_surface_diff`. | Confirms source/runtime/client proof drift is visible from the client side. |
-| 4 | From ChatGPT, confirm exactly 33 tools and output schemas. | This is the missing final-readiness fact. |
-| 5 | From ChatGPT, run the harmless proposal/draft/review/dry-run proof flow. | Preserves the repo-write safety proof for the current tool surface. |
-| 6 | Fill the fresh proof template with only the observed ChatGPT facts. | Avoids inventing proof and keeps replay trustworthy. |
-| 7 | Run the proof `--check-input` command. | Catches missing booleans/IDs before recording. |
-| 8 | Record the checked proof with `--record`. | Creates the replayable actual-client proof artifact. |
-| 9 | Rerun Phase 2 and final readiness. | Verifies the gate is truly ready before any Stage 38 discussion. |
-| 10 | Write the final pre-Stage-38 approval packet only after gates pass. | Keeps live RIFT work separated from local MCP readiness. |
+| 3 | If ChatGPT/Codex callable tools still show 20 tools, refresh/restart that client-side MCP app/server before proof. | Clears stale stdio/app-surface cache before recording proof. |
+| 4 | From ChatGPT, call `get_tool_surface_diff`. | Confirms source/runtime/client proof drift is visible from the client side. |
+| 5 | From ChatGPT, confirm exactly 33 tools and output schemas. | This is the missing final-readiness fact. |
+| 6 | From ChatGPT, run the harmless proposal/draft/review/dry-run proof flow. | Preserves the repo-write safety proof for the current tool surface. |
+| 7 | Fill the fresh proof template with only the observed ChatGPT facts. | Avoids inventing proof and keeps replay trustworthy. |
+| 8 | Run the proof `--check-input` command. | Catches missing booleans/IDs before recording. |
+| 9 | Record the checked proof with `--record`. | Creates the replayable actual-client proof artifact. |
+| 10 | Rerun Phase 2 and final readiness before drafting a Stage 38 approval packet. | Keeps live RIFT work separated from local MCP readiness. |
