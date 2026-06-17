@@ -15,6 +15,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,17 @@ CURRENT_SERVER_MARKER = "riftreader_chatgpt_mcp.py"
 LEGACY_MODULE_MARKER = "tools.riftreader_mcp.http_server"
 LEGACY_FILE_MARKER = "riftreader_mcp/http_server.py"
 RUNTIME_SURFACE_TIMEOUT_SECONDS = 15.0
+RUNTIME_SOURCE_FRESHNESS_TOLERANCE_SECONDS = 1.0
+RUNTIME_SOURCE_PATHS = (
+    Path("tools/riftreader_workflow/riftreader_chatgpt_mcp.py"),
+    Path("tools/riftreader_workflow/mcp_tool_surface.py"),
+    Path("tools/riftreader_workflow/commit_reviewed_slice.py"),
+    Path("tools/riftreader_workflow/push_current_branch.py"),
+    Path("tools/riftreader_workflow/mcp_ci_status.py"),
+    Path("tools/riftreader_workflow/local_artifact_bridge.py"),
+    Path("tools/riftreader_workflow/package_draft_review.py"),
+    Path("tools/riftreader_workflow/tracked_repo_context.py"),
+)
 
 
 def normalize_command_line(value: str) -> str:
@@ -81,7 +93,7 @@ $items = @()
 $connections = @(Get-NetTCPConnection -LocalAddress {host_json} -LocalPort {int(port)} -State Listen -ErrorAction SilentlyContinue)
 foreach ($conn in $connections) {{
   $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$($conn.OwningProcess)" -ErrorAction SilentlyContinue
-  $items += [ordered]@{{
+    $items += [ordered]@{{
     localAddress = [string]$conn.LocalAddress
     localPort = [int]$conn.LocalPort
     state = [string]$conn.State
@@ -89,6 +101,7 @@ foreach ($conn in $connections) {{
     processExists = ($null -ne $proc)
     processName = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.Name }}
     executablePath = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.ExecutablePath }}
+    creationDate = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.CreationDate.ToString("o") }}
     commandLine = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.CommandLine }}
   }}
 }}
@@ -159,6 +172,83 @@ def _redact_repo_root(value: Any, repo_root: Path) -> Any:
 def _compact_exception(exc: BaseException) -> str:
     text = f"{type(exc).__name__}:{exc}"
     return text if len(text) <= 800 else text[:797] + "..."
+
+
+def parse_windows_creation_date(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def latest_runtime_source_mtime(repo_root: Path) -> dict[str, Any]:
+    latest_path: Path | None = None
+    latest_mtime = 0.0
+    inspected: list[str] = []
+    for relative in RUNTIME_SOURCE_PATHS:
+        path = repo_root / relative
+        if not path.is_file():
+            continue
+        inspected.append(str(relative))
+        mtime = path.stat().st_mtime
+        if mtime > latest_mtime:
+            latest_mtime = mtime
+            latest_path = relative
+    if latest_path is None:
+        return {
+            "status": "not-checked",
+            "ok": None,
+            "reason": "runtime-source-files-not-found",
+            "inspectedPaths": inspected,
+        }
+    latest_dt = datetime.fromtimestamp(latest_mtime, tz=timezone.utc)
+    return {
+        "status": "passed",
+        "ok": True,
+        "latestSourcePath": str(latest_path),
+        "latestSourceMtimeUtc": latest_dt.isoformat().replace("+00:00", "Z"),
+        "latestSourceMtimeEpoch": latest_mtime,
+        "inspectedPaths": inspected,
+    }
+
+
+def check_runtime_source_freshness(repo_root: Path, listener: dict[str, Any]) -> dict[str, Any]:
+    source = latest_runtime_source_mtime(repo_root)
+    if not source.get("ok"):
+        return source
+    started_at = parse_windows_creation_date(listener.get("creationDate"))
+    if started_at is None:
+        return {
+            "status": "not-checked",
+            "ok": None,
+            "reason": "process-creation-date-unavailable",
+            "latestSourcePath": source.get("latestSourcePath"),
+            "latestSourceMtimeUtc": source.get("latestSourceMtimeUtc"),
+        }
+    latest_mtime = float(source.get("latestSourceMtimeEpoch") or 0.0)
+    process_started_epoch = started_at.timestamp()
+    stale_by = latest_mtime - process_started_epoch
+    blockers: list[str] = []
+    if stale_by > RUNTIME_SOURCE_FRESHNESS_TOLERANCE_SECONDS:
+        blockers.append(
+            "runtime-process-started-before-current-source:"
+            f"{source.get('latestSourcePath')}:{round(stale_by, 3)}s"
+        )
+    return {
+        "status": "passed" if not blockers else "blocked",
+        "ok": not blockers,
+        "processStartedAtUtc": started_at.isoformat().replace("+00:00", "Z"),
+        "latestSourcePath": source.get("latestSourcePath"),
+        "latestSourceMtimeUtc": source.get("latestSourceMtimeUtc"),
+        "staleBySeconds": round(stale_by, 3),
+        "blockers": blockers,
+    }
 
 
 def probe_runtime_surface(
@@ -245,6 +335,7 @@ def build_status_payload(
     port: int = DEFAULT_PORT,
     listener_query: dict[str, Any] | None = None,
     runtime_surface_probe: dict[str, Any] | None = None,
+    runtime_source_freshness_probe: dict[str, Any] | None = None,
     check_runtime_surface: bool = True,
 ) -> dict[str, Any]:
     query = listener_query if listener_query is not None else query_windows_listeners(host, port)
@@ -289,6 +380,16 @@ def build_status_payload(
         "reason": "no-current-full-profile-listener",
     }
     if current is not None and selected_classification.get("toolProfile") == "full":
+        runtime_source_freshness = (
+            runtime_source_freshness_probe
+            if runtime_source_freshness_probe is not None
+            else check_runtime_source_freshness(repo_root, current)
+        )
+        if runtime_source_freshness.get("ok") is False:
+            status = "running-stale-runtime"
+            blockers.append("current-chatgpt-mcp-server-started-before-current-source")
+            for blocker in runtime_source_freshness.get("blockers", []):
+                blockers.append(str(blocker))
         if not check_runtime_surface:
             runtime_surface = {
                 "status": "skipped",
@@ -306,6 +407,12 @@ def build_status_payload(
                 blockers.append("current-chatgpt-mcp-server-runtime-surface-not-current")
                 for blocker in runtime_surface.get("blockers", []):
                     blockers.append(str(blocker))
+    else:
+        runtime_source_freshness = {
+            "status": "not-checked",
+            "ok": None,
+            "reason": "no-current-full-profile-listener",
+        }
     connector_note = "saved-chatgpt-connector-config-does-not-start-local-backend"
     sequence = [
         {
@@ -346,6 +453,12 @@ def build_status_payload(
             ),
         },
         {
+            "key": "runtime-source-freshness",
+            "status": runtime_source_freshness.get("status"),
+            "ok": runtime_source_freshness.get("ok"),
+            "why": "The MCP adapter process must have started after current adapter source files were last modified.",
+        },
+        {
             "key": "public-route-forwarding",
             "status": "not-checked",
             "ok": None,
@@ -371,6 +484,7 @@ def build_status_payload(
         "selectedListener": selected,
         "listeners": classified_listeners,
         "runtimeSurface": runtime_surface,
+        "runtimeSourceFreshness": runtime_source_freshness,
         "blockers": blockers,
         "warnings": warnings,
         "dependencySequence": sequence,

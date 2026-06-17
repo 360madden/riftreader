@@ -3,7 +3,7 @@
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
 Current stage: **Stage 33 — command allowlist registry next**.
-Runtime dependency note: after Stage 31, the server-status helper was hardened to require live runtime `list_tools` + `health` agreement with the expected 22-tool surface. A matching PID/port/command line alone is no longer sufficient proof that the MCP backend is current.\nStage 32 design note: `docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md` defines the future `run_bounded_repo_command` contract; the command tool remains not exposed until Stage 34.\nStage 21 approved package-apply proof, Stage 27 approved local-commit proof,
+Runtime dependency note: after Stage 31, the server-status helper was hardened to require live runtime `list_tools` + `health` agreement with the expected 22-tool surface. A matching PID/port/command line alone is no longer sufficient proof that the MCP backend is current. It also checks that the adapter process started after current adapter source files were last modified, so same-tool-count stale runtimes fail closed.\nStage 32 design note: `docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md` defines the future `run_bounded_repo_command` contract; the command tool remains not exposed until Stage 34.\nStage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
 integration are complete-local. The MCP surface now includes `push_current_branch`
 and `get_current_head_ci_status`; arbitrary shell remains absent.

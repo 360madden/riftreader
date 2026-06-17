@@ -1,3 +1,17 @@
+# 2026-06-17 - MCP source-freshness runtime guard
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-source-freshness-guard.md`.
+
+| Item | Current truth |
+|---|---|
+| Runtime guard | MCP status now blocks if the adapter process started before current adapter source files changed, even when the 22-tool surface matches. |
+| Restart | Stale PID `124328` blocked, then fresh PID `124052` passed source freshness. |
+| Local backend | `scripts\riftreader-mcp-server-status.cmd --json` reports `running-current`. |
+| Remaining proof blocker | Actual-client proof replay still needs a fresh 22-tool observation. |
+| Next stage | Stage 33 command allowlist registry. |
+
+---
 # 2026-06-17 - MCP Stage 32 bounded command design complete-local
 
 Fresh compact handoff:

@@ -53,6 +53,18 @@ def runtime_surface(tool_names: list[str] | None = None) -> dict[str, object]:
     }
 
 
+def source_freshness(ok: bool = True) -> dict[str, object]:
+    return {
+        "status": "passed" if ok else "blocked",
+        "ok": ok,
+        "processStartedAtUtc": "2026-06-17T11:00:00Z",
+        "latestSourcePath": "tools/riftreader_workflow/riftreader_chatgpt_mcp.py",
+        "latestSourceMtimeUtc": "2026-06-17T11:05:00Z",
+        "staleBySeconds": 300.0,
+        "blockers": [] if ok else ["runtime-process-started-before-current-source:tools/riftreader_workflow/riftreader_chatgpt_mcp.py:300.0s"],
+    }
+
+
 class McpServerStatusTests(unittest.TestCase):
     def test_current_full_profile_server_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -64,12 +76,14 @@ class McpServerStatusTests(unittest.TestCase):
                     r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
                 ),
                 runtime_surface_probe=runtime_surface(),
+                runtime_source_freshness_probe=source_freshness(),
             )
 
         self.assertTrue(payload["ok"])
         self.assertEqual("running-current", payload["status"])
         self.assertEqual("full", payload["selectedListener"]["classification"]["toolProfile"])
         self.assertEqual("passed", payload["runtimeSurface"]["status"])
+        self.assertEqual("passed", payload["runtimeSourceFreshness"]["status"])
         self.assertEqual([], payload["blockers"])
 
     def test_current_command_line_with_stale_runtime_surface_blocks(self) -> None:
@@ -82,12 +96,31 @@ class McpServerStatusTests(unittest.TestCase):
                     r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
                 ),
                 runtime_surface_probe=runtime_surface(list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)[:-2]),
+                runtime_source_freshness_probe=source_freshness(),
             )
 
         self.assertFalse(payload["ok"])
         self.assertEqual("running-stale-runtime", payload["status"])
         self.assertIn("current-chatgpt-mcp-server-runtime-surface-not-current", payload["blockers"])
         self.assertEqual("blocked", payload["runtimeSurface"]["status"])
+
+    def test_current_surface_with_stale_process_start_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = mcp_server_status.build_status_payload(
+                Path(temp_dir),
+                listener_query=listener(
+                    r'python "tools\riftreader_workflow\riftreader_chatgpt_mcp.py" --serve '
+                    r"--tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http "
+                    r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
+                ),
+                runtime_surface_probe=runtime_surface(),
+                runtime_source_freshness_probe=source_freshness(False),
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("running-stale-runtime", payload["status"])
+        self.assertIn("current-chatgpt-mcp-server-started-before-current-source", payload["blockers"])
+        self.assertEqual("blocked", payload["runtimeSourceFreshness"]["status"])
 
     def test_missing_listener_blocks_with_clear_dependency(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
