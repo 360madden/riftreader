@@ -2,12 +2,12 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 26 — `commit_reviewed_slice` MCP exposure is complete
-locally**. This intentionally changes the full ChatGPT Web/Desktop MCP surface
-from 19 tools to 20 tools, so final readiness requires a fresh 20-tool
-actual-client proof and current-head CI after this slice lands. Stage 21
-approved package-apply proof and Stage 27 approved local-commit proof remain
-separate gated actual-client proof lanes.
+Current stage: **Stage 29 — `push_current_branch` read-only preflight helper next**.
+Stage 21 approved package-apply proof and Stage 27 approved local-commit proof
+are complete. Stage 28 push design is complete-local in
+`docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md`; the push tool is
+not exposed until the Stage 29 preflight helper, Stage 30 approval-gated push
+wrapper, and Stage 31 CI monitor surfaces are validated.
 
 ## Operating rules
 
@@ -49,14 +49,14 @@ separate gated actual-client proof lanes.
 | 18 | Package identity and freshness gate | Add reusable checks that bind apply to a reviewed package root, dry-run summary, diff hash, and age budget. | Unit tests block stale/mismatched/self-test apply attempts. | complete-local |
 | 19 | Apply dry-run-to-apply bridge | Implement local apply helper behind explicit approval parameters but do not expose it to ChatGPT yet. | Helper blocks missing/mismatched approval tokens and only passes `--apply` after preflight approval. | complete-local |
 | 20 | Expose apply_latest_package_draft | Expose apply as an MCP tool only after helper gates pass and descriptions/outputSchema are complete. | Tool count intentionally changes with updated proof contract and tests. | complete-local |
-| 21 | Apply actual-client proof | Prove ChatGPT can apply only an approved reviewed draft and receive post-apply evidence. | Proof records repo source mutation truthfully and blocks unapproved apply. | gated |
+| 21 | Apply actual-client proof | Prove ChatGPT can apply only an approved reviewed draft and receive post-apply evidence. | Proof records repo source mutation truthfully and blocks unapproved apply. | complete |
 | 22 | Post-apply validation reporting | Return validation commands/results, changed files, and rollback hints after apply. | ChatGPT can explain applied state without committing. | complete-local |
 | 23 | Safe commit design spec | Design commit_reviewed_slice using safeCommitPlan only, explicit paths, validation gate, and visible commit message. | Spec blocks git add dot, dirty unrelated files, reset/clean/rewrite, and push. | complete-local |
 | 24 | Commit preflight helper | Implement read-only commit preflight that validates stageable paths and required tests. | Preflight returns exact add/commit commands and blockers. | complete-local |
 | 25 | Commit execution helper | Implement local commit helper with explicit approval and no remote mutation. | Helper commits only approved staged paths after validation. | complete-local |
 | 26 | Expose commit_reviewed_slice | Expose local commit as an MCP tool with strict args and outputSchema. | ChatGPT can create local commits only through approved preflight. | complete-local |
-| 27 | Commit actual-client proof | Prove ChatGPT can request a local commit for a safe slice and receive hash/status. | Proof shows no push, no branch rewrite, and clean post-commit status. | pending |
-| 28 | Push design spec | Design push_current_branch as separate remote-mutation tool with explicit branch/upstream state and no force push. | Spec requires current-turn approval and CI follow-up. | pending |
+| 27 | Commit actual-client proof | Prove ChatGPT can request a local commit for a safe slice and receive hash/status. | Proof shows no push, no branch rewrite, and clean post-commit status. | complete |
+| 28 | Push design spec | Design push_current_branch as separate remote-mutation tool with explicit branch/upstream state and no force push. | Spec requires current-turn approval and CI follow-up. | complete-local |
 | 29 | Push preflight helper | Implement read-only push preflight with branch, upstream, ahead/behind, protected branch, and CI expectation checks. | Preflight blocks ambiguous or dangerous push cases. | pending |
 | 30 | Expose push_current_branch | Expose push tool only after local commit flow is proven. | Tool pushes current branch without force/rewrite and returns remote result. | pending |
 | 31 | CI monitor integration | Add ChatGPT-visible CI status after push using existing GitHub/gh-safe local surfaces. | ChatGPT can report current-head CI pass/fail links after push. | pending |
@@ -84,15 +84,16 @@ separate gated actual-client proof lanes.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 26 | Refresh 20-tool actual-client proof | Re-prove the changed full MCP surface after `commit_reviewed_slice` exposure. |
-| 2 | 21 | Apply actual-client proof | Prove approved `apply_latest_package_draft` end-to-end without opening commit or push yet. |
-| 3 | 27 | Commit actual-client proof | Prove the local-commit lane through actual ChatGPT MCP before remote mutation. |
-| 4 | 28 | Push design spec | Keep push as a separate remote-mutation stage with no force/rewrite path. |
-| 5 | 29 | Push preflight helper | Implement read-only branch/upstream/CI expectation checks before exposing push. |
-| 6 | 30 | Expose push_current_branch | Expose push only after local commit flow is proven and separately approved. |
-| 7 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
-| 8 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
-| 9 | 33 | Command allowlist registry | Implement versioned allowlist for validation/status helpers only. |
+| 1 | 29 | Push preflight helper | Implement read-only branch/upstream/ahead-behind checks before exposing push. |
+| 2 | 30 | Expose push_current_branch | Expose push only after preflight, tests, token binding, and normal non-force push proof. |
+| 3 | 31 | CI monitor integration | Surface current-head CI after remote mutation without making push implicit. |
+| 4 | 32 | Bounded command design spec | Keep future command execution allowlist-only and separate from Git helpers. |
+| 5 | 33 | Command allowlist registry | Implement versioned allowlist for validation/status helpers only. |
+| 6 | 34 | Expose bounded command subset | Expose deterministic repo helpers only; never arbitrary shell. |
+| 7 | 35 | Command audit and replay evidence | Make every allowed command call replayable and bounded. |
+| 8 | 36 | Provider repo write planning | Plan provider boundaries without writing outside RiftReader. |
+| 9 | 37 | Provider-safe proposal flow | Label provider-write intent without enabling provider repo writes. |
+| 10 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; stop for explicit approval before entering. |
 
 ## High-risk exposure order
 

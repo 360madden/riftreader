@@ -326,6 +326,40 @@ def compact_apply_tool_contract(contract: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_push_tool_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    required_gates = contract.get("requiredGates") if isinstance(contract.get("requiredGates"), list) else []
+    fail_closed = contract.get("failClosedBlockers") if isinstance(contract.get("failClosedBlockers"), list) else []
+    return {
+        "status": contract.get("status"),
+        "targetToolName": contract.get("targetToolName"),
+        "designPath": contract.get("designPath"),
+        "currentStage": contract.get("currentStage"),
+        "exposureStatus": contract.get("exposureStatus"),
+        "argumentKeys": contract.get("argumentKeys") or [],
+        "requiredGateCount": len(required_gates),
+        "requiredGates": [
+            gate
+            for gate in required_gates
+            if gate in {"clean-worktree", "ahead-of-upstream", "explicit-approval-token", "no-force-push"}
+        ],
+        "failClosedBlockerCount": len(fail_closed),
+        "failClosedBlockers": [
+            blocker
+            for blocker in fail_closed
+            if blocker in {"PUSH_WORKTREE_DIRTY", "PUSH_BRANCH_BEHIND", "PUSH_APPROVAL_MISSING", "PUSH_FORCE_FORBIDDEN"}
+        ],
+        "requiredPrecursorTools": contract.get("requiredPrecursorTools") or [],
+        "preflightHelper": {
+            key: (contract.get("preflightHelper") or {}).get(key)
+            for key in ("status", "mutatesRepo", "pushesRemote", "requiresApprovalToken")
+        },
+        "pushExecutionHelper": {
+            key: (contract.get("pushExecutionHelper") or {}).get(key)
+            for key in ("status", "requiresApprovalToken", "remoteMutation", "mcpToolExposed")
+        },
+    }
+
+
 def compact_ranked_actions(actions: Any) -> list[dict[str, Any]]:
     if not isinstance(actions, list):
         return []
@@ -412,7 +446,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "push-current-branch",
         "targetToolName": "push_current_branch",
-        "currentStatus": "not-exposed",
+        "currentStatus": "designed-not-exposed",
         "riskClass": "git-remote-mutation",
         "minimumGate": "explicit-operator-approval-in-current-turn",
         "safePrecursorTools": ["get_repo_status", "get_workflow_control_plan"],
@@ -478,15 +512,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 26,
-    "currentStageName": "Approval-gated local commit exposed locally",
+    "currentStage": 29,
+    "currentStageName": "Push preflight helper",
     "currentTruth": (
-        f"Local {len(EXPECTED_TOOL_ORDER)}-tool MCP is validated locally with gated apply, approval-gated explicit-path "
-        "local commit, and compact workflow-control summaries; full readiness requires a fresh actual ChatGPT "
-        "Web/Desktop Cloudflare named Tunnel proof and current-head CI after any surface change."
+        f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP is proven for gated apply and approval-gated explicit-path "
+        "local commit. Stage 28 push design is complete; push_current_branch remains not exposed until "
+        "the read-only preflight helper, tests, approval-token gate, and CI follow-up contract are implemented."
     ),
-    "nextStage": 27,
-    "nextStageName": "Commit actual-client proof",
+    "nextStage": 30,
+    "nextStageName": "Expose push_current_branch after safe preflight",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -500,12 +534,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "add end-to-end evals, dashboard, recovery, and release handoff",
     ],
     "immediateStages": [
-        {"stage": 21, "name": "Apply actual-client proof", "status": "gated"},
+        {"stage": 21, "name": "Apply actual-client proof", "status": "complete"},
         {"stage": 22, "name": "Post-apply validation reporting", "status": "complete-local"},
         {"stage": 23, "name": "Safe commit design spec", "status": "complete-local"},
         {"stage": 24, "name": "Commit preflight helper", "status": "complete-local"},
         {"stage": 25, "name": "Commit execution helper", "status": "complete-local"},
         {"stage": 26, "name": "Expose commit_reviewed_slice", "status": "complete-local"},
+        {"stage": 27, "name": "Commit actual-client proof", "status": "complete"},
+        {"stage": 28, "name": "Push design spec", "status": "complete-local"},
+        {"stage": 29, "name": "Push preflight helper", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -575,6 +612,82 @@ APPLY_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
         "APPLY_PACKAGE_TARGET_INVALID",
         "APPLY_VALIDATION_FAILED",
     ],
+}
+
+
+PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
+    "schemaVersion": SCHEMA_VERSION,
+    "kind": "riftreader-chatgpt-mcp-push-tool-design-contract",
+    "status": "designed-not-exposed",
+    "targetToolName": "push_current_branch",
+    "designPath": "docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md",
+    "stageRange": [28, 29, 30, 31],
+    "currentStage": 28,
+    "exposureStatus": "not-exposed",
+    "preflightHelper": {
+        "status": "planned-stage-29",
+        "module": "tools/riftreader_workflow/push_current_branch.py",
+        "cliMode": "--preflight",
+        "mutatesRepo": False,
+        "pushesRemote": False,
+        "requiresApprovalToken": False,
+    },
+    "pushExecutionHelper": {
+        "status": "planned-stage-30",
+        "module": "tools/riftreader_workflow/push_current_branch.py",
+        "cliMode": "--push",
+        "requiresApprovalToken": True,
+        "remoteMutation": True,
+        "mcpToolExposed": False,
+    },
+    "argumentKeys": [
+        "expectedHead",
+        "branch",
+        "upstream",
+        "approvalToken",
+        "timeoutSeconds",
+    ],
+    "requiredPrecursorTools": ["get_repo_status", "get_workflow_control_plan"],
+    "requiredGates": [
+        "running-current-mcp-before-actual-client-proof",
+        "clean-worktree",
+        "named-current-branch",
+        "unambiguous-origin-upstream",
+        "ahead-of-upstream",
+        "not-behind-upstream",
+        "exact-head-branch-upstream-binding",
+        "explicit-approval-token",
+        "no-force-push",
+        "no-branch-rewrite",
+        "no-reset-clean-or-stash",
+        "post-push-remote-head-verification",
+        "post-push-ci-status-visible",
+    ],
+    "failClosedBlockers": [
+        "PUSH_BRANCH_UNNAMED",
+        "PUSH_UPSTREAM_MISSING",
+        "PUSH_UPSTREAM_AMBIGUOUS",
+        "PUSH_REMOTE_UNEXPECTED",
+        "PUSH_WORKTREE_DIRTY",
+        "PUSH_HEAD_MISMATCH",
+        "PUSH_BRANCH_MISMATCH",
+        "PUSH_UPSTREAM_MISMATCH",
+        "PUSH_NOTHING_TO_PUSH",
+        "PUSH_BRANCH_BEHIND",
+        "PUSH_DIVERGED",
+        "PUSH_APPROVAL_MISSING",
+        "PUSH_APPROVAL_TOKEN_MISMATCH",
+        "PUSH_FORCE_FORBIDDEN",
+        "PUSH_REMOTE_HEAD_VERIFY_FAILED",
+    ],
+    "safety": {
+        "gitMutation": False,
+        "remoteMutationOnlyAfterApproval": True,
+        "providerWrites": False,
+        "mcpToolExposed": False,
+        "forcePushAllowed": False,
+        "branchRewriteAllowed": False,
+    },
 }
 
 
@@ -1990,9 +2103,10 @@ class RiftReaderChatGptMcpAdapter:
             "futureCapabilityRoadmap": compact_future_capability_roadmap(list(FUTURE_CAPABILITY_ROADMAP)),
             "futureToolContracts": {
                 "apply_latest_package_draft": compact_apply_tool_contract(APPLY_TOOL_DESIGN_CONTRACT),
+                "push_current_branch": compact_push_tool_contract(PUSH_TOOL_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "commit-exposed-gated",
+                "status": "push-design-complete-preflight-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

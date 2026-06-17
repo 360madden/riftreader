@@ -1216,12 +1216,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("apply-package-to-repo", roadmap_by_key)
         self.assertIn("bounded-shell-command", roadmap_by_key)
         self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "exposed-gated")
+        self.assertEqual(roadmap_by_key["push-current-branch"]["currentStatus"], "designed-not-exposed")
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
-        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "commit-exposed-gated")
+        self.assertEqual(payload["futureCapabilityPolicy"]["status"], "push-design-complete-preflight-next")
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 26)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 27)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 29)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 30)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -1246,8 +1247,28 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("diff-hash-binding", future_contract["requiredGates"])
         self.assertIn("APPLY_DRY_RUN_HASH_MISMATCH", future_contract["failClosedBlockers"])
         self.assertEqual(future_contract["exposureStatus"], "exposed-gated")
+        push_contract = payload["futureToolContracts"]["push_current_branch"]
+        self.assertEqual(push_contract["status"], "designed-not-exposed")
+        self.assertEqual(push_contract["targetToolName"], "push_current_branch")
+        self.assertEqual(
+            push_contract["designPath"],
+            "docs/workflow/riftreader-chatgpt-mcp-push-tool-design.md",
+        )
+        self.assertEqual(push_contract["currentStage"], 28)
+        self.assertEqual(push_contract["exposureStatus"], "not-exposed")
+        self.assertEqual(push_contract["preflightHelper"]["status"], "planned-stage-29")
+        self.assertFalse(push_contract["preflightHelper"]["mutatesRepo"])
+        self.assertFalse(push_contract["preflightHelper"]["pushesRemote"])
+        self.assertTrue(push_contract["pushExecutionHelper"]["requiresApprovalToken"])
+        self.assertTrue(push_contract["pushExecutionHelper"]["remoteMutation"])
+        self.assertFalse(push_contract["pushExecutionHelper"]["mcpToolExposed"])
+        self.assertIn("expectedHead", push_contract["argumentKeys"])
+        self.assertIn("no-force-push", push_contract["requiredGates"])
+        self.assertIn("PUSH_APPROVAL_MISSING", push_contract["failClosedBlockers"])
         self.assertIn("apply_latest_package_draft", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("apply_latest_package_draft", chatgpt_mcp.TOOL_SPECS)
+        self.assertNotIn("push_current_branch", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertNotIn("push_current_branch", chatgpt_mcp.TOOL_SPECS)
         self.assertNotIn("run_bounded_repo_command", chatgpt_mcp.TOOL_SPECS)
 
     def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:

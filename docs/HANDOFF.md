@@ -1,3 +1,48 @@
+# 2026-06-17 - MCP Stage 28 push design complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage28-push-design-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Repo | `C:\RIFT MODDING\RiftReader` |
+| Branch | `main...origin/main` was synced at pre-slice HEAD `16db82af1d97cc86f9be73e7b1df0370bc1e7675`; this Stage 28 slice is local until committed and pushed. |
+| MCP server dependency | `scripts\riftreader-mcp-server-status.cmd --json` reported `status=running-current` before this local design slice. |
+| Final gate baseline | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed for the existing 20-tool surface at HEAD `16db82a`. |
+| Stage 21 | Complete: approved `apply_latest_package_draft` proof passed through the actual MCP connector. |
+| Stage 27 | Complete: approved `commit_reviewed_slice` proof passed through the actual MCP connector and created commit `a90c9dd6e9eeb68b7bd11680455f088d020d6604`. |
+| Stage 28 | Complete-local: `push_current_branch` design spec added; tool remains not exposed. |
+| Stage 29 | Next: implement read-only push preflight helper. |
+| Safety | No push tool exposure, remote mutation through MCP, RIFT input/movement, `/reloadui`, screenshot key input, CE/x64dbg, provider writes, branch rewrite, reset, clean, destructive cleanup, or arbitrary shell MCP endpoint. |
+
+## Fast resume commands
+
+```cmd
+cd /d "C:\RIFT MODDING\RiftReader"
+git --no-pager status --short --branch
+scripts\riftreader-mcp-server-status.cmd --json
+scripts\riftreader-mcp-final.cmd --status --compact-json
+python tools\riftreader_workflow\riftreader_chatgpt_mcp.py --call get_workflow_control_plan --json
+```
+
+## Top 10 recommended next actions
+
+| # | Action | Why |
+|---:|---|---|
+| 1 | Validate and commit the Stage 28 design slice with explicit paths. | Makes the push boundary durable before helper code. |
+| 2 | Implement `tools\riftreader_workflow\push_current_branch.py --preflight`. | Stage 29 must be read-only before any push execution exists. |
+| 3 | Add `scripts\riftreader-push-current-branch.cmd` as a thin wrapper. | Keeps operator entrypoint paste-safe without PowerShell orchestration. |
+| 4 | Test ready, dirty, missing-upstream, behind/diverged, and token-fact cases. | Proves preflight blocks risky remote mutation states. |
+| 5 | Add approved `--push` execution only after preflight tests pass. | Keeps Stage 30 mutation behind evidence and token gates. |
+| 6 | Expose `push_current_branch` only after helper and MCP wrapper tests pass. | Prevents premature remote-mutation surface expansion. |
+| 7 | Expose/read `get_current_head_ci_status` through MCP after push. | Stage 31 separates push success from CI success. |
+| 8 | Design bounded command allowlist before implementing command execution. | Stage 32 prevents arbitrary shell drift. |
+| 9 | Keep provider repo work planning/labeling only through Stage 37. | Avoids silently mixing RiftReader and external repo writes. |
+| 10 | Stop before Stage 38 unless explicitly approved. | Stage 38 is the first live-RIFT boundary. |
+
+Generated UTC: `2026-06-17T10:44:32Z`.
+
+---
 # 2026-06-17 - MCP Stage 21 apply + Stage 27 commit proof
 
 Fresh compact handoff:
