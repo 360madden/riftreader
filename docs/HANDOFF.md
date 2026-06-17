@@ -1,3 +1,18 @@
+# 2026-06-17 - MCP final readiness passed with 20-tool actual-client proof
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-final-readiness-20-tool-proof-passed.md`.
+
+| Item | Current truth |
+|---|---|
+| HEAD | `14ec3d0 Document MCP control center post-commit handoff`; branch is `main...origin/main` synced. |
+| MCP surface | Full 20-tool profile, including `commit_reviewed_slice`. |
+| Actual-client proof | Recorded at `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260617-093918Z\proof.json`. |
+| Final gate | Passed at `2026-06-17T09:39:21Z`: `ok=true`, `phase2Ready=true`, `proofReplayStatus=passed`, `ciStatus=passed`. |
+| Backend | `127.0.0.1:8770` is busy because the intended full-profile MCP server is listening. |
+| Boundaries | No source apply, MCP commit, remote mutation after authorized push, RIFT input, CE/x64dbg, provider write, or tunnel/config mutation was performed. |
+
+---
 # 2026-06-17 - MCP 20-tool Control Center post-commit
 
 Fresh compact handoff:
