@@ -79,6 +79,41 @@ That wrapper starts:
 tools\riftreader_workflow\riftreader_chatgpt_mcp.py --serve --tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http --allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com
 ```
 
+Before debugging ChatGPT registration or actual-client proof, verify the local
+runtime dependency explicitly:
+
+```cmd
+scripts\riftreader-mcp-server-status.cmd --json
+```
+
+Required current-lane result:
+
+| Field | Required value |
+|---|---|
+| `status` | `running-current` |
+| `ok` | `true` |
+| `selectedListener.classification.toolProfile` | `full` for final 20-tool proof |
+| `selectedListener.classification.transport` | `streamable-http` |
+
+Fail closed on these states:
+
+| State | Meaning |
+|---|---|
+| `not-running` | Nothing is listening on `127.0.0.1:8770`; the saved ChatGPT connector cannot work. |
+| `foreign-listener` | Something else owns port `8770`; do not collect proof against it. |
+| `running-legacy` | The old tokenized HTTP MCP server is listening; it is not the current ChatGPT Developer Mode adapter. |
+
+Dependency order for proof work:
+
+1. saved ChatGPT connector config exists, but is treated as configuration only;
+2. local backend listener is present on `127.0.0.1:8770`;
+3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
+   adapter, not legacy/foreign;
+4. tool profile matches the intended proof (`full` for final 20-tool proof);
+5. Cloudflare named Tunnel/public route forwards to that backend;
+6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
+7. proof input is checked and recorded, then final readiness is rerun.
+
 For the first public domain proof, run the same adapter with the read-only
 profile instead of creating a second MCP server:
 

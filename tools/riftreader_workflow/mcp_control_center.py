@@ -700,6 +700,10 @@ def run_action(repo_root: Path, action_key: str, *, confirmed: bool = False) -> 
 def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: bool) -> dict[str, Any]:
     dashboard_status = collect_dashboard_status(repo_root, public_host, include_public_smoke=include_public_smoke)
     route_url = public_mcp_url(public_host)
+    dashboard_backend = dashboard_status.get("backend") if isinstance(dashboard_status.get("backend"), dict) else {}
+    server_dependency = (
+        dashboard_backend.get("serverDependency") if isinstance(dashboard_backend.get("serverDependency"), dict) else {}
+    )
     status = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-mcp-control-center-status",
@@ -727,6 +731,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "browserIntegrityRule": DEFAULT_CLOUDFLARE_BIC_RULE,
             "localBackend": f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/mcp",
         },
+        "serverDependency": server_dependency,
         "toolSurface": {
             "service": SERVER_NAME,
             "finalProofMode": FINAL_TOOL_PROOF_MODE,

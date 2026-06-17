@@ -82,6 +82,11 @@ class McpDashboardTests(unittest.TestCase):
                 mock.patch.object(dashboard, "check_windows_port_owner", return_value={"ok": True, "processes": []}),
                 mock.patch.object(
                     dashboard,
+                    "build_mcp_server_status_payload",
+                    return_value={"ok": True, "status": "running-current", "blockers": []},
+                ),
+                mock.patch.object(
+                    dashboard,
                     "smoke_public_initialize",
                     return_value={"ok": True, "status": "passed", "blockers": []},
                 ),
@@ -153,7 +158,9 @@ class McpDashboardTests(unittest.TestCase):
         self.assertTrue(status["activeRoute"]["tcp443OwnerDiagnosticOnly"])
         self.assertTrue(status["domain"]["tcp443OwnerDiagnosticOnly"])
         self.assertIn("readinessBadges", status)
+        self.assertIn("local-mcp-server", [badge["key"] for badge in status["readinessBadges"]])
         self.assertIn("computer-use", [badge["key"] for badge in status["readinessBadges"]])
+        self.assertEqual("running-current", status["backend"]["serverDependency"]["status"])
         self.assertEqual(status["desktopControlQueue"]["execution"]["status"], "disabled")
         self.assertFalse(status["desktopControlQueue"]["execution"]["enabled"])
         self.assertEqual(status["desktopControlQueue"]["queueDraftViewer"]["status"], "ready")

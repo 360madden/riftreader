@@ -641,6 +641,13 @@ ChatGPT MCP runtime invariant:
   fallback. OpenAI Secure MCP Tunnel and `trycloudflare.com` quick tunnels remain
   retired paths, not backups, unless a future explicit policy reverses that
   decision.
+- Before any actual-client proof or ChatGPT connector debugging, prove the
+  runtime dependency chain in order. A saved ChatGPT connector entry is only
+  configuration and **does not** start the local backend. Run
+  `scripts\riftreader-mcp-server-status.cmd --json` and require
+  `status=running-current` for the current lane. `not-running`,
+  `foreign-listener`, or `running-legacy` are blockers; do not treat a busy port
+  or stale proof artifact as a running current server.
 
 Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
 <!-- RIFTREADER_NON_CODEX_WORKFLOW_POLICY_END -->

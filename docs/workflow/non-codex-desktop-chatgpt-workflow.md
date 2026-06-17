@@ -61,6 +61,18 @@ local repo server or Cloudflared. If the existing command window is closed, the
 local MCP server stops. Do not use old `trycloudflare.com`, Caddy/router, or
 OpenAI `tunnel-client` setup notes as backups for this lane.
 
+Before spending time on ChatGPT connector symptoms, verify the runtime chain with
+the current-lane server classifier:
+
+```cmd
+scripts\riftreader-mcp-server-status.cmd --json
+```
+
+Only `status=running-current` proves the local backend dependency for this lane.
+`not-running`, `foreign-listener`, and `running-legacy` are blockers. A busy port,
+saved connector entry, stale proof artifact, or legacy server process must not be
+treated as a running current backend.
+
 ## Tooling boundaries
 
 | Surface | Default role when not using Codex |

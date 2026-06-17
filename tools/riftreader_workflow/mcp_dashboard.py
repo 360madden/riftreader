@@ -32,6 +32,7 @@ try:
         smoke_public_initialize,
         _socket_connect,
     )
+    from .mcp_server_status import build_status_payload as build_mcp_server_status_payload
     from .riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, PUBLIC_READ_ONLY_TOOL_ORDER, SERVER_NAME
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -52,6 +53,7 @@ except ImportError:  # pragma: no cover
         smoke_public_initialize,
         _socket_connect,
     )
+    from riftreader_workflow.mcp_server_status import build_status_payload as build_mcp_server_status_payload
     from riftreader_workflow.riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, PUBLIC_READ_ONLY_TOOL_ORDER, SERVER_NAME
 
 
@@ -151,6 +153,7 @@ def recent_audit_events(repo_root: Path, limit: int = 12) -> list[dict[str, Any]
 def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: bool = True) -> dict[str, Any]:
     public_url = public_mcp_url(public_host)
     backend_connect = _socket_connect(DEFAULT_HOST, DEFAULT_PORT, 1.0)
+    server_dependency = build_mcp_server_status_payload(repo_root)
     dns = check_dns(public_host)
     tcp443 = _socket_connect(public_host, 443, 2.0)
     tcp443_owner = check_windows_port_owner(443)
@@ -188,7 +191,14 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "serverUrl": public_url,
             "authentication": "No Authentication",
         },
-        "backend": {"service": SERVER_NAME, "host": DEFAULT_HOST, "port": DEFAULT_PORT, "connect": backend_connect, "owner": backend_owner},
+        "backend": {
+            "service": SERVER_NAME,
+            "host": DEFAULT_HOST,
+            "port": DEFAULT_PORT,
+            "connect": backend_connect,
+            "owner": backend_owner,
+            "serverDependency": server_dependency,
+        },
         "domain": {
             "publicHost": public_host,
             "publicMcpUrl": public_url,
@@ -207,6 +217,13 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "note": "Local TCP 443 owner output is diagnostic-only; do not treat caddy.exe as the active MCP route.",
         },
         "readinessBadges": [
+            {
+                "key": "local-mcp-server",
+                "label": "Local MCP server",
+                "status": server_dependency.get("status"),
+                "ok": server_dependency.get("ok"),
+                "blockers": (server_dependency.get("blockers") or [])[:5],
+            },
             {
                 "key": "repo-final-gate",
                 "label": "Repo final gate",

@@ -42,7 +42,14 @@ Useful non-GUI checks:
 ```cmd
 scripts\riftreader-mcp-control-center.cmd --self-test --json
 scripts\riftreader-mcp-control-center.cmd --once-json
+scripts\riftreader-mcp-server-status.cmd --json
 ```
+
+Use `scripts\riftreader-mcp-server-status.cmd --json` before ChatGPT connector
+debugging or proof collection. It distinguishes the current
+`riftreader_chatgpt_mcp.py --serve` backend from a missing server, a foreign
+listener, or the legacy tokenized HTTP MCP server. Only `status=running-current`
+counts as the local backend dependency for this ChatGPT Web/Desktop lane.
 
 ## Layout
 
@@ -51,7 +58,7 @@ The GUI is organized into tabs:
 | Tab | Role |
 |---|---|
 | Overview | One-screen backend, route, ChatGPT, proof, and recommended-action summary. |
-| Server | Start/stop only the local adapter process started by this GUI, plus copy-ready terminal commands. |
+| Server | Current backend dependency status, start/stop only for the local adapter process started by this GUI, plus copy-ready terminal commands. |
 | Readiness | Final-gate, MCP trial-readiness, and Mission Control status. |
 | Route & ChatGPT | Public URL, named tunnel, Cloudflare status, domain diagnostics, and connector checklist. |
 | Proof | Current proof/template paths and final expected tool surface. |

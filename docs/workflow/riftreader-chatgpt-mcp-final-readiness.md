@@ -144,7 +144,7 @@ read-only and does not start the MCP server or a public tunnel.
 |---|---|---|
 | Repo markers | `agents.md` or `AGENTS.md`, `.git`, and `tools\riftreader_workflow` exist under the resolved repo root. | Block with `repo:not-riftreader-root`. |
 | Loopback ephemeral port | Binding `127.0.0.1:0` succeeds and returns an assigned port. | Block with `environment:loopback-ephemeral-port-unavailable`. |
-| Default serve port | Binding `127.0.0.1:8770` succeeds. | Warning only; trial/smoke helpers use ephemeral ports, and manual serve can choose another port. |
+| Default serve port | Binding `127.0.0.1:8770` succeeds. | Warning only; final-readiness is artifact/CI/proof replay based. For live proof collection, run `scripts\riftreader-mcp-server-status.cmd --json` and require `status=running-current`. |
 | Ignored local artifact root | `.riftreader-local` is ignored by Git. | Block with `environment:artifact-root-not-ignored:.riftreader-local`. |
 | Local MCP roots | MCP local roots remain under `.riftreader-local`. | Block with `environment:local-artifact-root-outside-ignored-root:<name>`. |
 
@@ -184,6 +184,28 @@ noExistingMcpProxy: true
 noWindowsMcpProxy: true
 noRiftGameMcpProxy: true
 ```
+
+## Runtime dependency sequence for actual-client proof
+
+Do not start with the ChatGPT connector UI. Prove dependencies in this order:
+
+1. A saved ChatGPT connector entry exists, but treat it as configuration only.
+   It does not start the local backend.
+2. `scripts\riftreader-mcp-server-status.cmd --json` returns
+   `status=running-current` for `127.0.0.1:8770`.
+3. The selected listener command line is the current
+   `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
+   legacy `tools.riftreader_mcp.http_server`.
+4. The selected listener uses the intended profile (`full` for final 20-tool
+   proof, `public-read-only` only for Phase 0 domain checks).
+5. The Cloudflare named Tunnel/public route forwards to that backend.
+6. Actual ChatGPT/MCP connector `health` sees the expected tools and output
+   schemas.
+7. Only then fill/check/record proof input and rerun this final gate.
+
+Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
+states mean the MCP backend dependency is not satisfied even if a connector
+entry or stale proof artifact exists.
 
 ## Phase 6 safety fixture acceptance criteria
 
