@@ -79,13 +79,14 @@ Rules:
 | Tests that assert provider writes remain disabled | Allowed. |
 | Writes outside RiftReader | Not allowed. |
 
-## Stage 37 handoff
+## Stage 37 implementation
 
-Stage 37 should extend the proposal/draft flow so provider intent is visible and
-blocked by default. The correct next behavior is:
+Stage 37 extends the proposal/draft flow so provider intent is visible and
+blocked by default. Implemented behavior:
 
-- accept or preserve metadata that labels provider write intent;
-- show provider labels in review/dry-run summaries;
+- accept and preserve metadata that labels provider write intent;
+- show provider labels in submit, draft, review, dry-run blocking, and apply
+  blocking summaries;
 - block applying provider targets through RiftReader apply;
 - require a future separate provider-write tool/approval path before any
   external root can be touched.

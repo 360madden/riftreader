@@ -717,11 +717,105 @@ def package_draft_safety(config: BridgeConfig, draft_root: Optional[pathlib.Path
         "draftUnderDotRiftReaderLocal": is_relative_to(root, (config.repo_root / ".riftreader-local").resolve()),
         "noApplyExecute": True,
         "noGitMutation": True,
+        "providerWrites": False,
         "noRepoTargetWrites": True,
         "noCommandExecutionEndpoint": True,
         "noLiveRiftInput": True,
         "noCheatEngine": True,
         "noX64dbg": True,
+    }
+
+
+def _provider_intent_source(proposal: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = proposal.get("metadata") if isinstance(proposal.get("metadata"), dict) else {}
+    intent = metadata.get("providerWriteIntent")
+    if isinstance(intent, dict):
+        return {**metadata, **intent}
+    provider = metadata.get("providerWrite")
+    if isinstance(provider, dict):
+        return {**metadata, **provider}
+    return {**metadata, **payload}
+
+
+def _provider_path_label(value: Any) -> Tuple[Optional[str], Optional[str]]:
+    if not isinstance(value, str) or not value.strip():
+        return None, "provider-file-path-missing"
+    raw = value.strip().replace("\\", "/")
+    pure = pathlib.PurePosixPath(raw)
+    parts = [part for part in pure.parts if part not in ("", ".")]
+    if pure.is_absolute() or raw.startswith("/") or raw.startswith("../") or ".." in parts:
+        return None, f"provider-file-path-not-repo-relative:{raw[:120]}"
+    if parts and ":" in parts[0]:
+        return None, f"provider-file-path-absolute-or-drive-qualified:{raw[:120]}"
+    if any(part.lower() == ".git" for part in parts):
+        return None, f"provider-file-path-denied-git:{raw[:120]}"
+    normalized = pathlib.PurePosixPath(*parts).as_posix()
+    if not normalized or normalized == ".":
+        return None, "provider-file-path-empty"
+    return normalized[:240], None
+
+
+def _provider_file_labels(value: Any) -> Tuple[List[str], List[str]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["provider-files-not-list"]
+    labels: List[str] = []
+    warnings: List[str] = []
+    for index, item in enumerate(value[:50]):
+        raw_path = item.get("path") or item.get("target") if isinstance(item, dict) else item
+        label, warning = _provider_path_label(raw_path)
+        if label:
+            labels.append(label)
+        if warning:
+            warnings.append(f"provider-file-{index}:{warning}")
+    if len(value) > 50:
+        warnings.append(f"provider-files-truncated:{len(value)}>50")
+    return labels, warnings
+
+
+def _provider_root_label(value: Any) -> Optional[str]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    normalized = raw.replace("\\", "/")
+    pure = pathlib.PurePosixPath(normalized)
+    if pure.is_absolute() or (pure.parts and ":" in pure.parts[0]):
+        return "<operator-supplied-provider-root>"
+    return normalized[:160]
+
+
+def provider_write_intent_label(proposal: Dict[str, Any], payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    metadata = proposal.get("metadata") if isinstance(proposal.get("metadata"), dict) else {}
+    source = _provider_intent_source(proposal, payload)
+    provider_files, file_warnings = _provider_file_labels(source.get("providerFiles"))
+    provider_key = source.get("providerKey")
+    provider_root = source.get("providerRoot")
+    explicit_intent = source.get("providerWriteIntent") is True or metadata.get("providerWriteIntent") is True
+    present = bool(
+        explicit_intent
+        or provider_files
+        or file_warnings
+        or isinstance(provider_key, str)
+        or isinstance(provider_root, str)
+    )
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-provider-write-intent-label",
+        "providerWriteIntent": present,
+        "status": "blocked-by-default" if present else "absent",
+        "providerKey": str(provider_key)[:80] if isinstance(provider_key, str) and provider_key.strip() else None,
+        "providerRootSupplied": isinstance(provider_root, str) and bool(provider_root.strip()),
+        "providerRootLabel": _provider_root_label(provider_root),
+        "providerFiles": provider_files,
+        "providerFileCount": len(provider_files),
+        "providerFileWarnings": file_warnings,
+        "authorizationRequired": present,
+        "providerWriteEnabledByDefault": False,
+        "providerWritesAllowed": False,
+        "separateProviderCommitRequired": present,
+        "separateProviderPushRequired": present,
     }
 
 
@@ -891,6 +985,7 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
             "package-proposal checks must be a list when supplied.",
             inbox_id,
         )
+    provider_intent = provider_write_intent_label(proposal, payload)
 
     package_name = payload.get("packageName") or proposal.get("title") or f"Local Inbox package proposal {inbox_id}"
     if not isinstance(package_name, str) or not package_name.strip():
@@ -923,6 +1018,9 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
         "createdUtc": utc_now_iso(),
         "files": manifest_files,
         "checks": checks,
+        "metadata": {
+            "providerWriteIntent": provider_intent,
+        },
     }
     manifest_path = package_root / package_manifest.MANIFEST_NAME
     write_json(manifest_path, manifest)
@@ -941,6 +1039,11 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
         for key in ("tool", "context")
         if proposal_source.get(key) is not None
     }
+    draft_blockers: List[str] = []
+    draft_warnings: List[str] = list(provider_intent.get("providerFileWarnings") or [])
+    if provider_intent.get("providerWriteIntent"):
+        draft_blockers.append("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT")
+        draft_warnings.append("provider-write-intent-label-blocked-by-default")
     summary = {
         "schemaVersion": SCHEMA_VERSION,
         "ok": ok,
@@ -952,11 +1055,14 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
         "packageName": package_name,
         "messageMetadata": message_metadata,
         "messageSource": message_source,
+        "providerWriteIntent": provider_intent,
         "draftRoot": repo_display_path(draft_dir, config.repo_root),
         "packageRoot": repo_display_path(package_root, config.repo_root),
         "manifestPath": repo_display_path(manifest_path, config.repo_root),
         "fileCount": len(manifest_files),
         "validation": validation,
+        "blockers": draft_blockers,
+        "warnings": draft_warnings,
         "safety": package_draft_safety(config, draft_dir),
         "next": [
             "Review the draft package manifest and files locally.",
@@ -966,7 +1072,7 @@ def create_inbox_package_draft(config: BridgeConfig, inbox_id_arg: str) -> Dict[
     }
     if not ok:
         summary["code"] = "INBOX_PACKAGE_DRAFT_VALIDATION_FAILED"
-        summary["blockers"] = list(validation.get("errors", []))
+        summary["blockers"] = [*draft_blockers, *list(validation.get("errors", []))]
         summary["next"] = error_next_hints("INBOX_PACKAGE_DRAFT_VALIDATION_FAILED")
     summary_path = draft_dir / "summary.json"
     summary["summaryPath"] = repo_display_path(summary_path, config.repo_root)
@@ -1025,6 +1131,8 @@ def package_proposal_template() -> Dict[str, Any]:
         "metadata": {
             "requiresHumanReview": True,
             "draftOnly": True,
+            "providerWriteIntent": False,
+            "providerWriteEnabledByDefault": False,
         },
     }
 

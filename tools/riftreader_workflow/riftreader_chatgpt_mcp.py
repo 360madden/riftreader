@@ -298,8 +298,7 @@ def compact_future_capability_roadmap(roadmap: list[dict[str, Any]]) -> list[dic
                 "key": item.get("key"),
                 "currentStatus": item.get("currentStatus"),
                 "riskClass": item.get("riskClass"),
-                "targetToolName": item.get("targetToolName"),
-                "safePrecursorTools": item.get("safePrecursorTools") or [],
+                "safePrecursorTools": (item.get("safePrecursorTools") or [])[:2],
             }
         )
     return compact
@@ -510,6 +509,20 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
         ],
     },
     {
+        "key": "provider-repo-writes",
+        "targetToolName": "provider_write_request",
+        "currentStatus": "not-exposed-labels-only",
+        "riskClass": "external-repo-mutation",
+        "minimumGate": "future-explicit-provider-root-authorization-plus-separate-provider-preflight-token",
+        "safePrecursorTools": ["submit_package_proposal", "create_package_draft_from_inbox", "review_latest_package_draft"],
+        "requiredSafeguards": [
+            "provider intent may be labeled in package metadata but is blocked by default",
+            "RiftReader and provider mutations cannot be silently mixed in one apply",
+            "provider root, branch, dirty state, validation, commit, and push need separate future gates",
+            "no provider writes through run_bounded_repo_command, commit_reviewed_slice, or push_current_branch",
+        ],
+    },
+    {
         "key": "live-rift-control",
         "targetToolName": "control_rift_live",
         "currentStatus": "not-exposed",
@@ -548,15 +561,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 37,
-    "currentStageName": "Provider-safe proposal flow",
+    "currentStage": 38,
+    "currentStageName": "Live RIFT read-only state surface",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
-        "execution for registry keys only. Stage 36 provider write planning is complete-local; provider writes remain absent."
+        "execution for registry keys only. Stage 37 provider intent labels are complete-local; provider writes remain absent."
     ),
-    "nextStage": 38,
-    "nextStageName": "Live RIFT read-only state surface",
+    "nextStage": 39,
+    "nextStageName": "Live target identity gate",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -586,7 +599,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 34, "name": "Expose bounded command subset", "status": "complete-local"},
         {"stage": 35, "name": "Command audit and replay evidence", "status": "complete-local"},
         {"stage": 36, "name": "Provider repo write planning", "status": "complete-local"},
-        {"stage": 37, "name": "Provider-safe proposal flow", "status": "pending"},
+        {"stage": 37, "name": "Provider-safe proposal flow", "status": "complete-local"},
+        {"stage": 38, "name": "Live RIFT read-only state surface", "status": "pending-approval"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1333,6 +1347,7 @@ def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str,
             payload = proposal.get("payload") if isinstance(proposal.get("payload"), dict) else {}
             files = payload.get("files") if isinstance(payload, dict) else None
             checks = payload.get("checks") if isinstance(payload, dict) else None
+            provider_intent = bridge.provider_write_intent_label(proposal, payload if isinstance(payload, dict) else {})
             try:
                 proposal_size = json_size_bytes(proposal)
                 proposal_json_serializable = True
@@ -1345,6 +1360,7 @@ def summarize_tool_input(tool_name: str, arguments: dict[str, Any]) -> dict[str,
                 "hasBody": isinstance(proposal.get("body"), str) and bool(str(proposal.get("body")).strip()),
                 "fileCount": len(files) if isinstance(files, list) else None,
                 "checkCount": len(checks) if isinstance(checks, list) else None,
+                "providerWriteIntent": bool(provider_intent.get("providerWriteIntent")),
                 "jsonSizeBytes": proposal_size,
                 "jsonSerializable": proposal_json_serializable,
             }
@@ -1885,8 +1901,13 @@ class RiftReaderChatGptMcpAdapter:
 
     def submit_package_proposal(self, proposal: Any) -> dict[str, Any]:
         normalized = self.validate_package_proposal_for_submit(proposal)
+        payload = normalized.get("payload") if isinstance(normalized.get("payload"), dict) else {}
+        provider_intent = bridge.provider_write_intent_label(normalized, payload)
         raw_size = len(bridge.json_bytes(normalized))
         stored = bridge.store_inbox_message(self.config.bridge_config, normalized, raw_size)
+        warnings = ["duplicate-proposal-reused-existing-inbox-item"] if stored.get("duplicate") else []
+        if provider_intent.get("providerWriteIntent"):
+            warnings.append("provider-write-intent-label-blocked-by-default")
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-chatgpt-mcp-submit-package-proposal",
@@ -1899,13 +1920,15 @@ class RiftReaderChatGptMcpAdapter:
             "files": stored.get("files"),
             "sha256": stored.get("sha256"),
             "receivedAtUtc": stored.get("receivedAtUtc"),
+            "providerWriteIntent": provider_intent,
             "blockers": [],
-            "warnings": ["duplicate-proposal-reused-existing-inbox-item"] if stored.get("duplicate") else [],
+            "warnings": warnings,
             "safety": {
                 **base_safety(),
                 "localInboxOnly": True,
                 "noPackageDraftCreatedBySubmit": True,
                 "noRepoTargetWrites": True,
+                "providerWrites": False,
                 "bridgeSafety": stored.get("safety"),
             },
             "next": [
@@ -1955,6 +1978,7 @@ class RiftReaderChatGptMcpAdapter:
             "ok": bool(payload.get("ok")),
             "inboxId": payload.get("inboxId"),
             "draftId": Path(str(payload.get("draftRoot"))).name if payload.get("draftRoot") else None,
+            "providerWriteIntent": payload.get("providerWriteIntent"),
             "draft": payload,
             "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
             "warnings": list(payload.get("warnings") or []),
@@ -1965,6 +1989,7 @@ class RiftReaderChatGptMcpAdapter:
                 "applyFlagSent": False,
                 "repoSourceMutationExpected": False,
                 "checksExecuted": False,
+                "providerWrites": False,
                 "bridgeSafety": payload.get("safety"),
             },
             "next": [
@@ -1985,6 +2010,7 @@ class RiftReaderChatGptMcpAdapter:
             "ok": bool(payload.get("ok")),
             "operatorOnly": operator_only,
             "draftId": draft.get("draftId"),
+            "providerWriteIntent": draft.get("providerWriteIntent"),
             "draftReview": payload,
             "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
             "warnings": list(payload.get("warnings") or []),
@@ -2025,6 +2051,7 @@ class RiftReaderChatGptMcpAdapter:
             "operatorOnly": operator_only,
             "timeoutSeconds": timeout,
             "draftId": compact_payload.get("draft", {}).get("draftId"),
+            "providerWriteIntent": compact_payload.get("draft", {}).get("providerWriteIntent"),
             "dryRunSucceeded": bool(payload.get("ok")),
             "dryRun": compact_payload,
             "blockers": list(payload.get("blockers") or ([payload.get("code")] if payload.get("code") else [])),
@@ -2066,6 +2093,12 @@ class RiftReaderChatGptMcpAdapter:
             "draftId": (payload.get("preflight") or {}).get("approvalFacts", {}).get("draftId")
             if isinstance(payload.get("preflight"), dict)
             else None,
+            "providerWriteIntent": (
+                ((payload.get("preflight") or {}).get("draft") or {}).get("providerWriteIntent")
+                if isinstance(payload.get("preflight"), dict)
+                and isinstance((payload.get("preflight") or {}).get("draft"), dict)
+                else None
+            ),
             "applyResult": payload,
             "blockers": list(payload.get("blockers") or []),
             "warnings": list(payload.get("warnings") or []),
@@ -2427,12 +2460,13 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "provider-labeling-next",
+                "status": "live-rift-boundary-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
                     "push-current-branch",
                     "bounded-shell-command",
+                    "provider-repo-writes",
                     "live-rift-control",
                     "debugger-or-ce-assist",
                 ],
@@ -2839,6 +2873,7 @@ def compact_dry_run_payload(repo_root: Path, payload: dict[str, Any]) -> dict[st
                 "messageTitle",
                 "packageName",
                 "fileCount",
+                "providerWriteIntent",
                 "summaryPath",
                 "manifestPath",
                 "packageRoot",
@@ -5997,8 +6032,16 @@ def create_fastmcp_server(
             description="Optional source metadata. Must not contain credentials or secrets.",
         )
         metadata: dict[str, Any] = Field(
-            default_factory=lambda: {"requiresHumanReview": True, "draftOnly": True},
-            description="Optional metadata. Proposals remain inert and require local review.",
+            default_factory=lambda: {
+                "requiresHumanReview": True,
+                "draftOnly": True,
+                "providerWriteIntent": False,
+                "providerWriteEnabledByDefault": False,
+            },
+            description=(
+                "Optional metadata. providerWriteIntent may label external/provider repo intent, "
+                "but provider writes remain disabled and blocked by default."
+            ),
         )
 
     def annotations_for(spec: ToolSpec) -> Any:

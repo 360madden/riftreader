@@ -122,7 +122,12 @@ def package_proposal(title: str = "Test proposal", target: str = "docs/proposed.
             "checks": [],
         },
         "source": {"tool": "unit-test", "context": "chatgpt-mcp"},
-        "metadata": {"requiresHumanReview": True, "draftOnly": True},
+        "metadata": {
+            "requiresHumanReview": True,
+            "draftOnly": True,
+            "providerWriteIntent": False,
+            "providerWriteEnabledByDefault": False,
+        },
     }
 
 
@@ -667,6 +672,50 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             self.assertFalse(payload["safety"]["applyFlagSent"])
             self.assertFalse(payload["safety"]["gitMutation"])
             assert_repo_root_not_serialized(self, root, payload)
+
+    def test_provider_write_intent_is_labeled_and_blocked_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            proposal = package_proposal(title="Provider intent")
+            proposal["metadata"] = {  # type: ignore[assignment]
+                "requiresHumanReview": True,
+                "draftOnly": True,
+                "providerWriteIntent": True,
+                "providerKey": "chromalink",
+                "providerRoot": "C:\\RIFT MODDING\\ChromaLink",
+                "providerFiles": ["Interface/Addons/ReaderBridge/ReaderBridge.lua"],
+            }
+
+            submitted = adapter.call_tool("submit_package_proposal", {"proposal": proposal})
+            draft = adapter.call_tool("create_package_draft_from_inbox", {"inboxId": submitted["inboxId"]})
+            review = adapter.call_tool("review_latest_package_draft", {})
+            dry_run = adapter.call_tool("dry_run_latest_package_draft", {"operatorOnly": True, "timeoutSeconds": 30})
+            apply = adapter.call_tool(
+                "apply_latest_package_draft",
+                {"operatorOnly": True, "approvalToken": "APPLY-not-valid", "timeoutSeconds": 30},
+            )
+
+        self.assertTrue(submitted["ok"])
+        self.assertTrue(submitted["providerWriteIntent"]["providerWriteIntent"])
+        self.assertEqual(submitted["providerWriteIntent"]["status"], "blocked-by-default")
+        self.assertFalse(submitted["providerWriteIntent"]["providerWritesAllowed"])
+        self.assertTrue(draft["ok"])
+        self.assertEqual(draft["providerWriteIntent"]["providerKey"], "chromalink")
+        self.assertIn("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT", draft["blockers"])
+        self.assertFalse(review["ok"])
+        self.assertIn("PACKAGE_DRAFT_NOT_REVIEW_READY", review["blockers"])
+        self.assertIn("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT", review["blockers"])
+        self.assertTrue(review["providerWriteIntent"]["providerWriteIntent"])
+        self.assertFalse(dry_run["ok"])
+        self.assertIn("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT", dry_run["blockers"])
+        self.assertFalse(apply["ok"])
+        self.assertIn("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT", apply["blockers"])
+        self.assertFalse(apply["safety"]["providerWrites"])
+        serialized = json.dumps([submitted, draft, review, dry_run, apply], sort_keys=True)
+        self.assertNotIn("C:\\RIFT MODDING\\ChromaLink", serialized)
+        self.assertNotIn("C:/RIFT MODDING/ChromaLink", serialized)
 
     def test_review_latest_package_draft_defaults_to_operator_draft(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1439,17 +1488,19 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         roadmap_by_key = {item["key"]: item for item in payload["futureCapabilityRoadmap"]}
         self.assertIn("apply-package-to-repo", roadmap_by_key)
         self.assertIn("bounded-shell-command", roadmap_by_key)
+        self.assertIn("provider-repo-writes", roadmap_by_key)
         self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "exposed-gated")
         self.assertEqual(roadmap_by_key["push-current-branch"]["currentStatus"], "exposed-gated")
+        self.assertEqual(roadmap_by_key["provider-repo-writes"]["currentStatus"], "not-exposed-labels-only")
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "provider-labeling-next",
+            "live-rift-boundary-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 37)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 38)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 38)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 39)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

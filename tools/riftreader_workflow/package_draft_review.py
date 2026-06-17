@@ -149,6 +149,13 @@ def summarize_draft(repo_root: Path, draft_dir: Path) -> tuple[dict[str, Any] | 
         blockers.append("package-root-missing")
     if manifest_under_root and not manifest_exists:
         blockers.append("package-manifest-missing")
+    summary_blockers = summary.get("blockers") if isinstance(summary.get("blockers"), list) else []
+    for blocker in summary_blockers:
+        if isinstance(blocker, str) and blocker.strip() and blocker not in blockers:
+            blockers.append(blocker)
+    provider_intent = summary.get("providerWriteIntent") if isinstance(summary.get("providerWriteIntent"), dict) else {}
+    if provider_intent.get("providerWriteIntent") is True and "PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT" not in blockers:
+        blockers.append("PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT")
     validation = summary.get("validation")
     validation_package_name = validation.get("packageName") if isinstance(validation, dict) else None
     package_name = summary.get("packageName") or validation_package_name
@@ -166,6 +173,7 @@ def summarize_draft(repo_root: Path, draft_dir: Path) -> tuple[dict[str, Any] | 
         "messageTitle": summary.get("messageTitle"),
         "packageName": package_name,
         "fileCount": summary.get("fileCount"),
+        "providerWriteIntent": provider_intent,
         "validation": summary.get("validation"),
         "origin": "self-test" if self_test else "operator-proposal",
         "selfTest": self_test,
@@ -281,6 +289,7 @@ def latest_package_draft(repo_root: Path, *, operator_only: bool = False) -> dic
             "next": next_steps,
         }
     if latest.get("blockers"):
+        draft_blockers = _string_list(latest.get("blockers"))
         return {
             "schemaVersion": SCHEMA_VERSION,
             "kind": "riftreader-package-draft-review-latest-operator" if operator_only else "riftreader-package-draft-review-latest",
@@ -289,6 +298,7 @@ def latest_package_draft(repo_root: Path, *, operator_only: bool = False) -> dic
             "ok": False,
             "code": "PACKAGE_DRAFT_NOT_REVIEW_READY",
             "draft": latest,
+            "blockers": ["PACKAGE_DRAFT_NOT_REVIEW_READY", *draft_blockers],
             "safety": index["safety"],
             "next": [
                 "Inspect draft.blockers, draft.summaryPath, and draft.manifestPath.",
@@ -526,10 +536,15 @@ def apply_preflight_latest_package_draft(
 
     if not latest_payload.get("ok") or draft is None:
         blockers.append(str(latest_payload.get("code") or "APPLY_DRAFT_NOT_FOUND"))
+        if draft is not None:
+            blockers.extend(blocker for blocker in _string_list(draft.get("blockers")) if blocker not in blockers)
     else:
         draft_dir = safe_resolve_repo_path(repo_root, draft.get("draftRoot"))
         package_root = safe_resolve_repo_path(repo_root, draft.get("packageRoot"))
         root = draft_root(repo_root)
+        provider_intent = draft.get("providerWriteIntent") if isinstance(draft.get("providerWriteIntent"), dict) else {}
+        if provider_intent.get("providerWriteIntent") is True:
+            blockers.append("APPLY_PROVIDER_WRITE_INTENT_BLOCKED_BY_DEFAULT")
         if draft.get("selfTest") is True:
             blockers.append("APPLY_DRAFT_SELF_TEST_BLOCKED")
         if draft_dir is None or not is_relative_to(draft_dir, root):

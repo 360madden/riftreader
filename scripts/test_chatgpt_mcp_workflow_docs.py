@@ -75,7 +75,8 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Provider roots must not be discovered through arbitrary filesystem search", text)
         self.assertIn("Provider repo write support remains **not exposed**", text)
         self.assertIn("No provider root should be written", text)
-        self.assertIn("Stage 37 should extend the proposal/draft flow", text)
+        self.assertIn("Stage 37 extends the proposal/draft flow", text)
+        self.assertIn("blocked by default", text)
 
 
 if __name__ == "__main__":

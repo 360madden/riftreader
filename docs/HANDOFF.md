@@ -1,3 +1,20 @@
+# 2026-06-17 - MCP Stage 37 provider-safe proposal flow complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage37-provider-safe-proposal-flow-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 37 | Complete-local: package proposals can label provider write intent without enabling provider writes. |
+| Proposal/draft behavior | `providerWriteIntent`, `providerKey`, `providerRoot`, and `providerFiles` metadata is preserved as a blocked-by-default label. |
+| Apply boundary | Provider-intent drafts block review/dry-run/apply through the RiftReader package lane; no provider-write MCP tool was added. |
+| Provider safety | Provider roots are not used for writes, absolute provider roots are not echoed back, and `providerWrites=false` remains explicit. |
+| Current stage | Stage 38 live RIFT read-only surface is next and requires explicit live-boundary approval before implementation. |
+| Validation | Syntax, 107 focused tests, package-draft self-test, SDK registration validation, `git diff --check`, Stage 36 CI status, and MCP server status passed locally. |
+| Runtime | Stale MCP PID `26524` was verified/stopped after source edits; fresh PID `114284` reports `running-current` with the 23-tool surface. |
+| Remaining final-gate blocker | Actual-client proof replay still needs a fresh 23-tool ChatGPT connector observation; do not substitute local backend status for actual-client proof. |
+
+---
 # 2026-06-17 - MCP Stage 36 provider write planning complete-local
 
 Fresh compact handoff:

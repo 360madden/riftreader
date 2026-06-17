@@ -1,7 +1,7 @@
 # RiftReader ChatGPT MCP adapter
 
 Status: 23-tool narrow adapter with gated apply, commit, push, CI, tracked-context,
-and bounded repo-command lanes.
+bounded repo-command lanes, and provider-intent labels that remain blocked by default.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -19,12 +19,14 @@ The adapter is designed for this safe loop:
 4. The proposal is stored only under `.riftreader-local`.
 5. ChatGPT can create an inert package draft from a specific inbox proposal
    under `.riftreader-local` only.
-6. Operator/Codex reviews inbox and inert package drafts before any dry-run.
-7. ChatGPT can dry-run the latest operator package draft and receive bounded
+6. Provider write intent, if present in proposal metadata, is labeled and
+   blocked by default instead of being mixed into RiftReader apply.
+7. Operator/Codex reviews inbox and inert package drafts before any dry-run.
+8. ChatGPT can dry-run the latest operator package draft and receive bounded
    package diff evidence.
-8. ChatGPT can apply only after the local operator supplies the Stage 18/19
+9. ChatGPT can apply only after the local operator supplies the Stage 18/19
    approval token bound to the reviewed dry-run.
-9. ChatGPT can request a read-only workflow control plan with safe next actions,
+10. ChatGPT can request a read-only workflow control plan with safe next actions,
    explicit staging/check commands, bidirectional data-transfer steps, and
    gated boundaries.
 
@@ -37,11 +39,11 @@ The adapter is designed for this safe loop:
 | `get_latest_handoff` | Read-only | Reads only the newest Markdown file under `docs/handoffs`. |
 | `get_workflow_control_summary` | Read-only | Returns the smallest safe workflow-control summary for MCP clients that time out on the full plan. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
-| `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`. |
+| `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`; provider-write intent metadata is preserved as a blocked-by-default label. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
-| `create_package_draft_from_inbox` | Guarded local write | Converts an explicit validated `inboxId` into an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`; never applies files or executes checks. |
-| `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts. |
-| `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`; returns a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff` when available. |
+| `create_package_draft_from_inbox` | Guarded local write | Converts an explicit validated `inboxId` into an inert package draft under `.riftreader-local\artifact-bridge-package-drafts`; never applies files or executes checks; provider labels remain inert. |
+| `review_latest_package_draft` | Read-only | Returns latest inert package draft review status; defaults to non-self-test operator drafts and blocks provider-intent drafts by default. |
+| `dry_run_latest_package_draft` | Explicit action | Runs package-draft intake dry-run only; never passes `--apply`; returns a bounded `dryRun.diffPreview` from `.riftreader-local\package-intake\*\package.diff` when available; provider-intent drafts block before dry-run. |
 | `apply_latest_package_draft` | Approval-token gated action | Applies the latest operator package draft only through package intake after matching dry-run summary, diff SHA-256, and local approval token; never stages, commits, pushes, runs shell, sends RIFT input, writes providers, or touches CE/x64dbg. |
 | `commit_reviewed_slice` | Approval-token gated local Git action | Creates one explicit-path local commit only after current preflight/validation facts match; never pushes, rewrites, resets, cleans, or stages broad paths. |
 | `push_current_branch` | Approval-token gated remote Git action | Performs one normal non-force current-branch push only after a fresh safe push preflight; never commits, force-pushes, rewrites, resets, cleans, or uses ambiguous refspecs. |
@@ -328,16 +330,16 @@ x64dbg action.
 | Future capability | Current status | Minimum gate before exposure |
 |---|---|---|
 | Apply latest package draft to repo | Stage 20 exposed-gated | Explicit operator approval token plus fresh reviewed dry-run, dry-run diff hash binding, and clean preflight. |
-| Commit reviewed local slice | Planned; not exposed | Explicit operator approval plus safe commit plan and passing validation. |
-| Push current branch | Planned; not exposed | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push. |
+| Commit reviewed local slice | Exposed-gated | Explicit operator approval plus current commit preflight, explicit paths, and passing validation. |
+| Push current branch | Exposed-gated | Explicit current-turn approval, clean worktree, visible branch/upstream state, no force push, and CI follow-up. |
 | Run bounded repo command | Exposed and audit-replay hardened | Stage 32 design, Stage 33 registry, Stage 34 exposure, and Stage 35 local audit/replay evidence are complete-local; the lane remains registry-key only and never accepts shell strings or arbitrary argv. |
-| Provider repo writes | Planning only; not exposed | Stage 36 design: `docs\workflow\riftreader-chatgpt-mcp-provider-write-planning.md`; provider intent must be separately labeled and cannot write ChromaLink, RiftScan, or any external checkout by default. |
+| Provider repo writes | Labels complete; writes not exposed | Stage 36 design plus Stage 37 proposal/draft labels are complete-local; provider intent is visible but blocked by default and cannot write ChromaLink, RiftScan, or any external checkout. |
 | Live RIFT control | Planned; not exposed | Explicit live approval plus exact current target identity and bounded action plan; plan-only gates are drafted in `docs\workflow\riftreader-chatgpt-mcp-live-control-design.md`. |
 | Debugger/CE assist | Planned; not exposed | Explicit debugger approval with crash-risk statement and candidate-only proof boundaries. |
 
 Default development order: apply-package dry-run-to-apply bridge first, local
 commit second, push third, bounded command fourth, provider planning/labels
-fifth, live RIFT control sixth, and debugger/CE assist last.
+fifth (complete-local), live RIFT control sixth, and debugger/CE assist last.
 
 ## Local checks
 
