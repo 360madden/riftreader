@@ -1329,11 +1329,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "bounded-command-design-complete-allowlist-registry-next",
+            "bounded-command-allowlist-registry-complete-exposure-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 33)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 34)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 34)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 35)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -1377,15 +1377,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("no-force-push", push_contract["requiredGates"])
         self.assertIn("PUSH_APPROVAL_MISSING", push_contract["failClosedBlockers"])
         command_contract = payload["futureToolContracts"]["run_bounded_repo_command"]
-        self.assertEqual(command_contract["status"], "design-complete-not-exposed")
+        self.assertEqual(command_contract["status"], "allowlist-registry-complete-not-exposed")
         self.assertEqual(command_contract["targetToolName"], "run_bounded_repo_command")
         self.assertEqual(
             command_contract["designPath"],
             "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
         )
-        self.assertEqual(command_contract["currentStage"], 32)
+        self.assertEqual(command_contract["currentStage"], 33)
         self.assertEqual(command_contract["exposureStatus"], "not-exposed")
-        self.assertEqual(command_contract["registryStatus"], "planned-stage-33")
+        self.assertEqual(command_contract["registryStatus"], "implemented-local-only")
+        self.assertEqual(command_contract["registryVersion"], "bounded-repo-command-registry-v1")
+        self.assertEqual(command_contract["registryCommandCount"], 5)
+        self.assertIn("mcp_server_status", command_contract["registryCommandKeys"])
         self.assertIn("commandKey", command_contract["argumentKeys"])
         self.assertIn("fixed-argv-template", command_contract["requiredGates"])
         self.assertIn("arbitrary-shell", command_contract["forbiddenCommandClasses"])

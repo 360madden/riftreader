@@ -32,7 +32,7 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
-    from . import commit_reviewed_slice
+    from . import bounded_repo_commands, commit_reviewed_slice
     from . import local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
@@ -42,7 +42,7 @@ try:
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow import commit_reviewed_slice
+    from riftreader_workflow import bounded_repo_commands, commit_reviewed_slice
     from riftreader_workflow import local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
@@ -281,7 +281,7 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
         "nextStage": stage_plan.get("nextStage"),
         "nextStageName": stage_plan.get("nextStageName"),
         "planPath": stage_plan.get("planPath"),
-        "currentTruth": stage_plan.get("currentTruth"),
+        "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=120),
         "immediateStages": limited_list(stage_plan.get("immediateStages")),
         "phaseOrderCount": len(phase_order),
     }
@@ -374,7 +374,9 @@ def compact_bounded_command_contract(contract: dict[str, Any]) -> dict[str, Any]
         "currentStage": contract.get("currentStage"),
         "exposureStatus": contract.get("exposureStatus"),
         "registryStatus": contract.get("registryStatus"),
-        "auditStatus": contract.get("auditStatus"),
+        "registryVersion": contract.get("registryVersion"),
+        "registryCommandCount": contract.get("registryCommandCount"),
+        "registryCommandKeys": limited_list(contract.get("registryCommandKeys"), limit=3),
         "argumentKeys": [key for key in contract.get("argumentKeys") or [] if key == "commandKey"],
         "requiredGates": [
             gate
@@ -490,7 +492,7 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "bounded-shell-command",
         "targetToolName": "run_bounded_repo_command",
-        "currentStatus": "design-complete-not-exposed",
+        "currentStatus": "allowlist-registry-complete-not-exposed",
         "riskClass": "bounded-command-execution",
         "minimumGate": "explicit-operator-approval-plus-command-allowlist",
         "safePrecursorTools": ["get_workflow_control_plan"],
@@ -541,15 +543,15 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 33,
-    "currentStageName": "Command allowlist registry",
+    "currentStage": 34,
+    "currentStageName": "Expose bounded command subset",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
-        "approval-gated normal current-branch push, and read-only current-head CI status. Stage 32 bounded "
-        "command design is complete-local; Stage 33 allowlist registry is next; arbitrary shell remains absent."
+        "approval-gated normal current-branch push, and read-only current-head CI status. Stage 33 bounded "
+        "command allowlist registry is complete-local; Stage 34 command exposure is next; arbitrary shell remains absent."
     ),
-    "nextStage": 34,
-    "nextStageName": "Expose bounded command subset",
+    "nextStage": 35,
+    "nextStageName": "Command audit and replay evidence",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -575,7 +577,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 30, "name": "Expose push_current_branch", "status": "complete-local"},
         {"stage": 31, "name": "CI monitor integration", "status": "complete-local"},
         {"stage": 32, "name": "Bounded command design spec", "status": "complete-local"},
-        {"stage": 33, "name": "Command allowlist registry", "status": "pending"},
+        {"stage": 33, "name": "Command allowlist registry", "status": "complete-local"},
+        {"stage": 34, "name": "Expose bounded command subset", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -727,13 +730,17 @@ PUSH_TOOL_DESIGN_CONTRACT: dict[str, Any] = {
 BOUNDED_COMMAND_DESIGN_CONTRACT: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-bounded-command-design-contract",
-    "status": "design-complete-not-exposed",
+    "status": "allowlist-registry-complete-not-exposed",
     "targetToolName": "run_bounded_repo_command",
     "designPath": "docs/workflow/riftreader-chatgpt-mcp-bounded-command-design.md",
     "stageRange": [32, 33, 34, 35],
-    "currentStage": 32,
+    "currentStage": 33,
     "exposureStatus": "not-exposed",
-    "registryStatus": "planned-stage-33",
+    "registryStatus": "implemented-local-only",
+    "registryModule": "tools/riftreader_workflow/bounded_repo_commands.py",
+    "registryVersion": bounded_repo_commands.REGISTRY_VERSION,
+    "registryCommandCount": len(bounded_repo_commands.command_keys()),
+    "registryCommandKeys": bounded_repo_commands.command_keys(),
     "auditStatus": "planned-stage-35",
     "argumentKeys": [
         "commandKey",
@@ -2314,7 +2321,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "bounded-command-design-complete-allowlist-registry-next",
+                "status": "bounded-command-allowlist-registry-complete-exposure-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

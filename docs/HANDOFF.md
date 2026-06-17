@@ -1,3 +1,17 @@
+# 2026-06-17 - MCP Stage 33 command allowlist registry complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-stage33-command-allowlist-registry-complete-local.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 33 | Complete-local: `tools/riftreader_workflow/bounded_repo_commands.py` added. |
+| Registry | Version `bounded-repo-command-registry-v1` with five initial safe status/validation command keys. |
+| MCP exposure | `run_bounded_repo_command` remains not exposed; Stage 34 is next. |
+| Safety | Registry/plan/self-test modes do not execute commands, accept shell strings, mutate Git, write providers, send RIFT input, attach CE/x64dbg, or promote proof/truth. |
+| Remaining proof blocker | Actual-client proof replay still needs a fresh 22-tool observation before final readiness can pass. |
+
+---
 # 2026-06-17 - MCP source-freshness runtime guard
 
 Fresh compact handoff:

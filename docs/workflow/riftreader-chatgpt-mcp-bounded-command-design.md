@@ -1,7 +1,7 @@
 # RiftReader ChatGPT MCP bounded repo command design
 
 Stage: **32 — bounded command design spec**  
-Status: **complete-local design; no command tool exposed by this file**
+Status: **Stage 32 design complete-local; Stage 33 registry complete-local; no command tool exposed by this file**
 
 This document defines the safety contract for a future
 `run_bounded_repo_command` MCP tool. It is intentionally design-only: Stage 32
@@ -97,7 +97,21 @@ Rules:
 
 ## Initial allowed command families
 
-Stage 33 should start with a deliberately small registry. Suggested first keys:
+Stage 33 now starts with a deliberately small local-only registry in
+`tools/riftreader_workflow/bounded_repo_commands.py`.
+
+Registry facts:
+
+| Field | Value |
+|---|---|
+| Registry version | `bounded-repo-command-registry-v1` |
+| CLI inspection | `python tools\riftreader_workflow\bounded_repo_commands.py --list --json` |
+| CLI plan mode | `python tools\riftreader_workflow\bounded_repo_commands.py --plan mcp_server_status --json` |
+| CLI self-test | `python tools\riftreader_workflow\bounded_repo_commands.py --self-test --json` |
+| MCP exposure | Not exposed until Stage 34. |
+| Command execution | Not implemented in Stage 33. |
+
+Initial keys:
 
 | Key | Command family | Why safe enough for first subset |
 |---|---|---|
@@ -190,12 +204,13 @@ Fail closed when:
 
 | Stage | Required evidence |
 |---:|---|
-| 33 | Registry code, tests for allowed keys, tests for denied destructive/live/provider/debugger classes. |
+| 33 | Complete-local: registry code, tests for allowed keys, tests for denied destructive/live/provider/debugger classes. |
 | 34 | MCP tool wrapper, argument allowlist, local adapter tests, actual connector denial proof for unknown command, and successful proof for one safe status command. |
 | 35 | Durable audit/replay helper, tests for envelope contents, replay of at least one successful and one blocked command. |
 
 ## Safety statement
 
-This design keeps Stage 32 non-live and non-mutating. It does not expose a
-command endpoint, start/stop MCP servers, mutate Git, run validation, send RIFT
-input, attach CE/x64dbg, write provider repos, or promote any proof/truth.
+This design plus the Stage 33 registry keep the bounded command lane non-live
+and non-mutating so far. It does not expose a command endpoint through MCP, run
+allowlisted commands from ChatGPT, mutate Git, send RIFT input, attach
+CE/x64dbg, write provider repos, or promote any proof/truth.

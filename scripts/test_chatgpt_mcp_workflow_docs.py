@@ -66,7 +66,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("Live RIFT input", text)
         self.assertIn("Provider writes", text)
         self.assertIn("Debugger/CE", text)
-        self.assertIn("does not expose a\ncommand endpoint", text)
+        self.assertIn("does not expose a command endpoint", text)
 
 
 if __name__ == "__main__":
