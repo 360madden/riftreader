@@ -11,8 +11,8 @@ the current 33-tool surface.
 
 | Area | Evidence |
 |---|---|
-| Git | `main` is synced with `origin/main` at `e6debe79b2e0115c1d4555648c75e8530e9d9767` (`Detect stale MCP stdio counterparts`). |
-| CI | `.NET build and test` and `RiftReader Policy` passed for `e6debe79b2e0115c1d4555648c75e8530e9d9767`. |
+| Git | The code-changing detector slice is pushed as `e6debe79b2e0115c1d4555648c75e8530e9d9767` (`Detect stale MCP stdio counterparts`); re-run current-head status after handoff-only follow-up commits. |
+| CI | `.NET build and test` and `RiftReader Policy` passed for detector commit `e6debe79b2e0115c1d4555648c75e8530e9d9767`; re-run current-head CI after handoff-only follow-up commits. |
 | Runtime | `mcp_server_status.py --json` reports `status=running-current` for PID `112004`, full profile, source freshness passed, and 33/33 tools observed. |
 | Tunnel | `get_tunnel_status` reported Cloudflared service running and public MCP initialize passed at `https://mcp.360madden.com/mcp`. |
 | Tool surface | Source/runtime expected 33 tools; latest actual-client proof still records 20 tools. |

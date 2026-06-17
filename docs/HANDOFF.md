@@ -7,7 +7,7 @@ Fresh compact handoff:
 |---|---|
 | Stage 38 | Not active. It remains parked until final 33-tool actual-client proof, Phase 2, and final readiness pass. |
 | Safe work completed | Runtime/tunnel/readiness status refreshed; proof template and public route plan regenerated; stale stdio counterpart detection added, validated, committed, and pushed. |
-| Git/CI | `main` is synced with `origin/main` at `e6debe79b2e0115c1d4555648c75e8530e9d9767`; `.NET build and test` and `RiftReader Policy` passed for that commit. |
+| Git/CI | Detector commit `e6debe79b2e0115c1d4555648c75e8530e9d9767` passed `.NET build and test` plus `RiftReader Policy`; after handoff-only follow-up commits, re-run current-head CI status. |
 | Runtime | `mcp_server_status.py --json` reports PID `112004` as `running-current`, full profile, source-fresh, and 33/33 tools observed. |
 | Tunnel | `get_tunnel_status` reports `https://mcp.360madden.com/mcp` initialize passed through the Cloudflare named Tunnel. |
 | Stale stdio hazard | `mcp_server_status.py` now reports local/Codex stdio MCP counterparts separately; stale stdio PIDs `97436` and `116596` explained a 20-tool actual callable surface while HTTP PID `53740` was 33-tool/current. Those stale stdio PIDs were stopped after exact command-line verification. |
