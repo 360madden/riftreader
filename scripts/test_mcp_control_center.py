@@ -17,6 +17,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_control_center as control_center  # noqa: E402
+from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT  # noqa: E402
 
 
 def minimal_dashboard_status() -> dict[str, object]:
@@ -99,7 +100,7 @@ class McpControlCenterTests(unittest.TestCase):
         self.assertFalse(status["safety"]["cloudflareMutationEndpoint"])
         self.assertFalse(status["safety"]["riftInputEndpoint"])
         self.assertEqual("https://mcp.360madden.com/mcp", status["chatGpt"]["serverUrl"])
-        self.assertEqual(20, status["toolSurface"]["expectedToolCount"])
+        self.assertEqual(EXPECTED_CHATGPT_MCP_TOOL_COUNT, status["toolSurface"]["expectedToolCount"])
 
     def test_static_gui_includes_polished_navigation_surfaces(self) -> None:
         index = (control_center.STATIC_ROOT / "index.html").read_text(encoding="utf-8")
