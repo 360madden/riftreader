@@ -81,6 +81,10 @@ after the HTTP runtime is already current.
 If the ChatGPT/Codex client returns `Transport closed` for a RiftReader tool,
 record that as a client-refresh blocker rather than treating the saved connector
 or local backend as sufficient proof.
+A successful Codex Apps wrapper/facade health call is useful diagnostics, but it
+is not a substitute for the non-Codex ChatGPT Web/Desktop proof artifact unless
+that actual-client proof records the same current client surface, 33-tool
+surface, output schemas, and successful tool calls.
 Use the local-only Stage 38 consideration gate as the final pre-approval
 summary:
 

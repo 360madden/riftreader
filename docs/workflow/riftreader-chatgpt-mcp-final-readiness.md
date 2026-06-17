@@ -232,14 +232,18 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
    stdio counterpart can make actual callable tools show an old tool count; use
    `stdioCounterparts` from `mcp_server_status.py` to recognize this and
    refresh/restart that client-side app/server before proof.
-7. Actual ChatGPT/MCP connector `health` must be callable from the current
+7. If a Codex Apps wrapper or alternate connector facade can call `health`, use
+   that only as a diagnostic of a separate facade. It does not replace the
+   non-Codex ChatGPT Web/Desktop actual-client proof unless the proof artifact
+   itself records the same client surface and successful tool calls.
+8. Actual ChatGPT/MCP connector `health` must be callable from the current
    client surface, with `clientTransportStatus=tool-call-succeeded` and
    `healthCallSucceeded=true`. A `Transport closed`, missing-tool, or stale
    tool-facade result is a client-refresh blocker, not proof that final
    readiness passed.
-8. Actual ChatGPT/MCP connector `health` sees the expected tools and output
+9. Actual ChatGPT/MCP connector `health` sees the expected tools and output
    schemas.
-9. Only then fill/check/record proof input and rerun this final gate.
+10. Only then fill/check/record proof input and rerun this final gate.
 
 Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
 states mean the MCP backend dependency is not satisfied even if a connector
