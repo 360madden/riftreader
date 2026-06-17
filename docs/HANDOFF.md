@@ -1,7 +1,7 @@
 # 2026-06-17 - Pre-Stage-38 surface/runtime refresh
 
 Fresh compact handoff:
-`docs/handoffs/2026-06-17-pre-stage38-surface-runtime-refresh.md`.
+`docs/handoffs/2026-06-17-pre-stage38-mcp-surface-runtime-refresh.md`.
 
 | Item | Current truth |
 |---|---|
