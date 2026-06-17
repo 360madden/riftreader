@@ -10,6 +10,7 @@ line and fails closed for missing, foreign, or legacy listeners.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import subprocess
@@ -19,11 +20,13 @@ from typing import Any
 
 try:
     from .common import find_repo_root, safety_flags, utc_iso
-    from .riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from .riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, ensure_mcp_sdk_available, run_transport_client_once
 except ImportError:  # pragma: no cover - direct script execution fallback.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, safety_flags, utc_iso
-    from riftreader_workflow.riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
+    from riftreader_workflow.riftreader_chatgpt_mcp import DEFAULT_HOST, DEFAULT_PORT, ensure_mcp_sdk_available, run_transport_client_once
 
 
 SCHEMA_VERSION = 1
@@ -31,6 +34,7 @@ VERSION = "riftreader-mcp-server-status-v0.1.0"
 CURRENT_SERVER_MARKER = "riftreader_chatgpt_mcp.py"
 LEGACY_MODULE_MARKER = "tools.riftreader_mcp.http_server"
 LEGACY_FILE_MARKER = "riftreader_mcp/http_server.py"
+RUNTIME_SURFACE_TIMEOUT_SECONDS = 8.0
 
 
 def normalize_command_line(value: str) -> str:
@@ -152,12 +156,96 @@ def _redact_repo_root(value: Any, repo_root: Path) -> Any:
     return value
 
 
+def _compact_exception(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}:{exc}"
+    return text if len(text) <= 800 else text[:797] + "..."
+
+
+def probe_runtime_surface(
+    repo_root: Path,
+    host: str,
+    port: int,
+    *,
+    timeout_seconds: float = RUNTIME_SURFACE_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Probe the live MCP runtime, not just the process command line.
+
+    A stale long-running Python process can still have the right
+    ``riftreader_chatgpt_mcp.py --serve`` command line while exposing an older
+    loaded tool surface.  This read-only probe lists tools and calls ``health``
+    over the live streamable-HTTP backend so status fails closed before proof.
+    """
+
+    url = f"http://{host}:{int(port)}/mcp"
+    progress: dict[str, Any] = {}
+    try:
+        sdk_path_additions = ensure_mcp_sdk_available(repo_root)
+        client = asyncio.run(
+            asyncio.wait_for(
+                run_transport_client_once(
+                    url,
+                    package_proposal=None,
+                    client_read_timeout_seconds=max(1.0, timeout_seconds),
+                    progress=progress,
+                ),
+                timeout=timeout_seconds,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - status must report, not crash.
+        return {
+            "status": "failed",
+            "ok": False,
+            "url": url,
+            "error": _compact_exception(exc),
+            "clientProgress": progress,
+            "blockers": ["runtime-surface-probe-failed"],
+        }
+
+    expected_names = list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+    observed_names = [str(name) for name in client.get("toolNames") or []]
+    health = client.get("healthStructuredContent") if isinstance(client.get("healthStructuredContent"), dict) else {}
+    health_tool_names = [
+        str(tool.get("name"))
+        for tool in health.get("tools", [])
+        if isinstance(tool, dict) and isinstance(tool.get("name"), str)
+    ]
+    blockers: list[str] = []
+    if client.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
+        blockers.append(f"runtime-tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{client.get('toolCount')!r}")
+    if observed_names != expected_names:
+        blockers.append("runtime-tool-names-not-expected")
+    if health.get("toolCount") != EXPECTED_CHATGPT_MCP_TOOL_COUNT:
+        blockers.append(f"runtime-health-tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{health.get('toolCount')!r}")
+    if health_tool_names and health_tool_names != expected_names:
+        blockers.append("runtime-health-tool-names-not-expected")
+    if client.get("healthIsError"):
+        blockers.append("runtime-health-call-is-error")
+
+    return {
+        "status": "passed" if not blockers else "blocked",
+        "ok": not blockers,
+        "url": url,
+        "expectedToolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        "observedToolCount": client.get("toolCount"),
+        "expectedToolNames": expected_names,
+        "observedToolNames": observed_names,
+        "healthToolCount": health.get("toolCount"),
+        "healthToolNames": health_tool_names,
+        "healthVersion": health.get("version"),
+        "sdkPathAdditions": sdk_path_additions,
+        "clientStepTimings": client.get("clientStepTimings", []),
+        "blockers": blockers,
+    }
+
+
 def build_status_payload(
     repo_root: Path,
     *,
     host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     listener_query: dict[str, Any] | None = None,
+    runtime_surface_probe: dict[str, Any] | None = None,
+    check_runtime_surface: bool = True,
 ) -> dict[str, Any]:
     query = listener_query if listener_query is not None else query_windows_listeners(host, port)
     listeners = query.get("listeners") if isinstance(query.get("listeners"), list) else []
@@ -195,6 +283,29 @@ def build_status_payload(
 
     selected = current or legacy or (classified_listeners[0] if classified_listeners else None)
     selected_classification = selected.get("classification") if isinstance(selected, dict) else {}
+    runtime_surface: dict[str, Any] = {
+        "status": "not-checked",
+        "ok": None,
+        "reason": "no-current-full-profile-listener",
+    }
+    if current is not None and selected_classification.get("toolProfile") == "full":
+        if not check_runtime_surface:
+            runtime_surface = {
+                "status": "skipped",
+                "ok": None,
+                "reason": "runtime-surface-check-disabled",
+            }
+        else:
+            runtime_surface = (
+                runtime_surface_probe
+                if runtime_surface_probe is not None
+                else probe_runtime_surface(repo_root, host, port)
+            )
+            if not runtime_surface.get("ok"):
+                status = "running-stale-runtime"
+                blockers.append("current-chatgpt-mcp-server-runtime-surface-not-current")
+                for blocker in runtime_surface.get("blockers", []):
+                    blockers.append(str(blocker))
     connector_note = "saved-chatgpt-connector-config-does-not-start-local-backend"
     sequence = [
         {
@@ -223,7 +334,16 @@ def build_status_payload(
             if current is not None
             else "blocked",
             "ok": selected_classification.get("toolProfile") == "full",
-            "why": "Final 20-tool proof requires --tool-profile full; read-only profile is only for Phase 0 domain checks.",
+            "why": f"Final {EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool proof requires --tool-profile full; read-only profile is only for Phase 0 domain checks.",
+        },
+        {
+            "key": "runtime-loaded-tool-surface",
+            "status": runtime_surface.get("status"),
+            "ok": runtime_surface.get("ok"),
+            "why": (
+                "The live MCP list_tools and health response must match the current expected "
+                f"{EXPECTED_CHATGPT_MCP_TOOL_COUNT}-tool surface; a saved connector or matching process command line is not enough."
+            ),
         },
         {
             "key": "public-route-forwarding",
@@ -244,12 +364,13 @@ def build_status_payload(
         "version": VERSION,
         "generatedAtUtc": utc_iso(),
         "status": status,
-        "ok": current is not None,
+        "ok": current is not None and not blockers,
         "host": host,
         "port": port,
         "localMcpUrl": f"http://{host}:{port}/mcp",
         "selectedListener": selected,
         "listeners": classified_listeners,
+        "runtimeSurface": runtime_surface,
         "blockers": blockers,
         "warnings": warnings,
         "dependencySequence": sequence,
@@ -257,6 +378,7 @@ def build_status_payload(
         "safety": {
             **safety_flags(),
             "readOnlyStatus": True,
+            "runtimeSurfaceChecked": bool(check_runtime_surface and current is not None),
             "serverStarted": False,
             "publicTunnelStarted": False,
             "chatGptRegistrationPerformed": False,
@@ -271,6 +393,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument(
+        "--skip-runtime-surface-check",
+        action="store_true",
+        help="Only classify the listener process; intended for narrow diagnostics/tests, not proof readiness.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -278,7 +405,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root(Path.cwd())
-    payload = build_status_payload(repo_root, host=args.host, port=args.port)
+    payload = build_status_payload(
+        repo_root,
+        host=args.host,
+        port=args.port,
+        check_runtime_surface=not args.skip_runtime_surface_check,
+    )
     print(json.dumps(payload, indent=2))
     return 0 if payload.get("ok") else 2
 

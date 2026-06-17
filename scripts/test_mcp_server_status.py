@@ -14,6 +14,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_server_status  # noqa: E402
+from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES  # noqa: E402
 
 
 def listener(command_line: str, *, pid: int = 1234) -> dict[str, object]:
@@ -37,6 +38,21 @@ def listener(command_line: str, *, pid: int = 1234) -> dict[str, object]:
     }
 
 
+def runtime_surface(tool_names: list[str] | None = None) -> dict[str, object]:
+    names = tool_names or list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
+    return {
+        "status": "passed" if names == list(EXPECTED_CHATGPT_MCP_TOOL_NAMES) else "blocked",
+        "ok": names == list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+        "expectedToolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT,
+        "observedToolCount": len(names),
+        "expectedToolNames": list(EXPECTED_CHATGPT_MCP_TOOL_NAMES),
+        "observedToolNames": names,
+        "healthToolCount": len(names),
+        "healthToolNames": names,
+        "blockers": [] if names == list(EXPECTED_CHATGPT_MCP_TOOL_NAMES) else [f"runtime-tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:{len(names)}"],
+    }
+
+
 class McpServerStatusTests(unittest.TestCase):
     def test_current_full_profile_server_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -47,12 +63,31 @@ class McpServerStatusTests(unittest.TestCase):
                     r"--tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http "
                     r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
                 ),
+                runtime_surface_probe=runtime_surface(),
             )
 
         self.assertTrue(payload["ok"])
         self.assertEqual("running-current", payload["status"])
         self.assertEqual("full", payload["selectedListener"]["classification"]["toolProfile"])
+        self.assertEqual("passed", payload["runtimeSurface"]["status"])
         self.assertEqual([], payload["blockers"])
+
+    def test_current_command_line_with_stale_runtime_surface_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = mcp_server_status.build_status_payload(
+                Path(temp_dir),
+                listener_query=listener(
+                    r'python "tools\riftreader_workflow\riftreader_chatgpt_mcp.py" --serve '
+                    r"--tool-profile full --host 127.0.0.1 --port 8770 --transport streamable-http "
+                    r"--allowed-host mcp.360madden.com --allowed-origin https://chatgpt.com"
+                ),
+                runtime_surface_probe=runtime_surface(list(EXPECTED_CHATGPT_MCP_TOOL_NAMES)[:-2]),
+            )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("running-stale-runtime", payload["status"])
+        self.assertIn("current-chatgpt-mcp-server-runtime-surface-not-current", payload["blockers"])
+        self.assertEqual("blocked", payload["runtimeSurface"]["status"])
 
     def test_missing_listener_blocks_with_clear_dependency(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

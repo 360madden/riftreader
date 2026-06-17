@@ -3,6 +3,7 @@
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
 Current stage: **Stage 32 — bounded command design spec next**.
+Runtime dependency note: after Stage 31, the server-status helper was hardened to require live runtime `list_tools` + `health` agreement with the expected 22-tool surface. A matching PID/port/command line alone is no longer sufficient proof that the MCP backend is current.
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
 integration are complete-local. The MCP surface now includes `push_current_branch`

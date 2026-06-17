@@ -1,3 +1,17 @@
+# 2026-06-17 - MCP runtime surface status guard
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-runtime-surface-status-guard.md`.
+
+| Item | Current truth |
+|---|---|
+| Runtime dependency fix | `scripts\riftreader-mcp-server-status.cmd --json` now verifies live runtime `list_tools` + `health`, not just listener PID/command line. |
+| Local MCP backend | Restarted after explicit approval; hardened status reports `running-current` with 22 live tools. |
+| Remaining proof blocker | Existing actual-client proof replay is still stale 20-tool evidence; refresh connector/proof before final readiness can pass. |
+| Next stage | Stage 32 bounded command design spec. |
+| Safety | No live RIFT, debugger, provider write, branch rewrite, reset, clean, or arbitrary-shell endpoint. |
+
+---
 # 2026-06-17 - MCP Stage 30 push exposure and Stage 31 CI monitor complete-local
 
 Fresh compact handoff:
