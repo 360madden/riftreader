@@ -15,11 +15,11 @@ new MCP tool.
 | Gate helper | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` checks runtime freshness, public route, final readiness, and live-boundary approval. |
 | Bounded command | `stage38_consideration_status` is in the bounded command registry, so the existing `run_bounded_repo_command` MCP tool can run the gate without adding another MCP tool. |
 | Approval packet writer | `stage38_approval_packet` writes a fail-closed approval packet under ignored `.riftreader-local` artifacts through the existing bounded-command surface. It does not start Stage 38. |
-| Commits | `9132605` added the Stage 38 consideration gate. `b886e11` exposed that gate as a bounded command. `75efec9` added the fail-closed approval-packet writer. |
-| Runtime restart | Stale HTTP PID `130316` was restarted through the exact-PID guarded preflight after `75efec9`. Fresh PID `129620` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
+| Commits | `9132605` added the Stage 38 consideration gate. `b886e11` exposed that gate as a bounded command. `75efec9` added the fail-closed approval-packet writer. `d12a06a` made actual-client transport success explicit before Stage 38. |
+| Runtime restart | Stale HTTP PID `129620` was restarted through the exact-PID guarded preflight after `d12a06a`. Fresh PID `134792` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
 | Public route | The Stage 38 gate reports the Cloudflare named route `https://mcp.360madden.com/mcp` as passed. |
-| Tool surface | Source vs manifest and source vs runtime pass at 33/33 tools. Latest actual-client proof is still old 20-tool evidence. |
-| Final readiness | Current-head CI is green for `72a798e`; the remaining blocker is actual ChatGPT Web/Desktop proof replay. The next proof must record 33 tools plus `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. |
+| Tool surface | Source vs manifest and source vs runtime pass at 33/33 tools. Latest actual-client proof is still old 20-tool evidence and lacks the new transport-success fields. |
+| Final readiness | Current-head CI is green for `d12a06a`; the remaining blocker is actual ChatGPT Web/Desktop proof replay. The next proof must record 33 tools plus `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. |
 | Stage 38 gate status | `blocked`; `stage38Started=false`, `stage38Active=false`, and `stage38ToolSurfaceChanged=false`. |
 
 ## Remaining blockers before Stage 38 can be considered
