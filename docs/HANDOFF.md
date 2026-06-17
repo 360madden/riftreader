@@ -1,3 +1,18 @@
+# 2026-06-17 - Stage 38 consideration gate bounded command
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-stage38-consideration-gate-bounded-command.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 38 | Not active. It remains parked behind final readiness plus explicit live-boundary approval. |
+| New gate | `scripts\riftreader-stage38-consideration.cmd --status --compact-json` checks runtime freshness, public route, final readiness, and `STAGE38-LIVE-BOUNDARY-APPROVED` before Stage 38 can be considered. |
+| Existing MCP tool path | `stage38_consideration_status` is now an allowlisted bounded command behind the existing `run_bounded_repo_command` tool; no new MCP tool was added. |
+| Commits | `9132605` added the Stage 38 gate. `b886e11` exposed it through the bounded command registry. |
+| Runtime | Stale PID `134652` was restarted through exact-PID preflight; fresh PID `130316` reports `running-current`, source-fresh, full profile, and 33/33 tools. |
+| Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface before final readiness can pass. |
+
+---
 # 2026-06-17 - Pre-Stage-38 proof refresh gate started
 
 Fresh compact handoff:
