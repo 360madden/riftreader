@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RiftReader MCP Control Center</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <noscript>
+    <div class="noscript-banner">RiftReader MCP Control Center needs JavaScript enabled.</div>
+  </noscript>
+
+  <div class="shell">
+    <header class="hero">
+      <div class="hero__content">
+        <div class="eyebrow">ChatGPT Web/Desktop · Non-Codex MCP</div>
+        <h1>RiftReader MCP Control Center</h1>
+        <p class="hero__summary">
+          Localhost-only control surface for the narrow RiftReader MCP adapter, readiness gates, public-route diagnostics,
+          proof templates, and copy-ready ChatGPT setup.
+        </p>
+      </div>
+      <div class="hero__actions" aria-label="Primary actions">
+        <button id="refreshButton" class="button button--primary" type="button">Refresh</button>
+        <button id="refreshPublicSmokeButton" class="button button--secondary" type="button">Refresh + public smoke</button>
+        <button id="copyServerUrlButton" class="button button--secondary" type="button">Copy Server URL</button>
+      </div>
+    </header>
+
+    <section class="status-strip" aria-label="Current status">
+      <article class="metric-card">
+        <div class="metric-card__label">Backend</div>
+        <div id="metricBackend" class="metric-card__value">Loading…</div>
+        <div id="metricBackendDetail" class="metric-card__detail">127.0.0.1:8770</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-card__label">Public route</div>
+        <div id="metricRoute" class="metric-card__value">Loading…</div>
+        <div id="metricRouteDetail" class="metric-card__detail">mcp.360madden.com</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-card__label">Final gate</div>
+        <div id="metricFinalGate" class="metric-card__value">Loading…</div>
+        <div id="metricFinalGateDetail" class="metric-card__detail">local proof/readiness</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-card__label">Tool surface</div>
+        <div id="metricToolSurface" class="metric-card__value">Loading…</div>
+        <div id="metricToolSurfaceDetail" class="metric-card__detail">expected tools</div>
+      </article>
+    </section>
+
+    <section class="command-bar" aria-label="Run allowlisted action">
+      <div>
+        <label class="field-label" for="actionSelect">Run allowlisted action</label>
+        <select id="actionSelect" class="select"></select>
+      </div>
+      <button id="runSelectedActionButton" class="button button--primary" type="button">Run selected</button>
+      <div id="actionHint" class="command-bar__hint">Actions are fixed allowlisted workflows; there is no arbitrary shell endpoint.</div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Control Center sections">
+      <button class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="server">Server</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="readiness">Readiness</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="route">Route & ChatGPT</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="proof">Proof</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="validation">Validation</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="logs">Logs & JSON</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="safety">Safety</button>
+    </nav>
+
+    <main class="panels">
+      <section id="panel-overview" class="panel is-active" role="tabpanel">
+        <div class="panel-grid panel-grid--overview">
+          <article class="card card--wide">
+            <div class="card__header">
+              <div>
+                <h2>Operator summary</h2>
+                <p>One-screen truth for the local backend, Cloudflare route, ChatGPT connector settings, and next useful actions.</p>
+              </div>
+              <span id="overallBadge" class="badge badge--neutral">Loading</span>
+            </div>
+            <div id="overviewSummary" class="summary-grid"></div>
+          </article>
+          <article class="card">
+            <h2>Recommended actions</h2>
+            <div id="recommendedActions" class="stack"></div>
+          </article>
+          <article class="card">
+            <h2>ChatGPT connector</h2>
+            <dl id="chatGptSummary" class="definition-list"></dl>
+            <div class="button-row">
+              <button id="copyChatGptUrlOverviewButton" class="button button--secondary" type="button">Copy URL</button>
+              <button id="copyControlCommandButton" class="button button--secondary" type="button">Copy GUI command</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-server" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <div class="card__header">
+              <div>
+                <h2>Managed local MCP adapter</h2>
+                <p>Start or stop only the local adapter process this Control Center owns. External/manual server windows are detected but not killed.</p>
+              </div>
+              <span id="managedServerBadge" class="badge badge--neutral">Loading</span>
+            </div>
+            <div class="button-row button-row--wrap">
+              <button class="button button--success" type="button" data-action="start_full_server">Start full server</button>
+              <button class="button button--secondary" type="button" data-action="start_readonly_server">Start read-only server</button>
+              <button class="button button--danger" type="button" data-action="stop_managed_server">Stop managed server</button>
+            </div>
+            <div id="serverDetails" class="details-grid"></div>
+          </article>
+          <article class="card">
+            <h2>Server copy commands</h2>
+            <p class="muted">Use these if you prefer an operator-owned terminal window.</p>
+            <div id="serverCommands" class="stack"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-readiness" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <h2>Readiness badges</h2>
+            <div id="readinessBadges" class="badge-grid"></div>
+          </article>
+          <article class="card">
+            <h2>Readiness actions</h2>
+            <div class="stack">
+              <button class="button button--primary" type="button" data-action="final_gate">Run final gate</button>
+              <button class="button button--secondary" type="button" data-action="mcp_trial_readiness">Run MCP trial readiness</button>
+            </div>
+          </article>
+          <article class="card card--wide">
+            <h2>Mission Control</h2>
+            <div id="missionControl" class="json-card"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-route" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <h2>Public route</h2>
+            <div id="routeDetails" class="details-grid"></div>
+            <div class="button-row button-row--wrap">
+              <button class="button button--secondary" type="button" data-action="cloudflared_status">Check Cloudflared service</button>
+              <button class="button button--secondary" type="button" data-action="domain_diagnostics">Run domain diagnostics</button>
+              <button class="button button--secondary" type="button" data-action="route_plan">Write route plan</button>
+            </div>
+          </article>
+          <article class="card">
+            <h2>ChatGPT setup checklist</h2>
+            <ol id="chatGptChecklist" class="checklist"></ol>
+          </article>
+          <article class="card card--wide">
+            <h2>Domain diagnostics</h2>
+            <div id="domainDiagnostics" class="json-card"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-proof" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <h2>Actual-client proof state</h2>
+            <div id="proofDetails" class="details-grid"></div>
+            <div class="button-row button-row--wrap">
+              <button class="button button--secondary" type="button" data-action="write_proof_template">Write proof template</button>
+              <button class="button button--secondary" type="button" data-action="check_latest_proof_template">Check latest template</button>
+            </div>
+          </article>
+          <article class="card">
+            <h2>Expected tools</h2>
+            <div id="toolSurface" class="tool-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-validation" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card">
+            <h2>Local validation</h2>
+            <div class="stack">
+              <button class="button button--secondary" type="button" data-action="local_self_test">Adapter self-test</button>
+              <button class="button button--secondary" type="button" data-action="sdk_validate">SDK metadata validation</button>
+              <button class="button button--secondary" type="button" data-action="transport_smoke">Loopback transport smoke</button>
+              <button class="button button--secondary" type="button" data-action="proposal_smoke">Proposal loop smoke</button>
+            </div>
+          </article>
+          <article class="card card--wide">
+            <h2>Latest action result</h2>
+            <div id="latestActionResult" class="json-card">No action run yet.</div>
+          </article>
+          <article class="card card--wide">
+            <h2>Recent action history</h2>
+            <div id="recentActions" class="history-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-logs" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <h2>Managed adapter logs</h2>
+            <details open>
+              <summary>stdout tail</summary>
+              <pre id="stdoutTail" class="log-block"></pre>
+            </details>
+            <details>
+              <summary>stderr tail</summary>
+              <pre id="stderrTail" class="log-block"></pre>
+            </details>
+          </article>
+          <article class="card card--wide">
+            <h2>Status JSON</h2>
+            <pre id="statusJson" class="log-block log-block--tall"></pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-safety" class="panel" role="tabpanel" hidden>
+        <div class="panel-grid">
+          <article class="card card--wide">
+            <h2>Safety model</h2>
+            <p>
+              This GUI is intentionally bounded: it can run fixed repo-owned diagnostics and manage only a tracked local adapter
+              process. It cannot run arbitrary shell commands, mutate Git, edit ChatGPT/Cloudflare, send RIFT input, or attach
+              CE/x64dbg.
+            </p>
+            <div id="safetyGrid" class="safety-grid"></div>
+          </article>
+          <article class="card">
+            <h2>Allowlisted actions</h2>
+            <div id="actionRegistry" class="stack"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

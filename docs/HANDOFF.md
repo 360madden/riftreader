@@ -1,3 +1,17 @@
+# 2026-06-17 - MCP Control Center GUI
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-mcp-control-center-gui-compact-handoff.md`.
+
+| Item | Current truth |
+|---|---|
+| Scope | Localhost-only browser GUI for the non-Codex ChatGPT MCP lane. |
+| Entry point | `scripts\riftreader-mcp-control-center.cmd --open` serves `http://127.0.0.1:8790/`. |
+| Safety | No arbitrary shell/filesystem, Git mutation, ChatGPT registration, Cloudflare mutation, RIFT input/movement, CE, or x64dbg endpoint. |
+| Validation | Python/unit/node/self-test checks passed; Browser plugin loaded the GUI and saw no page-level errors. |
+| Proof state | Local 20-tool readiness passes; actual ChatGPT Web/Desktop proof remains the external gated blocker. |
+
+---
 # 2026-06-16 - MCP commit tool exposed locally
 
 Fresh compact handoff:

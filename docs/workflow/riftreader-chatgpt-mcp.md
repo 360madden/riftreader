@@ -140,6 +140,21 @@ write legacy Caddyfile text by default; `--write-legacy-caddyfile` is an
 opt-in compatibility artifact only. The canonical public route is the
 persistent Cloudflare named Tunnel `riftreader-mcp-360madden`.
 
+Start the polished localhost Control Center GUI with:
+
+```cmd
+scripts\riftreader-mcp-control-center.cmd --open
+```
+
+Open `http://127.0.0.1:8790/`. The Control Center is the organized browser UI
+for the safe local parts of the non-Codex MCP workflow: managed local adapter
+start/stop, final gate, trial readiness, Cloudflared status, domain diagnostics,
+proof templates, action history, logs, and copy-ready ChatGPT setup values.
+It is still bounded: no arbitrary shell, arbitrary filesystem, Git mutation,
+ChatGPT registration, Cloudflare mutation, RIFT input, CE, or x64dbg endpoint.
+It can stop only a local adapter process that it started and then verified by
+command line. See `docs\workflow\riftreader-mcp-control-center.md`.
+
 Start the status-only localhost dashboard with:
 
 ```cmd

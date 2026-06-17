@@ -37,6 +37,16 @@ START_RIFTREADER_CHATGPT_MCP.cmd smoke
 scripts\riftreader-mcp-domain-diagnostics.cmd --public-mcp-host mcp.360madden.com --json
 ```
 
+Optional local GUI:
+
+```cmd
+scripts\riftreader-mcp-control-center.cmd --open
+```
+
+That opens the localhost-only MCP Control Center at `http://127.0.0.1:8790/`
+for safe local adapter management, readiness checks, route diagnostics, proof
+template helpers, and copy-ready ChatGPT setup values.
+
 See `docs\workflow\riftreader-chatgpt-mcp.md` for the full route and proof
 workflow.
 
