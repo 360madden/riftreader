@@ -26,6 +26,9 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from riftreader_workflow.mcp_workflow_state import FRESHNESS_BUDGET_SECONDS, build_mcp_workflow_state, standard_commands
 
 
+REQUIRED_FRESHNESS_KINDS = ("readiness", "proposal-smoke")
+
+
 def _phase1_proof_summary(payload: dict[str, Any]) -> dict[str, Any]:
     checks = payload.get("checks") if isinstance(payload.get("checks"), list) else []
     checks_passed = all(isinstance(check, dict) and check.get("ok") is True for check in checks) if checks else False
@@ -49,10 +52,15 @@ def _artifact_freshness(state: dict[str, Any]) -> dict[str, Any]:
     latest = state.get("latestArtifacts") if isinstance(state.get("latestArtifacts"), dict) else {}
     items: dict[str, dict[str, Any]] = {}
     stale: list[str] = []
+    stale_required: list[str] = []
+    missing_required: list[str] = []
+    warning_only_stale: list[str] = []
     for kind, budget in FRESHNESS_BUDGET_SECONDS.items():
         item = latest.get(kind)
         if not isinstance(item, dict):
             items[kind] = {"status": "missing", "path": None, "ageSeconds": None, "budgetSeconds": budget}
+            if kind in REQUIRED_FRESHNESS_KINDS:
+                missing_required.append(kind)
             continue
         age = item.get("artifactAgeSeconds")
         status = "unknown"
@@ -60,6 +68,10 @@ def _artifact_freshness(state: dict[str, Any]) -> dict[str, Any]:
             status = "fresh" if age <= budget else "stale"
         if status == "stale":
             stale.append(kind)
+            if kind in REQUIRED_FRESHNESS_KINDS:
+                stale_required.append(kind)
+            else:
+                warning_only_stale.append(kind)
         items[kind] = {
             "status": status,
             "path": item.get("path"),
@@ -68,10 +80,15 @@ def _artifact_freshness(state: dict[str, Any]) -> dict[str, Any]:
             "artifactStatus": item.get("status"),
             "ok": item.get("ok"),
         }
+    required_ok = not stale_required and not missing_required
     return {
-        "status": "fresh" if not stale else "stale",
+        "status": "fresh" if required_ok else "stale",
         "ok": True,
+        "requiredKinds": list(REQUIRED_FRESHNESS_KINDS),
         "staleKinds": stale,
+        "staleRequiredKinds": stale_required,
+        "missingRequiredKinds": missing_required,
+        "warningOnlyStaleKinds": warning_only_stale,
         "items": items,
     }
 
@@ -274,6 +291,8 @@ def compact_phase2_status(payload: dict[str, Any]) -> dict[str, Any]:
         "artifactConsistencyStatus": artifact_consistency.get("status"),
         "artifactFreshnessStatus": artifact_freshness.get("status"),
         "staleArtifactKinds": artifact_freshness.get("staleKinds") or [],
+        "staleRequiredArtifactKinds": artifact_freshness.get("staleRequiredKinds") or [],
+        "warningOnlyStaleArtifactKinds": artifact_freshness.get("warningOnlyStaleKinds") or [],
         "gitDirty": git_state.get("dirty"),
         "gitDirtyCount": git_state.get("dirtyCount"),
         "recommendedNextAction": {

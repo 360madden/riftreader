@@ -146,6 +146,13 @@ provider side effects can occur.
 | Public quick-tunnel smoke | No freshness requirement for final-ready | Historical stopped/expired URLs are warnings only. |
 | Bounded ChatGPT trial session final summary | No freshness requirement unless in live-trial mode | Expired/stopped URLs are warnings only; active unexpected sessions block. |
 
+The compact `artifactFreshnessStatus` summarizes only freshness that can block
+final readiness: trial readiness and proposal transport smoke. Historical
+Cloudflare quick-tunnel and bounded trial-session artifacts may still appear in
+`staleArtifactKinds` / warnings when expired, but they are reported as
+warning-only stale artifacts and must not be treated as the next actionable
+blocker while `publicSessionStatus=passed`.
+
 ## Dependency classes
 
 | Dependency | Required for | Final-readiness behavior |

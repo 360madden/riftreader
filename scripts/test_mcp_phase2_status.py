@@ -237,6 +237,46 @@ class McpPhase2StatusTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
+    def test_artifact_freshness_treats_expired_public_sessions_as_warning_only(self) -> None:
+        payload = phase2._artifact_freshness(
+            {
+                "latestArtifacts": {
+                    "readiness": {"artifactAgeSeconds": 1, "path": "readiness.json"},
+                    "proposal-smoke": {"artifactAgeSeconds": 1, "path": "proposal.json"},
+                    "cloudflare-smoke": {
+                        "artifactAgeSeconds": state.FRESHNESS_BUDGET_SECONDS["cloudflare-smoke"] + 1,
+                        "path": "old-cloudflare.json",
+                    },
+                    "trial-session": {
+                        "artifactAgeSeconds": state.FRESHNESS_BUDGET_SECONDS["trial-session"] + 1,
+                        "path": "old-trial.json",
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(payload["status"], "fresh")
+        self.assertEqual(payload["staleRequiredKinds"], [])
+        self.assertEqual(payload["missingRequiredKinds"], [])
+        self.assertEqual(payload["warningOnlyStaleKinds"], ["cloudflare-smoke", "trial-session"])
+        self.assertEqual(payload["staleKinds"], ["cloudflare-smoke", "trial-session"])
+
+    def test_artifact_freshness_still_flags_required_stale_or_missing_artifacts(self) -> None:
+        payload = phase2._artifact_freshness(
+            {
+                "latestArtifacts": {
+                    "readiness": {
+                        "artifactAgeSeconds": state.FRESHNESS_BUDGET_SECONDS["readiness"] + 1,
+                        "path": "old-readiness.json",
+                    }
+                }
+            }
+        )
+
+        self.assertEqual(payload["status"], "stale")
+        self.assertEqual(payload["staleRequiredKinds"], ["readiness"])
+        self.assertEqual(payload["missingRequiredKinds"], ["proposal-smoke"])
+
     def test_compact_phase2_status_keeps_operator_fields_without_full_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -251,6 +291,8 @@ class McpPhase2StatusTests(unittest.TestCase):
         self.assertEqual(compact["status"], "passed")
         self.assertEqual(compact["ciStatus"], "passed")
         self.assertEqual(compact["proofReplayStatus"], "passed")
+        self.assertIn("staleRequiredArtifactKinds", compact)
+        self.assertIn("warningOnlyStaleArtifactKinds", compact)
         self.assertIn("recommendedNextAction", compact)
         self.assertNotIn("phase1Status", compact)
 

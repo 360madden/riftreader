@@ -81,6 +81,16 @@ class McpServerStatusTests(unittest.TestCase):
             mcp_server_status.RUNTIME_SOURCE_PATHS,
         )
 
+    def test_runtime_source_freshness_watches_final_readiness_dependency_chain(self) -> None:
+        for relative in (
+            "tools/riftreader_workflow/mcp_final_readiness.py",
+            "tools/riftreader_workflow/mcp_phase2_status.py",
+            "tools/riftreader_workflow/mcp_phase1_completion.py",
+            "tools/riftreader_workflow/mcp_proof_replay.py",
+            "tools/riftreader_workflow/mcp_workflow_state.py",
+        ):
+            self.assertIn(Path(relative), mcp_server_status.RUNTIME_SOURCE_PATHS)
+
     def test_current_full_profile_server_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             payload = mcp_server_status.build_status_payload(
