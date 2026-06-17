@@ -1,3 +1,18 @@
+# 2026-06-17 - Pre-Stage-38 proof refresh gate started
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-17-pre-stage38-proof-refresh-gate.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 38 | Not active. It remains parked until final 33-tool actual-client proof, Phase 2, and final readiness pass. |
+| Safe work completed | Runtime/tunnel/readiness status refreshed; proof template and public route plan regenerated. |
+| Runtime | `get_mcp_runtime_status` reports PID `53740` as `running-current`, full profile, source-fresh. |
+| Tunnel | `get_tunnel_status` reports `https://mcp.360madden.com/mcp` initialize passed through the Cloudflare named Tunnel. |
+| Proof template | `.riftreader-local\riftreader-chatgpt-mcp\proof-input-templates\20260617-155237Z\proof-input.json` is the fresh final-33-tool input template. |
+| Remaining blocker | Latest actual-client proof is still 20-tool evidence; actual ChatGPT Web/Desktop must observe and record the 33-tool surface. |
+
+---
 # 2026-06-17 - MCP runtime-recovery tool bundle complete-local
 
 Fresh compact handoff:

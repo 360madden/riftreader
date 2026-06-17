@@ -2,7 +2,10 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current stage: **Stage 38 — live RIFT read-only state surface next (approval required)**.
+Current holding point: **Pre-Stage-38 final-readiness / actual-client proof
+refresh**. Stage 38 is the next live-boundary stage, but it is not active and
+must not be considered until a fresh 33-tool actual ChatGPT Web/Desktop proof,
+Phase 2, and final readiness all pass.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -61,6 +64,14 @@ runtime, check the Cloudflare named Tunnel route, and give the operator a
 copy-safe non-Codex connector setup packet. The restart tool is approval-token
 gated and does not expose arbitrary shell, tunnel mutation, Git mutation, RIFT
 input, provider writes, CE, or x64dbg.
+
+Pre-Stage-38 gate note:
+Before any Stage 38 approval packet is drafted, rerun the dependency sequence
+in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
+current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
+33-tool proof recorded and replayed, Phase 2 passed, and final readiness
+passed. A saved ChatGPT connector entry is configuration only; it does not
+start the local MCP server or prove the current tool surface.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
