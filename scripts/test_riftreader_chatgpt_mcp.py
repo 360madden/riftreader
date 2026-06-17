@@ -405,13 +405,13 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             ["maxFileBytes", "maxFiles", "maxTotalBytes", "paths"],
         )
         self.assertEqual(allowed_args_by_name["repo_context_pack"], ["maxFileBytes", "maxFiles", "maxTotalBytes", "packName"])
-        for annotations in annotation_by_name.values():
-            self.assertFalse(annotations["destructiveHint"])
-        for name, annotations in annotation_by_name.items():
+        for tool_annotations in annotation_by_name.values():
+            self.assertFalse(tool_annotations["destructiveHint"])
+        for name, tool_annotations in annotation_by_name.items():
             if name in {"push_current_branch", "get_current_head_ci_status", "run_bounded_repo_command"}:
-                self.assertTrue(annotations["openWorldHint"])
+                self.assertTrue(tool_annotations["openWorldHint"])
             else:
-                self.assertFalse(annotations["openWorldHint"])
+                self.assertFalse(tool_annotations["openWorldHint"])
         for name, schema in output_schema_by_name.items():
             self.assertEqual(schema["type"], "object")
             self.assertIn("schemaVersion", schema["required"])

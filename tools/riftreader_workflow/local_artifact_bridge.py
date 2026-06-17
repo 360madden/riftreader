@@ -18,10 +18,9 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import traceback
 import urllib.parse
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from . import package_manifest
