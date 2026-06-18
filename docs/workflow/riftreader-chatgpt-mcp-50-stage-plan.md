@@ -2,7 +2,7 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-48 local eval-suite checklist**.
+Current holding point: **Post-Stage-49 operational dashboard/recovery surface**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
 tool, Stage 43 exposes a fail-closed live-control execution boundary, Stage 44
@@ -13,7 +13,8 @@ artifact writer, Stage 47 exposes role/auth policy metadata that preserves the
 personal **No Authentication** lane while recommending `public-read-only` for
 shared no-auth diagnostics, Stage 48 adds a non-executing local eval-suite
 checklist for local regression commands, denial paths, and actual-client proof
-requirements, and the MCP tool contract remains 40 tools.
+requirements, Stage 49 surfaces that eval-suite state in the localhost-only
+dashboard/recovery view, and the MCP tool contract remains 40 tools.
 The current 40-tool actual ChatGPT Web/Desktop proof must record
 `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`.
 Keep that proof fresh before claiming final readiness or adding another
@@ -41,7 +42,7 @@ accepts shell strings or arbitrary argv, and the current full MCP surface was
 Stages 38-40 intentionally raised the full MCP surface to 36 tools, Stage 42
 raised it to 37 tools with a plan-only live-control artifact writer, and Stage
 43 raised it to 38 tools with a fail-closed execution-boundary artifact writer.
-Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer, and Stage 46 raises it to 40 tools with a fail-closed debugger/CE execution-boundary artifact writer. Stages 47-48 do not change tool count.
+Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer, and Stage 46 raises it to 40 tools with a fail-closed debugger/CE execution-boundary artifact writer. Stages 47-49 do not change tool count.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -147,6 +148,15 @@ commit, push, live control, debugger/CE, and provider writes, and records the
 fresh actual-client proof fields required before final readiness can pass. It
 writes ignored `.riftreader-local` artifacts only when `--write` is supplied.
 
+Stage 49 operational dashboard/recovery note:
+`tools/riftreader_workflow/mcp_dashboard.py` now exposes an `evalSuite` status
+payload and an `Eval Suite` dashboard card for the Stage 48 helper. The
+localhost-only view shows the generator commands, latest ignored eval artifact,
+local command and denial-case counts, required actual-client proof fields, and
+read-only safety flags. It is still a status/recovery surface only: no server
+startup, tunnel startup, ChatGPT registration, Git mutation, remote mutation,
+RIFT input, CE/x64dbg attach, provider write, or proof promotion endpoint.
+
 To keep final readiness green, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
@@ -201,8 +211,9 @@ blocks before input while the live input backend is unavailable. Stage 44 now
 documents the debugger/CE static-first boundary, and Stage 45 exposes a
 debugger/CE plan-only surface without attach tools, and Stage 46 exposes a
 fail-closed debugger/CE execution boundary without attach tools. Stage 47
-exposes role/auth policy metadata, and Stage 48 exposes a non-executing eval
-suite/checklist without changing the MCP tool count.
+exposes role/auth policy metadata, Stage 48 exposes a non-executing eval
+suite/checklist, and Stage 49 surfaces eval-suite recovery status in the
+dashboard without changing the MCP tool count.
 Do not enable movement/input execution until a later gated backend slice
 explicitly requires it and receives separate approval.
 
@@ -210,7 +221,7 @@ explicitly requires it and receives separate approval.
 
 - Keep `https://mcp.360madden.com/mcp` through the persistent Cloudflare named Tunnel as the primary ChatGPT Web/Desktop Server URL; OpenAI Secure MCP Tunnel, trycloudflare quick tunnels, and Caddy/router are retired, not backups.
 - Do not expose higher-power endpoints until their design, tests, proof, and approval gates exist.
-- Expand in this order: proof current product, apply, local commit, push, bounded commands, provider writes, live RIFT read/control, debugger/CE, auth/roles, eval/dashboard/release.
+- Expand in this order: proof current product, apply, local commit, push, bounded commands, provider writes, live RIFT read/control, debugger/CE, auth/roles, eval, dashboard/recovery, release.
 - Every mutating tool must return explicit safety truth: Git mutation, provider writes, input/movement, public tunnel, CE/x64dbg, and apply flags.
 - Prefer Python helpers for orchestration and thin `.cmd` launchers for operator convenience.
 - Stage 17 apply design contract: `docs\workflow\riftreader-chatgpt-mcp-apply-tool-design.md`; it remains plan metadata only until the tool is deliberately exposed in Stage 20.
@@ -274,18 +285,18 @@ explicitly requires it and receives separate approval.
 | 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint boundary only after explicit approval and crash-risk disclosure. | All requested actions are logged and still fail closed before attach/backend execution. | complete-local-fail-closed |
 | 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth personal mode remains easy; shared/high-power use is classified for `public-read-only` or future auth/explicit gates. | complete-local |
 | 48 | End-to-end product eval suite | Build automated local plus actual-client eval checklist covering all tool classes and denial paths. | Eval-suite helper and thin launcher emit local commands, denial expectations, actual-client proof checklist, and ignored artifacts on request. | complete-local |
-| 49 | Operational dashboard and recovery | Surface current stage, blockers, last proof, CI, tunnel health, audit paths, and next action in one dashboard. | Operator can resume without reading long transcripts. | pending |
+| 49 | Operational dashboard and recovery | Surface current stage, blockers, last proof, CI, tunnel health, audit paths, and next action in one dashboard. | Localhost dashboard JSON/HTML surfaces Stage 48 eval-suite commands, latest artifacts, proof requirements, and read-only safety context without control endpoints. | complete-local |
 | 50 | Finished product release | All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows are implemented, gated, proven, documented, and recoverable. | Final gate passes, CI passes, proof artifacts are fresh, and release handoff is published. | pending |
 
 ## Immediate implementation window
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 49 | Operational dashboard and recovery | Surface proof/runtime/CI/tunnel health and next action in one resumable view. |
-| 2 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 3 | 50 | Finished product release | Final release remains after dashboard/recovery gates. |
-| 4 | 50 | Finished product release | Publish a final handoff only after fresh actual-client proof and final readiness pass. |
-| 5 | 50 | Finished product release | Keep push/remote release separate from local validation until explicitly approved. |
+| 1 | 50 | Finished product release | Re-run final readiness after Stage 49 and confirm the remaining blockers from current evidence. |
+| 2 | 50 | Finished product release | Refresh the non-Codex MCP runtime and actual-client proof only when the operator is ready for the external ChatGPT Web/Desktop proof lane. |
+| 3 | 50 | Finished product release | Publish a final handoff only after fresh actual-client proof and final readiness pass. |
+| 4 | 50 | Finished product release | Keep push/remote release separate from local validation until explicitly approved at the remote-mutation gate. |
+| 5 | 50 | Finished product release | Keep live input, proof promotion, CE/x64dbg, and provider writes gated out of the release path unless a later explicit gate opens them. |
 
 ## High-risk exposure order
 

@@ -775,6 +775,20 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
             "no server, tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is started by the helper",
         ],
     },
+    {
+        "key": "operational-dashboard-recovery",
+        "targetToolName": "scripts/riftreader-mcp-dashboard.cmd",
+        "currentStatus": "dashboard-surfaces-stage48-eval-suite",
+        "riskClass": "read-only-operator-recovery",
+        "minimumGate": "dashboard-status-only-localhost-no-control-endpoints",
+        "safePrecursorTools": ["get_workflow_control_summary", "get_final_readiness_status"],
+        "requiredSafeguards": [
+            "dashboard remains localhost-only and status-only",
+            "eval-suite card displays commands but never runs them",
+            "actual-client proof remains required before final readiness",
+            "no shell, Git mutation, RIFT input, CE, x64dbg, provider write, or tunnel-control endpoint is added",
+        ],
+    },
 )
 
 
@@ -784,8 +798,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 48,
-    "currentStageName": "End-to-end product eval suite",
+    "currentStage": 49,
+    "currentStageName": "Operational dashboard and recovery",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
@@ -796,10 +810,10 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "static-first design is complete-local; provider writes, live input/movement execution, proof promotion, "
         "CE attach, x64dbg attach, OAuth setup, and auth enforcement changes remain absent. Stage 48 adds a "
         "non-executing local eval-suite checklist for local regression commands, denial paths, and actual-client "
-        "proof requirements."
+        "proof requirements. Stage 49 surfaces that eval-suite state in the localhost-only dashboard/recovery view."
     ),
-    "nextStage": 49,
-    "nextStageName": "Operational dashboard and recovery",
+    "nextStage": 50,
+    "nextStageName": "Finished product release",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -841,6 +855,7 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 46, "name": "Debugger/CE gated assist", "status": "complete-local-fail-closed"},
         {"stage": 47, "name": "Role and auth hardening", "status": "complete-local"},
         {"stage": 48, "name": "End-to-end product eval suite", "status": "complete-local"},
+        {"stage": 49, "name": "Operational dashboard and recovery", "status": "complete-local"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -3652,8 +3667,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "stage48-eval-suite-complete-dashboard-next",
-                "defaultDevelopmentOrder": ["dashboard-release", "final-release"],
+                "status": "stage49-dashboard-recovery-complete-release-next",
             },
             "gatedActions": [
                 "apply-package-to-repo",

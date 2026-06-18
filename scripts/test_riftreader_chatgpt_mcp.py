@@ -2160,11 +2160,16 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             roadmap_by_key["end-to-end-evals"]["currentStatus"],
             "local-eval-suite-checklist-exposed",
         )
+        self.assertEqual(
+            roadmap_by_key["operational-dashboard-recovery"]["currentStatus"],
+            "dashboard-surfaces-stage48-eval-suite",
+        )
         self.assertIn("plan_live_control_action", roadmap_by_key["live-rift-control"]["safePrecursorTools"])
         self.assertIn("plan_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
         self.assertIn("execute_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
         self.assertIn("health", roadmap_by_key["role-auth-hardening"]["safePrecursorTools"])
         self.assertIn("health", roadmap_by_key["end-to-end-evals"]["safePrecursorTools"])
+        self.assertIn("get_workflow_control_summary", roadmap_by_key["operational-dashboard-recovery"]["safePrecursorTools"])
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("plan_live_control_action", payload["bidirectionalDataTransfer"]["planLiveRiftControlOnly"])
         self.assertIn(
@@ -2176,11 +2181,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "stage48-eval-suite-complete-dashboard-next",
+            "stage49-dashboard-recovery-complete-release-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 48)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 49)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 49)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 50)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

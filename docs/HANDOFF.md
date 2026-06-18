@@ -1,3 +1,20 @@
+# 2026-06-18 - ChatGPT MCP Stage 49 dashboard/recovery complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage49-dashboard-recovery-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 49 | Complete-local as a dashboard/recovery visibility surface for Stage 48 eval-suite context. |
+| Tool surface | Full non-Codex ChatGPT MCP profile remains 40 tools; no new MCP tool was added. |
+| Dashboard JSON | `scripts\riftreader-mcp-dashboard.cmd --once-json --no-public-smoke` now includes `evalSuite`. |
+| Dashboard UI | The localhost-only dashboard renders an `Eval Suite` card with eval commands, latest ignored artifact status, proof requirements, and safety flags. |
+| Safety | No server start, tunnel start, ChatGPT registration, Git mutation, remote mutation, RIFT input, movement, CE/x64dbg attach, provider write, proof promotion, auth enforcement change, or secrets. |
+| Next stage | Stage 50: finished product release. |
+| Remaining blocker | Fresh actual ChatGPT Web/Desktop proof must observe the current 40-tool surface, output schemas, successful transport/health, and Stage47/Stage49 payload metadata before final readiness can pass. |
+
+---
+
 # 2026-06-18 - ChatGPT MCP Stage 48 eval-suite checklist complete-local
 
 Fresh compact handoff:

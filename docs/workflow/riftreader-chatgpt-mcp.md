@@ -7,9 +7,10 @@ lanes, provider-intent labels that remain blocked by default, and Stage 38-40
 read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
 artifacts, the Stage 43 fail-closed live-control execution boundary, and the
 Stage 45 debugger/CE plan-only artifact boundary, Stage 46 fail-closed
-debugger/CE execution-boundary artifact surface, and Stage 47 role/auth policy
-metadata that preserves the personal No Authentication lane, plus the Stage 48
-local eval-suite checklist helper.
+debugger/CE execution-boundary artifact surface, Stage 47 role/auth policy
+metadata that preserves the personal No Authentication lane, the Stage 48
+local eval-suite checklist helper, and the Stage 49 dashboard/recovery surface
+for eval-suite status.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -199,8 +200,8 @@ Mixed Authentication, auth middleware, connector mutation, or server startup.
 The `health`, `tool_manifest`, and `get_chatgpt_connector_setup_packet`
 payloads now include compact or full `authRolePolicy` metadata so ChatGPT and
 the operator can see the boundary without changing the current no-auth personal
-flow. The workflow-control plan stays transport-budgeted and, after Stage48,
-reports `futureCapabilityPolicy.status=stage48-eval-suite-complete-dashboard-next`;
+flow. The workflow-control plan stays transport-budgeted and, after Stage49,
+reports `futureCapabilityPolicy.status=stage49-dashboard-recovery-complete-release-next`;
 the tiny `get_workflow_control_summary` fallback remains summary-only.
 
 ## Stage 48 eval suite
@@ -226,6 +227,26 @@ The helper does not run the listed commands by itself, start the MCP server,
 start Cloudflare, register ChatGPT, mutate Git, send RIFT input, attach CE/x64dbg,
 or promote proof. With `--write` it writes ignored artifacts only under
 `.riftreader-local\riftreader-chatgpt-mcp\eval-suite\*`.
+
+## Stage 49 dashboard/recovery surface
+
+Stage 49 does not add an MCP tool. It extends the existing localhost-only
+dashboard/status surface so an operator can resume the final-release lane without
+reading long transcripts:
+
+- `/status.json` now includes `evalSuite`, with the Stage 48 generator commands,
+  latest ignored eval artifact path/status when present, local eval command
+  count, denial-case count, required actual-client proof fields, and explicit
+  read-only safety flags.
+- The HTML dashboard renders an `Eval Suite` card with copy-ready JSON and
+  write-artifact commands.
+- The readiness badges include `eval-suite` so Stage 48 eval context appears
+  beside runtime, final-gate, Browser Use, Computer Use, and queue-execution
+  status.
+
+This is visibility/recovery only. It does not start the MCP server, start
+Cloudflare, register ChatGPT, mutate Git, push, send RIFT input, attach CE/x64dbg,
+write providers, promote proof, or expose a new control endpoint.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 
@@ -306,6 +327,10 @@ apps proof after running that proof externally. The dashboard also includes:
   drafts under `.riftreader-local\riftreader-chatgpt-mcp\desktop-control-queue-drafts`;
   schema validation requires `dryRunOnly=true`, `requiresHumanApproval=true`,
   and allowed pre-readiness action keys only.
+- `Eval Suite`: read-only Stage 49 recovery context for the Stage 48 helper,
+  including copy-ready `riftreader-chatgpt-mcp-eval-suite.cmd` commands, latest
+  ignored eval-suite artifact, required actual-client proof fields, and safety
+  flags.
 - `Status JSON`: a direct read-only `/status.json` link plus the existing
   embedded-status fallback for Browser Use clients that cannot navigate
   directly to JSON.

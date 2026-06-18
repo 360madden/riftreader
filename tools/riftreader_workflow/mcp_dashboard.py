@@ -24,6 +24,7 @@ try:
     from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from .desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from .desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
+    from .chatgpt_mcp_eval_suite import EVAL_ROOT_REL, build_eval_suite
     from .mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover
     from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
     from riftreader_workflow.desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from riftreader_workflow.desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
+    from riftreader_workflow.chatgpt_mcp_eval_suite import EVAL_ROOT_REL, build_eval_suite
     from riftreader_workflow.mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -150,6 +152,52 @@ def recent_audit_events(repo_root: Path, limit: int = 12) -> list[dict[str, Any]
     return events
 
 
+def eval_suite_status(repo_root: Path) -> dict[str, Any]:
+    plan = build_eval_suite(repo_root)
+    latest_path = repo_root / EVAL_ROOT_REL / "latest.json"
+    latest = load_json_file(latest_path)
+    checklist = plan.get("actualClientChecklist") if isinstance(plan.get("actualClientChecklist"), dict) else {}
+    required = checklist.get("requiredObservedFields") if isinstance(checklist.get("requiredObservedFields"), dict) else {}
+    local_commands = plan.get("localEvalCommands") if isinstance(plan.get("localEvalCommands"), list) else []
+    matrix = plan.get("evalMatrix") if isinstance(plan.get("evalMatrix"), list) else []
+    status = "artifact-present" if latest else "ready-no-artifact"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-dashboard-eval-suite-status",
+        "status": status,
+        "ok": True,
+        "stage": plan.get("stage"),
+        "stageName": plan.get("stageName"),
+        "command": ["scripts\\riftreader-chatgpt-mcp-eval-suite.cmd", "--json"],
+        "commandText": "scripts\\riftreader-chatgpt-mcp-eval-suite.cmd --json",
+        "writeCommand": ["scripts\\riftreader-chatgpt-mcp-eval-suite.cmd", "--write", "--summary-md"],
+        "writeCommandText": "scripts\\riftreader-chatgpt-mcp-eval-suite.cmd --write --summary-md",
+        "latestArtifactPath": rel(repo_root, latest_path) if latest_path.is_file() else None,
+        "latestArtifactStatus": latest.get("status") if latest else None,
+        "latestArtifactGeneratedAtUtc": latest.get("generatedAtUtc") if latest else None,
+        "localEvalCommandCount": len(local_commands),
+        "denialCaseCount": len(matrix),
+        "requiredToolCount": required.get("toolCount"),
+        "requiredOutputSchemaCount": required.get("toolOutputSchemaCount"),
+        "requiredTransportStatus": required.get("clientTransportStatus"),
+        "requiresActualClientProof": True,
+        "safety": {
+            **safety_flags(),
+            "readOnlyStatus": True,
+            "executionEndpoint": False,
+            "serverStarted": False,
+            "publicTunnelStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "gitMutation": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+        },
+    }
+
+
 def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: bool = True) -> dict[str, Any]:
     public_url = public_mcp_url(public_host)
     backend_connect = _socket_connect(DEFAULT_HOST, DEFAULT_PORT, 1.0)
@@ -178,6 +226,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     latest_proof_path = latest_file(repo_root / ACTUAL_CLIENT_PROOF_ROOT, "*/proof.json")
     latest_template = load_json_file(latest_template_path)
     latest_proof = load_json_file(latest_proof_path)
+    eval_suite = eval_suite_status(repo_root)
     status = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-dashboard-status",
@@ -252,6 +301,13 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
                 "ok": queue_execution.get("enabled") is False,
                 "blockers": [] if queue_execution.get("enabled") is False else ["queue-execution-not-disabled"],
             },
+            {
+                "key": "eval-suite",
+                "label": "Eval suite",
+                "status": eval_suite.get("status"),
+                "ok": eval_suite.get("ok"),
+                "blockers": [],
+            },
         ],
         "toolSurface": {
             "phase0ReadOnlyTools": list(PUBLIC_READ_ONLY_TOOL_ORDER),
@@ -271,6 +327,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "recommendedNextAction": final_status.get("recommendedNextAction"),
             "blockers": (final_status.get("blockers") or [])[:10],
         },
+        "evalSuite": eval_suite,
         "desktopControl": {
             "status": desktop_control.get("status"),
             "ok": desktop_control.get("ok"),
@@ -410,6 +467,7 @@ function renderStatus(s, source) {
   cards.push(card("ChatGPT setup", `<p>App: <code>${esc(s.appName)}</code></p><p>Server URL: <code>${esc(s.chatGptSetup.serverUrl)}</code></p><p>Auth: <code>${esc(s.chatGptSetup.authentication)}</code></p><p class="muted">Surface: ${esc(s.chatGptSetup.surface)}; not Codex.</p>`));
   cards.push(card("Tool surface", `<h3>Phase 0 read-only</h3>${list(s.toolSurface.phase0ReadOnlyTools)}<h3>Full ${esc(s.toolSurface.fullFinalProofToolCount)}-tool final proof</h3><p>${s.toolSurface.fullFinalProofToolCount} tools retained.</p>`));
   cards.push(card("Mission Control", `${pill("mission", s.missionControl.ok, s.missionControl.status)}<p>Next: <code>${esc(JSON.stringify(s.missionControl.recommendedNextAction || {}))}</code></p>${list(s.missionControl.blockers)}`));
+  cards.push(card("Eval Suite", `${pill("eval-suite", s.evalSuite?.ok, s.evalSuite?.status)}<p>Stage: <code>${esc(s.evalSuite?.stage)}</code> <code>${esc(s.evalSuite?.stageName)}</code></p><p>Latest artifact: <code>${esc(s.evalSuite?.latestArtifactPath)}</code></p><p>Local commands: <code>${esc(s.evalSuite?.localEvalCommandCount)}</code>; denial cases: <code>${esc(s.evalSuite?.denialCaseCount)}</code></p>${commandBlock("Generate eval suite JSON", s.evalSuite?.commandText)}${commandBlock("Write ignored eval suite artifact", s.evalSuite?.writeCommandText)}<h3>Actual-client requirements</h3><p>Tools: <code>${esc(s.evalSuite?.requiredToolCount)}</code>; schemas: <code>${esc(s.evalSuite?.requiredOutputSchemaCount)}</code>; transport: <code>${esc(s.evalSuite?.requiredTransportStatus)}</code></p><h3>Safety</h3><pre>${esc(JSON.stringify(s.evalSuite?.safety || {}, null, 2))}</pre>`));
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
   cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
   cards.push(card("Desktop Queue Contract", `${pill("contract", s.desktopControlQueue.ok, s.desktopControlQueue.status)} ${pill("execution", s.desktopControlQueue.execution?.enabled, s.desktopControlQueue.execution?.status)}<p>${esc(s.desktopControlQueue.summary)}</p><h3>Required gates</h3>${list(s.desktopControlQueue.requiredGatesBeforeAnyFutureExecutor)}<h3>Forbidden action families</h3>${list(s.desktopControlQueue.queueItemSchema?.forbiddenActionFamilies)}<h3>Execution</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.execution || {}, null, 2))}</pre>`));

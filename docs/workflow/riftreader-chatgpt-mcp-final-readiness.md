@@ -7,7 +7,8 @@ proposal checks, tool-boundary flags, root-safety flags, and unsafe-action
 detection. Stage 47 adds role/auth policy metadata while preserving the
 personal No Authentication lane; it does not change auth enforcement. Stage 48
 adds a local eval-suite checklist generator; it does not replace actual-client
-proof.
+proof. Stage 49 surfaces that eval-suite state in the localhost-only dashboard;
+it is operator recovery context, not proof.
 
 ## Purpose
 
@@ -156,6 +157,13 @@ for local regression commands, denial-path expectations, and actual-client proof
 requirements. A Stage48 eval artifact is useful handoff evidence, but final
 readiness still depends on fresh actual ChatGPT Web/Desktop proof replay and
 current-head CI when applicable.
+
+Stage 49 surfaces the Stage 48 eval-suite checklist in
+`scripts/riftreader-mcp-dashboard.cmd --once-json --no-public-smoke` and the
+localhost-only dashboard `Eval Suite` card. This helps recovery and handoff, but
+it does not start the MCP server or tunnel, register ChatGPT, mutate Git, send
+RIFT input, attach CE/x64dbg, write providers, promote proof, or replace the
+fresh actual-client proof replay required by this contract.
 
 Every approved tool must also enforce a strict wrapper-argument allowlist. Any
 unknown top-level argument key, non-object argument payload, non-JSON-
