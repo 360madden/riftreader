@@ -1,3 +1,20 @@
+# 2026-06-18 - ChatGPT MCP Stage 41 live-control design complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage41-live-control-design-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 41 | Complete-local as a design-only live-control boundary; no new MCP tool or live execution endpoint was added. |
+| Tool surface | Full non-Codex ChatGPT MCP profile remains 36 tools. |
+| Next stage | Stage 42: plan-only live-control planning/dry-run tool that still sends no input. |
+| Design separation | The contract separates no-input reads, semantic UI/action risk, displacement stimulus, movement control, and ProofOnly risk. |
+| Safety | No live input, movement, focus, capture, ProofOnly, proof promotion, CE/x64dbg, provider writes, or SavedVariables-as-live-truth were used for this slice. |
+| Control plan | `get_workflow_control_plan` now reports current stage `42`, next stage `43`, and `futureCapabilityPolicy.status=live-control-dry-run-plan-next`. |
+| Remaining blocker | Fresh actual ChatGPT Web/Desktop proof must still observe the current 36-tool surface before final readiness can pass. |
+
+---
+
 # 2026-06-18 - ChatGPT MCP Stage 38-40 no-input live status complete-local
 
 Fresh compact handoff:

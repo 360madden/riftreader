@@ -688,16 +688,17 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 41,
-    "currentStageName": "Live movement/control design spec",
+    "currentStage": 42,
+    "currentStageName": "Live control dry-run/planning tool",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
-        "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed; "
+        "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed, "
+        "and Stage 41 live-control design is complete-local; "
         "provider writes, live input/movement, proof promotion, CE, and x64dbg remain absent."
     ),
-    "nextStage": 42,
-    "nextStageName": "Live control dry-run/planning tool",
+    "nextStage": 43,
+    "nextStageName": "Expose minimal live action tool",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -731,7 +732,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 38, "name": "Live RIFT read-only state surface", "status": "complete-local"},
         {"stage": 39, "name": "Live target identity gate", "status": "complete-local"},
         {"stage": 40, "name": "Live no-input proof tool", "status": "complete-local"},
-        {"stage": 41, "name": "Live movement/control design spec", "status": "pending"},
+        {"stage": 41, "name": "Live movement/control design spec", "status": "complete-local"},
+        {"stage": 42, "name": "Live control dry-run/planning tool", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -3203,7 +3205,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "live-control-plan-only-next",
+                "status": "live-control-dry-run-plan-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",

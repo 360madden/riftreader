@@ -1,8 +1,9 @@
 # ChatGPT MCP live RIFT control design
 
-Status: **Stage 41 plan-only draft**. Stage 38-40 no-input live-status MCP tools
-are exposed, and the current ChatGPT Web/Desktop proof contract is 36 tools.
-This document still does not expose any live-control execution tool.
+Status: **Stage 41 complete-local design**. Stage 38-40 no-input live-status
+MCP tools are exposed, and the current ChatGPT Web/Desktop proof contract is 36
+tools. This document still does not expose any live-control execution tool.
+The current ChatGPT Web/Desktop proof contract is 36 tools.
 
 This design now starts at Stage 41 because the Stage 38-40 read-only/no-input
 surfaces exist. It defines the remaining gates that must exist before ChatGPT
@@ -27,9 +28,53 @@ Web/Desktop can request stimulus tests or eventually control player movement.
 | 38 | `get_live_rift_readonly_state` | Read-only exact-target facts/status after fresh proof; no focus/capture/input/ProofOnly. | Exact target identity helper passes and returns fail-closed blockers on stale proof or drift. |
 | 39 | `get_live_target_identity_gate` | Read-only reusable target gate: PID, HWND, process start, module base, duplicate detection. | Tests cover PID/HWND mismatch, duplicate RIFT windows, missing module base, and stale artifacts. |
 | 40 | `get_live_no_input_proof_status` | Read-only candidate/proof summaries only after the identity gate passes; no movement/input; candidate-only truth preserved. | Current no-input readback reports safety flags and artifact paths without implying route authorization. |
-| 41 | `plan_live_control_action` | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, and required approval phrase. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
-| 42 | `dry_run_live_control_action` | Dry-run validates target identity, age budgets, route-control preconditions, and stop conditions. | Still no input; audit envelope proves all blocked/allowed checks. |
+| 41 | Design contract only; no new MCP tool. | Defines action taxonomy, risk classes, required response envelope, approval binding, and stop conditions. | Tests/docs prove the stage is non-executing and keeps `inputSent=false` / `movementSent=false`. |
+| 42 | `plan_live_control_action` or equivalent planning tool. | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, and required approval phrase. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
 | 43 | `execute_live_control_action` | Smallest approved exact-target action after explicit approval. | Current target gate passes, approval phrase matches, stop key exists, post-action readback records `inputSent`/`movementSent` truthfully. |
+
+## Stage 41 design contract
+
+Stage 41 is intentionally documentation and test coverage only. It completes the
+live-control design boundary without changing the 36-tool MCP surface and without
+creating a callable live-control endpoint.
+
+### Action taxonomy
+
+| Action kind | Examples | Risk class | Stage 41 rule |
+|---|---|---|---|
+| `no-input-read` | Inspect readiness, identity, proof freshness. | read-only | Already covered by Stage 38-40 tools. |
+| `ui-action` | Open inventory, press a non-movement hotbar slot. | semantic UI/action risk | Must remain plan-only until a dry-run tool exists. |
+| `displacement-stimulus` | Tiny movement pulse for coordinate proof. | live state mutation | Requires explicit current-turn approval and proof gates before any later execution tool. |
+| `movement-control` | Hold `W/A/S/D/Q/E`, arrows, Space, route step. | movement risk | Blocked by default; Stage 41 only describes the plan envelope. |
+| `proof-only` | Re-run a proof/readback helper that claims no movement. | proof gate risk | Must stay separate from movement/control and never be implied by plan-only output. |
+
+### Required future plan envelope
+
+The later Stage 42 planning tool must return a bounded object with these fields:
+
+| Field | Required behavior |
+|---|---|
+| `schemaVersion`, `kind`, `status`, `ok` | Standard response identity and pass/block state. |
+| `actionKind`, `riskClass`, `movementRisk` | Classify no-input, UI action, displacement stimulus, movement, or proof-only. |
+| `targetBinding` | PID, HWND, process start time, module base, module path, proof age, and identity-gate status. |
+| `requestedAction` | Semantic action, primitive mapping, max duration, max input count, and verification request. |
+| `approvalPacket` | Human-readable current-turn approval prompt bound to target/action/plan hash; never a reusable broad approval token. |
+| `recommendedVerification` | Read-only or post-action checks required before any future execution can be trusted. |
+| `blockers`, `warnings`, `safety` | Fail-closed reasons and explicit safety truth for every response. |
+
+Stage 41 does **not** allow the plan envelope to execute anything. For every
+Stage 41 artifact or response, the safety truth remains:
+
+- `inputSent=false`
+- `movementSent=false`
+- `reloaduiSent=false`
+- `screenshotKeySent=false`
+- `targetMemoryBytesWritten=false`
+- `x64dbgAttach=false`
+- `noCheatEngine=true`
+- `providerWrites=false`
+- `truthPromotionPerformed=false`
+- `savedVariablesUsedAsLiveTruth=false`
 
 ## Bidirectional data exchange model
 

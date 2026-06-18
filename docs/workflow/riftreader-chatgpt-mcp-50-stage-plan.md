@@ -2,12 +2,12 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-40 local no-input live-state surface**.
-Stages 38-40 are implemented as read-only/no-input local surfaces, and the MCP
-tool contract is now 36 tools. A fresh 36-tool actual ChatGPT Web/Desktop proof,
-including `clientTransportStatus=tool-call-succeeded` and
-`healthCallSucceeded=true`, is required before final readiness can be called
-green again.
+Current holding point: **Post-Stage-41 live-control design contract**.
+Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
+design-only live-control boundary, and the MCP tool contract is still 36 tools.
+A fresh 36-tool actual ChatGPT Web/Desktop proof, including
+`clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`, is
+required before final readiness can be called green again.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -120,9 +120,12 @@ integration are complete-local. The MCP surface now includes `push_current_branc
 and `get_current_head_ci_status`; the operational proof bundle adds status/proof
 tools only; arbitrary shell remains absent.
 
-Stage 38-40 no-input live-state tools are now present. Stage 41 is the next
-implementation boundary: a live movement/control design spec only. Do not expose
-movement/input execution until the later gated stages explicitly require it.
+Stage 38-40 no-input live-state tools are now present, and Stage 41 now
+documents the live movement/control design contract without adding a tool or
+changing the 36-tool proof contract. Stage 42 is the next implementation
+boundary: a plan-only live-control planning tool that still sends no input.
+Do not expose movement/input execution until the later gated stages explicitly
+require it.
 
 ## Operating rules
 
@@ -184,7 +187,7 @@ movement/input execution until the later gated stages explicitly require it.
 | 38 | Live RIFT read-only state surface | Expose read-only current target/status facts if exact PID/HWND proof is fresh. | No input/movement; stale target blocks closed. | complete-local |
 | 39 | Live target identity gate | Implement reusable exact-target gate: PID, HWND, process start, module base, duplicate detection. | All live tools depend on this gate. | complete-local |
 | 40 | Live no-input proof tool | Expose no-input readback/proof summaries only after target identity gate passes. | ChatGPT can inspect proof state without movement/input. | complete-local |
-| 41 | Live movement/control design spec | Design bounded live control with explicit movement/input approval, stop conditions, and post-action evidence. | Spec separates no-input, displacement, movement, and ProofOnly gates. | pending |
+| 41 | Live movement/control design spec | Design bounded live control with explicit movement/input approval, stop conditions, and post-action evidence. | Spec separates no-input, UI/action risk, displacement, movement, and ProofOnly gates without changing the tool surface. | complete-local |
 | 42 | Live control dry-run/planning tool | Expose a plan-only live-control tool that returns exact actions but sends no input. | ChatGPT can propose live actions without executing them. | pending |
 | 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | pending |
 | 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | pending |
@@ -199,11 +202,10 @@ movement/input execution until the later gated stages explicitly require it.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 41 | Live movement/control design spec | Design the later movement/input boundary without sending input. |
-| 2 | 42 | Live control dry-run/planning tool | Let ChatGPT propose exact actions while still sending no input. |
-| 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 42 | Live control dry-run/planning tool | Let ChatGPT propose exact actions while still sending no input. |
+| 2 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 3 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 4 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 
 ## High-risk exposure order
 
