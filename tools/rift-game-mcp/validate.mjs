@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { access } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -8,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
 const serverPath = path.join(__dirname, 'index.mjs');
+const safeCurrentWindowSmokePath = path.join(__dirname, 'safe-current-window-smoke.mjs');
 const windowToolsProjectPath = path.join(
   repoRoot,
   'tools',
@@ -25,6 +27,54 @@ async function assertFileExists(filePath, description) {
 
     throw error;
   }
+}
+
+async function runJsonNodeScript(scriptPath, args, description) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', (exitCode) => {
+      const cleanStdout = stdout.trim();
+      const cleanStderr = stderr.trim();
+      if (exitCode !== 0) {
+        reject(
+          new Error(
+            `${description} exited with code ${exitCode}: ${
+              cleanStderr || cleanStdout || 'no output'
+            }`,
+          ),
+        );
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(cleanStdout));
+      } catch (error) {
+        reject(
+          new Error(
+            `${description} returned invalid JSON: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+      }
+    });
+  });
 }
 
 const transport = new StdioClientTransport({
@@ -52,6 +102,20 @@ const client = new Client(
 
 try {
   await assertFileExists(windowToolsProjectPath, '.NET 10 window tools project');
+  const smokeSelfTest = await runJsonNodeScript(
+    safeCurrentWindowSmokePath,
+    ['--self-test'],
+    'safe-current-window smoke self-test',
+  );
+  if (
+    smokeSelfTest.kind !== 'rift-game-mcp-current-window-safe-smoke-self-test' ||
+    smokeSelfTest.ok !== true ||
+    smokeSelfTest.safety?.movementSent !== false ||
+    smokeSelfTest.safety?.inputSent !== false
+  ) {
+    throw new Error('safe-current-window smoke self-test did not return a safe passing result.');
+  }
+
   await client.connect(transport);
   const result = await client.listTools();
   const toolNames = result.tools.map((tool) => tool.name).sort();
@@ -224,6 +288,13 @@ try {
         classifyGameActionProperties: Object.keys(classifyProperties).sort(),
         planMovementStepProperties: Object.keys(planProperties).sort(),
         releaseAllMovementKeysProperties: Object.keys(releaseMovementKeysProperties).sort(),
+        smokeSelfTest: {
+          kind: smokeSelfTest.kind,
+          status: smokeSelfTest.status,
+          ok: smokeSelfTest.ok,
+          checkedCases: smokeSelfTest.checkedCases,
+          safety: smokeSelfTest.safety,
+        },
       },
       null,
       2,
