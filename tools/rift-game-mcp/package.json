@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.mjs",
     "validate": "node validate.mjs",
-    "test:control": "node test-control-tools.mjs"
+    "test:control": "node test-control-tools.mjs",
+    "smoke:current-window": "node safe-current-window-smoke.mjs"
   },
   "keywords": [],
   "author": "",

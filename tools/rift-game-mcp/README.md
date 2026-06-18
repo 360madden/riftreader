@@ -133,6 +133,19 @@ These planning tools are not live execution tools. They do not focus the game
 window, send keys, click, resize, attach x64dbg/CE, promote proof/truth, write
 providers, or expose public-route live movement control.
 
+Reusable exact-target dry-run smoke:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
+npm run smoke:current-window -- --process-id 130540 --window-handle 0x9310EA --json
+```
+
+This smoke binds/inspects the exact target, checks readiness, classifies the
+configured semantic movement action, calls `release_all_movement_keys` with
+`dryRun: true`, and calls `plan_movement_step` with `dryRun: true`. It writes
+only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smoke\`
+and fails if any tool reports live input, movement, or key release.
+
 ## Bindings config
 
 Edit:
@@ -175,11 +188,14 @@ codex mcp add rift_game -- node "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\
 cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
 npm run validate
 npm run test:control
+node safe-current-window-smoke.mjs --help
 ```
 
 That launches the MCP server over stdio and verifies the tool list.
 The control test exercises action classification and ignored movement-plan
 artifact writing without touching the live game window.
+The current-window smoke is an operator-run exact-target dry-run check; do not
+add it to CI unless the target discovery step is also made deterministic.
 
 ## Repo-local Codex skill
 
