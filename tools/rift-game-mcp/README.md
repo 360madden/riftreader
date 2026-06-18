@@ -148,6 +148,13 @@ cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
 npm run smoke:current-window:auto
 ```
 
+No-input smoke helper self-test:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
+npm run test:smoke
+```
+
 This smoke binds/inspects the exact target, checks readiness, classifies the
 configured semantic movement action, calls `release_all_movement_keys` with
 `dryRun: true`, and calls `plan_movement_step` with `dryRun: true`. It writes
@@ -158,7 +165,9 @@ variant first runs the existing read-only
 the `movement` lane target. It fails closed if more than one RIFT window is
 discovered; pass exact `--process-id` / `--window-handle`, or add
 `--allow-multiple-targets` only when selecting the sorted `movement` lane is
-intentional.
+intentional. The self-test uses only synthetic discovery packets and does not
+start the MCP server, discover live windows, bind a target, send input, or write
+artifacts.
 
 ## Bindings config
 
@@ -202,12 +211,15 @@ codex mcp add rift_game -- node "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\
 cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
 npm run validate
 npm run test:control
+npm run test:smoke
 node safe-current-window-smoke.mjs --help
 ```
 
 That launches the MCP server over stdio and verifies the tool list.
 The control test exercises action classification and ignored movement-plan
 artifact writing without touching the live game window.
+The smoke self-test covers target-discovery lane selection and multi-target
+fail-closed behavior without touching the live game window.
 The current-window smoke is an operator-run exact-target dry-run check; do not
 add it to CI unless the target discovery step is also made deterministic.
 

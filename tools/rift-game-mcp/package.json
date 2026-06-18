@@ -7,6 +7,7 @@
     "start": "node index.mjs",
     "validate": "node validate.mjs",
     "test:control": "node test-control-tools.mjs",
+    "test:smoke": "node safe-current-window-smoke.mjs --self-test",
     "smoke:current-window": "node safe-current-window-smoke.mjs",
     "smoke:current-window:auto": "node safe-current-window-smoke.mjs --from-target-discovery --json"
   },

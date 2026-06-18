@@ -25,6 +25,7 @@ function parseArgs(argv) {
     fromTargetDiscovery: false,
     targetLane: 'movement',
     allowMultipleTargets: false,
+    selfTest: false,
     json: false,
     output: null,
   };
@@ -65,6 +66,9 @@ function parseArgs(argv) {
       case '--allow-multiple-targets':
         parsed.allowMultipleTargets = true;
         break;
+      case '--self-test':
+        parsed.selfTest = true;
+        break;
       case '--output':
         parsed.output = nextValue();
         break;
@@ -89,6 +93,7 @@ function usage() {
     '  node safe-current-window-smoke.mjs --process-id <pid> --window-handle <hwnd> --json',
     '  node safe-current-window-smoke.mjs --from-target-discovery --json',
     '  node safe-current-window-smoke.mjs --from-target-discovery --allow-multiple-targets --json',
+    '  node safe-current-window-smoke.mjs --self-test',
     '',
     'Safe behavior:',
     '  - Optional --from-target-discovery calls scripts\\get-rift-window-targets.cmd -Json.',
@@ -273,6 +278,103 @@ function selectDiscoveredTarget(discovery, { lane, allowMultipleTargets }) {
     processId: Number(selected.ProcessId),
     windowHandle: String(selected.WindowHandleHex),
     processName: selected.ProcessName ?? 'rift_x64',
+  };
+}
+
+function runSelfTest() {
+  const checkedCases = [];
+  const singleDiscovery = {
+    result: {
+      count: 1,
+      movement: {
+        ProcessId: 111,
+        ProcessName: 'rift_x64',
+        WindowHandleHex: '0x000111',
+      },
+    },
+  };
+  const selectedSingle = selectDiscoveredTarget(singleDiscovery, {
+    lane: 'movement',
+    allowMultipleTargets: false,
+  });
+  assert.deepEqual(selectedSingle, {
+    processId: 111,
+    processName: 'rift_x64',
+    windowHandle: '0x000111',
+  });
+  checkedCases.push('single-target-auto-selection');
+
+  const multiDiscovery = {
+    result: {
+      windows: [{}, {}],
+      movement: {
+        ProcessId: 222,
+        ProcessName: 'rift_x64',
+        WindowHandleHex: '0x000222',
+      },
+    },
+  };
+  assert.throws(
+    () =>
+      selectDiscoveredTarget(multiDiscovery, {
+        lane: 'movement',
+        allowMultipleTargets: false,
+      }),
+    /Target discovery found 2 RIFT windows/,
+  );
+  checkedCases.push('multi-target-fails-closed-by-default');
+
+  const selectedMulti = selectDiscoveredTarget(multiDiscovery, {
+    lane: 'movement',
+    allowMultipleTargets: true,
+  });
+  assert.deepEqual(selectedMulti, {
+    processId: 222,
+    processName: 'rift_x64',
+    windowHandle: '0x000222',
+  });
+  checkedCases.push('multi-target-explicit-override-selects-lane');
+
+  assert.throws(
+    () =>
+      selectDiscoveredTarget(singleDiscovery, {
+        lane: 'background',
+        allowMultipleTargets: false,
+      }),
+    /did not return a background target/,
+  );
+  checkedCases.push('missing-lane-blocks');
+
+  const missingFactsDiscovery = {
+    result: {
+      count: 1,
+      movement: {
+        ProcessId: 333,
+        ProcessName: 'rift_x64',
+        WindowHandleHex: '',
+      },
+    },
+  };
+  assert.throws(
+    () =>
+      selectDiscoveredTarget(missingFactsDiscovery, {
+        lane: 'movement',
+        allowMultipleTargets: false,
+      }),
+    /lacks exact PID\/HWND facts/,
+  );
+  checkedCases.push('missing-exact-target-facts-block');
+
+  return {
+    schemaVersion: 1,
+    kind: 'rift-game-mcp-current-window-safe-smoke-self-test',
+    status: 'passed',
+    ok: true,
+    generatedAtUtc: new Date().toISOString(),
+    checkedCases,
+    blockers: [],
+    warnings: [],
+    safety: buildSafety({ selfTestOnly: true }),
   };
 }
 
@@ -505,6 +607,11 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(usage());
+    return;
+  }
+
+  if (args.selfTest) {
+    console.log(JSON.stringify(runSelfTest(), null, 2));
     return;
   }
 
