@@ -218,7 +218,8 @@ node safe-current-window-smoke.mjs --help
 That launches the MCP server over stdio, verifies the tool list and control
 output/safety schemas, and runs the no-input current-window smoke self-test.
 The control test exercises action classification and ignored movement-plan
-artifact writing without touching the live game window.
+artifact writing without touching the live game window. Its classification
+matrix covers the fixed movement-risk key set and inventory semantic UI actions.
 The smoke self-test covers target-discovery lane selection and multi-target
 fail-closed behavior without touching the live game window.
 The current-window smoke is an operator-run exact-target dry-run check; do not

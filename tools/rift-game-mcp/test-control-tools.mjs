@@ -36,6 +36,16 @@ async function assertFileExists(filePath) {
   await access(filePath);
 }
 
+function assertControlSafety(payload, description) {
+  assert.equal(payload.safety.movementSent, false, `${description}: movementSent`);
+  assert.equal(payload.safety.inputSent, false, `${description}: inputSent`);
+  assert.equal(
+    payload.safety.savedVariablesUsedAsLiveTruth,
+    false,
+    `${description}: savedVariablesUsedAsLiveTruth`,
+  );
+}
+
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [serverPath],
@@ -62,21 +72,51 @@ const client = new Client(
 try {
   await client.connect(transport);
 
-  const movementClassification = getStructured(
-    await client.callTool({
-      name: 'classify_game_action',
-      arguments: { keyChord: 'w', holdMilliseconds: 500 },
-    }),
-  );
-  assert.equal(movementClassification.ok, true);
-  assert.equal(movementClassification.riskClass, 'movementInput');
-  assert.equal(movementClassification.movementRisk, true);
-  assert.equal(movementClassification.requiresApproval, true);
-  assert.equal(movementClassification.blockedByDefault, true);
-  assert.equal(movementClassification.primitiveTool, 'send_key');
-  assert.equal(movementClassification.safety.movementSent, false);
-  assert.equal(movementClassification.safety.inputSent, false);
-  assert.equal(movementClassification.safety.savedVariablesUsedAsLiveTruth, false);
+  const movementRiskKeyChords = [
+    'w',
+    'a',
+    's',
+    'd',
+    'q',
+    'e',
+    'up',
+    'down',
+    'left',
+    'right',
+    'space',
+  ];
+  for (const keyChord of movementRiskKeyChords) {
+    const movementClassification = getStructured(
+      await client.callTool({
+        name: 'classify_game_action',
+        arguments: { keyChord, holdMilliseconds: 500 },
+      }),
+    );
+    assert.equal(movementClassification.ok, true, `${keyChord}: ok`);
+    assert.equal(
+      movementClassification.riskClass,
+      'movementInput',
+      `${keyChord}: riskClass`,
+    );
+    assert.equal(movementClassification.movementRisk, true, `${keyChord}: movementRisk`);
+    assert.equal(
+      movementClassification.requiresApproval,
+      true,
+      `${keyChord}: requiresApproval`,
+    );
+    assert.equal(
+      movementClassification.blockedByDefault,
+      true,
+      `${keyChord}: blockedByDefault`,
+    );
+    assert.equal(movementClassification.primitiveTool, 'send_key', `${keyChord}: primitiveTool`);
+    assert.deepEqual(
+      movementClassification.keyClassification.movementKeys,
+      [keyChord],
+      `${keyChord}: movementKeys`,
+    );
+    assertControlSafety(movementClassification, `${keyChord} classification`);
+  }
 
   const hotbarClassification = getStructured(
     await client.callTool({
@@ -91,6 +131,52 @@ try {
   assert.equal(hotbarClassification.semanticAction, 'press_hotbar_slot');
   assert.equal(hotbarClassification.primitiveTool, 'press_hotbar_slot');
   assert.equal(hotbarClassification.slot, 1);
+  assertControlSafety(hotbarClassification, 'hotbar classification');
+
+  const inventorySemanticActions = [
+    ['inventory', 'open_inventory'],
+    ['open_inventory', 'open_inventory'],
+    ['open_bags', 'open_bags'],
+    ['toggle_inventory', 'toggle_inventory'],
+    ['ensure_inventory_open', 'ensure_inventory_open'],
+    ['ensure_inventory_closed', 'ensure_inventory_closed'],
+  ];
+  for (const [actionName, primitiveTool] of inventorySemanticActions) {
+    const inventoryClassification = getStructured(
+      await client.callTool({
+        name: 'classify_game_action',
+        arguments: { actionName, holdMilliseconds: 80 },
+      }),
+    );
+    assert.equal(inventoryClassification.ok, true, `${actionName}: ok`);
+    assert.equal(
+      inventoryClassification.riskClass,
+      'semanticUiInput',
+      `${actionName}: riskClass`,
+    );
+    assert.equal(inventoryClassification.movementRisk, false, `${actionName}: movementRisk`);
+    assert.equal(
+      inventoryClassification.requiresApproval,
+      false,
+      `${actionName}: requiresApproval`,
+    );
+    assert.equal(
+      inventoryClassification.blockedByDefault,
+      false,
+      `${actionName}: blockedByDefault`,
+    );
+    assert.equal(
+      inventoryClassification.semanticAction,
+      primitiveTool,
+      `${actionName}: semanticAction`,
+    );
+    assert.equal(
+      inventoryClassification.primitiveTool,
+      primitiveTool,
+      `${actionName}: primitiveTool`,
+    );
+    assertControlSafety(inventoryClassification, `${actionName} classification`);
+  }
 
   const releaseDryRun = getStructured(
     await client.callTool({
@@ -239,6 +325,10 @@ try {
           'plan_movement_step',
           'get_latest_control_artifact',
         ],
+        classificationMatrix: {
+          movementRiskKeyChords,
+          inventorySemanticActions: inventorySemanticActions.map(([actionName]) => actionName),
+        },
         safety: {
           movementSent: false,
           inputSent: false,
