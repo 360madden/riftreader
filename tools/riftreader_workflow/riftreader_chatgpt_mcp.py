@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 try:
     from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from . import local_artifact_bridge as bridge
+    from . import live_rift_state, local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
     from . import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -44,7 +44,7 @@ try:
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from riftreader_workflow import local_artifact_bridge as bridge
+    from riftreader_workflow import live_rift_state, local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
     from riftreader_workflow import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -125,6 +125,9 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_final_readiness_status": frozenset(),
     "submit_actual_client_observation": frozenset({"observation"}),
     "get_actual_client_proof_status": frozenset(),
+    "get_live_rift_readonly_state": frozenset(),
+    "get_live_target_identity_gate": frozenset(),
+    "get_live_no_input_proof_status": frozenset(),
     "get_package_proposal_template": frozenset(),
     "submit_package_proposal": frozenset({"proposal"}),
     "list_inbox": frozenset(),
@@ -645,10 +648,14 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     {
         "key": "live-rift-control",
         "targetToolName": "control_rift_live",
-        "currentStatus": "not-exposed",
+        "currentStatus": "read-only-no-input-surfaces-exposed",
         "riskClass": "live-game-state-mutation",
         "minimumGate": "explicit-live-approval-and-current-target-proof",
-        "safePrecursorTools": ["get_repo_status", "get_latest_handoff"],
+        "safePrecursorTools": [
+            "get_live_rift_readonly_state",
+            "get_live_target_identity_gate",
+            "get_live_no_input_proof_status",
+        ],
         "requiredSafeguards": [
             "exact PID/HWND/process-start target identity must be current",
             "movement/input intent must be approved in the current turn",
@@ -681,15 +688,16 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 38,
-    "currentStageName": "Live RIFT read-only state surface",
+    "currentStage": 41,
+    "currentStageName": "Live movement/control design spec",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
-        "execution for registry keys only. Stage 37 provider intent labels are complete-local; provider writes remain absent."
+        "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed; "
+        "provider writes, live input/movement, proof promotion, CE, and x64dbg remain absent."
     ),
-    "nextStage": 39,
-    "nextStageName": "Live target identity gate",
+    "nextStage": 42,
+    "nextStageName": "Live control dry-run/planning tool",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -720,7 +728,10 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 35, "name": "Command audit and replay evidence", "status": "complete-local"},
         {"stage": 36, "name": "Provider repo write planning", "status": "complete-local"},
         {"stage": 37, "name": "Provider-safe proposal flow", "status": "complete-local"},
-        {"stage": 38, "name": "Live RIFT read-only state surface", "status": "pending-approval"},
+        {"stage": 38, "name": "Live RIFT read-only state surface", "status": "complete-local"},
+        {"stage": 39, "name": "Live target identity gate", "status": "complete-local"},
+        {"stage": 40, "name": "Live no-input proof tool", "status": "complete-local"},
+        {"stage": 41, "name": "Live movement/control design spec", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1078,6 +1089,42 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         read_only=True,
         destructive=False,
         open_world=False,
+    ),
+    "get_live_rift_readonly_state": ToolSpec(
+        name="get_live_rift_readonly_state",
+        title="Get Live RIFT Read-Only State",
+        description=(
+            "Use this when you need Stage 38 read-only live RIFT target/status facts after fresh exact PID/HWND "
+            "proof. This never focuses, captures, clicks, sends keys, runs ProofOnly, promotes truth, writes providers, "
+            "or touches CE/x64dbg; stale or mismatched target proof blocks closed."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "get_live_target_identity_gate": ToolSpec(
+        name="get_live_target_identity_gate",
+        title="Get Live Target Identity Gate",
+        description=(
+            "Use this when you need the Stage 39 exact-target gate for live RIFT: PID, HWND, process start, "
+            "module base, duplicate-window detection, proof freshness, and safety flags. This is read-only "
+            "and sends no live input."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "get_live_no_input_proof_status": ToolSpec(
+        name="get_live_no_input_proof_status",
+        title="Get Live No-Input Proof Status",
+        description=(
+            "Use this when you need Stage 40 no-input proof/readback summaries after the exact target identity "
+            "gate passes. This only reads repo-owned proof artifacts and read-only target facts; it never runs "
+            "ProofOnly, sends input/movement, uses SavedVariables as live truth, or touches CE/x64dbg."
+        ),
+        read_only=True,
+        destructive=False,
+        open_world=True,
     ),
     "get_package_proposal_template": ToolSpec(
         name="get_package_proposal_template",
@@ -1770,6 +1817,9 @@ class RiftReaderChatGptMcpAdapter:
                     call_args.get("observation")
                 ),
                 "get_actual_client_proof_status": lambda _: self.get_actual_client_proof_status(),
+                "get_live_rift_readonly_state": lambda _: self.get_live_rift_readonly_state(),
+                "get_live_target_identity_gate": lambda _: self.get_live_target_identity_gate(),
+                "get_live_no_input_proof_status": lambda _: self.get_live_no_input_proof_status(),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
                 "list_inbox": lambda _: self.list_inbox(),
@@ -2469,6 +2519,15 @@ class RiftReaderChatGptMcpAdapter:
             },
         }
 
+    def get_live_rift_readonly_state(self) -> dict[str, Any]:
+        return live_rift_state.build_live_readonly_state(self.config.repo_root)
+
+    def get_live_target_identity_gate(self) -> dict[str, Any]:
+        return live_rift_state.build_live_target_identity_gate(self.config.repo_root)
+
+    def get_live_no_input_proof_status(self) -> dict[str, Any]:
+        return live_rift_state.build_live_no_input_proof_status(self.config.repo_root)
+
     def get_package_proposal_template(self) -> dict[str, Any]:
         schema = bridge.inbox_schema_payload(self.config.bridge_config)
         return {
@@ -3115,12 +3174,15 @@ class RiftReaderChatGptMcpAdapter:
                 "pushApprovedBranch": ["push_current_branch"],
                 "inspectCurrentHeadCi": ["get_current_head_ci_status"],
                 "runBoundedRepoCommand": ["run_bounded_repo_command"],
+                "readLiveRiftNoInput": [
+                    "get_live_rift_readonly_state",
+                    "get_live_target_identity_gate",
+                    "get_live_no_input_proof_status",
+                ],
                 "writeBoundary": (
-                    "ChatGPT-originated proposal writes are stored only under .riftreader-local inbox/package-draft "
-                    "artifacts until apply_latest_package_draft receives a local preflight approval token; local Git commits "
-                    "are limited to commit_reviewed_slice after a current commit-preflight approval token; remote pushes "
-                    "are limited to push_current_branch after a current push-preflight approval token; bounded commands "
-                    "are limited to versioned registry keys and never accept shell strings."
+                    "Writes stay gated: local inbox/drafts, approved apply, approved commit, approved push, and "
+                    "registry-key bounded commands only. Stage 38-40 live RIFT tools are read-only/no-input and "
+                    "withhold proof summaries until the exact target gate passes."
                 ),
             },
             "missionControl": {
@@ -3141,13 +3203,14 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "live-rift-boundary-next",
+                "status": "live-control-plan-only-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
                     "push-current-branch",
                     "bounded-shell-command",
                     "provider-repo-writes",
+                    "live-rift-no-input-status",
                     "live-rift-control",
                     "debugger-or-ce-assist",
                 ],
@@ -3158,6 +3221,7 @@ class RiftReaderChatGptMcpAdapter:
                 "git-push",
                 "git-branch-rewrite",
                 "bounded-shell-command",
+                "live-rift-no-input-status",
                 "tunnel-client-init-doctor-run-with-real-credentials",
                 "chatgpt-connector-registration",
                 "live-rift-input-or-movement",
@@ -6887,6 +6951,21 @@ def create_fastmcp_server(
 
         return adapter.call_tool("get_actual_client_proof_status", {})
 
+    def get_live_rift_readonly_state() -> dict[str, Any]:
+        """Use this when you need Stage 38 read-only live RIFT target/status facts."""
+
+        return adapter.call_tool("get_live_rift_readonly_state", {})
+
+    def get_live_target_identity_gate() -> dict[str, Any]:
+        """Use this when you need the Stage 39 exact-target live RIFT identity gate."""
+
+        return adapter.call_tool("get_live_target_identity_gate", {})
+
+    def get_live_no_input_proof_status() -> dict[str, Any]:
+        """Use this when you need Stage 40 no-input proof/readback status behind the identity gate."""
+
+        return adapter.call_tool("get_live_no_input_proof_status", {})
+
     def get_package_proposal_template() -> dict[str, Any]:
         """Use this when you need the guarded package-proposal JSON template."""
 
@@ -7137,6 +7216,9 @@ def create_fastmcp_server(
         "get_final_readiness_status": get_final_readiness_status,
         "submit_actual_client_observation": submit_actual_client_observation,
         "get_actual_client_proof_status": get_actual_client_proof_status,
+        "get_live_rift_readonly_state": get_live_rift_readonly_state,
+        "get_live_target_identity_gate": get_live_target_identity_gate,
+        "get_live_no_input_proof_status": get_live_no_input_proof_status,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,

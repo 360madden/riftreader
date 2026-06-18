@@ -1,9 +1,10 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: 33-tool narrow adapter with runtime/final-readiness/proof-status,
+Status: 36-tool narrow adapter with runtime/final-readiness/proof-status,
 tool-surface diff, guarded restart preflight/restart, tunnel-status, connector
 setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
-lanes, and provider-intent labels that remain blocked by default.
+lanes, provider-intent labels that remain blocked by default, and Stage 38-40
+read-only/no-input live RIFT status gates.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -49,6 +50,9 @@ The adapter is designed for this safe loop:
 | `get_final_readiness_status` | Read-only external status | Returns the compact final-readiness gate and current blockers, including stale proof and CI state. |
 | `submit_actual_client_observation` | Guarded local write | Records operator-supplied actual ChatGPT Web/Desktop observations as ignored proof artifacts under `.riftreader-local`; never calls ChatGPT, starts tunnels, stages, commits, pushes, sends RIFT input, writes providers, or touches CE/x64dbg. |
 | `get_actual_client_proof_status` | Read-only | Replays the latest actual-client proof and reports whether it is missing, stale, blocked, or valid for the current tool surface. |
+| `get_live_rift_readonly_state` | Read-only live status | Returns Stage 38 read-only exact-target RIFT status only when fresh PID/HWND proof and target identity checks pass; never focuses, captures, clicks, sends keys, runs ProofOnly, promotes truth, writes providers, or touches CE/x64dbg. |
+| `get_live_target_identity_gate` | Read-only live status | Returns the Stage 39 exact-target gate: PID, HWND, process start, module base, duplicate detection, proof freshness, and blockers. |
+| `get_live_no_input_proof_status` | Read-only live status | Returns Stage 40 no-input proof/readback summaries only after the identity gate passes; sends no movement/input and withholds summaries while gated. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`; provider-write intent metadata is preserved as a blocked-by-default label. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
@@ -112,7 +116,7 @@ Required current-lane result:
 |---|---|
 | `status` | `running-current` |
 | `ok` | `true` |
-| `selectedListener.classification.toolProfile` | `full` for final 33-tool proof |
+| `selectedListener.classification.toolProfile` | `full` for final 36-tool proof |
 | `selectedListener.classification.transport` | `streamable-http` |
 
 Fail closed on these states:
@@ -129,7 +133,7 @@ Dependency order for proof work:
 2. local backend listener is present on `127.0.0.1:8770`;
 3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
    adapter, not legacy/foreign;
-4. tool profile matches the intended proof (`full` for the current 33-tool proof);
+4. tool profile matches the intended proof (`full` for the current 36-tool proof);
 5. Cloudflare named Tunnel/public route forwards to that backend;
 6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
 7. proof input is checked and recorded, then final readiness is rerun.
@@ -155,13 +159,17 @@ Phase 0 exposes only:
 - `get_chatgpt_connector_setup_packet`
 - `get_final_readiness_status`
 - `get_actual_client_proof_status`
+- `get_live_rift_readonly_state`
+- `get_live_target_identity_gate`
+- `get_live_no_input_proof_status`
 - `list_bounded_repo_commands`
 - `get_workflow_control_plan`
 
-The default `--tool-profile full` path exposes the current 33-tool final proof
+The default `--tool-profile full` path exposes the current 36-tool final proof
 surface, including runtime/final-readiness/proof-status helpers, tool-surface
 diff, guarded restart, tunnel status, connector setup, and the approval-gated
-apply, local-commit, and push tools. It is not deleted or downgraded.
+apply, local-commit, push, bounded-command, and no-input live RIFT status tools.
+It is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 
@@ -661,10 +669,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `cloudflare-named-tunnel` (legacy recorder packets may still say `manual-public-ip`) | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 33 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 36 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `33` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 33 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `36` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 36 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 

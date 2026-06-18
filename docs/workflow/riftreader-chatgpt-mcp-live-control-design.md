@@ -1,21 +1,20 @@
 # ChatGPT MCP live RIFT control design
 
-Status: **plan-only draft**. No live-control MCP tools are exposed by this
-document, and the current 33-tool ChatGPT Web/Desktop proof contract remains
-unchanged by this live-control design.
+Status: **Stage 41 plan-only draft**. Stage 38-40 no-input live-status MCP tools
+are exposed, and the current ChatGPT Web/Desktop proof contract is 36 tools.
+This document still does not expose any live-control execution tool.
 
-This design is for the later Stage 38-43 live-read/live-control ladder after
-the current Cloudflare named Tunnel product proof passes. It defines the gates
-that must exist before ChatGPT Web/Desktop can inspect live RIFT state, request
-stimulus tests, or eventually control player movement.
+This design now starts at Stage 41 because the Stage 38-40 read-only/no-input
+surfaces exist. It defines the remaining gates that must exist before ChatGPT
+Web/Desktop can request stimulus tests or eventually control player movement.
 
 ## Current hard boundary
 
 | Boundary | Rule |
 |---|---|
-| Current MCP product | Keep the existing 33-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
+| Current MCP product | Keep the existing 36-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
 | Actual-client transport | Do not treat local backend status as sufficient; the actual ChatGPT client proof must record `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. `Transport closed` blocks this ladder. |
-| Tool exposure | Do not add live RIFT tools until the current 33-tool actual-client proof is fresh, final readiness passes, and Stage 38 consideration approval is explicit. |
+| Tool exposure | Stage 38-40 read-only/no-input tools are exposed. Do not add live RIFT input/movement tools until the current 36-tool actual-client proof is fresh, final readiness passes, and a separate execution-boundary approval is explicit. |
 | Live input | Do not send key input, target selection, movement, turn stimulus, `/reloadui`, or screenshot-key input without explicit live approval. |
 | Debugger/CE | Do not attach x64dbg, Cheat Engine, breakpoints, or watchpoints from this lane. |
 | Promotion | Do not promote current truth, actor chains, coordinates, yaw/facing, or proof anchors from a live-control tool. |
@@ -25,9 +24,9 @@ stimulus tests, or eventually control player movement.
 
 | Stage | MCP capability | Allowed behavior | Required proof before exposure |
 |---:|---|---|---|
-| 38 | `get_live_rift_status` | Read-only exact-target facts: PID, HWND, process start, module base, RIFT manifest epoch, stale/fresh flags. | Exact target identity helper passes and returns fail-closed blockers on drift/duplicates. |
-| 39 | `verify_live_target_identity` | Read-only target gate reusable by all later live tools. | Tests cover PID/HWND mismatch, process-start mismatch, duplicate RIFT process, missing window, and stale artifacts. |
-| 40 | `get_live_no_input_proof_summary` | Read-only candidate/proof summaries only; no movement/input; candidate-only truth preserved. | Current no-input readback can report safety flags and artifact paths without implying route authorization. |
+| 38 | `get_live_rift_readonly_state` | Read-only exact-target facts/status after fresh proof; no focus/capture/input/ProofOnly. | Exact target identity helper passes and returns fail-closed blockers on stale proof or drift. |
+| 39 | `get_live_target_identity_gate` | Read-only reusable target gate: PID, HWND, process start, module base, duplicate detection. | Tests cover PID/HWND mismatch, duplicate RIFT windows, missing module base, and stale artifacts. |
+| 40 | `get_live_no_input_proof_status` | Read-only candidate/proof summaries only after the identity gate passes; no movement/input; candidate-only truth preserved. | Current no-input readback reports safety flags and artifact paths without implying route authorization. |
 | 41 | `plan_live_control_action` | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, and required approval phrase. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
 | 42 | `dry_run_live_control_action` | Dry-run validates target identity, age budgets, route-control preconditions, and stop conditions. | Still no input; audit envelope proves all blocked/allowed checks. |
 | 43 | `execute_live_control_action` | Smallest approved exact-target action after explicit approval. | Current target gate passes, approval phrase matches, stop key exists, post-action readback records `inputSent`/`movementSent` truthfully. |
@@ -108,12 +107,9 @@ no action.
 
 ## Minimal implementation sequence
 
-1. Add a read-only exact-target identity helper with JSON and unit tests.
-2. Add `get_live_rift_status` only after the current 33-tool product proof
-   passes with actual-client transport success and the tool-count/proof
-   contract is intentionally updated.
-3. Add read-only no-input proof summary exposure, preserving candidate-only
-   status and current blockers.
+1. Stage 38 complete-local: `get_live_rift_readonly_state`.
+2. Stage 39 complete-local: `get_live_target_identity_gate`.
+3. Stage 40 complete-local: `get_live_no_input_proof_status`.
 4. Add plan-only live-control action output with no execution path.
 5. Add dry-run validation and audit envelopes.
 6. Only then add the smallest execution tool, behind explicit current-turn
@@ -123,7 +119,7 @@ no action.
 
 | Blocker | Effect |
 |---|---|
-| Current 33-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not expose high-power live tools yet. |
+| Current 36-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not expose high-power live input/movement tools yet. |
 | Current static-owner readback root pointer is blocked/null after the game update. | Live navigation/control is not route-actionable. |
 | Latest no-input rediscovery is candidate-only and reports PID/HWND mismatch blockers. | Exact-target proof must be rebuilt before movement. |
 

@@ -117,11 +117,23 @@ function Get-RiftWindowTargets {
         $rect = New-Object RiftWindowTargetDiscoveryNative+RECT
         [void][RiftWindowTargetDiscoveryNative]::GetWindowRect($Handle, [ref]$rect)
         $startTime = $null
+        $moduleBaseAddressHex = $null
+        $modulePath = $null
         try {
             $startTime = $process.StartTime.ToString('O', [System.Globalization.CultureInfo]::InvariantCulture)
         }
         catch {
             $startTime = $null
+        }
+        try {
+            if ($null -ne $process.MainModule) {
+                $moduleBaseAddressHex = ('0x{0:X}' -f $process.MainModule.BaseAddress.ToInt64())
+                $modulePath = [string]$process.MainModule.FileName
+            }
+        }
+        catch {
+            $moduleBaseAddressHex = $null
+            $modulePath = $null
         }
 
         $windows.Add([pscustomobject]@{
@@ -138,6 +150,8 @@ function Get-RiftWindowTargets {
                 Width = $rect.Right - $rect.Left
                 Height = $rect.Bottom - $rect.Top
                 StartTime = $startTime
+                ModuleBaseAddressHex = $moduleBaseAddressHex
+                ModulePath = $modulePath
                 Responding = $process.Responding
             }) | Out-Null
 

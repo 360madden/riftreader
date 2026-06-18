@@ -224,7 +224,7 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 3. The selected listener command line is the current
    `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
    legacy `tools.riftreader_mcp.http_server`.
-4. The selected listener uses the intended profile (`full` for final 33-tool
+4. The selected listener uses the intended profile (`full` for final 36-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
 6. If a local/Codex stdio MCP counterpart is present, treat it as a separate
@@ -251,22 +251,22 @@ entry or stale proof artifact exists.
 
 ## Stage 38 consideration guard
 
-Stage 38 is the first live RIFT boundary. Even after this final-readiness gate
-passes, do not treat Stage 38 as active until the local-only consideration gate
-also passes:
+Stage 38 was the first live RIFT boundary. The local-only consideration gate is
+historical approval evidence for the Stage 38-40 no-input implementation and can
+still be rerun for audit:
 
 ```cmd
 scripts\riftreader-stage38-consideration.cmd --status --compact-json
 ```
 
-That helper is intentionally not an MCP tool and must not change the 33-tool
-ChatGPT surface. It combines the current runtime-status check, Cloudflare named
-Tunnel public-route check, final-readiness result, and explicit live-boundary
-approval requirement. It reports `blocked` while any prerequisite is missing,
+That helper intentionally never starts live RIFT tooling. The current ChatGPT
+surface is 36 tools after adding Stage 38-40 read-only/no-input live status
+surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel
+public-route check, final-readiness result, and explicit live-boundary approval
+requirement. It reports `blocked` while any prerequisite is missing,
 `approval-required` when all local prerequisites pass but no live-boundary
 approval token was supplied, and `passed` only after the required approval token
-is supplied. Passing this helper allows drafting a Stage 38 approval packet; it
-does not implement or start live RIFT tooling.
+is supplied.
 
 To make that review reproducible, generate the packet through the fail-closed
 local writer:
@@ -279,7 +279,8 @@ When the consideration gate is still blocked, this command writes a blocked
 packet under ignored `.riftreader-local` artifacts and returns a blocked status.
 When all prerequisites pass but live-boundary approval is still missing, the
 packet status is `ready-to-review`. The packet is evidence for review only; it
-does not start Stage 38 or change the MCP tool surface.
+does not send RIFT input, run ProofOnly, promote truth, or change the MCP tool
+surface.
 
 ## Phase 6 safety fixture acceptance criteria
 

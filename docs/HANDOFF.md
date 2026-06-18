@@ -1,3 +1,20 @@
+# 2026-06-18 - ChatGPT MCP Stage 38-40 no-input live status complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage40-no-input-live-status-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 38-40 | Complete-local as safe read-only/no-input live RIFT status surfaces. |
+| Tool surface | Full non-Codex ChatGPT MCP profile is now 36 tools: added `get_live_rift_readonly_state`, `get_live_target_identity_gate`, and `get_live_no_input_proof_status`. |
+| Runtime | HTTP MCP runtime was refreshed to full profile PID `157156`; `scripts\riftreader-mcp-server-status.cmd --json` reports source-fresh and 36/36 observed tools. |
+| Live target smoke | Read-only discovery found PID `130540`, HWND `0x9310EA`, process `rift_x64`, title `RIFT`, module base `0x7FF778CD0000`; no focus/capture/click/key input was sent. |
+| Proof gate | `get_live_target_identity_gate` passed against fresh proof-anchor status and exact PID/HWND/module facts; `get_live_no_input_proof_status` exposes proof summary only behind that gate. |
+| Safety | `movementSent=false`, `inputSent=false`, no ProofOnly run, no proof promotion, no CE/x64dbg, no provider writes, and no SavedVariables-as-live-truth. |
+| Remaining blocker | Final readiness still needs fresh actual ChatGPT Web/Desktop proof for the 36-tool surface; old actual-client evidence observed 33 tools and must not be replayed as current proof. |
+
+---
+
 # 2026-06-18 - RIFT game MCP Phase 10 live wrapper proof complete
 
 Fresh compact handoff:

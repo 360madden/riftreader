@@ -361,6 +361,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["get_chatgpt_connector_setup_packet"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_final_readiness_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_actual_client_proof_status"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_live_rift_readonly_state"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_live_target_identity_gate"]["readOnlyHint"])
+        self.assertTrue(annotation_by_name["get_live_no_input_proof_status"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["list_bounded_repo_commands"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_actual_client_observation"]["readOnlyHint"])
@@ -389,6 +392,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(allowed_args_by_name["get_final_readiness_status"], [])
         self.assertEqual(allowed_args_by_name["submit_actual_client_observation"], ["observation"])
         self.assertEqual(allowed_args_by_name["get_actual_client_proof_status"], [])
+        self.assertEqual(allowed_args_by_name["get_live_rift_readonly_state"], [])
+        self.assertEqual(allowed_args_by_name["get_live_target_identity_gate"], [])
+        self.assertEqual(allowed_args_by_name["get_live_no_input_proof_status"], [])
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
         self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
@@ -438,6 +444,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 "run_bounded_repo_command",
                 "get_final_readiness_status",
                 "get_tunnel_status",
+                "get_live_rift_readonly_state",
+                "get_live_target_identity_gate",
+                "get_live_no_input_proof_status",
             }:
                 self.assertTrue(tool_annotations["openWorldHint"])
             else:
@@ -466,6 +475,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("get_chatgpt_connector_setup_packet", names)
         self.assertIn("get_final_readiness_status", names)
         self.assertIn("get_actual_client_proof_status", names)
+        self.assertIn("get_live_rift_readonly_state", names)
+        self.assertIn("get_live_target_identity_gate", names)
+        self.assertIn("get_live_no_input_proof_status", names)
         self.assertIn("list_bounded_repo_commands", names)
         self.assertTrue(all(item["annotations"]["readOnlyHint"] for item in manifest["tools"]))
         self.assertFalse(manifest["safety"]["writeLikeToolsExposed"])
@@ -1462,6 +1474,71 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["safety"]["proofReplayReadOnly"])
         self.assertFalse(payload["safety"]["gitMutation"])
 
+    def test_live_rift_readonly_tools_wrap_stage_helpers_without_input(self) -> None:
+        helper_payloads = {
+            "get_live_rift_readonly_state": {
+                "schemaVersion": 1,
+                "kind": "riftreader-chatgpt-mcp-live-rift-readonly-state",
+                "status": "passed",
+                "ok": True,
+                "blockers": [],
+                "warnings": [],
+                "safety": {"inputSent": False, "movementSent": False, "noCheatEngine": True, "x64dbgAttach": False},
+            },
+            "get_live_target_identity_gate": {
+                "schemaVersion": 1,
+                "kind": "riftreader-chatgpt-mcp-live-target-identity-gate",
+                "status": "passed",
+                "ok": True,
+                "blockers": [],
+                "warnings": [],
+                "safety": {"inputSent": False, "movementSent": False, "noCheatEngine": True, "x64dbgAttach": False},
+            },
+            "get_live_no_input_proof_status": {
+                "schemaVersion": 1,
+                "kind": "riftreader-chatgpt-mcp-live-no-input-proof-status",
+                "status": "passed",
+                "ok": True,
+                "blockers": [],
+                "warnings": [],
+                "safety": {"inputSent": False, "movementSent": False, "noCheatEngine": True, "x64dbgAttach": False},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            adapter = make_adapter(root)
+            with (
+                mock.patch.object(
+                    chatgpt_mcp.live_rift_state,
+                    "build_live_readonly_state",
+                    return_value=helper_payloads["get_live_rift_readonly_state"],
+                ) as readonly,
+                mock.patch.object(
+                    chatgpt_mcp.live_rift_state,
+                    "build_live_target_identity_gate",
+                    return_value=helper_payloads["get_live_target_identity_gate"],
+                ) as identity,
+                mock.patch.object(
+                    chatgpt_mcp.live_rift_state,
+                    "build_live_no_input_proof_status",
+                    return_value=helper_payloads["get_live_no_input_proof_status"],
+                ) as proof_status,
+            ):
+                readonly_payload = adapter.call_tool("get_live_rift_readonly_state", {})
+                identity_payload = adapter.call_tool("get_live_target_identity_gate", {})
+                proof_payload = adapter.call_tool("get_live_no_input_proof_status", {})
+
+        readonly.assert_called_once_with(root)
+        identity.assert_called_once_with(root)
+        proof_status.assert_called_once_with(root)
+        for payload in (readonly_payload, identity_payload, proof_payload):
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["safety"]["inputSent"])
+            self.assertFalse(payload["safety"]["movementSent"])
+            self.assertTrue(payload["safety"]["noCheatEngine"])
+            self.assertFalse(payload["safety"]["x64dbgAttach"])
+
     def test_list_bounded_repo_commands_reads_registry_without_execution(self) -> None:
         registry_payload = {
             "schemaVersion": 1,
@@ -1974,6 +2051,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("push_current_branch", payload["bidirectionalDataTransfer"]["pushApprovedBranch"])
         self.assertIn("get_current_head_ci_status", payload["bidirectionalDataTransfer"]["inspectCurrentHeadCi"])
         self.assertIn("run_bounded_repo_command", payload["bidirectionalDataTransfer"]["runBoundedRepoCommand"])
+        self.assertIn("get_live_target_identity_gate", payload["bidirectionalDataTransfer"]["readLiveRiftNoInput"])
         self.assertEqual(payload["safeCommitPlan"]["stageablePaths"], ["docs/example.md"])
         self.assertFalse(payload["safety"]["gitMutation"])
         self.assertFalse(payload["safety"]["shellExecutionEndpoint"])
@@ -1989,11 +2067,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "live-rift-boundary-next",
+            "live-control-plan-only-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 38)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 39)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 41)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 42)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -2072,6 +2150,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("get_final_readiness_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("submit_actual_client_observation", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("get_actual_client_proof_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_live_rift_readonly_state", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_live_target_identity_gate", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("get_live_no_input_proof_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("list_bounded_repo_commands", chatgpt_mcp.EXPECTED_TOOL_ORDER)
 
     def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:
@@ -2192,6 +2273,9 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 "run_bounded_repo_command",
                 "get_final_readiness_status",
                 "get_tunnel_status",
+                "get_live_rift_readonly_state",
+                "get_live_target_identity_gate",
+                "get_live_no_input_proof_status",
             }:
                 self.assertTrue(registration["annotations"].openWorldHint)
             else:

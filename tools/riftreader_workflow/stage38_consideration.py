@@ -19,12 +19,14 @@ from typing import Any
 try:
     from .common import find_repo_root, repo_rel, safety_flags, unique, utc_iso, utc_stamp
     from .mcp_final_readiness import compact_final_readiness, final_readiness
+    from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT
     from .mcp_runtime_control import DEFAULT_PUBLIC_MCP_URL, build_tunnel_status
     from .mcp_server_status import build_status_payload
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.common import find_repo_root, repo_rel, safety_flags, unique, utc_iso, utc_stamp
     from riftreader_workflow.mcp_final_readiness import compact_final_readiness, final_readiness
+    from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT
     from riftreader_workflow.mcp_runtime_control import DEFAULT_PUBLIC_MCP_URL, build_tunnel_status
     from riftreader_workflow.mcp_server_status import build_status_payload
 
@@ -525,7 +527,7 @@ def self_test() -> dict[str, Any]:
         "blockers": [],
         "warnings": [],
         "selectedListener": {"owningProcess": 1234},
-        "runtimeSurface": {"status": "passed", "ok": True, "observedToolCount": 33},
+        "runtimeSurface": {"status": "passed", "ok": True, "observedToolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT},
         "runtimeSourceFreshness": {"status": "passed", "ok": True},
         "stdioCounterparts": {"status": "not-running", "ok": True},
     }
@@ -553,7 +555,13 @@ def self_test() -> dict[str, Any]:
         tunnel_payload=tunnel_ok,
     )
     final_blocked = dict(final_ok)
-    final_blocked.update({"status": "blocked", "ok": False, "blockers": ["proof:replay-failed:tool-count-not-33:20"]})
+    final_blocked.update(
+        {
+            "status": "blocked",
+            "ok": False,
+            "blockers": [f"proof:replay-failed:tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:20"],
+        }
+    )
     blocked = build_stage38_consideration_status(
         Path.cwd(),
         final_payload=final_blocked,

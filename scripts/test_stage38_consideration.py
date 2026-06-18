@@ -13,13 +13,14 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import stage38_consideration as stage38  # noqa: E402
+from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT  # noqa: E402
 
 
 def final_payload(*, ok: bool = True) -> dict[str, object]:
     payload: dict[str, object] = {
         "status": "passed" if ok else "blocked",
         "ok": ok,
-        "blockers": [] if ok else ["proof:replay-failed:tool-count-not-33:20"],
+        "blockers": [] if ok else [f"proof:replay-failed:tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:20"],
         "warnings": [],
         "currentHead": "012345",
         "ci": {"status": "passed", "ok": True},
@@ -30,7 +31,7 @@ def final_payload(*, ok: bool = True) -> dict[str, object]:
             "proofReplay": {
                 "status": "passed" if ok else "blocked",
                 "ok": ok,
-                "blockers": [] if ok else ["tool-count-not-33:20"],
+                "blockers": [] if ok else [f"tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:20"],
                 "proofFreshness": {"status": "fresh"},
             },
             "artifactFreshness": {
@@ -61,7 +62,7 @@ def runtime_payload(*, ok: bool = True) -> dict[str, object]:
         "runtimeSurface": {
             "status": "passed" if ok else "blocked",
             "ok": ok,
-            "observedToolCount": 33 if ok else 0,
+            "observedToolCount": EXPECTED_CHATGPT_MCP_TOOL_COUNT if ok else 0,
         },
         "runtimeSourceFreshness": {"status": "passed" if ok else "blocked", "ok": ok},
         "stdioCounterparts": {"status": "not-running", "ok": True},
@@ -121,7 +122,7 @@ class Stage38ConsiderationTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("stage38:final-readiness-not-passed:blocked", payload["blockers"])
-        self.assertIn("proof:replay-failed:tool-count-not-33:20", payload["blockers"])
+        self.assertIn(f"proof:replay-failed:tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:20", payload["blockers"])
         self.assertEqual(payload["recommendedNextAction"]["key"], "check-actual-client-proof-input")  # type: ignore[index]
 
     def test_runtime_not_current_blocks_before_final_proof_work(self) -> None:
@@ -163,7 +164,7 @@ class Stage38ConsiderationTests(unittest.TestCase):
         self.assertEqual(packet["status"], "blocked")
         self.assertFalse(packet["ok"])
         self.assertIn("stage38-approval-packet-not-ready:blocked", packet["blockers"])
-        self.assertIn("proof:replay-failed:tool-count-not-33:20", packet["blockers"])
+        self.assertIn(f"proof:replay-failed:tool-count-not-{EXPECTED_CHATGPT_MCP_TOOL_COUNT}:20", packet["blockers"])
         self.assertFalse(packet["safety"]["stage38Started"])  # type: ignore[index]
         self.assertFalse(packet["safety"]["inputSent"])  # type: ignore[index]
 

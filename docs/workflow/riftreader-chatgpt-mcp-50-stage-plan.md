@@ -2,11 +2,12 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Pre-Stage-38 final-readiness / actual-client proof
-refresh**. Stage 38 is the next live-boundary stage, but it is not active and
-must not be considered until a fresh 33-tool actual ChatGPT Web/Desktop proof,
+Current holding point: **Post-Stage-40 local no-input live-state surface**.
+Stages 38-40 are implemented as read-only/no-input local surfaces, and the MCP
+tool contract is now 36 tools. A fresh 36-tool actual ChatGPT Web/Desktop proof,
 including `clientTransportStatus=tool-call-succeeded` and
-`healthCallSucceeded=true`, Phase 2, and final readiness all pass.
+`healthCallSucceeded=true`, is required before final readiness can be called
+green again.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -27,6 +28,7 @@ Stage 34 exposure note:
 `run_bounded_repo_command` is exposed for versioned registry keys only. It never
 accepts shell strings or arbitrary argv, and the current full MCP surface is
 33 tools after the post-Stage-37 operational proof and runtime-recovery bundles.
+Stages 38-40 intentionally raise the current full MCP surface to 36 tools.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -53,8 +55,7 @@ Post-Stage-37 operational proof bundle note:
 `list_bounded_repo_commands` are exposed so ChatGPT can verify backend runtime
 freshness, final-readiness blockers, actual-client proof state, and bounded
 command registry metadata without guessing or assuming that a saved connector
-started anything. Stage 38 remains the next live-boundary stage and still
-requires explicit approval.
+started anything.
 
 Post-Stage-37 runtime-recovery bundle note:
 `get_tool_surface_diff`, `run_mcp_restart_preflight`, `restart_mcp_runtime`,
@@ -66,11 +67,18 @@ copy-safe non-Codex connector setup packet. The restart tool is approval-token
 gated and does not expose arbitrary shell, tunnel mutation, Git mutation, RIFT
 input, provider writes, CE, or x64dbg.
 
-Pre-Stage-38 gate note:
-Before any Stage 38 approval packet is drafted, rerun the dependency sequence
+Stage 38-40 implementation note:
+`get_live_rift_readonly_state`, `get_live_target_identity_gate`, and
+`get_live_no_input_proof_status` are exposed as read-only/no-input tools. They
+only read repo-owned current proof artifacts and fixed read-only target discovery
+facts; they do not focus, capture, click, send keys, run ProofOnly, promote
+truth, write providers, or touch CE/x64dbg. Stale or mismatched exact PID/HWND
+proof blocks closed.
+
+Before final readiness is considered green again, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
-33-tool proof recorded and replayed with a successful actual client transport
+36-tool proof recorded and replayed with a successful actual client transport
 call, Phase 2 passed, and final readiness passed. A saved ChatGPT connector
 entry is configuration only; it does not start the local MCP server or prove the
 current tool surface.
@@ -83,18 +91,18 @@ record that as a client-refresh blocker rather than treating the saved connector
 or local backend as sufficient proof.
 A successful Codex Apps wrapper/facade health call is useful diagnostics, but it
 is not a substitute for the non-Codex ChatGPT Web/Desktop proof artifact unless
-that actual-client proof records the same current client surface, 33-tool
-surface, output schemas, and successful tool calls.
-Use the local-only Stage 38 consideration gate as the final pre-approval
-summary:
+that actual-client proof records the same current 36-tool client surface, output
+schemas, and successful tool calls.
+The local-only Stage 38 consideration gate remains historical approval evidence:
 
 ```cmd
 scripts\riftreader-stage38-consideration.cmd --status --compact-json
 ```
 
-This helper does not add an MCP tool and does not start Stage 38. It checks the
-current local runtime, public route, final readiness, and the explicit
-live-boundary approval requirement before an approval packet can be drafted.
+This helper predates the Stage 38-40 implementation and never starts live RIFT
+tooling. It checks the current local runtime, public route, final readiness, and
+the explicit live-boundary approval requirement before an approval packet can be
+drafted.
 The approval packet itself must also be generated through the fail-closed local
 writer:
 
@@ -103,14 +111,18 @@ scripts\riftreader-stage38-consideration.cmd --write-approval-packet --json
 ```
 
 This writes ignored `.riftreader-local` evidence only. It reports `blocked` while
-final readiness or proof replay is blocked, `ready-to-review` when all
-prerequisites pass but approval has not been supplied, and never starts Stage 38.
+final readiness or proof replay is blocked and remains useful as audit history
+for the live-boundary decision.
 
 Stage 21 approved package-apply proof, Stage 27 approved local-commit proof,
 Stage 30 approval-gated push exposure, and Stage 31 read-only CI monitor
 integration are complete-local. The MCP surface now includes `push_current_branch`
 and `get_current_head_ci_status`; the operational proof bundle adds status/proof
 tools only; arbitrary shell remains absent.
+
+Stage 38-40 no-input live-state tools are now present. Stage 41 is the next
+implementation boundary: a live movement/control design spec only. Do not expose
+movement/input execution until the later gated stages explicitly require it.
 
 ## Operating rules
 
@@ -169,9 +181,9 @@ tools only; arbitrary shell remains absent.
 | 35 | Command audit and replay evidence | Add durable audit envelopes for command args, cwd, exit code, timing, stdout/stderr previews. | Every command call is explainable and bounded. | complete-local |
 | 36 | Provider repo write planning | Design external/provider repo write boundaries for ChromaLink/RiftScan-style integrations. | Plan requires explicit provider authorization and separate roots. | complete-local |
 | 37 | Provider-safe proposal flow | Extend proposal/draft model to label provider writes separately without enabling them by default. | ChatGPT cannot silently mix RiftReader and provider repo mutations. | complete-local |
-| 38 | Live RIFT read-only state surface | Expose read-only current target/status facts if exact PID/HWND proof is fresh. | No input/movement; stale target blocks closed. | pending-approval |
-| 39 | Live target identity gate | Implement reusable exact-target gate: PID, HWND, process start, module base, duplicate detection. | All live tools depend on this gate. | pending |
-| 40 | Live no-input proof tool | Expose no-input readback/proof summaries only after target identity gate passes. | ChatGPT can inspect proof state without movement/input. | pending |
+| 38 | Live RIFT read-only state surface | Expose read-only current target/status facts if exact PID/HWND proof is fresh. | No input/movement; stale target blocks closed. | complete-local |
+| 39 | Live target identity gate | Implement reusable exact-target gate: PID, HWND, process start, module base, duplicate detection. | All live tools depend on this gate. | complete-local |
+| 40 | Live no-input proof tool | Expose no-input readback/proof summaries only after target identity gate passes. | ChatGPT can inspect proof state without movement/input. | complete-local |
 | 41 | Live movement/control design spec | Design bounded live control with explicit movement/input approval, stop conditions, and post-action evidence. | Spec separates no-input, displacement, movement, and ProofOnly gates. | pending |
 | 42 | Live control dry-run/planning tool | Expose a plan-only live-control tool that returns exact actions but sends no input. | ChatGPT can propose live actions without executing them. | pending |
 | 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | pending |
@@ -187,8 +199,8 @@ tools only; arbitrary shell remains absent.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 38 | Live RIFT read-only state surface | First live-RIFT boundary; requires explicit approval before entering. |
-| 2 | 39 | Live target identity gate | Required prerequisite before any later live read/control tool. |
+| 1 | 41 | Live movement/control design spec | Design the later movement/input boundary without sending input. |
+| 2 | 42 | Live control dry-run/planning tool | Let ChatGPT propose exact actions while still sending no input. |
 | 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
 | 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
 | 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
