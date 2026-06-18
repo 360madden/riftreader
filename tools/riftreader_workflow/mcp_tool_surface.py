@@ -27,6 +27,7 @@ EXPECTED_CHATGPT_MCP_TOOL_NAMES = (
     "get_live_no_input_proof_status",
     "plan_live_control_action",
     "execute_live_control_action",
+    "plan_debugger_ce_action",
     "get_package_proposal_template",
     "submit_package_proposal",
     "list_inbox",

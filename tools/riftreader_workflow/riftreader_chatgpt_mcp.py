@@ -32,7 +32,7 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
-    from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
+    from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_plan
     from . import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
@@ -43,7 +43,7 @@ try:
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
+    from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_plan
     from riftreader_workflow import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
@@ -148,6 +148,22 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
             "targetIdentity",
             "dryRun",
             "allowMovementRisk",
+        }
+    ),
+    "plan_debugger_ce_action": frozenset(
+        {
+            "actionKind",
+            "targetTool",
+            "requestedAction",
+            "question",
+            "targetIdentity",
+            "staticEvidence",
+            "candidateEvidence",
+            "maxDurationSeconds",
+            "stopCondition",
+            "crashRiskAcknowledged",
+            "staticFirstReviewed",
+            "dryRun",
         }
     ),
     "get_package_proposal_template": frozenset(),
@@ -429,7 +445,7 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
         "nextStage": stage_plan.get("nextStage"),
         "nextStageName": stage_plan.get("nextStageName"),
         "planPath": stage_plan.get("planPath"),
-        "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=80),
+        "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=20),
         "immediateStages": limited_list(stage_plan.get("immediateStages")),
         "phaseOrderCount": len(phase_order),
     }
@@ -690,13 +706,14 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     },
     {
         "key": "debugger-or-ce-assist",
-        "targetToolName": "debugger_ce_assist",
-        "currentStatus": "not-exposed",
+        "targetToolName": "plan_debugger_ce_action",
+        "currentStatus": "plan-only-exposed",
         "riskClass": "debugger-attach-crash-risk",
-        "minimumGate": "explicit-debugger-approval-in-current-turn",
-        "safePrecursorTools": ["get_repo_status", "get_latest_handoff"],
+        "minimumGate": "explicit-debugger-approval-in-current-turn-for-any-future-attach",
+        "safePrecursorTools": ["plan_debugger_ce_action", "get_repo_status", "get_latest_handoff"],
         "requiredSafeguards": [
-            "attach target and crash risk must be stated before action",
+            "Stage 45 only writes ignored plan artifacts and never attaches",
+            "attach target and crash risk must be stated before any future action",
             "no automatic breakpoints/watchpoints without separate approval",
             "read-only static/offline alternatives must be preferred first",
             "candidate evidence must remain candidate-only until proof gates pass",
@@ -712,17 +729,17 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 45,
-    "currentStageName": "Debugger/CE plan-only surface",
+    "currentStage": 46,
+    "currentStageName": "Debugger/CE gated assist",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
-        "Stage 42 plan-only live-control artifacts, and Stage 43 fail-closed execution-boundary artifacts. "
-        "Stage 44 debugger/CE static-first design is complete-local and exposes no attach tools; "
+        "Stage 42 plan-only live-control artifacts, Stage 43 fail-closed execution-boundary artifacts, "
+        "and Stage 45 plan-only debugger/CE artifacts. Stage 44 debugger/CE static-first design is complete-local; "
         "provider writes, live input/movement execution, proof promotion, CE attach, and x64dbg attach remain absent."
     ),
-    "nextStage": 46,
-    "nextStageName": "Debugger/CE gated assist",
+    "nextStage": 47,
+    "nextStageName": "Role and auth hardening",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -760,7 +777,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 42, "name": "Live control dry-run/planning tool", "status": "complete-local"},
         {"stage": 43, "name": "Expose minimal live action tool", "status": "complete-local-fail-closed"},
         {"stage": 44, "name": "Debugger/CE static-first design", "status": "complete-local"},
-        {"stage": 45, "name": "Debugger/CE plan-only surface", "status": "pending"},
+        {"stage": 45, "name": "Debugger/CE plan-only surface", "status": "complete-local"},
+        {"stage": 46, "name": "Debugger/CE gated assist", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1180,6 +1198,20 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
         read_only=False,
         destructive=True,
+        open_world=True,
+    ),
+    "plan_debugger_ce_action": ToolSpec(
+        name="plan_debugger_ce_action",
+        title="Plan Debugger or Cheat Engine Action",
+        description=(
+            "Use this when you need a Stage 45 plan-only debugger/Cheat Engine/static-review action with "
+            "risk classification, static-first checklist, target binding when applicable, approval prompt, and "
+            "candidate-only evidence handling. This writes an ignored local plan artifact only; it never launches "
+            "or attaches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, reads or writes target memory, "
+            "sends RIFT input, promotes truth, writes providers, or exposes a generic shell/file tool."
+        ),
+        read_only=False,
+        destructive=False,
         open_world=True,
     ),
     "get_package_proposal_template": ToolSpec(
@@ -1903,6 +1935,36 @@ class RiftReaderChatGptMcpAdapter:
                     allow_movement_risk=optional_bool(
                         call_args.get("allowMovementRisk"), field_name="allowMovementRisk", default=False
                     ),
+                ),
+                "plan_debugger_ce_action": lambda call_args: self.plan_debugger_ce_action(
+                    action_kind=optional_str(call_args.get("actionKind"), field_name="actionKind"),
+                    target_tool=optional_str(call_args.get("targetTool"), field_name="targetTool"),
+                    requested_action=optional_str(call_args.get("requestedAction"), field_name="requestedAction"),
+                    question=optional_str(call_args.get("question"), field_name="question"),
+                    target_identity=optional_mapping(call_args.get("targetIdentity"), field_name="targetIdentity"),
+                    static_evidence=optional_mapping(call_args.get("staticEvidence"), field_name="staticEvidence"),
+                    candidate_evidence=optional_mapping(
+                        call_args.get("candidateEvidence"), field_name="candidateEvidence"
+                    ),
+                    max_duration_seconds=bounded_int(
+                        call_args.get("maxDurationSeconds"),
+                        field_name="maxDurationSeconds",
+                        default=debugger_ce_plan.DEFAULT_MAX_DURATION_SECONDS,
+                        min_value=0,
+                        max_value=3600,
+                    ),
+                    stop_condition=optional_str(call_args.get("stopCondition"), field_name="stopCondition"),
+                    crash_risk_acknowledged=optional_bool(
+                        call_args.get("crashRiskAcknowledged"),
+                        field_name="crashRiskAcknowledged",
+                        default=False,
+                    ),
+                    static_first_reviewed=optional_bool(
+                        call_args.get("staticFirstReviewed"),
+                        field_name="staticFirstReviewed",
+                        default=False,
+                    ),
+                    dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
                 ),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
@@ -2656,6 +2718,38 @@ class RiftReaderChatGptMcpAdapter:
             allow_movement_risk=allow_movement_risk,
         )
 
+    def plan_debugger_ce_action(
+        self,
+        *,
+        action_kind: str | None = None,
+        target_tool: str | None = None,
+        requested_action: str | None = None,
+        question: str | None = None,
+        target_identity: dict[str, Any] | None = None,
+        static_evidence: dict[str, Any] | None = None,
+        candidate_evidence: dict[str, Any] | None = None,
+        max_duration_seconds: int | None = None,
+        stop_condition: str | None = None,
+        crash_risk_acknowledged: bool = False,
+        static_first_reviewed: bool = False,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        return debugger_ce_plan.build_debugger_ce_plan(
+            self.config.repo_root,
+            action_kind=action_kind,
+            target_tool=target_tool,
+            requested_action=requested_action,
+            question=question,
+            target_identity=target_identity,
+            static_evidence=static_evidence,
+            candidate_evidence=candidate_evidence,
+            max_duration_seconds=max_duration_seconds,
+            stop_condition=stop_condition,
+            crash_risk_acknowledged=crash_risk_acknowledged,
+            static_first_reviewed=static_first_reviewed,
+            dry_run=dry_run,
+        )
+
     def get_package_proposal_template(self) -> dict[str, Any]:
         schema = bridge.inbox_schema_payload(self.config.bridge_config)
         return {
@@ -3309,9 +3403,10 @@ class RiftReaderChatGptMcpAdapter:
                 ],
                 "planLiveRiftControlOnly": ["plan_live_control_action"],
                 "executeLiveRiftControlBoundary": ["execute_live_control_action"],
+                "planDebuggerCeOnly": ["plan_debugger_ce_action"],
                 "writeBoundary": (
-                    "Writes: local inbox/drafts, gated apply/commit/push, registry commands, Stage 42 plans, "
-                    "Stage 43 fail-closed runs. Stage 43 sends no input."
+                    "Writes only approved local artifacts/actions: inbox/drafts, gated apply/commit/push, "
+                    "bounded commands, Stage 42/45 plans, and Stage 43 no-input runs."
                 ),
             },
             "missionControl": {
@@ -3332,7 +3427,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "debugger-ce-plan-only-next",
+                "status": "debugger-ce-gated-assist-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -6957,8 +7052,9 @@ def create_fastmcp_server(
             "live RIFT input or movement. execute_live_control_action is Stage 43 fail-closed before input in this "
             "slice: it verifies an exact plan/approval boundary and writes ignored run artifacts, but the live input "
             "backend remains unavailable unless a future separately approved local backend slice enables it. "
-            "Stage 44 debugger/CE static-first design is documentation-only; this server exposes no CE/x64dbg "
-            "attach, breakpoint, watchpoint, or memory-write tool. "
+            "plan_debugger_ce_action is Stage 45 plan-only: it writes ignored debugger/CE/static-review plan "
+            "artifacts and never launches or attaches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, "
+            "or reads/writes target memory. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -7146,6 +7242,40 @@ def create_fastmcp_server(
                 "targetIdentity": targetIdentity,
                 "dryRun": dryRun,
                 "allowMovementRisk": allowMovementRisk,
+            },
+        )
+
+    def plan_debugger_ce_action(
+        actionKind: str | None = None,  # noqa: N803 - MCP input name.
+        targetTool: str | None = None,  # noqa: N803 - MCP input name.
+        requestedAction: str | None = None,  # noqa: N803 - MCP input name.
+        question: str | None = None,
+        targetIdentity: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        staticEvidence: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        candidateEvidence: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        maxDurationSeconds: int = debugger_ce_plan.DEFAULT_MAX_DURATION_SECONDS,  # noqa: N803 - MCP input name.
+        stopCondition: str | None = None,  # noqa: N803 - MCP input name.
+        crashRiskAcknowledged: bool = False,  # noqa: N803 - MCP input name.
+        staticFirstReviewed: bool = False,  # noqa: N803 - MCP input name.
+        dryRun: bool = True,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need a Stage 45 plan-only debugger/CE/static-review action."""
+
+        return adapter.call_tool(
+            "plan_debugger_ce_action",
+            {
+                "actionKind": actionKind,
+                "targetTool": targetTool,
+                "requestedAction": requestedAction,
+                "question": question,
+                "targetIdentity": targetIdentity,
+                "staticEvidence": staticEvidence,
+                "candidateEvidence": candidateEvidence,
+                "maxDurationSeconds": maxDurationSeconds,
+                "stopCondition": stopCondition,
+                "crashRiskAcknowledged": crashRiskAcknowledged,
+                "staticFirstReviewed": staticFirstReviewed,
+                "dryRun": dryRun,
             },
         )
 
@@ -7404,6 +7534,7 @@ def create_fastmcp_server(
         "get_live_no_input_proof_status": get_live_no_input_proof_status,
         "plan_live_control_action": plan_live_control_action,
         "execute_live_control_action": execute_live_control_action,
+        "plan_debugger_ce_action": plan_debugger_ce_action,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,

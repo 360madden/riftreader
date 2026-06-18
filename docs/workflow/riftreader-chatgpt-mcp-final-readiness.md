@@ -110,6 +110,7 @@ updates this list:
 | `get_live_no_input_proof_status` | Read-only live proof status | Must return no-input proof/readback summaries only after the identity gate passes; must withhold summaries while gated and never move, input, promote truth, or attach debuggers. |
 | `plan_live_control_action` | Plan-only local artifact write | May write ignored live-control plan artifacts with target binding, risk classification, approval prompt, and verification requirements; must never execute input, focus/capture/click, run ProofOnly, promote truth, write providers, or touch CE/x64dbg. |
 | `execute_live_control_action` | Fail-closed execution-boundary artifact write | May evaluate one Stage 42 plan and write ignored run artifacts, but in the current slice must block before input because the live backend is unavailable; validation must keep `inputSent=false` and `movementSent=false`. |
+| `plan_debugger_ce_action` | Plan-only local artifact write | May write ignored debugger/CE/static-review plan artifacts with risk classification, static-first checklist, target binding when applicable, approval prompt, and candidate-only evidence handling; must never launch or attach x64dbg, start Cheat Engine, set breakpoints/watchpoints, read or write target memory, send RIFT input, promote truth, write providers, or expose generic shell/file tools. |
 | `get_package_proposal_template` | Read-only | Must return the accepted package-proposal shape only. |
 | `submit_package_proposal` | Guarded local write | May write only inert proposal artifacts under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Must list inbox metadata only. |
@@ -135,10 +136,11 @@ Any extra tool is a final-readiness blocker until the contract is updated and
 tests prove the new tool stays within the safety model.
 
 Stage 44 adds the debugger/CE static-first design at
-`docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`, but
-does **not** add an approved MCP tool. CE/x64dbg attach, breakpoints,
-watchpoints, memory writes, and debugger command surfaces remain outside the
-final-ready tool surface until later gated stages update this contract and tests.
+`docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`.
+Stage 45 adds only `plan_debugger_ce_action`, a plan-only ignored-artifact
+writer. CE/x64dbg attach, breakpoints, watchpoints, memory reads/writes, and
+debugger command surfaces remain outside the final-ready execution surface until
+later gated stages update this contract and tests.
 
 Every approved tool must also enforce a strict wrapper-argument allowlist. Any
 unknown top-level argument key, non-object argument payload, non-JSON-
@@ -235,7 +237,7 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 3. The selected listener command line is the current
    `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
    legacy `tools.riftreader_mcp.http_server`.
-4. The selected listener uses the intended profile (`full` for final 38-tool
+4. The selected listener uses the intended profile (`full` for final 39-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
 6. If a local/Codex stdio MCP counterpart is present, treat it as a separate
@@ -271,9 +273,10 @@ scripts\riftreader-stage38-consideration.cmd --status --compact-json
 ```
 
 That helper intentionally never starts live RIFT tooling. The current ChatGPT
-surface is 38 tools after adding Stage 42 plan-only live-control artifacts and
-the Stage 43 fail-closed execution-boundary artifact writer on top of the Stage
-38-40 read-only/no-input live status surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel
+surface is 39 tools after adding Stage 42 plan-only live-control artifacts,
+the Stage 43 fail-closed execution-boundary artifact writer, and the Stage 45
+debugger/CE plan-only artifact writer on top of the Stage 38-40 read-only/no-input
+live status surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel
 public-route check, final-readiness result, and explicit live-boundary approval
 requirement. It reports `blocked` while any prerequisite is missing,
 `approval-required` when all local prerequisites pass but no live-boundary

@@ -1,9 +1,10 @@
 # RiftReader ChatGPT MCP Debugger/CE static-first design
 
-Status: **Stage 44 complete-local design only**. This document defines the
-debugger/Cheat Engine boundary for later Stage 45-46 work. It does not expose a
-ChatGPT MCP attach tool, does not start x64dbg or Cheat Engine, does not read or
-write target process memory, and does not change the current 38-tool MCP surface.
+Status: **Stage 45 plan-only surface implemented**. This document defines the
+debugger/Cheat Engine boundary for Stage 45-46 work. Stage 45 exposes
+`plan_debugger_ce_action` only; it does not expose a ChatGPT MCP attach tool,
+does not start x64dbg or Cheat Engine, does not read or write target process
+memory, and raises the full MCP surface to 39 tools.
 
 ## Purpose
 
@@ -20,7 +21,7 @@ live movement/control. Stage 44 makes the default route explicit:
 
 | Boundary | Rule |
 |---|---|
-| Current MCP surface | Remains the proven 38-tool Cloudflare named Tunnel product. No debugger/CE tool is exposed in Stage 44. |
+| Current MCP surface | Stage 45 raises this to a 39-tool Cloudflare named Tunnel proof contract by adding `plan_debugger_ce_action`. No attach/CE execution tool is exposed. |
 | x64dbg | Must not be launched, attached, scripted, or used for breakpoints/watchpoints by this stage. |
 | Cheat Engine | Must not be launched, attached, connected through Lua/pipe, or used for scans by this stage. |
 | Target memory | No target process memory read/write is authorized by this design doc. Existing read-only memory helpers remain separate repo workflows and are not exposed as debugger/CE MCP tools. |
@@ -41,7 +42,7 @@ live movement/control. Stage 44 makes the default route explicit:
 
 ## Required Stage 45 plan-only envelope
 
-A future `plan_debugger_ce_action` or equivalent plan-only surface must return:
+The `plan_debugger_ce_action` plan-only surface returns:
 
 | Field | Required behavior |
 |---|---|
@@ -58,6 +59,17 @@ The plan-only surface may write ignored artifacts under a dedicated
 `.riftreader-local\riftreader-chatgpt-mcp\debugger-ce-plans\*` root. It must not
 execute input, launch debuggers, connect CE, set breakpoints/watchpoints, read
 arbitrary files, or promote truth.
+
+## Stage 45 implementation contract
+
+| Item | Stage 45 behavior |
+|---|---|
+| Tool | `plan_debugger_ce_action` in the full MCP profile only. |
+| Artifact root | `.riftreader-local\riftreader-chatgpt-mcp\debugger-ce-plans\*`. |
+| Allowed risks | `static-review`, `artifact-review`, `candidate-triage`, `debugger-attach-plan`, `ce-attach-plan`, and blocked classifications. |
+| Attach execution | Not exposed; `executionReadiness.canExecuteFromThisTool=false`. |
+| Approval | Produces a human prompt/fingerprint only, never a reusable broad token. |
+| Safety truth | `inputSent=false`, `movementSent=false`, `noCheatEngine=true`, `x64dbgAttach=false`, `debuggerAttached=false`, `breakpointsSet=false`, `watchpointsSet=false`, and `targetMemoryBytesWritten=false`. |
 
 ## Required Stage 46 gated-assist preconditions
 
