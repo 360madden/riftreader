@@ -155,7 +155,10 @@ only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smo
 and fails if any tool reports live input, movement, or key release. The auto
 variant first runs the existing read-only
 `scripts\get-rift-window-targets.cmd -Json` target discovery helper and selects
-the `movement` lane target.
+the `movement` lane target. It fails closed if more than one RIFT window is
+discovered; pass exact `--process-id` / `--window-handle`, or add
+`--allow-multiple-targets` only when selecting the sorted `movement` lane is
+intentional.
 
 ## Bindings config
 

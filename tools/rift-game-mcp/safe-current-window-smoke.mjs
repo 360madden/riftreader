@@ -24,6 +24,7 @@ function parseArgs(argv) {
     holdMilliseconds: 250,
     fromTargetDiscovery: false,
     targetLane: 'movement',
+    allowMultipleTargets: false,
     json: false,
     output: null,
   };
@@ -61,6 +62,9 @@ function parseArgs(argv) {
       case '--target-lane':
         parsed.targetLane = nextValue();
         break;
+      case '--allow-multiple-targets':
+        parsed.allowMultipleTargets = true;
+        break;
       case '--output':
         parsed.output = nextValue();
         break;
@@ -84,9 +88,12 @@ function usage() {
     'Usage:',
     '  node safe-current-window-smoke.mjs --process-id <pid> --window-handle <hwnd> --json',
     '  node safe-current-window-smoke.mjs --from-target-discovery --json',
+    '  node safe-current-window-smoke.mjs --from-target-discovery --allow-multiple-targets --json',
     '',
     'Safe behavior:',
     '  - Optional --from-target-discovery calls scripts\\get-rift-window-targets.cmd -Json.',
+    '  - Auto discovery fails closed when multiple RIFT targets are present unless',
+    '    --allow-multiple-targets is explicitly passed.',
     '  - Binds/inspects the exact target window read-only.',
     '  - Calls get_game_control_readiness.',
     '  - Classifies one semantic movement action.',
@@ -244,8 +251,15 @@ async function runReadOnlyTargetDiscovery() {
   });
 }
 
-function selectDiscoveredTarget(discovery, lane) {
+function selectDiscoveredTarget(discovery, { lane, allowMultipleTargets }) {
   const result = discovery?.result ?? {};
+  const targetCount = Number(result.count ?? result.windows?.length ?? 0);
+  if (targetCount > 1 && !allowMultipleTargets) {
+    throw new Error(
+      `Target discovery found ${targetCount} RIFT windows. Pass exact --process-id/--window-handle, or rerun with --allow-multiple-targets if auto lane selection is intentional.`,
+    );
+  }
+
   const selected = result[lane];
   if (!selected) {
     throw new Error(`Target discovery did not return a ${lane} target.`);
@@ -287,7 +301,10 @@ async function runSmoke(args) {
   let targetDiscovery = null;
   if (args.fromTargetDiscovery) {
     targetDiscovery = await runReadOnlyTargetDiscovery();
-    const discoveredTarget = selectDiscoveredTarget(targetDiscovery, args.targetLane);
+    const discoveredTarget = selectDiscoveredTarget(targetDiscovery, {
+      lane: args.targetLane,
+      allowMultipleTargets: args.allowMultipleTargets,
+    });
     args.processId = discoveredTarget.processId;
     args.windowHandle = discoveredTarget.windowHandle;
     args.processName = discoveredTarget.processName;
@@ -431,6 +448,7 @@ async function runSmoke(args) {
             startedAtUtc: targetDiscovery.startedAtUtc,
             endedAtUtc: targetDiscovery.endedAtUtc,
             selectedLane: args.targetLane,
+            allowMultipleTargets: args.allowMultipleTargets,
             count: targetDiscovery.result.count,
             selectedTarget: targetDiscovery.result[args.targetLane] ?? null,
             notes: targetDiscovery.result.notes ?? [],
