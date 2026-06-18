@@ -54,7 +54,7 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   `.riftreader-local\rift-game-mcp\movement-plans\`. It never sends input and
   never creates a reusable approval token; its approval packet is for one
   bounded movement step only.
-- `get_latest_control_artifact` reads the latest readiness/plan/run/session
+- `get_latest_control_artifact` reads the latest readiness/plan/run/session/current-window-smoke
   artifact summaries under `.riftreader-local\rift-game-mcp\` without accepting
   arbitrary paths.
 - Every other tool uses that bound window.
@@ -127,6 +127,7 @@ Safe movement-control planning:
 { "tool": "plan_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "release_all_movement_keys", "arguments": { "dryRun": true } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "movement-plan" } }
+{ "tool": "get_latest_control_artifact", "arguments": { "kind": "current-window-smoke" } }
 ```
 
 These planning tools are not live execution tools. They do not focus the game

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -14,6 +14,12 @@ const movementPlanRoot = path.join(
   '.riftreader-local',
   'rift-game-mcp',
   'movement-plans',
+);
+const currentWindowSmokeRoot = path.join(
+  repoRoot,
+  '.riftreader-local',
+  'rift-game-mcp',
+  'current-window-smoke',
 );
 
 function getStructured(result) {
@@ -182,6 +188,44 @@ try {
   assert.equal(latest.requestedKind, 'movement-plan');
   assert.ok(latest.latest, 'latest movement-plan artifact should be present');
   assert.equal(path.resolve(latest.latest.path), path.resolve(plan.artifactPaths.summaryJson));
+
+  await mkdir(currentWindowSmokeRoot, { recursive: true });
+  const smokeArtifactPath = path.join(
+    currentWindowSmokeRoot,
+    `test-current-window-smoke-${Date.now()}.json`,
+  );
+  await writeFile(
+    smokeArtifactPath,
+    `${JSON.stringify({
+      schemaVersion: 1,
+      kind: 'rift-game-mcp-current-window-safe-smoke',
+      status: 'passed',
+      ok: true,
+      generatedAtUtc: new Date().toISOString(),
+      safety: {
+        movementSent: false,
+        inputSent: false,
+        keysReleased: false,
+        noCheatEngine: true,
+        x64dbgAttach: false,
+        providerWrites: false,
+        savedVariablesUsedAsLiveTruth: false,
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+
+  const latestSmoke = getStructured(
+    await client.callTool({
+      name: 'get_latest_control_artifact',
+      arguments: { kind: 'current-window-smoke' },
+    }),
+  );
+  assert.equal(latestSmoke.ok, true);
+  assert.equal(latestSmoke.requestedKind, 'current-window-smoke');
+  assert.ok(latestSmoke.latest, 'latest current-window-smoke artifact should be present');
+  assert.equal(path.resolve(latestSmoke.latest.path), path.resolve(smokeArtifactPath));
+  assert.equal(latestSmoke.latestByKind['current-window-smoke'].kind, 'current-window-smoke');
 
   console.log(
     JSON.stringify(

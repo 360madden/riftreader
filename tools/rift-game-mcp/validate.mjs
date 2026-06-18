@@ -184,8 +184,12 @@ try {
   }
 
   const latestArtifactTool = result.tools.find((tool) => tool.name === 'get_latest_control_artifact');
+  const latestArtifactProperties = latestArtifactTool?.inputSchema?.properties ?? {};
   if (!latestArtifactTool) {
     throw new Error('get_latest_control_artifact tool is missing.');
+  }
+  if (!('kind' in latestArtifactProperties)) {
+    throw new Error('get_latest_control_artifact input schema is missing kind.');
   }
   if (latestArtifactTool.annotations?.readOnlyHint !== true || latestArtifactTool.annotations?.destructiveHint !== false) {
     throw new Error('get_latest_control_artifact annotations must mark it read-only and non-destructive.');

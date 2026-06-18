@@ -48,6 +48,7 @@ const controlArtifactDirs = Object.freeze({
   movementPlan: path.join(localControlRoot, 'movement-plans'),
   movementRun: path.join(localControlRoot, 'movement-runs'),
   controlSession: path.join(localControlRoot, 'control-sessions'),
+  currentWindowSmoke: path.join(localControlRoot, 'current-window-smoke'),
 });
 const movementPlanMaxHoldMilliseconds = 1500;
 
@@ -863,7 +864,7 @@ async function collectMovementRunArtifacts() {
 
 async function getLatestControlArtifact({ kind = 'all' } = {}) {
   const selectedKinds = kind === 'all'
-    ? ['readiness', 'movement-plan', 'movement-run', 'control-session']
+    ? ['readiness', 'movement-plan', 'movement-run', 'control-session', 'current-window-smoke']
     : [kind];
   const items = [];
 
@@ -879,6 +880,9 @@ async function getLatestControlArtifact({ kind = 'all' } = {}) {
   if (selectedKinds.includes('movement-run')) {
     items.push(...await collectMovementRunArtifacts());
   }
+  if (selectedKinds.includes('current-window-smoke')) {
+    items.push(...await collectJsonArtifacts(controlArtifactDirs.currentWindowSmoke, 'current-window-smoke'));
+  }
 
   items.sort((a, b) => b.mtimeMs - a.mtimeMs);
   return buildControlPayload({
@@ -891,7 +895,7 @@ async function getLatestControlArtifact({ kind = 'all' } = {}) {
     artifactCount: items.length,
     latest: items[0] ?? null,
     latestByKind: Object.fromEntries(
-      ['readiness', 'movement-plan', 'movement-run', 'control-session'].map((itemKind) => [
+      ['readiness', 'movement-plan', 'movement-run', 'control-session', 'current-window-smoke'].map((itemKind) => [
         itemKind,
         items.find((item) => item.kind === itemKind) ?? null,
       ]),
@@ -2757,10 +2761,10 @@ server.registerTool(
   {
     title: 'Get latest control artifact',
     description:
-      'Read-only lookup of latest local RIFT game-control artifacts under .riftreader-local/rift-game-mcp, including readiness, movement-plan, movement-run, and control-session summaries. Does not read arbitrary paths.',
+      'Read-only lookup of latest local RIFT game-control artifacts under .riftreader-local/rift-game-mcp, including readiness, movement-plan, movement-run, control-session, and current-window-smoke summaries. Does not read arbitrary paths.',
     inputSchema: {
       kind: z
-        .enum(['all', 'readiness', 'movement-plan', 'movement-run', 'control-session'])
+        .enum(['all', 'readiness', 'movement-plan', 'movement-run', 'control-session', 'current-window-smoke'])
         .default('all')
         .describe('Artifact kind to inspect.'),
     },
