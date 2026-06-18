@@ -185,6 +185,7 @@ try {
     'get_bound_window_state',
     'get_game_control_readiness',
     'get_latest_control_artifact',
+    'get_movement_execution_preflight',
     'get_riftreader_current_truth',
     'inspect_bound_window',
     'open_bags',
@@ -205,6 +206,7 @@ try {
   }
   const controlOutputSchemaSummaries = [
     'get_game_control_readiness',
+    'get_movement_execution_preflight',
     'classify_game_action',
     'plan_movement_step',
     'get_latest_control_artifact',
@@ -278,6 +280,35 @@ try {
     }
   }
 
+  const movementPreflightTool = result.tools.find((tool) => tool.name === 'get_movement_execution_preflight');
+  const movementPreflightProperties = movementPreflightTool?.inputSchema?.properties ?? {};
+  const requiredMovementPreflightProperties = [
+    'semanticAction',
+    'keyChord',
+    'holdMilliseconds',
+    'target',
+    'verification',
+    'requireForeground',
+    'maxCurrentTruthAgeMilliseconds',
+  ];
+  const missingMovementPreflightProperties = requiredMovementPreflightProperties.filter(
+    (propertyName) => !(propertyName in movementPreflightProperties),
+  );
+  if (!movementPreflightTool) {
+    throw new Error('get_movement_execution_preflight tool is missing.');
+  }
+  if (missingMovementPreflightProperties.length > 0) {
+    throw new Error(
+      `get_movement_execution_preflight input schema is missing properties: ${missingMovementPreflightProperties.join(', ')}`,
+    );
+  }
+  if (
+    movementPreflightTool.annotations?.readOnlyHint !== true ||
+    movementPreflightTool.annotations?.destructiveHint !== false
+  ) {
+    throw new Error('get_movement_execution_preflight annotations must mark it read-only and non-destructive.');
+  }
+
   const classifyTool = result.tools.find((tool) => tool.name === 'classify_game_action');
   const classifyProperties = classifyTool?.inputSchema?.properties ?? {};
   const requiredClassifyProperties = ['actionName', 'keyChord', 'holdMilliseconds'];
@@ -346,6 +377,7 @@ try {
         clickClientProperties: Object.keys(clickProperties).sort(),
         sendKeyProperties: Object.keys(sendKeyProperties).sort(),
         resizeGameWindowProperties: Object.keys(resizeProperties).sort(),
+        movementExecutionPreflightProperties: Object.keys(movementPreflightProperties).sort(),
         classifyGameActionProperties: Object.keys(classifyProperties).sort(),
         planMovementStepProperties: Object.keys(planProperties).sort(),
         releaseAllMovementKeysProperties: Object.keys(releaseMovementKeysProperties).sort(),

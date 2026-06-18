@@ -99,6 +99,7 @@ const toolRiskClasses = Object.freeze({
   wait_for_frame_change: 'readOnly',
   suggest_inventory_region: 'readOnlyConfigWriteOptional',
   get_game_control_readiness: 'readOnly',
+  get_movement_execution_preflight: 'readOnly',
   classify_game_action: 'readOnly',
   plan_movement_step: 'localIgnoredArtifactWrite',
   get_latest_control_artifact: 'readOnly',
@@ -607,6 +608,240 @@ function normalizeTargetFacts(target) {
           ? 'bound-window-state'
           : 'missing',
   };
+}
+
+function hasOwnTargetFacts(target) {
+  return Boolean(
+    target &&
+      typeof target === 'object' &&
+      !Array.isArray(target) &&
+      Object.keys(target).length > 0,
+  );
+}
+
+function firstPresent(source, names) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  for (const name of names) {
+    const value = source[name];
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function normalizeOptionalProcessId(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = Number(value);
+  return Number.isInteger(normalized) && normalized > 0 ? normalized : null;
+}
+
+function normalizeComparableWindowHandle(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = raw.toLowerCase().startsWith('0x')
+      ? BigInt(raw)
+      : BigInt(raw);
+    return `0x${parsed.toString(16)}`;
+  } catch {
+    return raw.toLowerCase();
+  }
+}
+
+function normalizeComparableTimestamp(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const parsed = Date.parse(String(value));
+  if (!Number.isFinite(parsed)) {
+    return String(value).trim();
+  }
+
+  return new Date(parsed).toISOString();
+}
+
+function normalizeOptionalBoolean(value) {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function normalizeRectDimension(rect, dimension) {
+  if (!rect || typeof rect !== 'object') {
+    return null;
+  }
+
+  const direct = Number(rect[dimension] ?? rect[`${dimension[0].toUpperCase()}${dimension.slice(1)}`]);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+
+  if (dimension === 'width') {
+    const right = Number(rect.right ?? rect.Right);
+    const left = Number(rect.left ?? rect.Left);
+    return Number.isFinite(right) && Number.isFinite(left) ? right - left : null;
+  }
+
+  if (dimension === 'height') {
+    const bottom = Number(rect.bottom ?? rect.Bottom);
+    const top = Number(rect.top ?? rect.Top);
+    return Number.isFinite(bottom) && Number.isFinite(top) ? bottom - top : null;
+  }
+
+  return null;
+}
+
+function summarizeRequestedTargetFacts(target) {
+  const provided = hasOwnTargetFacts(target);
+  const source = provided ? target : {};
+  const windowHandle = firstPresent(source, ['windowHandle', 'targetWindowHandle', 'hwnd']);
+  const processStartTimeUtc = firstPresent(source, [
+    'processStartTimeUtc',
+    'processStartUtc',
+    'processStart',
+  ]);
+
+  return {
+    provided,
+    source: provided ? 'arguments' : 'omitted',
+    processId: normalizeOptionalProcessId(firstPresent(source, ['processId', 'pid'])),
+    processName: firstPresent(source, ['processName']) ?? null,
+    windowHandle,
+    windowHandleComparable: normalizeComparableWindowHandle(windowHandle),
+    title: firstPresent(source, ['title', 'windowTitle']) ?? null,
+    titleContains: firstPresent(source, ['titleContains']) ?? null,
+    processStartTimeUtc,
+    processStartComparable: normalizeComparableTimestamp(processStartTimeUtc),
+  };
+}
+
+function summarizeInspectionTargetFacts(inspect) {
+  const window = inspect?.result?.window ?? inspect?.window ?? null;
+  if (!window) {
+    return null;
+  }
+
+  const windowHandle = firstPresent(window, [
+    'windowHandleHex',
+    'windowHandle',
+    'targetWindowHandle',
+    'hwnd',
+  ]);
+  const processStartTimeUtc = firstPresent(window, [
+    'processStartTimeUtc',
+    'processStartUtc',
+    'processStart',
+  ]);
+  const clientRect = window.clientRect ?? window.ClientRect ?? null;
+
+  return {
+    source: 'inspect_bound_window',
+    processId: normalizeOptionalProcessId(firstPresent(window, ['processId', 'pid'])),
+    processName: firstPresent(window, ['processName']) ?? null,
+    windowHandle,
+    windowHandleComparable: normalizeComparableWindowHandle(windowHandle),
+    title: firstPresent(window, ['title', 'windowTitle']) ?? null,
+    processStartTimeUtc,
+    processStartComparable: normalizeComparableTimestamp(processStartTimeUtc),
+    isForeground: normalizeOptionalBoolean(window.isForeground),
+    isVisible: normalizeOptionalBoolean(window.isVisible),
+    isMinimized: normalizeOptionalBoolean(window.isMinimized),
+    windowRect: window.windowRect ?? window.WindowRect ?? null,
+    clientRect,
+    clientWidth: normalizeRectDimension(clientRect, 'width'),
+    clientHeight: normalizeRectDimension(clientRect, 'height'),
+  };
+}
+
+function summarizeCurrentTruthTargetFacts(currentTruth) {
+  const target = currentTruth?.target ?? {};
+  const windowHandle = firstPresent(target, [
+    'targetWindowHandle',
+    'windowHandle',
+    'windowHandleHex',
+    'hwnd',
+  ]);
+  const processStartTimeUtc = firstPresent(target, [
+    'processStartUtc',
+    'processStartTimeUtc',
+    'processStart',
+  ]);
+
+  return {
+    source: 'docs/recovery/current-truth.json',
+    processId: normalizeOptionalProcessId(firstPresent(target, ['processId', 'pid'])),
+    processName: firstPresent(target, ['processName']) ?? null,
+    windowHandle,
+    windowHandleComparable: normalizeComparableWindowHandle(windowHandle),
+    title: firstPresent(target, ['windowTitle', 'title']) ?? null,
+    processStartTimeUtc,
+    processStartComparable: normalizeComparableTimestamp(processStartTimeUtc),
+    moduleBase: firstPresent(target, ['moduleBase']) ?? null,
+    live: normalizeOptionalBoolean(target.live),
+    inWorld: normalizeOptionalBoolean(target.inWorld),
+    status: target.status ?? null,
+  };
+}
+
+function compareTargetIdentity({
+  blockers,
+  warnings,
+  expected,
+  actual,
+  scope,
+  compareProcessStart = false,
+}) {
+  if (!expected || !actual) {
+    return;
+  }
+
+  if (expected.processId && !actual.processId) {
+    blockers.push(`${scope}-process-id-unavailable`);
+  } else if (
+    expected.processId &&
+    actual.processId &&
+    expected.processId !== actual.processId
+  ) {
+    blockers.push(`${scope}-process-id-mismatch:${expected.processId}!=${actual.processId}`);
+  }
+
+  if (expected.windowHandleComparable && !actual.windowHandleComparable) {
+    blockers.push(`${scope}-window-handle-unavailable`);
+  } else if (
+    expected.windowHandleComparable &&
+    actual.windowHandleComparable &&
+    expected.windowHandleComparable !== actual.windowHandleComparable
+  ) {
+    blockers.push(
+      `${scope}-window-handle-mismatch:${expected.windowHandleComparable}!=${actual.windowHandleComparable}`,
+    );
+  }
+
+  if (!compareProcessStart || !expected.processStartComparable) {
+    return;
+  }
+
+  if (!actual.processStartComparable) {
+    warnings.push(`${scope}-process-start-not-available-from-window-inspection`);
+  } else if (expected.processStartComparable !== actual.processStartComparable) {
+    blockers.push(
+      `${scope}-process-start-mismatch:${expected.processStartComparable}!=${actual.processStartComparable}`,
+    );
+  }
 }
 
 function movementPlanId() {
@@ -1242,6 +1477,105 @@ function getReadinessRecommendation({ boundState, inspect, currentTruth, config,
   };
 }
 
+function summarizeCurrentTruthFreshness(currentTruth, maxAgeMilliseconds) {
+  const updatedAtUtc = currentTruth?.updatedAtUtc ?? null;
+  const parsed = updatedAtUtc ? Date.parse(updatedAtUtc) : Number.NaN;
+  const generatedAtMs = Date.now();
+  const ageMilliseconds = Number.isFinite(parsed) ? generatedAtMs - parsed : null;
+  const fresh =
+    ageMilliseconds !== null &&
+    ageMilliseconds >= 0 &&
+    ageMilliseconds <= maxAgeMilliseconds;
+
+  return {
+    updatedAtUtc,
+    ageMilliseconds,
+    maxAgeMilliseconds,
+    fresh,
+    status: fresh
+      ? 'fresh'
+      : ageMilliseconds === null
+        ? 'missing-or-invalid-updatedAtUtc'
+        : 'stale',
+  };
+}
+
+function getMovementPreflightRecommendation({ blockers }) {
+  if (blockers.includes('game-window-not-bound')) {
+    return {
+      key: 'bind-exact-game-window',
+      reason: 'No RIFT game window is bound in this MCP session.',
+      tool: 'find_game_window',
+    };
+  }
+
+  if (
+    blockers.includes('bound-window-minimized') ||
+    blockers.includes('bound-window-client-area-empty')
+  ) {
+    return {
+      key: 'restore-game-window-before-preflight',
+      reason:
+        'The bound window is minimized or has no client area, so visual baseline and post-action verification cannot be trusted.',
+      tool: null,
+    };
+  }
+
+  if (blockers.some((item) => item.startsWith('current-truth-target-'))) {
+    return {
+      key: 'refresh-current-truth-for-current-target',
+      reason:
+        'docs/recovery/current-truth.json does not match the currently inspected target identity.',
+      tool: 'get_riftreader_current_truth',
+    };
+  }
+
+  if (
+    blockers.includes('current-truth-too-old') ||
+    blockers.includes('current-truth-updatedAtUtc-missing-or-invalid')
+  ) {
+    return {
+      key: 'refresh-current-pid-proof-readback',
+      reason:
+        'Current-truth must be refreshed against the exact current PID/HWND before live movement execution.',
+      tool: null,
+    };
+  }
+
+  if (blockers.includes('bound-window-not-foreground')) {
+    return {
+      key: 'focus-exact-bound-window',
+      reason:
+        'The bound window must be foreground before any live input step.',
+      tool: 'focus_game_window',
+    };
+  }
+
+  if (blockers.some((item) => item.startsWith('verification-'))) {
+    return {
+      key: 'require-live-verification-surfaces',
+      reason:
+        'Movement execution requires visual frame-change and fresh live coordinate-delta verification.',
+      tool: null,
+    };
+  }
+
+  if (blockers.length > 0) {
+    return {
+      key: 'resolve-preflight-blockers',
+      reason: 'Movement execution preflight is blocked.',
+      blockers,
+    };
+  }
+
+  return {
+    key: 'ready-for-single-bounded-movement-approval',
+    reason:
+      'Preflight found no local blockers. The next live phase is one exact-target focus/capture/bounded-input/release/verify sequence.',
+    tool: 'focus_game_window',
+  };
+}
+
 async function getGameControlReadiness() {
   const blockers = [];
   const warnings = [];
@@ -1321,6 +1655,224 @@ async function getGameControlReadiness() {
     }),
     note:
       'This readiness tool is read-only: it does not focus, click, resize, send keys, attach debuggers, write providers, or use SavedVariables as live truth.',
+  });
+}
+
+async function getMovementExecutionPreflight({
+  semanticAction,
+  keyChord,
+  holdMilliseconds = 500,
+  target = {},
+  verification = {},
+  requireForeground = true,
+  maxCurrentTruthAgeMilliseconds = 5 * 60 * 1000,
+} = {}) {
+  const requestedHold = normalizeInteger(holdMilliseconds, 'holdMilliseconds', {
+    min: 10,
+  });
+  const blockers = [];
+  const warnings = [];
+
+  if (semanticAction && keyChord) {
+    warnings.push('keyChord-ignored-because-semanticAction-provided');
+  }
+
+  const classification = classifyGameAction({
+    actionName: semanticAction,
+    keyChord,
+    holdMilliseconds: requestedHold,
+  });
+  blockers.push(...classification.blockers);
+  warnings.push(...classification.warnings);
+
+  if (!classification.movementRisk) {
+    blockers.push('movement-execution-preflight-requires-movement-risk-action');
+  }
+
+  if (requestedHold > movementPlanMaxHoldMilliseconds) {
+    blockers.push(
+      `holdMilliseconds-exceeds-max:${requestedHold}>${movementPlanMaxHoldMilliseconds}`,
+    );
+  }
+
+  const verificationRequirements = {
+    requireFrameChange: verification?.requireFrameChange ?? true,
+    requireLiveCoordinateDelta: verification?.requireLiveCoordinateDelta ?? true,
+    coordinateTolerance: verification?.coordinateTolerance ?? 0.25,
+  };
+  if (verificationRequirements.requireFrameChange !== true) {
+    blockers.push('verification-frame-change-required');
+  }
+  if (verificationRequirements.requireLiveCoordinateDelta !== true) {
+    blockers.push('verification-live-coordinate-delta-required');
+  }
+
+  const boundState = getBoundWindowState();
+  const requestedTarget = summarizeRequestedTargetFacts(target);
+  let inspect = null;
+  let inspectedTarget = null;
+
+  if (!boundState.bound) {
+    blockers.push('game-window-not-bound');
+  } else {
+    try {
+      inspect = {
+        ok: true,
+        result: await inspectBoundWindow(),
+      };
+      inspectedTarget = summarizeInspectionTargetFacts(inspect);
+    } catch (error) {
+      inspect = {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+      blockers.push('bound-window-inspect-failed');
+    }
+  }
+
+  if (inspectedTarget) {
+    if (inspectedTarget.isVisible === false) {
+      blockers.push('bound-window-not-visible');
+    }
+    if (inspectedTarget.isMinimized === true) {
+      blockers.push('bound-window-minimized');
+    }
+    if (
+      inspectedTarget.clientWidth !== null &&
+      inspectedTarget.clientHeight !== null &&
+      (inspectedTarget.clientWidth <= 0 || inspectedTarget.clientHeight <= 0)
+    ) {
+      blockers.push('bound-window-client-area-empty');
+    }
+    if (requireForeground && inspectedTarget.isForeground !== true) {
+      blockers.push('bound-window-not-foreground');
+    }
+    if (requestedTarget.provided) {
+      compareTargetIdentity({
+        blockers,
+        warnings,
+        expected: requestedTarget,
+        actual: inspectedTarget,
+        scope: 'requested-target',
+        compareProcessStart: true,
+      });
+    }
+  }
+
+  let currentTruth = null;
+  let truthSummary = null;
+  let currentTruthTarget = null;
+  let currentTruthFreshness = null;
+
+  try {
+    currentTruth = await getRiftReaderCurrentTruth();
+    if (!currentTruth.ok) {
+      blockers.push('current-truth-not-readable');
+    }
+  } catch (error) {
+    currentTruth = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+    blockers.push('current-truth-read-failed');
+  }
+
+  truthSummary = summarizeCurrentTruthForReadiness(currentTruth);
+  currentTruthTarget = summarizeCurrentTruthTargetFacts(currentTruth);
+  currentTruthFreshness = summarizeCurrentTruthFreshness(
+    currentTruth,
+    maxCurrentTruthAgeMilliseconds,
+  );
+
+  if (currentTruth?.ok) {
+    if (currentTruthFreshness.status === 'missing-or-invalid-updatedAtUtc') {
+      blockers.push('current-truth-updatedAtUtc-missing-or-invalid');
+    } else if (!currentTruthFreshness.fresh) {
+      blockers.push('current-truth-too-old');
+    }
+
+    if (currentTruth?.movementGate?.allowed !== true) {
+      blockers.push('current-truth-movement-gate-not-allowed');
+    }
+
+    const truthBlockers = Array.isArray(currentTruth.currentBlockers)
+      ? currentTruth.currentBlockers
+      : [];
+    blockers.push(...truthBlockers.map((item) => `current-truth:${item}`));
+
+    if (inspectedTarget) {
+      compareTargetIdentity({
+        blockers,
+        warnings,
+        expected: currentTruthTarget,
+        actual: inspectedTarget,
+        scope: 'current-truth-target',
+        compareProcessStart: true,
+      });
+    }
+  }
+
+  const ok = blockers.length === 0;
+  return buildControlPayload({
+    kind: 'rift-game-mcp-movement-execution-preflight',
+    status: ok ? 'ready-for-execution-approval' : 'blocked',
+    ok,
+    blockers: [...new Set(blockers)],
+    warnings: [...new Set(warnings)],
+    safety: buildSafetyFlags({
+      keysReleased: false,
+    }),
+    generatedAtUtc: new Date().toISOString(),
+    phase: 'phase-9-movement-execution-preflight',
+    semanticAction: classification.semanticAction,
+    primitiveTool: classification.primitiveTool,
+    keyChord: classification.keyChord,
+    keyClassification: classification.keyClassification,
+    riskClass: classification.riskClass,
+    movementRisk: classification.movementRisk,
+    requiresApproval: true,
+    requiredApprovalScope: 'single-bounded-movement-step-live-execution',
+    reusableApprovalTokenGenerated: false,
+    holdMilliseconds: requestedHold,
+    maxHoldMilliseconds: movementPlanMaxHoldMilliseconds,
+    requireForeground,
+    targetFacts: {
+      requested: requestedTarget,
+      inspected: inspectedTarget,
+      currentTruth: currentTruthTarget,
+    },
+    boundWindowState: boundState,
+    boundWindowInspection: inspect,
+    currentTruth: truthSummary,
+    currentTruthFreshness,
+    verificationRequirements,
+    phaseReadiness: {
+      phase9PreflightReady: ok,
+      phase10ExecutionReady: ok,
+      liveInputStillRequiresOperatorApproval: true,
+    },
+    approvalPacket: {
+      required: true,
+      approvalScope: 'single-bounded-movement-step-live-execution',
+      reusableApprovalTokenGenerated: false,
+      operatorPrompt:
+        `Approve exactly one Phase 10 bounded live RIFT movement step for ${classification.semanticAction ?? 'unknown-action'} ` +
+        `(${classification.keyChord ?? 'no-key'}) with holdMilliseconds=${requestedHold}. ` +
+        'This approval must be exact-target only and must not be reused for route loops, proof promotion, x64dbg/CE, provider writes, public-route live control, or any other movement step.',
+    },
+    executionSequencePreview: [
+      'find_game_window with exact target if not already bound',
+      'focus_game_window',
+      'capture_game_window baseline',
+      'send_key with allowMovementKeys=true for exactly this key/hold',
+      'release_all_movement_keys',
+      'wait_for_frame_change',
+      'capture_game_window final',
+      'verify fresh live coordinate delta; do not use SavedVariables as live truth',
+    ],
+    recommendedNextAction: getMovementPreflightRecommendation({ blockers }),
+    note:
+      'This preflight tool is read-only: it does not focus, click, resize, capture, send keys, release keys, attach debuggers, write provider repos, update proof, or use SavedVariables as live truth.',
   });
 }
 
@@ -2627,6 +3179,93 @@ server.registerTool(
   async () =>
     runLoggedTool('get_game_control_readiness', async () =>
       getGameControlReadiness(),
+    ),
+);
+
+server.registerTool(
+  'get_movement_execution_preflight',
+  {
+    title: 'Get movement execution preflight',
+    description:
+      'Read-only Phase 9 preflight for one future bounded RIFT movement step. Classifies the requested movement action, inspects the exact bound window if available, compares current-truth target identity, checks movement-gate freshness, and reports blockers before any Phase 10 live input. Does not focus, capture, click, resize, send keys, release keys, attach debuggers, write provider repos, promote proof, or use SavedVariables as live truth.',
+    inputSchema: {
+      semanticAction: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Movement semantic action such as move_forward, move_backward, strafe_left, strafe_right, turn_left, turn_right, jump, ascend, or descend.',
+        ),
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Raw movement-risk key or chord to preflight when no semantic action is supplied, e.g. w, shift+w, space, or left.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(500)
+        .describe('Planned key hold duration for the future bounded movement step.'),
+      target: exactTargetInputSchema
+        .optional()
+        .describe(
+          'Optional exact target facts to compare against the currently bound/inspected window.',
+        ),
+      verification: z
+        .object({
+          requireFrameChange: z.boolean().optional(),
+          requireLiveCoordinateDelta: z.boolean().optional(),
+          coordinateTolerance: z.number().positive().optional(),
+        })
+        .optional()
+        .describe('Verification requirements for the future execution step.'),
+      requireForeground: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, blocks unless the inspected bound window is already foreground for immediate live execution.',
+        ),
+      maxCurrentTruthAgeMilliseconds: z
+        .number()
+        .int()
+        .min(1000)
+        .max(86400000)
+        .default(300000)
+        .describe(
+          'Maximum acceptable age for docs/recovery/current-truth.json updatedAtUtc before live movement execution.',
+        ),
+    },
+    outputSchema: controlToolOutputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async ({
+    semanticAction,
+    keyChord,
+    holdMilliseconds,
+    target,
+    verification,
+    requireForeground,
+    maxCurrentTruthAgeMilliseconds,
+  }) =>
+    runLoggedTool('get_movement_execution_preflight', async () =>
+      getMovementExecutionPreflight({
+        semanticAction,
+        keyChord,
+        holdMilliseconds,
+        target,
+        verification,
+        requireForeground,
+        maxCurrentTruthAgeMilliseconds,
+      }),
     ),
 );
 

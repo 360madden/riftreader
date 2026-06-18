@@ -9,6 +9,7 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `inspect_bound_window`
 - `get_riftreader_current_truth`
 - `get_game_control_readiness`
+- `get_movement_execution_preflight`
 - `classify_game_action`
 - `plan_movement_step`
 - `get_latest_control_artifact`
@@ -46,6 +47,12 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   window is bound, current-truth movement gates/blockers, config readiness, and
   the next safe action. It does not focus, resize, click, send keys, attach
   debuggers, write providers, or use SavedVariables as live truth.
+- `get_movement_execution_preflight` is the read-only Phase 9 gate for one
+  future bounded movement step. It classifies the requested movement action,
+  inspects the bound window if available, blocks on stale/mismatched
+  current-truth target identity, minimized or zero-client windows, missing
+  foreground state, overlong holds, and missing live verification requirements.
+  It does not capture, focus, release keys, or send input.
 - `classify_game_action` is read-only and classifies semantic actions or raw
   key chords. Movement-risk keys/actions (`W/A/S/D/Q/E`, arrows, Space, and
   semantic movement aliases) are movement input, blocked by default, and require
@@ -125,6 +132,7 @@ Safe movement-control planning:
 { "tool": "get_game_control_readiness" }
 { "tool": "classify_game_action", "arguments": { "actionName": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "plan_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
+{ "tool": "get_movement_execution_preflight", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "release_all_movement_keys", "arguments": { "dryRun": true } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "movement-plan" } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "current-window-smoke" } }
@@ -157,8 +165,9 @@ npm run test:smoke
 
 This smoke binds/inspects the exact target, checks readiness, classifies the
 configured semantic movement action, calls `release_all_movement_keys` with
-`dryRun: true`, and calls `plan_movement_step` with `dryRun: true`. It writes
-only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smoke\`
+`dryRun: true`, calls `plan_movement_step` with `dryRun: true`, and calls
+`get_movement_execution_preflight` read-only to report Phase 10 blockers. It
+writes only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smoke\`
 and fails if any tool reports live input, movement, or key release. The auto
 variant first runs the existing read-only
 `scripts\get-rift-window-targets.cmd -Json` target discovery helper and selects
@@ -218,7 +227,9 @@ node safe-current-window-smoke.mjs --help
 That launches the MCP server over stdio, verifies the tool list and control
 output/safety schemas, and runs the no-input current-window smoke self-test.
 The control test exercises action classification and ignored movement-plan
-artifact writing without touching the live game window. Its classification
+artifact writing without touching the live game window. It also verifies the
+read-only movement execution preflight blocks safely when no exact window is
+bound and when a non-movement semantic action is supplied. Its classification
 matrix covers the fixed movement-risk key set, modifier chords containing
 movement keys, a non-movement chord, unknown-action fail-closed behavior, and
 inventory semantic UI actions.

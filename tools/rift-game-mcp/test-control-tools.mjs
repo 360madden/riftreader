@@ -247,6 +247,53 @@ try {
     assertControlSafety(inventoryClassification, `${actionName} classification`);
   }
 
+  const noBoundMovementPreflight = getStructured(
+    await client.callTool({
+      name: 'get_movement_execution_preflight',
+      arguments: {
+        semanticAction: 'move_forward',
+        holdMilliseconds: 250,
+        verification: {
+          requireFrameChange: true,
+          requireLiveCoordinateDelta: true,
+          coordinateTolerance: 0.25,
+        },
+      },
+    }),
+  );
+  assert.equal(noBoundMovementPreflight.ok, false);
+  assert.equal(noBoundMovementPreflight.status, 'blocked');
+  assert.equal(noBoundMovementPreflight.kind, 'rift-game-mcp-movement-execution-preflight');
+  assert.equal(noBoundMovementPreflight.phase, 'phase-9-movement-execution-preflight');
+  assert.equal(noBoundMovementPreflight.movementRisk, true);
+  assert.equal(noBoundMovementPreflight.primitiveTool, 'send_key');
+  assert.equal(noBoundMovementPreflight.requiresApproval, true);
+  assert.equal(
+    noBoundMovementPreflight.requiredApprovalScope,
+    'single-bounded-movement-step-live-execution',
+  );
+  assert.equal(noBoundMovementPreflight.reusableApprovalTokenGenerated, false);
+  assert.ok(noBoundMovementPreflight.blockers.includes('game-window-not-bound'));
+  assert.equal(noBoundMovementPreflight.phaseReadiness.phase9PreflightReady, false);
+  assert.equal(noBoundMovementPreflight.phaseReadiness.phase10ExecutionReady, false);
+  assert.equal('approvalToken' in noBoundMovementPreflight, false);
+  assertControlSafety(noBoundMovementPreflight, 'no-bound movement preflight');
+
+  const nonMovementPreflight = getStructured(
+    await client.callTool({
+      name: 'get_movement_execution_preflight',
+      arguments: { semanticAction: 'hotbar_1', holdMilliseconds: 80 },
+    }),
+  );
+  assert.equal(nonMovementPreflight.ok, false);
+  assert.equal(nonMovementPreflight.movementRisk, false);
+  assert.ok(
+    nonMovementPreflight.blockers.includes(
+      'movement-execution-preflight-requires-movement-risk-action',
+    ),
+  );
+  assertControlSafety(nonMovementPreflight, 'non-movement preflight');
+
   const releaseDryRun = getStructured(
     await client.callTool({
       name: 'release_all_movement_keys',
@@ -390,6 +437,7 @@ try {
         summaryJson: plan.artifactPaths.summaryJson,
         checkedTools: [
           'classify_game_action',
+          'get_movement_execution_preflight',
           'release_all_movement_keys',
           'plan_movement_step',
           'get_latest_control_artifact',
