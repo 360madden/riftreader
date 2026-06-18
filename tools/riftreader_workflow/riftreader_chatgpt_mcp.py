@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 try:
     from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from . import live_rift_state, local_artifact_bridge as bridge
+    from . import live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
     from . import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -44,7 +44,7 @@ try:
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from riftreader_workflow import live_rift_state, local_artifact_bridge as bridge
+    from riftreader_workflow import live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
     from riftreader_workflow import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -128,6 +128,18 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
     "get_live_rift_readonly_state": frozenset(),
     "get_live_target_identity_gate": frozenset(),
     "get_live_no_input_proof_status": frozenset(),
+    "plan_live_control_action": frozenset(
+        {
+            "actionKind",
+            "semanticAction",
+            "keyChord",
+            "holdMilliseconds",
+            "targetIdentity",
+            "verificationRequirements",
+            "stopCondition",
+            "dryRun",
+        }
+    ),
     "get_package_proposal_template": frozenset(),
     "submit_package_proposal": frozenset({"proposal"}),
     "list_inbox": frozenset(),
@@ -647,13 +659,14 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     },
     {
         "key": "live-rift-control",
-        "targetToolName": "control_rift_live",
-        "currentStatus": "read-only-no-input-surfaces-exposed",
+        "targetToolName": "plan_live_control_action",
+        "currentStatus": "plan-only-live-control-surface-exposed",
         "riskClass": "live-game-state-mutation",
         "minimumGate": "explicit-live-approval-and-current-target-proof",
         "safePrecursorTools": [
-            "get_live_rift_readonly_state",
             "get_live_target_identity_gate",
+            "plan_live_control_action",
+            "get_live_rift_readonly_state",
             "get_live_no_input_proof_status",
         ],
         "requiredSafeguards": [
@@ -688,17 +701,18 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 42,
-    "currentStageName": "Live control dry-run/planning tool",
+    "currentStage": 43,
+    "currentStageName": "Expose minimal live action tool",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
         "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed, "
-        "and Stage 41 live-control design is complete-local; "
-        "provider writes, live input/movement, proof promotion, CE, and x64dbg remain absent."
+        "Stage 41 live-control design is complete-local, and Stage 42 exposes plan-only live-control action "
+        "artifacts that do not execute input; provider writes, live input/movement execution, proof promotion, "
+        "CE, and x64dbg remain absent."
     ),
-    "nextStage": 43,
-    "nextStageName": "Expose minimal live action tool",
+    "nextStage": 44,
+    "nextStageName": "Debugger/CE static-first design",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -733,7 +747,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 39, "name": "Live target identity gate", "status": "complete-local"},
         {"stage": 40, "name": "Live no-input proof tool", "status": "complete-local"},
         {"stage": 41, "name": "Live movement/control design spec", "status": "complete-local"},
-        {"stage": 42, "name": "Live control dry-run/planning tool", "status": "pending"},
+        {"stage": 42, "name": "Live control dry-run/planning tool", "status": "complete-local"},
+        {"stage": 43, "name": "Expose minimal live action tool", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1125,6 +1140,19 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             "ProofOnly, sends input/movement, uses SavedVariables as live truth, or touches CE/x64dbg."
         ),
         read_only=True,
+        destructive=False,
+        open_world=True,
+    ),
+    "plan_live_control_action": ToolSpec(
+        name="plan_live_control_action",
+        title="Plan Live Control Action",
+        description=(
+            "Use this when you need a Stage 42 plan-only live RIFT control action with target binding, risk "
+            "classification, approval prompt, and verification requirements. This writes an ignored local plan "
+            "artifact only; it never focuses, captures, clicks, sends keys, moves the player, runs ProofOnly, "
+            "promotes truth, writes providers, or touches CE/x64dbg."
+        ),
+        read_only=False,
         destructive=False,
         open_world=True,
     ),
@@ -1822,6 +1850,24 @@ class RiftReaderChatGptMcpAdapter:
                 "get_live_rift_readonly_state": lambda _: self.get_live_rift_readonly_state(),
                 "get_live_target_identity_gate": lambda _: self.get_live_target_identity_gate(),
                 "get_live_no_input_proof_status": lambda _: self.get_live_no_input_proof_status(),
+                "plan_live_control_action": lambda call_args: self.plan_live_control_action(
+                    action_kind=optional_str(call_args.get("actionKind"), field_name="actionKind"),
+                    semantic_action=optional_str(call_args.get("semanticAction"), field_name="semanticAction"),
+                    key_chord=optional_str(call_args.get("keyChord"), field_name="keyChord"),
+                    hold_milliseconds=bounded_int(
+                        call_args.get("holdMilliseconds"),
+                        field_name="holdMilliseconds",
+                        default=live_control_plan.DEFAULT_MAX_HOLD_MILLISECONDS,
+                        min_value=0,
+                        max_value=60_000,
+                    ),
+                    target_identity=optional_mapping(call_args.get("targetIdentity"), field_name="targetIdentity"),
+                    verification_requirements=optional_mapping(
+                        call_args.get("verificationRequirements"), field_name="verificationRequirements"
+                    ),
+                    stop_condition=optional_str(call_args.get("stopCondition"), field_name="stopCondition"),
+                    dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
+                ),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
                 "list_inbox": lambda _: self.list_inbox(),
@@ -2530,6 +2576,30 @@ class RiftReaderChatGptMcpAdapter:
     def get_live_no_input_proof_status(self) -> dict[str, Any]:
         return live_rift_state.build_live_no_input_proof_status(self.config.repo_root)
 
+    def plan_live_control_action(
+        self,
+        *,
+        action_kind: str | None = None,
+        semantic_action: str | None = None,
+        key_chord: str | None = None,
+        hold_milliseconds: int | None = None,
+        target_identity: dict[str, Any] | None = None,
+        verification_requirements: dict[str, Any] | None = None,
+        stop_condition: str | None = None,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        return live_control_plan.build_live_control_plan(
+            self.config.repo_root,
+            action_kind=action_kind,
+            semantic_action=semantic_action,
+            key_chord=key_chord,
+            hold_milliseconds=hold_milliseconds,
+            target_identity=target_identity,
+            verification_requirements=verification_requirements,
+            stop_condition=stop_condition,
+            dry_run=dry_run,
+        )
+
     def get_package_proposal_template(self) -> dict[str, Any]:
         schema = bridge.inbox_schema_payload(self.config.bridge_config)
         return {
@@ -3181,10 +3251,10 @@ class RiftReaderChatGptMcpAdapter:
                     "get_live_target_identity_gate",
                     "get_live_no_input_proof_status",
                 ],
+                "planLiveRiftControlOnly": ["plan_live_control_action"],
                 "writeBoundary": (
-                    "Writes stay gated: local inbox/drafts, approved apply, approved commit, approved push, and "
-                    "registry-key bounded commands only. Stage 38-40 live RIFT tools are read-only/no-input and "
-                    "withhold proof summaries until the exact target gate passes."
+                    "Writes stay gated to local inbox/drafts, approved apply/commit/push, registry-key commands, "
+                    "and Stage 42 ignored plan-only artifacts. No live input executes here."
                 ),
             },
             "missionControl": {
@@ -3205,7 +3275,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "live-control-dry-run-plan-next",
+                "status": "minimal-live-action-tool-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -6826,6 +6896,8 @@ def create_fastmcp_server(
             "Git mutation endpoints are commit_reviewed_slice for one explicit-path local commit and push_current_branch "
             "for one approval-gated normal non-force current-branch push after local preflight. "
             "run_bounded_repo_command executes only versioned registry keys and never accepts shell strings. "
+            "plan_live_control_action is Stage 42 plan-only: it writes ignored local plan artifacts and never sends "
+            "live RIFT input or movement. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -6967,6 +7039,32 @@ def create_fastmcp_server(
         """Use this when you need Stage 40 no-input proof/readback status behind the identity gate."""
 
         return adapter.call_tool("get_live_no_input_proof_status", {})
+
+    def plan_live_control_action(
+        actionKind: str | None = None,  # noqa: N803 - MCP input name.
+        semanticAction: str | None = None,  # noqa: N803 - MCP input name.
+        keyChord: str | None = None,  # noqa: N803 - MCP input name.
+        holdMilliseconds: int = live_control_plan.DEFAULT_MAX_HOLD_MILLISECONDS,  # noqa: N803 - MCP input name.
+        targetIdentity: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        verificationRequirements: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        stopCondition: str | None = None,  # noqa: N803 - MCP input name.
+        dryRun: bool = True,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this when you need a Stage 42 plan-only live RIFT control action."""
+
+        return adapter.call_tool(
+            "plan_live_control_action",
+            {
+                "actionKind": actionKind,
+                "semanticAction": semanticAction,
+                "keyChord": keyChord,
+                "holdMilliseconds": holdMilliseconds,
+                "targetIdentity": targetIdentity,
+                "verificationRequirements": verificationRequirements,
+                "stopCondition": stopCondition,
+                "dryRun": dryRun,
+            },
+        )
 
     def get_package_proposal_template() -> dict[str, Any]:
         """Use this when you need the guarded package-proposal JSON template."""
@@ -7221,6 +7319,7 @@ def create_fastmcp_server(
         "get_live_rift_readonly_state": get_live_rift_readonly_state,
         "get_live_target_identity_gate": get_live_target_identity_gate,
         "get_live_no_input_proof_status": get_live_no_input_proof_status,
+        "plan_live_control_action": plan_live_control_action,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,

@@ -364,6 +364,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(annotation_by_name["get_live_rift_readonly_state"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_live_target_identity_gate"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["get_live_no_input_proof_status"]["readOnlyHint"])
+        self.assertFalse(annotation_by_name["plan_live_control_action"]["readOnlyHint"])
         self.assertTrue(annotation_by_name["list_bounded_repo_commands"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_package_proposal"]["readOnlyHint"])
         self.assertFalse(annotation_by_name["submit_actual_client_observation"]["readOnlyHint"])
@@ -395,6 +396,19 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(allowed_args_by_name["get_live_rift_readonly_state"], [])
         self.assertEqual(allowed_args_by_name["get_live_target_identity_gate"], [])
         self.assertEqual(allowed_args_by_name["get_live_no_input_proof_status"], [])
+        self.assertEqual(
+            allowed_args_by_name["plan_live_control_action"],
+            [
+                "actionKind",
+                "dryRun",
+                "holdMilliseconds",
+                "keyChord",
+                "semanticAction",
+                "stopCondition",
+                "targetIdentity",
+                "verificationRequirements",
+            ],
+        )
         self.assertEqual(allowed_args_by_name["submit_package_proposal"], ["proposal"])
         self.assertEqual(allowed_args_by_name["create_package_draft_from_inbox"], ["inboxId"])
         self.assertEqual(allowed_args_by_name["dry_run_latest_package_draft"], ["operatorOnly", "timeoutSeconds"])
@@ -447,6 +461,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 "get_live_rift_readonly_state",
                 "get_live_target_identity_gate",
                 "get_live_no_input_proof_status",
+                "plan_live_control_action",
             }:
                 self.assertTrue(tool_annotations["openWorldHint"])
             else:
@@ -468,6 +483,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertNotIn("push_current_branch", names)
         self.assertNotIn("submit_actual_client_observation", names)
         self.assertNotIn("restart_mcp_runtime", names)
+        self.assertNotIn("plan_live_control_action", names)
         self.assertIn("get_mcp_runtime_status", names)
         self.assertIn("get_tool_surface_diff", names)
         self.assertIn("run_mcp_restart_preflight", names)
@@ -2063,15 +2079,18 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertEqual(roadmap_by_key["apply-package-to-repo"]["currentStatus"], "exposed-gated")
         self.assertEqual(roadmap_by_key["push-current-branch"]["currentStatus"], "exposed-gated")
         self.assertEqual(roadmap_by_key["provider-repo-writes"]["currentStatus"], "not-exposed-labels-only")
+        self.assertEqual(roadmap_by_key["live-rift-control"]["currentStatus"], "plan-only-live-control-surface-exposed")
+        self.assertIn("plan_live_control_action", roadmap_by_key["live-rift-control"]["safePrecursorTools"])
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
+        self.assertIn("plan_live_control_action", payload["bidirectionalDataTransfer"]["planLiveRiftControlOnly"])
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "live-control-dry-run-plan-next",
+            "minimal-live-action-tool-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 42)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 43)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 43)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 44)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
@@ -2153,6 +2172,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("get_live_rift_readonly_state", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("get_live_target_identity_gate", chatgpt_mcp.EXPECTED_TOOL_ORDER)
         self.assertIn("get_live_no_input_proof_status", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("plan_live_control_action", chatgpt_mcp.EXPECTED_TOOL_ORDER)
+        self.assertIn("plan_live_control_action", chatgpt_mcp.TOOL_SPECS)
         self.assertIn("list_bounded_repo_commands", chatgpt_mcp.EXPECTED_TOOL_ORDER)
 
     def test_get_workflow_control_plan_is_transport_sized_for_chatgpt_mcp(self) -> None:
@@ -2276,6 +2297,7 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
                 "get_live_rift_readonly_state",
                 "get_live_target_identity_gate",
                 "get_live_no_input_proof_status",
+                "plan_live_control_action",
             }:
                 self.assertTrue(registration["annotations"].openWorldHint)
             else:

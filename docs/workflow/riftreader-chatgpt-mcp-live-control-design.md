@@ -1,9 +1,10 @@
 # ChatGPT MCP live RIFT control design
 
-Status: **Stage 41 complete-local design**. Stage 38-40 no-input live-status
-MCP tools are exposed, and the current ChatGPT Web/Desktop proof contract is 36
-tools. This document still does not expose any live-control execution tool.
-The current ChatGPT Web/Desktop proof contract is 36 tools.
+Status: **Stage 42 complete-local plan-only surface**. Stage 38-40 no-input
+live-status MCP tools are exposed, Stage 41 design is complete-local, and
+Stage 42 exposes `plan_live_control_action`. This document still does not expose
+any live-control execution tool. The current ChatGPT Web/Desktop proof contract
+is 37 tools.
 
 This design now starts at Stage 41 because the Stage 38-40 read-only/no-input
 surfaces exist. It defines the remaining gates that must exist before ChatGPT
@@ -13,9 +14,9 @@ Web/Desktop can request stimulus tests or eventually control player movement.
 
 | Boundary | Rule |
 |---|---|
-| Current MCP product | Keep the existing 36-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
+| Current MCP product | Keep the existing 37-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target. |
 | Actual-client transport | Do not treat local backend status as sufficient; the actual ChatGPT client proof must record `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. `Transport closed` blocks this ladder. |
-| Tool exposure | Stage 38-40 read-only/no-input tools are exposed. Do not add live RIFT input/movement tools until the current 36-tool actual-client proof is fresh, final readiness passes, and a separate execution-boundary approval is explicit. |
+| Tool exposure | Stage 38-40 read-only/no-input tools and Stage 42 plan-only `plan_live_control_action` are exposed. Do not add live RIFT input/movement execution tools until the current 37-tool actual-client proof is fresh, final readiness passes, and a separate execution-boundary approval is explicit. |
 | Live input | Do not send key input, target selection, movement, turn stimulus, `/reloadui`, or screenshot-key input without explicit live approval. |
 | Debugger/CE | Do not attach x64dbg, Cheat Engine, breakpoints, or watchpoints from this lane. |
 | Promotion | Do not promote current truth, actor chains, coordinates, yaw/facing, or proof anchors from a live-control tool. |
@@ -29,13 +30,13 @@ Web/Desktop can request stimulus tests or eventually control player movement.
 | 39 | `get_live_target_identity_gate` | Read-only reusable target gate: PID, HWND, process start, module base, duplicate detection. | Tests cover PID/HWND mismatch, duplicate RIFT windows, missing module base, and stale artifacts. |
 | 40 | `get_live_no_input_proof_status` | Read-only candidate/proof summaries only after the identity gate passes; no movement/input; candidate-only truth preserved. | Current no-input readback reports safety flags and artifact paths without implying route authorization. |
 | 41 | Design contract only; no new MCP tool. | Defines action taxonomy, risk classes, required response envelope, approval binding, and stop conditions. | Tests/docs prove the stage is non-executing and keeps `inputSent=false` / `movementSent=false`. |
-| 42 | `plan_live_control_action` or equivalent planning tool. | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, and required approval phrase. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
+| 42 | `plan_live_control_action` planning tool. | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, required approval phrase, and ignored local plan artifacts. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
 | 43 | `execute_live_control_action` | Smallest approved exact-target action after explicit approval. | Current target gate passes, approval phrase matches, stop key exists, post-action readback records `inputSent`/`movementSent` truthfully. |
 
 ## Stage 41 design contract
 
 Stage 41 is intentionally documentation and test coverage only. It completes the
-live-control design boundary without changing the 36-tool MCP surface and without
+live-control design boundary without changing the Stage 38-40 MCP surface and without
 creating a callable live-control endpoint.
 
 ### Action taxonomy
@@ -50,7 +51,7 @@ creating a callable live-control endpoint.
 
 ### Required future plan envelope
 
-The later Stage 42 planning tool must return a bounded object with these fields:
+The Stage 42 planning tool returns a bounded object with these fields:
 
 | Field | Required behavior |
 |---|---|
@@ -62,8 +63,8 @@ The later Stage 42 planning tool must return a bounded object with these fields:
 | `recommendedVerification` | Read-only or post-action checks required before any future execution can be trusted. |
 | `blockers`, `warnings`, `safety` | Fail-closed reasons and explicit safety truth for every response. |
 
-Stage 41 does **not** allow the plan envelope to execute anything. For every
-Stage 41 artifact or response, the safety truth remains:
+Stage 42 does **not** allow the plan envelope to execute anything. For every
+Stage 42 artifact or response, the safety truth remains:
 
 - `inputSent=false`
 - `movementSent=false`
@@ -164,7 +165,7 @@ no action.
 
 | Blocker | Effect |
 |---|---|
-| Current 36-tool actual-client proof is stale/missing for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not expose high-power live input/movement tools yet. |
+| Current 37-tool actual-client proof must be fresh for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not expose high-power live input/movement execution tools yet. |
 | Current static-owner readback root pointer is blocked/null after the game update. | Live navigation/control is not route-actionable. |
 | Latest no-input rediscovery is candidate-only and reports PID/HWND mismatch blockers. | Exact-target proof must be rebuilt before movement. |
 
