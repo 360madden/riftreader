@@ -2,14 +2,14 @@
 
 Status: **Stage 43 complete-local fail-closed execution boundary** plus
 **Stage 46 debugger/CE execution-boundary surface complete-local** and
-**Stage 47 role/auth policy metadata complete-local**. Stage 38-40 no-input
-live-status MCP tools are exposed, Stage 41 design is complete-local, Stage 42
-exposes `plan_live_control_action`, and Stage 43 exposes
+**Stage 47 role/auth policy metadata complete-local** plus **Stage 48 eval-suite
+checklist complete-local**. Stage 38-40 no-input live-status MCP tools are
+exposed, Stage 41 design is complete-local, Stage 42 exposes `plan_live_control_action`, and Stage 43 exposes
 `execute_live_control_action` as an approval-bound execution boundary that still
 blocks before input while the live backend remains unavailable. Stage 45 adds
 only a debugger/CE plan artifact writer; it does not attach x64dbg or Cheat
-Engine. Stage 47 adds policy metadata only and does not change tool count or
-auth enforcement. The current ChatGPT Web/Desktop proof contract is 40 tools.
+Engine. Stage 47 adds policy metadata only and Stage 48 adds a non-executing
+eval checklist; neither changes tool count or auth enforcement. The current ChatGPT Web/Desktop proof contract is 40 tools.
 
 This design now starts at Stage 41 because the Stage 38-40 read-only/no-input
 surfaces exist. It defines the remaining gates that must exist before ChatGPT
@@ -21,7 +21,7 @@ Web/Desktop can request stimulus tests or eventually control player movement.
 |---|---|
 | Current MCP product | Keep the existing 40-tool `https://mcp.360madden.com/mcp` Cloudflare named Tunnel product as the proof target after Stage 45 proof refresh. |
 | Actual-client transport | Do not treat local backend status as sufficient; the actual ChatGPT client proof must record `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`. `Transport closed` blocks this ladder. |
-| Tool exposure | Stage 38-40 read-only/no-input tools, Stage 42 plan-only `plan_live_control_action`, Stage 43 fail-closed `execute_live_control_action`, Stage 45 plan-only `plan_debugger_ce_action`, and Stage 46 fail-closed `execute_debugger_ce_action` are exposed. Stage 47 adds `authRolePolicy` metadata only and does not change tool count or auth enforcement. Do not enable a live input or debugger/CE backend until the current 40-tool actual-client proof is fresh, final readiness passes, and a separate backend-execution approval is explicit. |
+| Tool exposure | Stage 38-40 read-only/no-input tools, Stage 42 plan-only `plan_live_control_action`, Stage 43 fail-closed `execute_live_control_action`, Stage 45 plan-only `plan_debugger_ce_action`, and Stage 46 fail-closed `execute_debugger_ce_action` are exposed. Stage 47 adds `authRolePolicy` metadata only, and Stage 48 adds a non-executing eval-suite checklist only; neither changes tool count or auth enforcement. Do not enable a live input or debugger/CE backend until the current 40-tool actual-client proof is fresh, final readiness passes, and a separate backend-execution approval is explicit. |
 | Live input | Do not send key input, target selection, movement, turn stimulus, `/reloadui`, or screenshot-key input without explicit live approval. |
 | Debugger/CE | Do not attach x64dbg, Cheat Engine, breakpoints, or watchpoints from this lane. |
 | Promotion | Do not promote current truth, actor chains, coordinates, yaw/facing, or proof anchors from a live-control tool. |

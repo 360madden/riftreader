@@ -1,3 +1,20 @@
+# 2026-06-18 - ChatGPT MCP Stage 48 eval-suite checklist complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage48-eval-suite-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 48 | Complete-local as a non-executing local/actual-client eval-suite checklist. |
+| Tool surface | Full non-Codex ChatGPT MCP profile remains 40 tools; no new MCP tool was added. |
+| Helper | `scripts/riftreader-chatgpt-mcp-eval-suite.cmd --json` emits local eval commands, denial expectations, and actual-client proof requirements. |
+| Write mode | `--write` writes ignored `.riftreader-local\riftreader-chatgpt-mcp\eval-suite\*` artifacts only. |
+| Safety | No server start, tunnel start, ChatGPT registration, Git mutation, remote mutation, RIFT input, CE/x64dbg attach, provider write, proof promotion, auth enforcement change, or secrets. |
+| Next stage | Stage 49: operational dashboard and recovery. |
+| Remaining blocker | Fresh actual ChatGPT Web/Desktop proof must observe the current 40-tool surface, output schemas, successful transport/health, and Stage47 payload metadata before final readiness can pass. |
+
+---
+
 # 2026-06-18 - ChatGPT MCP Stage 47 role/auth policy metadata complete-local
 
 Fresh compact handoff:

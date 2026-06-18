@@ -2156,10 +2156,15 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             roadmap_by_key["role-auth-hardening"]["currentStatus"],
             "policy-metadata-exposed-no-auth-preserved",
         )
+        self.assertEqual(
+            roadmap_by_key["end-to-end-evals"]["currentStatus"],
+            "local-eval-suite-checklist-exposed",
+        )
         self.assertIn("plan_live_control_action", roadmap_by_key["live-rift-control"]["safePrecursorTools"])
         self.assertIn("plan_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
         self.assertIn("execute_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
         self.assertIn("health", roadmap_by_key["role-auth-hardening"]["safePrecursorTools"])
+        self.assertIn("health", roadmap_by_key["end-to-end-evals"]["safePrecursorTools"])
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("plan_live_control_action", payload["bidirectionalDataTransfer"]["planLiveRiftControlOnly"])
         self.assertIn(
@@ -2171,11 +2176,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "stage47-auth-role-policy-metadata-complete",
+            "stage48-eval-suite-complete-dashboard-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 47)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 48)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 48)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 49)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

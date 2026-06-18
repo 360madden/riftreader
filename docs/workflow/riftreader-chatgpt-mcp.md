@@ -8,7 +8,8 @@ read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
 artifacts, the Stage 43 fail-closed live-control execution boundary, and the
 Stage 45 debugger/CE plan-only artifact boundary, Stage 46 fail-closed
 debugger/CE execution-boundary artifact surface, and Stage 47 role/auth policy
-metadata that preserves the personal No Authentication lane.
+metadata that preserves the personal No Authentication lane, plus the Stage 48
+local eval-suite checklist helper.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -198,9 +199,33 @@ Mixed Authentication, auth middleware, connector mutation, or server startup.
 The `health`, `tool_manifest`, and `get_chatgpt_connector_setup_packet`
 payloads now include compact or full `authRolePolicy` metadata so ChatGPT and
 the operator can see the boundary without changing the current no-auth personal
-flow. The workflow-control plan stays transport-budgeted and reports
-`futureCapabilityPolicy.status=stage47-auth-role-policy-metadata-complete`; the
-tiny `get_workflow_control_summary` fallback remains summary-only.
+flow. The workflow-control plan stays transport-budgeted and, after Stage48,
+reports `futureCapabilityPolicy.status=stage48-eval-suite-complete-dashboard-next`;
+the tiny `get_workflow_control_summary` fallback remains summary-only.
+
+## Stage 48 eval suite
+
+Stage 48 adds a Python-first, non-executing eval-suite checklist generator:
+
+```cmd
+scripts\riftreader-chatgpt-mcp-eval-suite.cmd --json
+scripts\riftreader-chatgpt-mcp-eval-suite.cmd --write --summary-md
+```
+
+It emits:
+
+- local regression commands for focused MCP tests, broader MCP regressions, SDK
+  validation for `full` and `public-read-only`, and `git diff --check`;
+- denial-path expectations for package apply, local commit, push, live control,
+  debugger/CE, provider writes, and stale/missing actual-client proof;
+- actual ChatGPT Web/Desktop proof requirements including 40 observed tools,
+  40 output schemas, `clientTransportStatus=tool-call-succeeded`,
+  `healthCallSucceeded=true`, and Stage47 `authRolePolicy` observation.
+
+The helper does not run the listed commands by itself, start the MCP server,
+start Cloudflare, register ChatGPT, mutate Git, send RIFT input, attach CE/x64dbg,
+or promote proof. With `--write` it writes ignored artifacts only under
+`.riftreader-local\riftreader-chatgpt-mcp\eval-suite\*`.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 

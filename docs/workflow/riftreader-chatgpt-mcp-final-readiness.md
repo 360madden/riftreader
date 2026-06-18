@@ -5,7 +5,9 @@ environment preflight fields for loopback port allocation and local artifact
 root safety; Phase 6 tightened offline safety fixtures for MCP proposal targets,
 proposal checks, tool-boundary flags, root-safety flags, and unsafe-action
 detection. Stage 47 adds role/auth policy metadata while preserving the
-personal No Authentication lane; it does not change auth enforcement.
+personal No Authentication lane; it does not change auth enforcement. Stage 48
+adds a local eval-suite checklist generator; it does not replace actual-client
+proof.
 
 ## Purpose
 
@@ -147,6 +149,13 @@ attach, breakpoints, watchpoints, memory reads/writes, debugger command
 surfaces, OAuth setup, Mixed Authentication setup, and server-side auth
 middleware remain outside the final-ready execution surface until later gated
 stages update this contract and tests.
+
+Stage 48 adds `tools/riftreader_workflow/chatgpt_mcp_eval_suite.py` and
+`scripts/riftreader-chatgpt-mcp-eval-suite.cmd` as a non-executing checklist
+for local regression commands, denial-path expectations, and actual-client proof
+requirements. A Stage48 eval artifact is useful handoff evidence, but final
+readiness still depends on fresh actual ChatGPT Web/Desktop proof replay and
+current-head CI when applicable.
 
 Every approved tool must also enforce a strict wrapper-argument allowlist. Any
 unknown top-level argument key, non-object argument payload, non-JSON-

@@ -465,11 +465,13 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
 def compact_future_capability_roadmap(roadmap: list[dict[str, Any]]) -> list[dict[str, Any]]:
     compact: list[dict[str, Any]] = []
     for item in roadmap:
+        key = item.get("key")
+        precursor_limit = 2 if key in {"live-rift-control", "debugger-or-ce-assist"} else 1
         compact.append(
             {
-                "key": item.get("key"),
+                "key": key,
                 "currentStatus": item.get("currentStatus"),
-                "safePrecursorTools": (item.get("safePrecursorTools") or [])[:2],
+                "safePrecursorTools": (item.get("safePrecursorTools") or [])[:precursor_limit],
             }
         )
     return compact
@@ -759,6 +761,20 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
             "this slice does not add OAuth secrets, auth middleware, connector mutation, or server startup",
         ],
     },
+    {
+        "key": "end-to-end-evals",
+        "targetToolName": "scripts/riftreader-chatgpt-mcp-eval-suite.cmd",
+        "currentStatus": "local-eval-suite-checklist-exposed",
+        "riskClass": "validation-and-proof-readiness",
+        "minimumGate": "local-eval-commands-pass-and-fresh-actual-client-proof-recorded-before-final-readiness",
+        "safePrecursorTools": ["health", "get_final_readiness_status"],
+        "requiredSafeguards": [
+            "eval-suite helper is non-executing unless the operator separately runs listed commands",
+            "actual-client proof checklist must not be replaced by local SDK/runtime status",
+            "denial paths for apply, commit, push, live, debugger/CE, and provider writes remain explicit",
+            "no server, tunnel, ChatGPT registration, Git mutation, RIFT input, CE, or x64dbg action is started by the helper",
+        ],
+    },
 )
 
 
@@ -768,8 +784,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 47,
-    "currentStageName": "Role and auth hardening",
+    "currentStage": 48,
+    "currentStageName": "End-to-end product eval suite",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
@@ -778,10 +794,12 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "artifacts. Stage 47 role/auth policy metadata preserves the personal No Authentication flow and "
         "marks shared/high-power use for public-read-only or future authenticated gates. Stage 44 debugger/CE "
         "static-first design is complete-local; provider writes, live input/movement execution, proof promotion, "
-        "CE attach, x64dbg attach, OAuth setup, and auth enforcement changes remain absent."
+        "CE attach, x64dbg attach, OAuth setup, and auth enforcement changes remain absent. Stage 48 adds a "
+        "non-executing local eval-suite checklist for local regression commands, denial paths, and actual-client "
+        "proof requirements."
     ),
-    "nextStage": 48,
-    "nextStageName": "End-to-end product eval suite",
+    "nextStage": 49,
+    "nextStageName": "Operational dashboard and recovery",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -822,6 +840,7 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 45, "name": "Debugger/CE plan-only surface", "status": "complete-local"},
         {"stage": 46, "name": "Debugger/CE gated assist", "status": "complete-local-fail-closed"},
         {"stage": 47, "name": "Role and auth hardening", "status": "complete-local"},
+        {"stage": 48, "name": "End-to-end product eval suite", "status": "complete-local"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -3633,8 +3652,8 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "stage47-auth-role-policy-metadata-complete",
-                "defaultDevelopmentOrder": ["end-to-end-evals", "dashboard-release"],
+                "status": "stage48-eval-suite-complete-dashboard-next",
+                "defaultDevelopmentOrder": ["dashboard-release", "final-release"],
             },
             "gatedActions": [
                 "apply-package-to-repo",
