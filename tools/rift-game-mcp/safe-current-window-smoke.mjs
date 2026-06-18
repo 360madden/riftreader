@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,8 @@ function parseArgs(argv) {
     processName: 'rift_x64',
     semanticAction: 'move_forward',
     holdMilliseconds: 250,
+    fromTargetDiscovery: false,
+    targetLane: 'movement',
     json: false,
     output: null,
   };
@@ -52,6 +55,12 @@ function parseArgs(argv) {
       case '--hold-milliseconds':
         parsed.holdMilliseconds = Number(nextValue());
         break;
+      case '--from-target-discovery':
+        parsed.fromTargetDiscovery = true;
+        break;
+      case '--target-lane':
+        parsed.targetLane = nextValue();
+        break;
       case '--output':
         parsed.output = nextValue();
         break;
@@ -74,8 +83,10 @@ function usage() {
   return [
     'Usage:',
     '  node safe-current-window-smoke.mjs --process-id <pid> --window-handle <hwnd> --json',
+    '  node safe-current-window-smoke.mjs --from-target-discovery --json',
     '',
     'Safe behavior:',
+    '  - Optional --from-target-discovery calls scripts\\get-rift-window-targets.cmd -Json.',
     '  - Binds/inspects the exact target window read-only.',
     '  - Calls get_game_control_readiness.',
     '  - Classifies one semantic movement action.',
@@ -103,9 +114,9 @@ function validateArgs(args) {
     return;
   }
 
-  if (!args.processId && !args.windowHandle) {
+  if (!args.processId && !args.windowHandle && !args.fromTargetDiscovery) {
     throw new Error(
-      'An exact target is required. Pass --process-id, --window-handle, or both.',
+      'An exact target is required. Pass --process-id, --window-handle, or --from-target-discovery.',
     );
   }
 
@@ -127,6 +138,11 @@ function validateArgs(args) {
 
   if (!args.semanticAction || !String(args.semanticAction).trim()) {
     throw new Error('semantic-action must not be blank.');
+  }
+
+  const allowedTargetLanes = new Set(['movement', 'background']);
+  if (!allowedTargetLanes.has(args.targetLane)) {
+    throw new Error('target-lane must be movement or background.');
   }
 }
 
@@ -165,6 +181,87 @@ function buildTarget(args) {
   };
 }
 
+async function runReadOnlyTargetDiscovery() {
+  const scriptPath = path.join(repoRoot, 'scripts', 'get-rift-window-targets.cmd');
+  const startedAtUtc = new Date().toISOString();
+  return await new Promise((resolve, reject) => {
+    const child = spawn('cmd.exe', ['/d', '/c', 'call', scriptPath, '-Json'], {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', (exitCode) => {
+      const endedAtUtc = new Date().toISOString();
+      const cleanStdout = stdout.trim();
+      const cleanStderr = stderr.trim();
+
+      if (exitCode !== 0) {
+        reject(
+          new Error(
+            cleanStderr ||
+              cleanStdout ||
+              `get-rift-window-targets.cmd exited with code ${exitCode}.`,
+          ),
+        );
+        return;
+      }
+
+      if (!cleanStdout) {
+        reject(new Error('get-rift-window-targets.cmd returned no JSON output.'));
+        return;
+      }
+
+      try {
+        resolve({
+          startedAtUtc,
+          endedAtUtc,
+          command: ['scripts\\get-rift-window-targets.cmd', '-Json'],
+          exitCode,
+          result: JSON.parse(cleanStdout),
+        });
+      } catch (error) {
+        reject(
+          new Error(
+            `Failed to parse target discovery JSON: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+      }
+    });
+  });
+}
+
+function selectDiscoveredTarget(discovery, lane) {
+  const result = discovery?.result ?? {};
+  const selected = result[lane];
+  if (!selected) {
+    throw new Error(`Target discovery did not return a ${lane} target.`);
+  }
+
+  if (!selected.ProcessId || !selected.WindowHandleHex) {
+    throw new Error(`Target discovery ${lane} target lacks exact PID/HWND facts.`);
+  }
+
+  return {
+    processId: Number(selected.ProcessId),
+    windowHandle: String(selected.WindowHandleHex),
+    processName: selected.ProcessName ?? 'rift_x64',
+  };
+}
+
 function nowStamp() {
   return new Date()
     .toISOString()
@@ -187,6 +284,15 @@ async function writeSummary(outputPath, summary) {
 }
 
 async function runSmoke(args) {
+  let targetDiscovery = null;
+  if (args.fromTargetDiscovery) {
+    targetDiscovery = await runReadOnlyTargetDiscovery();
+    const discoveredTarget = selectDiscoveredTarget(targetDiscovery, args.targetLane);
+    args.processId = discoveredTarget.processId;
+    args.windowHandle = discoveredTarget.windowHandle;
+    args.processName = discoveredTarget.processName;
+  }
+
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverPath],
@@ -317,6 +423,19 @@ async function runSmoke(args) {
       status: ok ? 'passed' : 'blocked',
       ok,
       generatedAtUtc: new Date().toISOString(),
+      targetDiscovery: targetDiscovery
+        ? {
+            status: 'passed',
+            ok: true,
+            command: targetDiscovery.command,
+            startedAtUtc: targetDiscovery.startedAtUtc,
+            endedAtUtc: targetDiscovery.endedAtUtc,
+            selectedLane: args.targetLane,
+            count: targetDiscovery.result.count,
+            selectedTarget: targetDiscovery.result[args.targetLane] ?? null,
+            notes: targetDiscovery.result.notes ?? [],
+          }
+        : null,
       target,
       boundWindow: find.window,
       readiness: {

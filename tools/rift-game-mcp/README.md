@@ -140,11 +140,21 @@ cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
 npm run smoke:current-window -- --process-id 130540 --window-handle 0x9310EA --json
 ```
 
+Reusable read-only discovery + dry-run smoke:
+
+```powershell
+cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
+npm run smoke:current-window:auto
+```
+
 This smoke binds/inspects the exact target, checks readiness, classifies the
 configured semantic movement action, calls `release_all_movement_keys` with
 `dryRun: true`, and calls `plan_movement_step` with `dryRun: true`. It writes
 only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smoke\`
-and fails if any tool reports live input, movement, or key release.
+and fails if any tool reports live input, movement, or key release. The auto
+variant first runs the existing read-only
+`scripts\get-rift-window-targets.cmd -Json` target discovery helper and selects
+the `movement` lane target.
 
 ## Bindings config
 
