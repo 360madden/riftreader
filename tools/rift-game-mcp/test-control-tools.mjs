@@ -118,6 +118,75 @@ try {
     assertControlSafety(movementClassification, `${keyChord} classification`);
   }
 
+  const modifierMovementKeyChords = [
+    ['shift+w', 'w'],
+    ['ctrl+space', 'space'],
+    ['alt+left', 'left'],
+  ];
+  for (const [keyChord, movementKey] of modifierMovementKeyChords) {
+    const movementClassification = getStructured(
+      await client.callTool({
+        name: 'classify_game_action',
+        arguments: { keyChord, holdMilliseconds: 500 },
+      }),
+    );
+    assert.equal(movementClassification.ok, true, `${keyChord}: ok`);
+    assert.equal(
+      movementClassification.riskClass,
+      'movementInput',
+      `${keyChord}: riskClass`,
+    );
+    assert.equal(movementClassification.movementRisk, true, `${keyChord}: movementRisk`);
+    assert.equal(
+      movementClassification.requiresApproval,
+      true,
+      `${keyChord}: requiresApproval`,
+    );
+    assert.equal(
+      movementClassification.blockedByDefault,
+      true,
+      `${keyChord}: blockedByDefault`,
+    );
+    assert.equal(movementClassification.primitiveTool, 'send_key', `${keyChord}: primitiveTool`);
+    assert.deepEqual(
+      movementClassification.keyClassification.movementKeys,
+      [movementKey],
+      `${keyChord}: movementKeys`,
+    );
+    assertControlSafety(movementClassification, `${keyChord} classification`);
+  }
+
+  const nonMovementChordClassification = getStructured(
+    await client.callTool({
+      name: 'classify_game_action',
+      arguments: { keyChord: 'ctrl+i', holdMilliseconds: 80 },
+    }),
+  );
+  assert.equal(nonMovementChordClassification.ok, true);
+  assert.equal(nonMovementChordClassification.riskClass, 'uiInput');
+  assert.equal(nonMovementChordClassification.movementRisk, false);
+  assert.equal(nonMovementChordClassification.requiresApproval, false);
+  assert.equal(nonMovementChordClassification.blockedByDefault, false);
+  assert.equal(nonMovementChordClassification.primitiveTool, 'send_key');
+  assert.deepEqual(nonMovementChordClassification.keyClassification.movementKeys, []);
+  assertControlSafety(nonMovementChordClassification, 'non-movement chord classification');
+
+  const unknownActionClassification = getStructured(
+    await client.callTool({
+      name: 'classify_game_action',
+      arguments: { actionName: 'fly_to_moon', holdMilliseconds: 80 },
+    }),
+  );
+  assert.equal(unknownActionClassification.ok, false);
+  assert.equal(unknownActionClassification.status, 'blocked');
+  assert.deepEqual(unknownActionClassification.blockers, ['unknown-action:fly_to_moon']);
+  assert.equal(unknownActionClassification.riskClass, 'unknown');
+  assert.equal(unknownActionClassification.movementRisk, false);
+  assert.equal(unknownActionClassification.requiresApproval, true);
+  assert.equal(unknownActionClassification.blockedByDefault, true);
+  assert.equal(unknownActionClassification.primitiveTool, null);
+  assertControlSafety(unknownActionClassification, 'unknown action classification');
+
   const hotbarClassification = getStructured(
     await client.callTool({
       name: 'classify_game_action',
@@ -327,6 +396,9 @@ try {
         ],
         classificationMatrix: {
           movementRiskKeyChords,
+          modifierMovementKeyChords: modifierMovementKeyChords.map(([keyChord]) => keyChord),
+          nonMovementKeyChords: ['ctrl+i'],
+          unknownSemanticActions: ['fly_to_moon'],
           inventorySemanticActions: inventorySemanticActions.map(([actionName]) => actionName),
         },
         safety: {

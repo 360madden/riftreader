@@ -551,14 +551,15 @@ function classifyGameAction({ actionName, keyChord, holdMilliseconds } = {}) {
     );
   }
 
+  const hasBlockers = blockers.length > 0;
   const result = {
     actionName: actionName ?? null,
     keyChord: keyChord ?? classification?.keyChord ?? null,
     holdMilliseconds: holdMilliseconds ?? null,
     riskClass: classification?.riskClass ?? 'unknown',
     movementRisk: Boolean(classification?.movementRisk),
-    requiresApproval: Boolean(classification?.requiresApproval),
-    blockedByDefault: Boolean(classification?.blockedByDefault),
+    requiresApproval: Boolean(classification?.requiresApproval) || hasBlockers,
+    blockedByDefault: Boolean(classification?.blockedByDefault) || hasBlockers,
     semanticAction: classification?.semanticAction ?? null,
     primitiveTool: classification?.primitiveTool ?? null,
     slot: classification?.slot ?? null,
@@ -572,6 +573,8 @@ function classifyGameAction({ actionName, keyChord, holdMilliseconds } = {}) {
       },
     approvalScope: classification?.movementRisk
       ? 'single-bounded-movement-step'
+      : hasBlockers
+        ? 'blocked-unclassified-action'
       : 'exact-bound-window-action',
   };
 
