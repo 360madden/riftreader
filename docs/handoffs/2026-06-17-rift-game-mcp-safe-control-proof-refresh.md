@@ -5,15 +5,16 @@
 | Item | Evidence |
 |---|---|
 | Scope | Durable handoff for the safe local `tools\rift-game-mcp` movement-control Phase 9 preflight slice. No live RIFT input, movement, focus, click, resize, CE, x64dbg, proof promotion, provider writes, branch rewrite, reset, or cleanup was performed. |
-| Baseline head before this handoff commit | `4cfd39c011c18a5d2c5b61ed9da745310a93ad6a` (`Harden RIFT game MCP action fail-closed classification`) pushed to `origin/main`. This handoff update is part of the subsequent Phase 9 preflight slice. |
+| Baseline head before Phase 9 code commit | `4cfd39c011c18a5d2c5b61ed9da745310a93ad6a` (`Harden RIFT game MCP action fail-closed classification`) pushed to `origin/main`. |
 | Tool count - RIFT game MCP | `npm run validate` in `tools\rift-game-mcp` passed with 25 expected tools after adding `get_movement_execution_preflight`. |
+| Phase 9 code commit | `469b52b9113584e2cea82156bcad13e48601af2a` (`Add RIFT movement execution preflight`) was pushed to `origin/main`. It adds `get_movement_execution_preflight`, tests, smoke integration, README updates, and this handoff. |
 | Phase 9 tool | `get_movement_execution_preflight` is read-only, annotated `readOnlyHint=true` / `destructiveHint=false`, and reports standard control output fields plus exact target facts, current-truth freshness, verification requirements, required approval scope, and Phase 9/10 readiness flags. |
 | Current-window smoke artifact | `.riftreader-local\rift-game-mcp\current-window-smoke\current-window-safe-smoke-20260618T051530Z.json` was written by `npm run smoke:current-window:auto`. The smoke remained safe/pass because no input was sent, while the new movement preflight correctly reported Phase 10 blocked. |
 | Current RIFT target discovery | Read-only discovery found one target: PID `130540`, HWND `0x9310EA`, title `RIFT`, foreground `false`, minimized `true`, client rect `0x0`, process start `2026-06-17T21:57:01.8571209-04:00`. |
 | Phase 10 blocker facts | Preflight blockers: `bound-window-minimized`, `bound-window-client-area-empty`, `bound-window-not-foreground`, `current-truth-too-old`, `current-truth-target-process-id-mismatch:12664!=130540`, and `current-truth-target-window-handle-mismatch:0x205146c!=0x9310ea`. |
 | Current-truth status | `docs\recovery\current-truth.json` still points at historical PID `12664` / HWND `0x205146C`, updated `2026-06-02T04:13:42Z`; it must not be treated as current live movement truth for PID `130540`. |
 | Stage 38 boundary gate | Approval packet/token path was tested earlier in this lane; `stage38Started=false`, `stage38Active=false`, `movementSent=false`, `inputSent=false`. |
-| Final readiness before this slice | `scripts\riftreader-mcp-final.cmd --status --compact-json` previously passed at `2026-06-18T05:05:09Z` for head `4cfd39c`; rerun after the Phase 9 commit before claiming final route readiness. |
+| Final readiness after Phase 9 code commit | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-18T05:23:08Z` for head `469b52b9113584e2cea82156bcad13e48601af2a`; blockers `[]`, CI `passed`, proof freshness `fresh`, proof replay `passed`. |
 | Decision packet | `scripts\riftreader-decision-packet.cmd --compact-json --write` remained blocked-safe for proof recovery on `latest-static-owner-readback-root-pointer-null`; safe target discovery was run. |
 
 ## Implemented safe game-control tools
@@ -36,10 +37,10 @@
 | `npm run test:control` in `tools\rift-game-mcp` | Passed; classifier matrix, read-only movement preflight no-bound/non-movement blocks, dry-run release, movement-plan artifact writing, and latest artifact lookup. |
 | `npm run test:smoke` in `tools\rift-game-mcp` | Passed; synthetic target-discovery lane selection and multi-target guard. |
 | `npm run smoke:current-window:auto` in `tools\rift-game-mcp` | Passed as a no-input safety smoke; it also reported Phase 10 preflight blocked for minimized/stale-target conditions. |
-| `git diff --check` | Pending after this handoff edit. |
-| `pre-commit` | Pending after this handoff edit. |
-| GitHub Actions | Pending after the Phase 9 commit/push. |
-| Final readiness | Pending after the Phase 9 commit/push. |
+| `git diff --check` | Passed. |
+| `pre-commit run --files tools/rift-game-mcp/index.mjs tools/rift-game-mcp/validate.mjs tools/rift-game-mcp/test-control-tools.mjs tools/rift-game-mcp/safe-current-window-smoke.mjs tools/rift-game-mcp/README.md docs/handoffs/2026-06-17-rift-game-mcp-safe-control-proof-refresh.md` | Passed. |
+| GitHub Actions for `469b52b` | `.NET build and test` run `27738423104` passed; `RiftReader Policy` run `27738423089` passed. |
+| Final readiness for `469b52b` | Passed at `2026-06-18T05:23:08Z`; expected warnings were expired public-session artifacts and default serve port `8770` busy. |
 
 ## Operational notes
 
@@ -54,8 +55,8 @@
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Commit/push the Phase 9 preflight slice after `git diff --check` and pre-commit pass. | Makes the local MCP safety gate durable. |
-| 2 | Rerun GitHub Actions and `scripts\riftreader-mcp-final.cmd --status --compact-json` after push. | Restores final-readiness evidence for the new head. |
+| 1 | Keep `get_movement_execution_preflight` in the safe pre-input path before any Phase 10 run. | It now proves live movement is blocked until exact target and proof freshness are current. |
+| 2 | Refresh this handoff again only after the next code-bearing slice. | The Phase 9 code commit already has CI and final-readiness evidence. |
 | 3 | Add a small explicit `get_movement_execution_preflight` sample to operator docs if needed. | Reduces confusion between dry-run smoke pass and Phase 10 readiness. |
 | 4 | Restore/unminimize the RIFT window only as an explicit live-window operator action. | Current target has a zero client area, so visual verification is impossible. |
 | 5 | Refresh current-target readback/current-truth for PID `130540` / HWND `0x9310EA` before any movement. | Current-truth still points at PID `12664` / HWND `0x205146C`. |
