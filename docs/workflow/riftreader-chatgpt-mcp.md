@@ -5,7 +5,8 @@ tool-surface diff, guarded restart preflight/restart, tunnel-status, connector
 setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
 lanes, provider-intent labels that remain blocked by default, and Stage 38-40
 read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
-artifacts and the Stage 43 fail-closed live-control execution boundary.
+artifacts, the Stage 43 fail-closed live-control execution boundary, and the
+Stage 44 debugger/CE static-first design boundary.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -174,6 +175,8 @@ diff, guarded restart, tunnel status, connector setup, and the approval-gated
 apply, local-commit, push, bounded-command, no-input live RIFT status tools, and
 the Stage 42 plan-only live-control artifact writer plus Stage 43 fail-closed
 execution-boundary artifact writer.
+Stage 44 adds only a static-first debugger/CE design document; it does not add a
+CE/x64dbg attach, breakpoint, watchpoint, or memory-write tool.
 It is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
@@ -674,10 +677,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `cloudflare-named-tunnel` (legacy recorder packets may still say `manual-public-ip`) | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 36 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 38 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `36` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 36 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `38` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 38 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 
@@ -702,7 +705,7 @@ In ChatGPT web:
 2. Open Apps/Connectors settings.
 3. Create an app/connector using **Server URL** and
    `https://mcp.360madden.com/mcp`.
-4. Confirm the tool list contains only the 12 allowlisted RiftReader tools.
+4. Confirm the tool list contains only the 38 allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
 Suggested first prompt:

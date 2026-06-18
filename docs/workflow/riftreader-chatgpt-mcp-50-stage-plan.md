@@ -2,14 +2,16 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-43 live-control execution-boundary surface**.
+Current holding point: **Post-Stage-44 debugger/CE static-first design**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
-tool, Stage 43 exposes a fail-closed live-control execution boundary, and the
-MCP tool contract is now 38 tools.
-A fresh 38-tool actual ChatGPT Web/Desktop proof, including
-`clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`, is
-required before final readiness can be called green again.
+tool, Stage 43 exposes a fail-closed live-control execution boundary, Stage 44
+defines the debugger/CE static-first design boundary, and the MCP tool contract
+is now 38 tools.
+The current 38-tool actual ChatGPT Web/Desktop proof records
+`clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`.
+Keep that proof fresh before claiming final readiness or adding another
+high-power tool surface.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -95,7 +97,15 @@ phrase state, writes ignored
 fails closed before input while the live input backend remains unavailable. It
 must still report `inputSent=false` and `movementSent=false` in validation.
 
-Before final readiness is considered green again, rerun the dependency sequence
+Stage 44 debugger/CE static-first design note:
+`docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`
+defines the debugger/Cheat Engine lane. It is documentation-only, keeps the
+MCP surface at 38 tools, prefers offline/static evidence before attach, and
+requires explicit current-turn approval plus crash-risk disclosure before any
+future x64dbg or CE attach/watchpoint/breakpoint assistance. No CE/x64dbg tool
+is exposed by Stage 44.
+
+To keep final readiness green, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
 38-tool proof recorded and replayed with a successful actual client transport
@@ -145,8 +155,9 @@ live movement/control design contract, Stage 42 exposes
 `plan_live_control_action` as a plan-only artifact writer that still sends no
 input, and Stage 43 exposes `execute_live_control_action` as a fail-closed
 execution-boundary artifact writer. It verifies plan/approval binding and still
-blocks before input while the live input backend is unavailable. Stage 44 is the
-next implementation boundary: debugger/CE static-first design.
+blocks before input while the live input backend is unavailable. Stage 44 now
+documents the debugger/CE static-first boundary without exposing attach tools.
+Stage 45 is the next implementation boundary: debugger/CE plan-only surface.
 Do not enable movement/input execution until a later gated backend slice
 explicitly requires it and receives separate approval.
 
@@ -213,7 +224,7 @@ explicitly requires it and receives separate approval.
 | 41 | Live movement/control design spec | Design bounded live control with explicit movement/input approval, stop conditions, and post-action evidence. | Spec separates no-input, UI/action risk, displacement, movement, and ProofOnly gates without changing the tool surface. | complete-local |
 | 42 | Live control dry-run/planning tool | Expose a plan-only live-control tool that returns exact actions but sends no input. | ChatGPT can propose live actions without executing them. | complete-local |
 | 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | complete-local-fail-closed |
-| 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | pending |
+| 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | complete-local |
 | 45 | Debugger/CE plan-only surface | Expose plan-only debugger/CE guidance and candidate evidence review. | ChatGPT can assist without attaching or setting breakpoints. | pending |
 | 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint assistance only after explicit approval and crash-risk disclosure. | All actions are logged and candidate-only by default. | pending |
 | 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth remains easy; shared/high-power use can require stronger gates. | pending |
@@ -225,11 +236,10 @@ explicitly requires it and receives separate approval.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 44 | Debugger/CE static-first design | Next safe boundary; it can document attach/CE limits without touching debuggers. |
-| 2 | 45 | Debugger/CE plan-only surface | Add candidate evidence review without attaching or setting breakpoints. |
-| 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 45 | Debugger/CE plan-only surface | Add candidate evidence review without attaching or setting breakpoints. |
+| 2 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 3 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 4 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 
 ## High-risk exposure order
 

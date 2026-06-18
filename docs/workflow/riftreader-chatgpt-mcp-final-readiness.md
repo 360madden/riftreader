@@ -105,6 +105,11 @@ updates this list:
 | `get_final_readiness_status` | Read-only external status | Must compactly report final gate blockers without mutating GitHub or local state. |
 | `submit_actual_client_observation` | Guarded local proof write | May write only operator-supplied actual-client proof artifacts under `.riftreader-local`; must never start ChatGPT/tunnels or mutate Git/repo/provider/RIFT state. |
 | `get_actual_client_proof_status` | Read-only | Must replay the latest actual-client proof without starting ChatGPT, tunnels, or servers. |
+| `get_live_rift_readonly_state` | Read-only live status | Must return only exact-target status/readiness facts and fail closed on stale or mismatched target proof; must never focus, capture, click, send keys, run ProofOnly, promote truth, write providers, or touch CE/x64dbg. |
+| `get_live_target_identity_gate` | Read-only live status | Must return the reusable exact-target PID/HWND/process-start/module/duplicate-detection gate without sending input or mutating state. |
+| `get_live_no_input_proof_status` | Read-only live proof status | Must return no-input proof/readback summaries only after the identity gate passes; must withhold summaries while gated and never move, input, promote truth, or attach debuggers. |
+| `plan_live_control_action` | Plan-only local artifact write | May write ignored live-control plan artifacts with target binding, risk classification, approval prompt, and verification requirements; must never execute input, focus/capture/click, run ProofOnly, promote truth, write providers, or touch CE/x64dbg. |
+| `execute_live_control_action` | Fail-closed execution-boundary artifact write | May evaluate one Stage 42 plan and write ignored run artifacts, but in the current slice must block before input because the live backend is unavailable; validation must keep `inputSent=false` and `movementSent=false`. |
 | `get_package_proposal_template` | Read-only | Must return the accepted package-proposal shape only. |
 | `submit_package_proposal` | Guarded local write | May write only inert proposal artifacts under `.riftreader-local\artifact-bridge-inbox`. |
 | `list_inbox` | Read-only | Must list inbox metadata only. |
@@ -128,6 +133,12 @@ updates this list:
 
 Any extra tool is a final-readiness blocker until the contract is updated and
 tests prove the new tool stays within the safety model.
+
+Stage 44 adds the debugger/CE static-first design at
+`docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`, but
+does **not** add an approved MCP tool. CE/x64dbg attach, breakpoints,
+watchpoints, memory writes, and debugger command surfaces remain outside the
+final-ready tool surface until later gated stages update this contract and tests.
 
 Every approved tool must also enforce a strict wrapper-argument allowlist. Any
 unknown top-level argument key, non-object argument payload, non-JSON-

@@ -712,19 +712,17 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 44,
-    "currentStageName": "Debugger/CE static-first design",
+    "currentStage": 45,
+    "currentStageName": "Debugger/CE plan-only surface",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
-        "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
-        "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed, "
-        "Stage 41 live-control design is complete-local, Stage 42 exposes plan-only live-control action "
-        "artifacts that do not execute input, and Stage 43 exposes a fail-closed execution-boundary tool "
-        "that writes ignored run artifacts and blocks before input while the live backend remains unavailable; "
-        "provider writes, actual live input/movement execution, proof promotion, CE, and x64dbg remain absent."
+        "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
+        "Stage 42 plan-only live-control artifacts, and Stage 43 fail-closed execution-boundary artifacts. "
+        "Stage 44 debugger/CE static-first design is complete-local and exposes no attach tools; "
+        "provider writes, live input/movement execution, proof promotion, CE attach, and x64dbg attach remain absent."
     ),
-    "nextStage": 45,
-    "nextStageName": "Debugger/CE plan-only surface",
+    "nextStage": 46,
+    "nextStageName": "Debugger/CE gated assist",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -761,7 +759,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 41, "name": "Live movement/control design spec", "status": "complete-local"},
         {"stage": 42, "name": "Live control dry-run/planning tool", "status": "complete-local"},
         {"stage": 43, "name": "Expose minimal live action tool", "status": "complete-local-fail-closed"},
-        {"stage": 44, "name": "Debugger/CE static-first design", "status": "pending"},
+        {"stage": 44, "name": "Debugger/CE static-first design", "status": "complete-local"},
+        {"stage": 45, "name": "Debugger/CE plan-only surface", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -3333,7 +3332,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "debugger-ce-static-design-next",
+                "status": "debugger-ce-plan-only-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -6958,6 +6957,8 @@ def create_fastmcp_server(
             "live RIFT input or movement. execute_live_control_action is Stage 43 fail-closed before input in this "
             "slice: it verifies an exact plan/approval boundary and writes ignored run artifacts, but the live input "
             "backend remains unavailable unless a future separately approved local backend slice enables it. "
+            "Stage 44 debugger/CE static-first design is documentation-only; this server exposes no CE/x64dbg "
+            "attach, breakpoint, watchpoint, or memory-write tool. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,

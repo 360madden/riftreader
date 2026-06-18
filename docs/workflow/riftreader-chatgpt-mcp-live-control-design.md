@@ -1,11 +1,13 @@
 # ChatGPT MCP live RIFT control design
 
-Status: **Stage 43 complete-local fail-closed execution boundary**. Stage 38-40
+Status: **Stage 43 complete-local fail-closed execution boundary** plus
+**Stage 44 debugger/CE static-first design complete-local**. Stage 38-40
 no-input live-status MCP tools are exposed, Stage 41 design is complete-local,
 Stage 42 exposes `plan_live_control_action`, and Stage 43 exposes
 `execute_live_control_action` as an approval-bound execution boundary that still
-blocks before input while the live backend remains unavailable. The current
-ChatGPT Web/Desktop proof contract is 38 tools.
+blocks before input while the live backend remains unavailable. Stage 44 keeps
+debugger/CE work static-first and documentation-only. The current ChatGPT
+Web/Desktop proof contract is 38 tools.
 
 This design now starts at Stage 41 because the Stage 38-40 read-only/no-input
 surfaces exist. It defines the remaining gates that must exist before ChatGPT
@@ -33,6 +35,7 @@ Web/Desktop can request stimulus tests or eventually control player movement.
 | 41 | Design contract only; no new MCP tool. | Defines action taxonomy, risk classes, required response envelope, approval binding, and stop conditions. | Tests/docs prove the stage is non-executing and keeps `inputSent=false` / `movementSent=false`. |
 | 42 | `plan_live_control_action` planning tool. | Plan-only stimulus/movement request; returns exact target, proposed actions, risks, blockers, required approval phrase, and ignored local plan artifacts. | No execution path; output proves `inputSent=false` and `movementSent=false`. |
 | 43 | `execute_live_control_action` | Fail-closed execution boundary for one Stage 42 plan. It validates exact target binding, approval phrase state, stop condition, and writes ignored run artifacts. In this slice it blocks before input because the live backend remains unavailable. | Current target gate passes, approval phrase matches, stop condition exists, and all validation artifacts record `inputSent=false` / `movementSent=false`. |
+| 44 | Debugger/CE static-first design. | Documentation-only boundary for future x64dbg/CE assist; prefers offline/static evidence and requires explicit attach approval plus crash-risk disclosure for later stages. | No debugger/CE attach tool is exposed; `noCheatEngine=true` and `x64dbgAttach=false` remain true. |
 
 ## Stage 41 design contract
 
@@ -166,7 +169,7 @@ no action.
 
 | Blocker | Effect |
 |---|---|
-| Current 38-tool actual-client proof must be fresh for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not enable high-power live input/movement backend execution yet. |
+| Current 38-tool actual-client proof must remain fresh for the Cloudflare named Tunnel route and must include actual-client transport success. | Do not enable high-power live input/movement backend execution after proof expires. |
 | Current static-owner readback root pointer is blocked/null after the game update. | Live navigation/control is not route-actionable. |
 | Latest no-input rediscovery is candidate-only and reports PID/HWND mismatch blockers. | Exact-target proof must be rebuilt before movement. |
 
@@ -178,4 +181,7 @@ no action.
 - No provider repo writes.
 - No movement or stimulus by default.
 - No debugger/CE attach.
+- For future debugger/CE work, follow
+  `docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`
+  before exposing any plan-only or gated-assist surface.
 - No proof/current-truth promotion from ChatGPT.

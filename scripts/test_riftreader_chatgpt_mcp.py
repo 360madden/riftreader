@@ -2098,6 +2098,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             roadmap_by_key["live-rift-control"]["currentStatus"],
             "execution-boundary-exposed-fail-closed-before-input",
         )
+        self.assertEqual(
+            roadmap_by_key["debugger-or-ce-assist"]["currentStatus"],
+            "not-exposed",
+        )
         self.assertIn("plan_live_control_action", roadmap_by_key["live-rift-control"]["safePrecursorTools"])
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("plan_live_control_action", payload["bidirectionalDataTransfer"]["planLiveRiftControlOnly"])
@@ -2108,11 +2112,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "debugger-ce-static-design-next",
+            "debugger-ce-plan-only-next",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 44)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 45)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 45)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 46)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
