@@ -5,7 +5,8 @@
   "main": "index.mjs",
   "scripts": {
     "start": "node index.mjs",
-    "validate": "node validate.mjs"
+    "validate": "node validate.mjs",
+    "test:control": "node test-control-tools.mjs"
   },
   "keywords": [],
   "author": "",

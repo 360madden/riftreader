@@ -58,16 +58,20 @@ try {
   const expectedToolNames = [
     'capture_game_window',
     'capture_inventory_reference',
+    'classify_game_action',
     'click_client',
     'ensure_inventory_closed',
     'ensure_inventory_open',
     'find_game_window',
     'focus_game_window',
     'get_bound_window_state',
+    'get_game_control_readiness',
+    'get_latest_control_artifact',
     'get_riftreader_current_truth',
     'inspect_bound_window',
     'open_bags',
     'open_inventory',
+    'plan_movement_step',
     'press_hotbar_slot',
     'resize_game_window',
     'send_key',
@@ -134,6 +138,58 @@ try {
     );
   }
 
+  const readinessTool = result.tools.find((tool) => tool.name === 'get_game_control_readiness');
+  if (!readinessTool) {
+    throw new Error('get_game_control_readiness tool is missing.');
+  }
+  if (readinessTool.annotations?.readOnlyHint !== true || readinessTool.annotations?.destructiveHint !== false) {
+    throw new Error('get_game_control_readiness annotations must mark it read-only and non-destructive.');
+  }
+  const readinessOutputProperties = readinessTool.outputSchema?.properties ?? {};
+  for (const propertyName of ['schemaVersion', 'kind', 'status', 'ok', 'blockers', 'warnings', 'safety']) {
+    if (!(propertyName in readinessOutputProperties)) {
+      throw new Error(`get_game_control_readiness output schema is missing ${propertyName}.`);
+    }
+  }
+
+  const classifyTool = result.tools.find((tool) => tool.name === 'classify_game_action');
+  const classifyProperties = classifyTool?.inputSchema?.properties ?? {};
+  const requiredClassifyProperties = ['actionName', 'keyChord', 'holdMilliseconds'];
+  const missingClassifyProperties = requiredClassifyProperties.filter(
+    (propertyName) => !(propertyName in classifyProperties),
+  );
+  if (missingClassifyProperties.length > 0) {
+    throw new Error(
+      `classify_game_action input schema is missing properties: ${missingClassifyProperties.join(', ')}`,
+    );
+  }
+  if (classifyTool.annotations?.readOnlyHint !== true || classifyTool.annotations?.destructiveHint !== false) {
+    throw new Error('classify_game_action annotations must mark it read-only and non-destructive.');
+  }
+
+  const planTool = result.tools.find((tool) => tool.name === 'plan_movement_step');
+  const planProperties = planTool?.inputSchema?.properties ?? {};
+  const requiredPlanProperties = ['semanticAction', 'holdMilliseconds', 'target', 'verification', 'dryRun'];
+  const missingPlanProperties = requiredPlanProperties.filter(
+    (propertyName) => !(propertyName in planProperties),
+  );
+  if (missingPlanProperties.length > 0) {
+    throw new Error(
+      `plan_movement_step input schema is missing properties: ${missingPlanProperties.join(', ')}`,
+    );
+  }
+  if (planTool.annotations?.readOnlyHint !== false || planTool.annotations?.destructiveHint !== false) {
+    throw new Error('plan_movement_step annotations must mark it non-read-only but non-destructive.');
+  }
+
+  const latestArtifactTool = result.tools.find((tool) => tool.name === 'get_latest_control_artifact');
+  if (!latestArtifactTool) {
+    throw new Error('get_latest_control_artifact tool is missing.');
+  }
+  if (latestArtifactTool.annotations?.readOnlyHint !== true || latestArtifactTool.annotations?.destructiveHint !== false) {
+    throw new Error('get_latest_control_artifact annotations must mark it read-only and non-destructive.');
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -145,6 +201,8 @@ try {
         clickClientProperties: Object.keys(clickProperties).sort(),
         sendKeyProperties: Object.keys(sendKeyProperties).sort(),
         resizeGameWindowProperties: Object.keys(resizeProperties).sort(),
+        classifyGameActionProperties: Object.keys(classifyProperties).sort(),
+        planMovementStepProperties: Object.keys(planProperties).sort(),
       },
       null,
       2,

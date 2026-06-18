@@ -8,6 +8,10 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `get_bound_window_state`
 - `inspect_bound_window`
 - `get_riftreader_current_truth`
+- `get_game_control_readiness`
+- `classify_game_action`
+- `plan_movement_step`
+- `get_latest_control_artifact`
 - `focus_game_window`
 - `capture_game_window`
 - `resize_game_window`
@@ -36,6 +40,22 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `get_riftreader_current_truth` reads `docs/recovery/current-truth.json` so an
   operator can see the current movement gate and proof/readback blockers before
   acting.
+- `get_game_control_readiness` is a read-only preflight packet for live-control
+  automation. It aggregates bound-window state, exact-window inspection when a
+  window is bound, current-truth movement gates/blockers, config readiness, and
+  the next safe action. It does not focus, resize, click, send keys, attach
+  debuggers, write providers, or use SavedVariables as live truth.
+- `classify_game_action` is read-only and classifies semantic actions or raw
+  key chords. Movement-risk keys/actions (`W/A/S/D/Q/E`, arrows, Space, and
+  semantic movement aliases) are movement input, blocked by default, and require
+  separate approval before execution.
+- `plan_movement_step` creates only ignored local movement-plan artifacts under
+  `.riftreader-local\rift-game-mcp\movement-plans\`. It never sends input and
+  never creates a reusable approval token; its approval packet is for one
+  bounded movement step only.
+- `get_latest_control_artifact` reads the latest readiness/plan/run/session
+  artifact summaries under `.riftreader-local\rift-game-mcp\` without accepting
+  arbitrary paths.
 - Every other tool uses that bound window.
 - Input tools reject execution if:
   - no window is bound,
@@ -93,6 +113,19 @@ Safe key classification:
 { "tool": "send_key", "arguments": { "keyChord": "w", "dryRun": true } }
 ```
 
+Safe movement-control planning:
+
+```json
+{ "tool": "get_game_control_readiness" }
+{ "tool": "classify_game_action", "arguments": { "actionName": "move_forward", "holdMilliseconds": 500 } }
+{ "tool": "plan_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
+{ "tool": "get_latest_control_artifact", "arguments": { "kind": "movement-plan" } }
+```
+
+These planning tools are not live execution tools. They do not focus the game
+window, send keys, click, resize, attach x64dbg/CE, promote proof/truth, write
+providers, or expose public-route live movement control.
+
 ## Bindings config
 
 Edit:
@@ -134,9 +167,12 @@ codex mcp add rift_game -- node "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp\
 ```powershell
 cd "C:\RIFT MODDING\RiftReader\tools\rift-game-mcp"
 npm run validate
+npm run test:control
 ```
 
 That launches the MCP server over stdio and verifies the tool list.
+The control test exercises action classification and ignored movement-plan
+artifact writing without touching the live game window.
 
 ## Repo-local Codex skill
 
