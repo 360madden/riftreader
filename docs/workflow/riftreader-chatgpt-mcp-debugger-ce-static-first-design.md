@@ -1,6 +1,7 @@
 # RiftReader ChatGPT MCP Debugger/CE static-first design
 
-Status: **Stage 46 fail-closed execution-boundary surface implemented**. This document defines the
+Status: **Stage 46 fail-closed execution-boundary surface implemented** and
+**Stage 47 role/auth policy metadata implemented**. This document defines the
 debugger/Cheat Engine boundary for Stage 45-46 work. Stage 45 exposes
 `plan_debugger_ce_action` only; it does not expose a ChatGPT MCP attach backend,
 does not start x64dbg or Cheat Engine, does not read or write target process
@@ -21,7 +22,7 @@ live movement/control. Stage 44 makes the default route explicit:
 
 | Boundary | Rule |
 |---|---|
-| Current MCP surface | Stage 46 raises this to a 40-tool Cloudflare named Tunnel proof contract by adding `execute_debugger_ce_action`. No attach/CE backend is exposed. |
+| Current MCP surface | Stage 46 raises this to a 40-tool Cloudflare named Tunnel proof contract by adding `execute_debugger_ce_action`; Stage 47 adds `authRolePolicy` metadata without changing tool count or auth enforcement. No attach/CE backend is exposed. |
 | x64dbg | Must not be launched, attached, scripted, or used for breakpoints/watchpoints by this stage. |
 | Cheat Engine | Must not be launched, attached, connected through Lua/pipe, or used for scans by this stage. |
 | Target memory | No target process memory read/write is authorized by this design doc. Existing read-only memory helpers remain separate repo workflows and are not exposed as debugger/CE MCP tools. |

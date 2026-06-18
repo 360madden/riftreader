@@ -546,6 +546,10 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("list_bounded_repo_commands", names)
         self.assertTrue(all(item["annotations"]["readOnlyHint"] for item in manifest["tools"]))
         self.assertFalse(manifest["safety"]["writeLikeToolsExposed"])
+        self.assertEqual(
+            manifest["authRolePolicy"]["recommendedSharedDefaultProfile"],
+            chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY,
+        )
         self.assertEqual(chatgpt_mcp.tool_manifest()["toolProfile"], chatgpt_mcp.TOOL_PROFILE_FULL)
 
     def test_health_reports_no_broad_mcp_proxy_boundaries(self) -> None:
@@ -572,6 +576,12 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["absoluteRepoRootExposed"])
         self.assertEqual(payload["chatGptToolFacade"]["packageProofToolOrder"], list(chatgpt_mcp.PACKAGE_PROOF_TOOL_ORDER))
         self.assertIn("Refresh the rift-mcp app", payload["chatGptToolFacade"]["ifToolUnavailable"])
+        self.assertTrue(payload["authRolePolicy"]["personalNoAuthPreserved"])
+        self.assertFalse(payload["authRolePolicy"]["authEnforcementChanged"])
+        self.assertEqual(
+            payload["authRolePolicy"]["recommendedSharedDefaultProfile"],
+            chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY,
+        )
 
     def test_tool_result_contract_blocks_malformed_handler_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1861,6 +1871,12 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["serverUrl"], "https://mcp.360madden.com/mcp")
         self.assertEqual(payload["authMode"], "No Authentication")
+        self.assertTrue(payload["authRolePolicy"]["personalMode"]["noAuthPreserved"])
+        self.assertFalse(payload["authRolePolicy"]["personalMode"]["authEnforcementChanged"])
+        self.assertEqual(
+            payload["authRolePolicy"]["sharedMode"]["recommendedDefaultProfile"],
+            chatgpt_mcp.TOOL_PROFILE_PUBLIC_READ_ONLY,
+        )
         self.assertTrue(payload["safety"]["readOnlySetupPacket"])
         self.assertFalse(payload["safety"]["secretMaterialIncluded"])
 
@@ -2136,9 +2152,14 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
             roadmap_by_key["debugger-or-ce-assist"]["currentStatus"],
             "execution-boundary-exposed-fail-closed-before-attach",
         )
+        self.assertEqual(
+            roadmap_by_key["role-auth-hardening"]["currentStatus"],
+            "policy-metadata-exposed-no-auth-preserved",
+        )
         self.assertIn("plan_live_control_action", roadmap_by_key["live-rift-control"]["safePrecursorTools"])
         self.assertIn("plan_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
         self.assertIn("execute_debugger_ce_action", roadmap_by_key["debugger-or-ce-assist"]["safePrecursorTools"])
+        self.assertIn("health", roadmap_by_key["role-auth-hardening"]["safePrecursorTools"])
         self.assertIn("review_latest_package_draft", roadmap_by_key["apply-package-to-repo"]["safePrecursorTools"])
         self.assertIn("plan_live_control_action", payload["bidirectionalDataTransfer"]["planLiveRiftControlOnly"])
         self.assertIn(
@@ -2150,11 +2171,11 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertIn("commit-local-slice", payload["gatedActions"])
         self.assertEqual(
             payload["futureCapabilityPolicy"]["status"],
-            "role-auth-hardening-next",
+            "stage47-auth-role-policy-metadata-complete",
         )
         self.assertEqual(payload["fullProductStagePlan"]["stageCount"], 50)
-        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 46)
-        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 47)
+        self.assertEqual(payload["fullProductStagePlan"]["currentStage"], 47)
+        self.assertEqual(payload["fullProductStagePlan"]["nextStage"], 48)
         self.assertEqual(
             payload["fullProductStagePlan"]["planPath"],
             "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",

@@ -4,7 +4,8 @@ Status: Implemented contract. Phase 3 added the final gate; Phase 4 added
 environment preflight fields for loopback port allocation and local artifact
 root safety; Phase 6 tightened offline safety fixtures for MCP proposal targets,
 proposal checks, tool-boundary flags, root-safety flags, and unsafe-action
-detection.
+detection. Stage 47 adds role/auth policy metadata while preserving the
+personal No Authentication lane; it does not change auth enforcement.
 
 ## Purpose
 
@@ -137,10 +138,15 @@ tests prove the new tool stays within the safety model.
 
 Stage 44 adds the debugger/CE static-first design at
 `docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`.
-Stage 46 adds `execute_debugger_ce_action`, a plan-only ignored-artifact
-writer. CE/x64dbg attach, breakpoints, watchpoints, memory reads/writes, and
-debugger command surfaces remain outside the final-ready execution surface until
-later gated stages update this contract and tests.
+Stage 46 adds `execute_debugger_ce_action`, a fail-closed no-attach
+ignored-artifact writer. Stage 47 adds `authRolePolicy` metadata to health,
+manifest, connector setup, and workflow-control payloads so the personal
+**No Authentication** lane stays explicit while shared/high-power exposure is
+classified for `public-read-only` or future auth/explicit gates. CE/x64dbg
+attach, breakpoints, watchpoints, memory reads/writes, debugger command
+surfaces, OAuth setup, Mixed Authentication setup, and server-side auth
+middleware remain outside the final-ready execution surface until later gated
+stages update this contract and tests.
 
 Every approved tool must also enforce a strict wrapper-argument allowlist. Any
 unknown top-level argument key, non-object argument payload, non-JSON-
@@ -224,6 +230,10 @@ chatGptOriginatedWritesLocalOnly: true
 noExistingMcpProxy: true
 noWindowsMcpProxy: true
 noRiftGameMcpProxy: true
+authEnforcementChanged: false
+oauthConfigured: false
+mixedAuthConfigured: false
+secretMaterialIncluded: false
 ```
 
 ## Runtime dependency sequence for actual-client proof

@@ -2,14 +2,16 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-46 debugger/CE fail-closed execution-boundary surface**.
+Current holding point: **Post-Stage-47 role/auth policy metadata surface**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
 tool, Stage 43 exposes a fail-closed live-control execution boundary, Stage 44
 defines the debugger/CE static-first design boundary, Stage 45 exposes
 `plan_debugger_ce_action` as a plan-only debugger/CE artifact writer, Stage 46
 exposes `execute_debugger_ce_action` as a fail-closed no-attach execution-boundary
-artifact writer, and the MCP tool contract is now 40 tools.
+artifact writer, Stage 47 exposes role/auth policy metadata that preserves the
+personal **No Authentication** lane while recommending `public-read-only` for
+shared no-auth diagnostics, and the MCP tool contract remains 40 tools.
 The current 40-tool actual ChatGPT Web/Desktop proof must record
 `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`.
 Keep that proof fresh before claiming final readiness or adding another
@@ -125,6 +127,14 @@ artifacts. It still fails closed before attach because no debugger backend is
 available in this slice. It cannot launch or attach x64dbg, start Cheat Engine,
 set breakpoints/watchpoints, read or write target memory, send RIFT input,
 promote truth, write providers, or expose generic shell/file tools.
+
+Stage 47 role/auth policy metadata note:
+`authRolePolicy` is surfaced through health, manifest, connector setup, and the
+workflow-control policy status. It preserves the personal `No Authentication`
+mode, recommends `public-read-only` for shared no-auth diagnostics, and
+classifies full/high-power use for future auth or explicit operator gates. It
+does not add OAuth, Mixed Authentication, auth middleware, secrets, connector
+mutation, or a new MCP tool.
 
 To keep final readiness green, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
@@ -249,7 +259,7 @@ explicitly requires it and receives separate approval.
 | 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | complete-local |
 | 45 | Debugger/CE plan-only surface | Expose plan-only debugger/CE guidance and candidate evidence review. | ChatGPT can assist without attaching or setting breakpoints. | complete-local |
 | 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint boundary only after explicit approval and crash-risk disclosure. | All requested actions are logged and still fail closed before attach/backend execution. | complete-local-fail-closed |
-| 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth remains easy; shared/high-power use can require stronger gates. | pending |
+| 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth personal mode remains easy; shared/high-power use is classified for `public-read-only` or future auth/explicit gates. | complete-local |
 | 48 | End-to-end product eval suite | Build automated local plus actual-client eval checklist covering all tool classes and denial paths. | Regression suite proves both allowed and blocked behaviors. | pending |
 | 49 | Operational dashboard and recovery | Surface current stage, blockers, last proof, CI, tunnel health, audit paths, and next action in one dashboard. | Operator can resume without reading long transcripts. | pending |
 | 50 | Finished product release | All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows are implemented, gated, proven, documented, and recoverable. | Final gate passes, CI passes, proof artifacts are fresh, and release handoff is published. | pending |
@@ -258,11 +268,11 @@ explicitly requires it and receives separate approval.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 47 | Role and auth hardening | Prepare optional shared/high-power auth while preserving personal no-auth mode. |
-| 2 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 3 | 49 | Operational dashboard and recovery | Surface proof/runtime/CI/tunnel health and next action in one resumable view. |
-| 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 48 | End-to-end product eval suite | Keep regression coverage ready across read-only, local-write, Git, live, debugger, denial, and auth/profile policy paths. |
+| 2 | 49 | Operational dashboard and recovery | Surface proof/runtime/CI/tunnel health and next action in one resumable view. |
+| 3 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 4 | 50 | Finished product release | Final release remains after eval/dashboard/recovery gates. |
+| 5 | 50 | Finished product release | Publish a final handoff only after fresh actual-client proof and final readiness pass. |
 
 ## High-risk exposure order
 

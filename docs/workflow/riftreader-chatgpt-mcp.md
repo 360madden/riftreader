@@ -6,7 +6,9 @@ setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
 lanes, provider-intent labels that remain blocked by default, and Stage 38-40
 read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
 artifacts, the Stage 43 fail-closed live-control execution boundary, and the
-Stage 45 debugger/CE plan-only artifact boundary and Stage 46 fail-closed debugger/CE execution-boundary artifact surface.
+Stage 45 debugger/CE plan-only artifact boundary, Stage 46 fail-closed
+debugger/CE execution-boundary artifact surface, and Stage 47 role/auth policy
+metadata that preserves the personal No Authentication lane.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -48,7 +50,7 @@ The adapter is designed for this safe loop:
 | `run_mcp_restart_preflight` | Read-only | Produces exact-PID restart facts and approval token for the current MCP process; never stops or starts a process. |
 | `restart_mcp_runtime` | Approval-token gated local process action | Schedules an exact-PID restart of only the verified current MCP runtime after preflight token match; never starts tunnels, registers ChatGPT, mutates Git, sends RIFT input, writes providers, or touches CE/x64dbg. |
 | `get_tunnel_status` | Read-only external status | Reports Cloudflared service/process status, local backend status, and fixed public `/mcp` route reachability without starting or modifying tunnels. |
-| `get_chatgpt_connector_setup_packet` | Read-only | Returns the exact ChatGPT Web/Desktop Server URL, No Authentication mode, expected tool count, refresh steps, and actual-client proof checklist. |
+| `get_chatgpt_connector_setup_packet` | Read-only | Returns the exact ChatGPT Web/Desktop Server URL, No Authentication mode, expected tool count, refresh steps, actual-client proof checklist, and Stage 47 role/auth policy metadata. |
 | `get_final_readiness_status` | Read-only external status | Returns the compact final-readiness gate and current blockers, including stale proof and CI state. |
 | `submit_actual_client_observation` | Guarded local write | Records operator-supplied actual ChatGPT Web/Desktop observations as ignored proof artifacts under `.riftreader-local`; never calls ChatGPT, starts tunnels, stages, commits, pushes, sends RIFT input, writes providers, or touches CE/x64dbg. |
 | `get_actual_client_proof_status` | Read-only | Replays the latest actual-client proof and reports whether it is missing, stale, blocked, or valid for the current tool surface. |
@@ -181,6 +183,24 @@ writer, and Stage 46 fail-closed debugger/CE execution-boundary artifact writer.
 Stage 46 does not add a CE/x64dbg attach, breakpoint, watchpoint, memory-read, or
 memory-write backend.
 It is not deleted or downgraded.
+
+## Stage 47 role/auth policy
+
+Stage 47 is a local policy-metadata slice. It does **not** add OAuth secrets,
+Mixed Authentication, auth middleware, connector mutation, or server startup.
+
+| Mode | Current status | Rule |
+|---|---|---|
+| Personal operator lane | Preserved default | Keep `https://mcp.360madden.com/mcp` with **No Authentication** for the operator-owned ChatGPT Developer Mode app. Existing per-action approval gates remain authoritative. |
+| Shared no-auth diagnostics | Available by profile | Prefer `--tool-profile public-read-only`, which exposes read-only diagnostics and no write-like tools. |
+| Full/shared high-power use | Policy-defined, not server-enforced | Require future auth/roles or explicit current-turn operator gates before exposing write, Git, live, debugger/CE, provider, proof-promotion, or remote-mutation actions. |
+
+The `health`, `tool_manifest`, and `get_chatgpt_connector_setup_packet`
+payloads now include compact or full `authRolePolicy` metadata so ChatGPT and
+the operator can see the boundary without changing the current no-auth personal
+flow. The workflow-control plan stays transport-budgeted and reports
+`futureCapabilityPolicy.status=stage47-auth-role-policy-metadata-complete`; the
+tiny `get_workflow_control_summary` fallback remains summary-only.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
 

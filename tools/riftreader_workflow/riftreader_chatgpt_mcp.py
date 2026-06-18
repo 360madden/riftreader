@@ -445,6 +445,7 @@ def compact_final_product_progress(progress: Any) -> dict[str, Any]:
 
 def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
     phase_order = stage_plan.get("phaseOrder") if isinstance(stage_plan.get("phaseOrder"), list) else []
+    immediate_stages = stage_plan.get("immediateStages") if isinstance(stage_plan.get("immediateStages"), list) else []
     return {
         "schemaVersion": stage_plan.get("schemaVersion"),
         "kind": stage_plan.get("kind"),
@@ -456,7 +457,7 @@ def compact_stage_plan(stage_plan: dict[str, Any]) -> dict[str, Any]:
         "nextStageName": stage_plan.get("nextStageName"),
         "planPath": stage_plan.get("planPath"),
         "currentTruth": compact_text(stage_plan.get("currentTruth"), max_chars=20),
-        "immediateStages": limited_list(stage_plan.get("immediateStages")),
+        "immediateStages": immediate_stages[-5:],
         "phaseOrderCount": len(phase_order),
     }
 
@@ -468,11 +469,24 @@ def compact_future_capability_roadmap(roadmap: list[dict[str, Any]]) -> list[dic
             {
                 "key": item.get("key"),
                 "currentStatus": item.get("currentStatus"),
-                "riskClass": item.get("riskClass"),
                 "safePrecursorTools": (item.get("safePrecursorTools") or [])[:2],
             }
         )
     return compact
+
+
+def compact_auth_role_policy(policy: dict[str, Any]) -> dict[str, Any]:
+    personal_mode = policy.get("personalMode") if isinstance(policy.get("personalMode"), dict) else {}
+    shared_mode = policy.get("sharedMode") if isinstance(policy.get("sharedMode"), dict) else {}
+    high_power = policy.get("highPowerPolicy") if isinstance(policy.get("highPowerPolicy"), dict) else {}
+    return {
+        "status": policy.get("status"),
+        "activeProfile": policy.get("activeProfile"),
+        "personalNoAuthPreserved": personal_mode.get("noAuthPreserved"),
+        "authEnforcementChanged": personal_mode.get("authEnforcementChanged"),
+        "recommendedSharedDefaultProfile": shared_mode.get("recommendedDefaultProfile"),
+        "highPowerRequiresAuthOrExplicitOperatorGate": high_power.get("requiresAuthOrExplicitOperatorGate"),
+    }
 
 
 def compact_apply_tool_contract(contract: dict[str, Any]) -> dict[str, Any]:
@@ -731,6 +745,20 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
             "promotion/current-truth updates require separate approval",
         ],
     },
+    {
+        "key": "role-auth-hardening",
+        "targetToolName": "health/get_chatgpt_connector_setup_packet",
+        "currentStatus": "policy-metadata-exposed-no-auth-preserved",
+        "riskClass": "access-boundary",
+        "minimumGate": "personal-no-auth-preserved-shared-high-power-requires-future-auth-or-explicit-operator-gates",
+        "safePrecursorTools": ["health", "get_chatgpt_connector_setup_packet"],
+        "requiredSafeguards": [
+            "personal operator-owned No Authentication mode remains the default",
+            "shared use should prefer the public-read-only profile unless future auth is configured",
+            "write, Git, live, debugger, and provider actions stay behind explicit per-action gates",
+            "this slice does not add OAuth secrets, auth middleware, connector mutation, or server startup",
+        ],
+    },
 )
 
 
@@ -740,18 +768,20 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 46,
-    "currentStageName": "Debugger/CE gated assist",
+    "currentStage": 47,
+    "currentStageName": "Role and auth hardening",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
         "Stage 42 plan-only live-control artifacts, Stage 43 fail-closed execution-boundary artifacts, "
         "Stage 45 plan-only debugger/CE artifacts, and Stage 46 fail-closed debugger/CE execution-boundary "
-        "artifacts. Stage 44 debugger/CE static-first design is complete-local; provider writes, live "
-        "input/movement execution, proof promotion, CE attach, and x64dbg attach remain absent."
+        "artifacts. Stage 47 role/auth policy metadata preserves the personal No Authentication flow and "
+        "marks shared/high-power use for public-read-only or future authenticated gates. Stage 44 debugger/CE "
+        "static-first design is complete-local; provider writes, live input/movement execution, proof promotion, "
+        "CE attach, x64dbg attach, OAuth setup, and auth enforcement changes remain absent."
     ),
-    "nextStage": 47,
-    "nextStageName": "Role and auth hardening",
+    "nextStage": 48,
+    "nextStageName": "End-to-end product eval suite",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -790,7 +820,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 43, "name": "Expose minimal live action tool", "status": "complete-local-fail-closed"},
         {"stage": 44, "name": "Debugger/CE static-first design", "status": "complete-local"},
         {"stage": 45, "name": "Debugger/CE plan-only surface", "status": "complete-local"},
-        {"stage": 46, "name": "Debugger/CE gated assist", "status": "pending"},
+        {"stage": 46, "name": "Debugger/CE gated assist", "status": "complete-local-fail-closed"},
+        {"stage": 47, "name": "Role and auth hardening", "status": "complete-local"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1478,6 +1509,121 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         open_world=False,
     ),
 }
+
+
+def auth_role_policy(active_profile: str = TOOL_PROFILE_FULL) -> dict[str, Any]:
+    active_order = tool_order_for_profile(active_profile)
+    high_power_tools = {
+        "localArtifactWrites": [
+            "submit_actual_client_observation",
+            "submit_package_proposal",
+            "create_package_draft_from_inbox",
+            "dry_run_latest_package_draft",
+            "plan_live_control_action",
+            "plan_debugger_ce_action",
+        ],
+        "repoMutation": ["apply_latest_package_draft", "commit_reviewed_slice"],
+        "remoteMutation": ["push_current_branch"],
+        "boundedCommand": ["run_bounded_repo_command"],
+        "liveRift": ["execute_live_control_action"],
+        "debuggerCe": ["execute_debugger_ce_action"],
+    }
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "riftreader-chatgpt-mcp-auth-role-policy",
+        "status": "stage47-complete-local-policy-metadata",
+        "ok": True,
+        "stage": 47,
+        "activeProfile": active_profile,
+        "activeToolCount": len(active_order),
+        "personalMode": {
+            "status": "preserved-default",
+            "authMode": "No Authentication",
+            "profile": TOOL_PROFILE_FULL,
+            "toolCount": len(EXPECTED_TOOL_ORDER),
+            "noAuthPreserved": True,
+            "authEnforcementChanged": False,
+            "secretMaterialRequired": False,
+            "oauthConfigured": False,
+            "mixedAuthConfigured": False,
+            "intendedAudience": "operator-owned personal ChatGPT Web/Desktop Developer Mode lane",
+        },
+        "profiles": {
+            TOOL_PROFILE_FULL: {
+                "status": "available-operator-owned-personal",
+                "authMode": "No Authentication",
+                "toolCount": len(EXPECTED_TOOL_ORDER),
+                "writeLikeToolsExposed": any(not TOOL_SPECS[name].read_only for name in EXPECTED_TOOL_ORDER),
+                "requiresPerActionGates": True,
+            },
+            TOOL_PROFILE_PUBLIC_READ_ONLY: {
+                "status": "available-read-only-shared-diagnostics",
+                "authMode": "No Authentication",
+                "toolCount": len(PUBLIC_READ_ONLY_TOOL_ORDER),
+                "writeLikeToolsExposed": any(not TOOL_SPECS[name].read_only for name in PUBLIC_READ_ONLY_TOOL_ORDER),
+                "recommendedForSharedNoAuth": True,
+            },
+        },
+        "sharedMode": {
+            "status": "policy-defined-not-enforced-by-server",
+            "recommendedDefaultProfile": TOOL_PROFILE_PUBLIC_READ_ONLY,
+            "futureAuthRequiredForFullProfile": True,
+            "futureAuthRequiredForHighPowerTools": True,
+            "noAuthFullProfileSharingRecommended": False,
+        },
+        "roles": [
+            {
+                "name": "observer",
+                "recommendedProfile": TOOL_PROFILE_PUBLIC_READ_ONLY,
+                "authMode": "No Authentication allowed for read-only diagnostics",
+                "mutationAllowed": False,
+            },
+            {
+                "name": "operator-personal",
+                "recommendedProfile": TOOL_PROFILE_FULL,
+                "authMode": "No Authentication preserved for the operator-owned personal lane",
+                "mutationAllowed": "only through explicit per-action gates",
+            },
+            {
+                "name": "high-power-operator",
+                "recommendedProfile": TOOL_PROFILE_FULL,
+                "authMode": "future auth or explicit current-turn operator gate required",
+                "mutationAllowed": "only after tool-specific approval, target, proof, and crash-risk gates",
+            },
+        ],
+        "highPowerToolClasses": high_power_tools,
+        "highPowerPolicy": {
+            "requiresAuthOrExplicitOperatorGate": True,
+            "existingPerActionGatesRemainAuthoritative": True,
+            "pushStillRequiresExplicitRemoteMutationApproval": True,
+            "liveInputStillRequiresSeparateApproval": True,
+            "debuggerCeStillRequiresSeparateCrashRiskApproval": True,
+            "providerWritesStillBlockedByDefault": True,
+            "proofPromotionStillRequiresSeparateApproval": True,
+        },
+        "blockers": [],
+        "warnings": [
+            "Stage 47 exposes policy metadata only; it does not implement OAuth, Mixed Authentication, secrets, or server-side auth middleware.",
+            "Use the public-read-only profile for any shared/no-auth diagnostic exposure until future auth enforcement is implemented.",
+        ],
+        "safety": {
+            **base_safety(),
+            "readOnlyPolicyMetadata": True,
+            "authEnforcementChanged": False,
+            "oauthConfigured": False,
+            "mixedAuthConfigured": False,
+            "secretMaterialIncluded": False,
+            "serverStarted": False,
+            "publicTunnelStarted": False,
+            "chatGptRegistrationPerformed": False,
+            "gitMutation": False,
+            "providerWrites": False,
+            "inputSent": False,
+            "movementSent": False,
+            "x64dbgAttach": False,
+            "noCheatEngine": True,
+        },
+    }
 
 
 @dataclass
@@ -2230,6 +2376,7 @@ class RiftReaderChatGptMcpAdapter:
                     "call the named rift-mcp tool. Do not treat health.tools as a substitute for an actual call."
                 ),
             },
+            "authRolePolicy": compact_auth_role_policy(auth_role_policy(tool_profile)),
             "safety": {
                 **base_safety(),
                 "auditUnderDotRiftReaderLocal": is_relative_to(self.config.audit_root, self.config.repo_root / ".riftreader-local"),
@@ -2552,6 +2699,7 @@ class RiftReaderChatGptMcpAdapter:
             "setupSteps": payload.get("setupSteps"),
             "firstToolCalls": payload.get("firstToolCalls"),
             "proofChecklist": payload.get("proofChecklist"),
+            "authRolePolicy": auth_role_policy(self.config.tool_profile),
             "blockers": list(payload.get("blockers") or []),
             "warnings": list(payload.get("warnings") or []),
             "safety": {
@@ -3485,8 +3633,8 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "role-auth-hardening-next",
-                "defaultDevelopmentOrder": ["role-auth-hardening", "end-to-end-evals", "dashboard-release"],
+                "status": "stage47-auth-role-policy-metadata-complete",
+                "defaultDevelopmentOrder": ["end-to-end-evals", "dashboard-release"],
             },
             "gatedActions": [
                 "apply-package-to-repo",
@@ -3948,6 +4096,7 @@ def tool_manifest(tool_profile: str = TOOL_PROFILE_FULL) -> dict[str, Any]:
             }
             for name in tool_order
         ],
+        "authRolePolicy": compact_auth_role_policy(auth_role_policy(tool_profile)),
         "safety": {
             **base_safety(),
             "publicReadOnlyProfile": tool_profile == TOOL_PROFILE_PUBLIC_READ_ONLY,
@@ -7106,6 +7255,8 @@ def create_fastmcp_server(
             "or reads/writes target memory. execute_debugger_ce_action is Stage 46 fail-closed before attach: it "
             "verifies the plan/approval/target boundary and writes ignored run artifacts, but no debugger backend is "
             "available in this slice. "
+            "Stage 47 preserves the personal No Authentication lane; use public-read-only for shared no-auth "
+            "diagnostics until future auth enforcement exists, and keep high-power tools behind explicit gates. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,

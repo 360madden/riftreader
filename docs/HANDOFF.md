@@ -1,3 +1,20 @@
+# 2026-06-18 - ChatGPT MCP Stage 47 role/auth policy metadata complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage47-role-auth-policy-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 47 | Complete-local as non-executing role/auth policy metadata. |
+| Tool surface | Full non-Codex ChatGPT MCP profile remains 40 tools; no new MCP tool was added. |
+| Personal auth | `No Authentication` remains preserved for the operator-owned personal ChatGPT Developer Mode lane. |
+| Shared guidance | Shared no-auth diagnostics should use `--tool-profile public-read-only`; full/high-power shared use remains future-auth or explicit-gate territory. |
+| Safety | No OAuth, Mixed Authentication, auth middleware, secrets, connector mutation, server start, tunnel start, RIFT input, CE/x64dbg attach, provider writes, proof promotion, Git mutation, or push happened in this slice. |
+| Next stage | Stage 48: end-to-end product eval suite. |
+| Remaining blocker | Fresh actual ChatGPT Web/Desktop proof must observe the current 40-tool surface and Stage47 payload metadata before final readiness can pass. |
+
+---
+
 # 2026-06-18 - ChatGPT MCP Stage 46 debugger/CE execution boundary complete-local
 
 Fresh compact handoff:
