@@ -2,14 +2,15 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-45 debugger/CE plan-only surface**.
+Current holding point: **Post-Stage-46 debugger/CE fail-closed execution-boundary surface**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
 tool, Stage 43 exposes a fail-closed live-control execution boundary, Stage 44
 defines the debugger/CE static-first design boundary, Stage 45 exposes
-`plan_debugger_ce_action` as a plan-only debugger/CE artifact writer, and the
-MCP tool contract is now 39 tools.
-The current 39-tool actual ChatGPT Web/Desktop proof must record
+`plan_debugger_ce_action` as a plan-only debugger/CE artifact writer, Stage 46
+exposes `execute_debugger_ce_action` as a fail-closed no-attach execution-boundary
+artifact writer, and the MCP tool contract is now 40 tools.
+The current 40-tool actual ChatGPT Web/Desktop proof must record
 `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`.
 Keep that proof fresh before claiming final readiness or adding another
 high-power tool surface.
@@ -36,7 +37,7 @@ accepts shell strings or arbitrary argv, and the current full MCP surface was
 Stages 38-40 intentionally raised the full MCP surface to 36 tools, Stage 42
 raised it to 37 tools with a plan-only live-control artifact writer, and Stage
 43 raised it to 38 tools with a fail-closed execution-boundary artifact writer.
-Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer.
+Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer, and Stage 46 raises it to 40 tools with a fail-closed debugger/CE execution-boundary artifact writer.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -115,10 +116,20 @@ human approval prompt, and candidate-only evidence handling. It cannot launch or
 attach x64dbg, start Cheat Engine, set breakpoints/watchpoints, read or write
 target memory, send RIFT input, promote truth, or write providers.
 
+Stage 46 debugger/CE fail-closed execution-boundary note:
+`execute_debugger_ce_action` is exposed in the full profile only. It reads one
+Stage 45 debugger/CE plan artifact, verifies the plan, one-shot approval phrase,
+exact target gate when applicable, crash-risk/static-first preconditions, and
+writes ignored `.riftreader-local\riftreader-chatgpt-mcp\debugger-ce-runs\*`
+artifacts. It still fails closed before attach because no debugger backend is
+available in this slice. It cannot launch or attach x64dbg, start Cheat Engine,
+set breakpoints/watchpoints, read or write target memory, send RIFT input,
+promote truth, write providers, or expose generic shell/file tools.
+
 To keep final readiness green, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
-39-tool proof recorded and replayed with a successful actual client transport
+40-tool proof recorded and replayed with a successful actual client transport
 call, Phase 2 passed, and final readiness passed. A saved ChatGPT connector
 entry is configuration only; it does not start the local MCP server or prove the
 current tool surface.
@@ -131,7 +142,7 @@ record that as a client-refresh blocker rather than treating the saved connector
 or local backend as sufficient proof.
 A successful Codex Apps wrapper/facade health call is useful diagnostics, but it
 is not a substitute for the non-Codex ChatGPT Web/Desktop proof artifact unless
-that actual-client proof records the same current 39-tool client surface, output
+that actual-client proof records the same current 40-tool client surface, output
 schemas, and successful tool calls.
 The local-only Stage 38 consideration gate remains historical approval evidence:
 
@@ -167,8 +178,8 @@ input, and Stage 43 exposes `execute_live_control_action` as a fail-closed
 execution-boundary artifact writer. It verifies plan/approval binding and still
 blocks before input while the live input backend is unavailable. Stage 44 now
 documents the debugger/CE static-first boundary, and Stage 45 exposes a
-debugger/CE plan-only surface without attach tools.
-Stage 46 is the next implementation boundary: debugger/CE gated assist.
+debugger/CE plan-only surface without attach tools, and Stage 46 exposes a
+fail-closed debugger/CE execution boundary without attach tools.
 Do not enable movement/input execution until a later gated backend slice
 explicitly requires it and receives separate approval.
 
@@ -237,7 +248,7 @@ explicitly requires it and receives separate approval.
 | 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | complete-local-fail-closed |
 | 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | complete-local |
 | 45 | Debugger/CE plan-only surface | Expose plan-only debugger/CE guidance and candidate evidence review. | ChatGPT can assist without attaching or setting breakpoints. | complete-local |
-| 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint assistance only after explicit approval and crash-risk disclosure. | All actions are logged and candidate-only by default. | pending |
+| 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint boundary only after explicit approval and crash-risk disclosure. | All requested actions are logged and still fail closed before attach/backend execution. | complete-local-fail-closed |
 | 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth remains easy; shared/high-power use can require stronger gates. | pending |
 | 48 | End-to-end product eval suite | Build automated local plus actual-client eval checklist covering all tool classes and denial paths. | Regression suite proves both allowed and blocked behaviors. | pending |
 | 49 | Operational dashboard and recovery | Surface current stage, blockers, last proof, CI, tunnel health, audit paths, and next action in one dashboard. | Operator can resume without reading long transcripts. | pending |
@@ -247,9 +258,9 @@ explicitly requires it and receives separate approval.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 46 | Debugger/CE gated assist | Add a fail-closed execution boundary before any future attach backend. |
-| 2 | 47 | Role and auth hardening | Prepare optional shared/high-power auth while preserving personal no-auth mode. |
-| 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 1 | 47 | Role and auth hardening | Prepare optional shared/high-power auth while preserving personal no-auth mode. |
+| 2 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 3 | 49 | Operational dashboard and recovery | Surface proof/runtime/CI/tunnel health and next action in one resumable view. |
 | 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
 | 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 

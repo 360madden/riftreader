@@ -137,7 +137,7 @@ tests prove the new tool stays within the safety model.
 
 Stage 44 adds the debugger/CE static-first design at
 `docs/workflow/riftreader-chatgpt-mcp-debugger-ce-static-first-design.md`.
-Stage 45 adds only `plan_debugger_ce_action`, a plan-only ignored-artifact
+Stage 46 adds `execute_debugger_ce_action`, a plan-only ignored-artifact
 writer. CE/x64dbg attach, breakpoints, watchpoints, memory reads/writes, and
 debugger command surfaces remain outside the final-ready execution surface until
 later gated stages update this contract and tests.
@@ -237,7 +237,7 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 3. The selected listener command line is the current
    `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
    legacy `tools.riftreader_mcp.http_server`.
-4. The selected listener uses the intended profile (`full` for final 39-tool
+4. The selected listener uses the intended profile (`full` for final 40-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
 6. If a local/Codex stdio MCP counterpart is present, treat it as a separate
@@ -273,7 +273,7 @@ scripts\riftreader-stage38-consideration.cmd --status --compact-json
 ```
 
 That helper intentionally never starts live RIFT tooling. The current ChatGPT
-surface is 39 tools after adding Stage 42 plan-only live-control artifacts,
+surface is 40 tools after adding Stage 42 plan-only live-control artifacts,
 the Stage 43 fail-closed execution-boundary artifact writer, and the Stage 45
 debugger/CE plan-only artifact writer on top of the Stage 38-40 read-only/no-input
 live status surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel

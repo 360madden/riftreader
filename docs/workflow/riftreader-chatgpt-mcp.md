@@ -1,12 +1,12 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: 39-tool narrow adapter with runtime/final-readiness/proof-status,
+Status: 40-tool narrow adapter with runtime/final-readiness/proof-status,
 tool-surface diff, guarded restart preflight/restart, tunnel-status, connector
 setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
 lanes, provider-intent labels that remain blocked by default, and Stage 38-40
 read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
 artifacts, the Stage 43 fail-closed live-control execution boundary, and the
-Stage 45 debugger/CE plan-only artifact boundary.
+Stage 45 debugger/CE plan-only artifact boundary and Stage 46 fail-closed debugger/CE execution-boundary artifact surface.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -58,6 +58,7 @@ The adapter is designed for this safe loop:
 | `plan_live_control_action` | Plan-only local artifact write | Returns a Stage 42 live-control dry-run plan with target binding, risk classification, approval prompt, and verification requirements under ignored `.riftreader-local` artifacts; never focuses, captures, clicks, sends keys, moves the player, runs ProofOnly, promotes truth, writes providers, or touches CE/x64dbg. |
 | `execute_live_control_action` | Fail-closed execution-boundary artifact write | Evaluates one Stage 43 live-control execution boundary against a Stage 42 plan, exact target gate, and one-shot approval phrase. In this slice it writes ignored `.riftreader-local` run artifacts and blocks before input because the live backend is unavailable; validation keeps `inputSent=false` and `movementSent=false`. |
 | `plan_debugger_ce_action` | Plan-only local artifact write | Returns a Stage 45 debugger/CE/static-review plan with risk classification, static-first checklist, target binding when applicable, approval prompt, and candidate-only evidence handling under ignored `.riftreader-local` artifacts; never launches or attaches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, reads or writes target memory, sends RIFT input, promotes truth, writes providers, or exposes generic shell/file tools. |
+| `execute_debugger_ce_action` | Fail-closed execution-boundary artifact write | Evaluates a Stage 45 debugger/CE plan against Stage 46 gates, exact target identity when applicable, one-shot approval, crash-risk/static-first requirements, and writes ignored `.riftreader-local` run artifacts; still blocks before attach/backend execution and never launches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, reads/writes target memory, sends RIFT input, promotes truth, writes providers, or exposes generic shell/file tools. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`; provider-write intent metadata is preserved as a blocked-by-default label. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
@@ -121,7 +122,7 @@ Required current-lane result:
 |---|---|
 | `status` | `running-current` |
 | `ok` | `true` |
-| `selectedListener.classification.toolProfile` | `full` for final 39-tool proof |
+| `selectedListener.classification.toolProfile` | `full` for final 40-tool proof |
 | `selectedListener.classification.transport` | `streamable-http` |
 
 Fail closed on these states:
@@ -138,7 +139,7 @@ Dependency order for proof work:
 2. local backend listener is present on `127.0.0.1:8770`;
 3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
    adapter, not legacy/foreign;
-4. tool profile matches the intended proof (`full` for the current 39-tool proof);
+4. tool profile matches the intended proof (`full` for the current 40-tool proof);
 5. Cloudflare named Tunnel/public route forwards to that backend;
 6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
 7. proof input is checked and recorded, then final readiness is rerun.
@@ -170,14 +171,15 @@ Phase 0 exposes only:
 - `list_bounded_repo_commands`
 - `get_workflow_control_plan`
 
-The default `--tool-profile full` path exposes the current 39-tool final proof
+The default `--tool-profile full` path exposes the current 40-tool final proof
 surface, including runtime/final-readiness/proof-status helpers, tool-surface
 diff, guarded restart, tunnel status, connector setup, and the approval-gated
 apply, local-commit, push, bounded-command, no-input live RIFT status tools, and
 the Stage 42 plan-only live-control artifact writer, Stage 43 fail-closed
-execution-boundary artifact writer, and Stage 45 debugger/CE plan-only artifact
-writer. Stage 45 does not add a CE/x64dbg attach, breakpoint, watchpoint, or
-memory-write tool.
+execution-boundary artifact writer, Stage 45 debugger/CE plan-only artifact
+writer, and Stage 46 fail-closed debugger/CE execution-boundary artifact writer.
+Stage 46 does not add a CE/x64dbg attach, breakpoint, watchpoint, memory-read, or
+memory-write backend.
 It is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:
@@ -678,10 +680,10 @@ Current active proof packets must record the selected connection path explicitly
 |---|---|---|
 | `connectionMode` | `cloudflare-named-tunnel` (legacy recorder packets may still say `manual-public-ip`) | Required for the active ChatGPT Web/Desktop proof lane. |
 | `publicMcpUrl` | `https://mcp.360madden.com/mcp` | Must be HTTPS and currently reachable from ChatGPT/OpenAI. |
-| `toolNames` | Canonical 39 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
+| `toolNames` | Canonical 40 allowlisted tool names | Must match the expected tool-name set exactly; duplicate, missing, or unexpected names block proof replay. |
 | `toolOutputSchemasPresent` | `true` | Confirms the ChatGPT-observed tool descriptors include per-tool output-schema contracts for returned `structuredContent`. |
-| `toolOutputSchemaCount` | `39` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
-| `toolOutputSchemaToolNames` | Canonical 39 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
+| `toolOutputSchemaCount` | `40` | Must match the allowlisted tool count so a partial schema registration cannot pass as final proof. |
+| `toolOutputSchemaToolNames` | Canonical 40 allowlisted tool names | Must match the same expected tool-name set exactly, proving every allowlisted tool has an observed output-schema contract. |
 
 Retired paths are not backups:
 
@@ -706,7 +708,7 @@ In ChatGPT web:
 2. Open Apps/Connectors settings.
 3. Create an app/connector using **Server URL** and
    `https://mcp.360madden.com/mcp`.
-4. Confirm the tool list contains only the 39 allowlisted RiftReader tools.
+4. Confirm the tool list contains only the 40 allowlisted RiftReader tools.
 5. In the conversation, explicitly select Developer Mode and this app.
 
 Suggested first prompt:

@@ -32,7 +32,7 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlsplit
 
 try:
-    from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_plan
+    from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_execute, debugger_ce_plan
     from . import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
@@ -43,7 +43,7 @@ try:
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_NAMES, PACKAGE_PROOF_TOOL_NAMES, PUBLIC_READ_ONLY_TOOL_NAMES
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_plan
+    from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice, debugger_ce_execute, debugger_ce_plan
     from riftreader_workflow import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
@@ -164,6 +164,16 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
             "crashRiskAcknowledged",
             "staticFirstReviewed",
             "dryRun",
+        }
+    ),
+    "execute_debugger_ce_action": frozenset(
+        {
+            "planId",
+            "planPath",
+            "approvalPhrase",
+            "targetIdentity",
+            "dryRun",
+            "allowDebuggerRisk",
         }
     ),
     "get_package_proposal_template": frozenset(),
@@ -706,13 +716,14 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     },
     {
         "key": "debugger-or-ce-assist",
-        "targetToolName": "plan_debugger_ce_action",
-        "currentStatus": "plan-only-exposed",
+        "targetToolName": "execute_debugger_ce_action",
+        "currentStatus": "execution-boundary-exposed-fail-closed-before-attach",
         "riskClass": "debugger-attach-crash-risk",
         "minimumGate": "explicit-debugger-approval-in-current-turn-for-any-future-attach",
-        "safePrecursorTools": ["plan_debugger_ce_action", "get_repo_status", "get_latest_handoff"],
+        "safePrecursorTools": ["plan_debugger_ce_action", "execute_debugger_ce_action", "get_repo_status", "get_latest_handoff"],
         "requiredSafeguards": [
             "Stage 45 only writes ignored plan artifacts and never attaches",
+            "Stage 46 only writes ignored execution-boundary artifacts and still fails closed before attach",
             "attach target and crash risk must be stated before any future action",
             "no automatic breakpoints/watchpoints without separate approval",
             "read-only static/offline alternatives must be preferred first",
@@ -735,8 +746,9 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
         "Stage 42 plan-only live-control artifacts, Stage 43 fail-closed execution-boundary artifacts, "
-        "and Stage 45 plan-only debugger/CE artifacts. Stage 44 debugger/CE static-first design is complete-local; "
-        "provider writes, live input/movement execution, proof promotion, CE attach, and x64dbg attach remain absent."
+        "Stage 45 plan-only debugger/CE artifacts, and Stage 46 fail-closed debugger/CE execution-boundary "
+        "artifacts. Stage 44 debugger/CE static-first design is complete-local; provider writes, live "
+        "input/movement execution, proof promotion, CE attach, and x64dbg attach remain absent."
     ),
     "nextStage": 47,
     "nextStageName": "Role and auth hardening",
@@ -1212,6 +1224,21 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
         read_only=False,
         destructive=False,
+        open_world=True,
+    ),
+    "execute_debugger_ce_action": ToolSpec(
+        name="execute_debugger_ce_action",
+        title="Execute Debugger or Cheat Engine Boundary",
+        description=(
+            "Use this when a Stage 45 debugger/CE plan exists and the operator explicitly wants the Stage 46 "
+            "debugger/CE gated-assist execution boundary evaluated. This writes ignored local run artifacts, verifies "
+            "the plan, one-shot approval phrase, exact target gate when applicable, and crash/static-first preconditions, "
+            "then fails closed before attach because no debugger backend is available in this slice. It never launches "
+            "or attaches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, reads or writes target memory, sends "
+            "RIFT input, promotes truth, writes providers, or exposes generic shell/file tools."
+        ),
+        read_only=False,
+        destructive=True,
         open_world=True,
     ),
     "get_package_proposal_template": ToolSpec(
@@ -1965,6 +1992,16 @@ class RiftReaderChatGptMcpAdapter:
                         default=False,
                     ),
                     dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
+                ),
+                "execute_debugger_ce_action": lambda call_args: self.execute_debugger_ce_action(
+                    plan_id=optional_str(call_args.get("planId"), field_name="planId"),
+                    plan_path=optional_str(call_args.get("planPath"), field_name="planPath"),
+                    approval_phrase=optional_str(call_args.get("approvalPhrase"), field_name="approvalPhrase"),
+                    target_identity=optional_mapping(call_args.get("targetIdentity"), field_name="targetIdentity"),
+                    dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
+                    allow_debugger_risk=optional_bool(
+                        call_args.get("allowDebuggerRisk"), field_name="allowDebuggerRisk", default=False
+                    ),
                 ),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
@@ -2750,6 +2787,26 @@ class RiftReaderChatGptMcpAdapter:
             dry_run=dry_run,
         )
 
+    def execute_debugger_ce_action(
+        self,
+        *,
+        plan_id: str | None = None,
+        plan_path: str | None = None,
+        approval_phrase: str | None = None,
+        target_identity: dict[str, Any] | None = None,
+        dry_run: bool = True,
+        allow_debugger_risk: bool = False,
+    ) -> dict[str, Any]:
+        return debugger_ce_execute.build_debugger_ce_execution_boundary(
+            self.config.repo_root,
+            plan_id=plan_id,
+            plan_path=plan_path,
+            approval_phrase=approval_phrase,
+            target_identity=target_identity,
+            dry_run=dry_run,
+            allow_debugger_risk=allow_debugger_risk,
+        )
+
     def get_package_proposal_template(self) -> dict[str, Any]:
         schema = bridge.inbox_schema_payload(self.config.bridge_config)
         return {
@@ -3404,9 +3461,10 @@ class RiftReaderChatGptMcpAdapter:
                 "planLiveRiftControlOnly": ["plan_live_control_action"],
                 "executeLiveRiftControlBoundary": ["execute_live_control_action"],
                 "planDebuggerCeOnly": ["plan_debugger_ce_action"],
+                "executeDebuggerCeBoundary": ["execute_debugger_ce_action"],
                 "writeBoundary": (
                     "Writes only approved local artifacts/actions: inbox/drafts, gated apply/commit/push, "
-                    "bounded commands, Stage 42/45 plans, and Stage 43 no-input runs."
+                    "bounded commands, Stage 42/45 plans, Stage 43 no-input runs, and Stage 46 no-attach runs."
                 ),
             },
             "missionControl": {
@@ -3427,17 +3485,8 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "debugger-ce-gated-assist-next",
-                "defaultDevelopmentOrder": [
-                    "apply-package-to-repo",
-                    "commit-local-slice",
-                    "push-current-branch",
-                    "bounded-shell-command",
-                    "provider-repo-writes",
-                    "live-rift-no-input-status",
-                    "live-rift-control",
-                    "debugger-or-ce-assist",
-                ],
+                "status": "role-auth-hardening-next",
+                "defaultDevelopmentOrder": ["role-auth-hardening", "end-to-end-evals", "dashboard-release"],
             },
             "gatedActions": [
                 "apply-package-to-repo",
@@ -7054,7 +7103,9 @@ def create_fastmcp_server(
             "backend remains unavailable unless a future separately approved local backend slice enables it. "
             "plan_debugger_ce_action is Stage 45 plan-only: it writes ignored debugger/CE/static-review plan "
             "artifacts and never launches or attaches x64dbg, starts Cheat Engine, sets breakpoints/watchpoints, "
-            "or reads/writes target memory. "
+            "or reads/writes target memory. execute_debugger_ce_action is Stage 46 fail-closed before attach: it "
+            "verifies the plan/approval/target boundary and writes ignored run artifacts, but no debugger backend is "
+            "available in this slice. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -7276,6 +7327,28 @@ def create_fastmcp_server(
                 "crashRiskAcknowledged": crashRiskAcknowledged,
                 "staticFirstReviewed": staticFirstReviewed,
                 "dryRun": dryRun,
+            },
+        )
+
+    def execute_debugger_ce_action(
+        planId: str | None = None,  # noqa: N803 - MCP input name.
+        planPath: str | None = None,  # noqa: N803 - MCP input name.
+        approvalPhrase: str | None = None,  # noqa: N803 - MCP input name.
+        targetIdentity: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        dryRun: bool = True,  # noqa: N803 - MCP input name.
+        allowDebuggerRisk: bool = False,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this for the Stage 46 fail-closed debugger/CE execution boundary."""
+
+        return adapter.call_tool(
+            "execute_debugger_ce_action",
+            {
+                "planId": planId,
+                "planPath": planPath,
+                "approvalPhrase": approvalPhrase,
+                "targetIdentity": targetIdentity,
+                "dryRun": dryRun,
+                "allowDebuggerRisk": allowDebuggerRisk,
             },
         )
 
@@ -7535,6 +7608,7 @@ def create_fastmcp_server(
         "plan_live_control_action": plan_live_control_action,
         "execute_live_control_action": execute_live_control_action,
         "plan_debugger_ce_action": plan_debugger_ce_action,
+        "execute_debugger_ce_action": execute_debugger_ce_action,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,

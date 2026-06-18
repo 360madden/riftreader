@@ -1,3 +1,19 @@
+# 2026-06-18 - ChatGPT MCP Stage 46 debugger/CE execution boundary complete-local
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-chatgpt-mcp-stage46-debugger-ce-execution-boundary-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Stage 46 | Complete-local as a fail-closed debugger/CE execution-boundary artifact writer. |
+| Tool surface | Full non-Codex ChatGPT MCP profile is now 40 tools. |
+| New tool | `execute_debugger_ce_action` verifies a Stage 45 plan/approval/target boundary and writes ignored run artifacts only. |
+| Safety | No x64dbg launch/attach, Cheat Engine launch/connect, breakpoints, watchpoints, target memory reads/writes/scans, RIFT input, movement, proof promotion, provider writes, or generic shell/file tools. |
+| Next stage | Stage 47: role/auth hardening while preserving personal No Authentication mode. |
+| Remaining blocker | Fresh actual ChatGPT Web/Desktop proof must observe the current 40-tool surface before final readiness can pass. |
+
+---
+
 # 2026-06-18 - ChatGPT MCP Stage 41 live-control design complete-local
 
 Fresh compact handoff:

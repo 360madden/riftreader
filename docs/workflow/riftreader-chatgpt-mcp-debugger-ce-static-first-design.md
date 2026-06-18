@@ -1,10 +1,10 @@
 # RiftReader ChatGPT MCP Debugger/CE static-first design
 
-Status: **Stage 45 plan-only surface implemented**. This document defines the
+Status: **Stage 46 fail-closed execution-boundary surface implemented**. This document defines the
 debugger/Cheat Engine boundary for Stage 45-46 work. Stage 45 exposes
-`plan_debugger_ce_action` only; it does not expose a ChatGPT MCP attach tool,
+`plan_debugger_ce_action` only; it does not expose a ChatGPT MCP attach backend,
 does not start x64dbg or Cheat Engine, does not read or write target process
-memory, and raises the full MCP surface to 39 tools.
+memory, and raises the full MCP surface to 40 tools.
 
 ## Purpose
 
@@ -21,7 +21,7 @@ live movement/control. Stage 44 makes the default route explicit:
 
 | Boundary | Rule |
 |---|---|
-| Current MCP surface | Stage 45 raises this to a 39-tool Cloudflare named Tunnel proof contract by adding `plan_debugger_ce_action`. No attach/CE execution tool is exposed. |
+| Current MCP surface | Stage 46 raises this to a 40-tool Cloudflare named Tunnel proof contract by adding `execute_debugger_ce_action`. No attach/CE backend is exposed. |
 | x64dbg | Must not be launched, attached, scripted, or used for breakpoints/watchpoints by this stage. |
 | Cheat Engine | Must not be launched, attached, connected through Lua/pipe, or used for scans by this stage. |
 | Target memory | No target process memory read/write is authorized by this design doc. Existing read-only memory helpers remain separate repo workflows and are not exposed as debugger/CE MCP tools. |
@@ -70,6 +70,31 @@ arbitrary files, or promote truth.
 | Attach execution | Not exposed; `executionReadiness.canExecuteFromThisTool=false`. |
 | Approval | Produces a human prompt/fingerprint only, never a reusable broad token. |
 | Safety truth | `inputSent=false`, `movementSent=false`, `noCheatEngine=true`, `x64dbgAttach=false`, `debuggerAttached=false`, `breakpointsSet=false`, `watchpointsSet=false`, and `targetMemoryBytesWritten=false`. |
+
+
+## Stage 46 implementation contract
+
+`execute_debugger_ce_action` is exposed as a fail-closed execution-boundary
+artifact writer. It reads a Stage 45 plan, verifies the plan/approval/target
+boundary and static-first/crash-risk preconditions, writes ignored run artifacts
+under `.riftreader-local\riftreader-chatgpt-mcp\debugger-ce-runs\*`, and still
+returns `blocked-before-attach` for non-dry-run attempts because no debugger
+backend is available in this slice.
+
+It must preserve:
+
+```yaml
+noCheatEngine: true
+x64dbgAttach: false
+debuggerAttached: false
+breakpointsSet: false
+watchpointsSet: false
+targetMemoryBytesRead: false
+targetMemoryBytesWritten: false
+inputSent: false
+movementSent: false
+providerWrites: false
+```
 
 ## Required Stage 46 gated-assist preconditions
 
