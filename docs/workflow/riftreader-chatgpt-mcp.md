@@ -1,11 +1,11 @@
 # RiftReader ChatGPT MCP adapter
 
-Status: 37-tool narrow adapter with runtime/final-readiness/proof-status,
+Status: 38-tool narrow adapter with runtime/final-readiness/proof-status,
 tool-surface diff, guarded restart preflight/restart, tunnel-status, connector
 setup, gated apply, commit, push, CI, tracked-context, bounded repo-command
 lanes, provider-intent labels that remain blocked by default, and Stage 38-40
 read-only/no-input live RIFT status gates plus Stage 42 plan-only live-control
-artifacts.
+artifacts and the Stage 43 fail-closed live-control execution boundary.
 
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
@@ -55,6 +55,7 @@ The adapter is designed for this safe loop:
 | `get_live_target_identity_gate` | Read-only live status | Returns the Stage 39 exact-target gate: PID, HWND, process start, module base, duplicate detection, proof freshness, and blockers. |
 | `get_live_no_input_proof_status` | Read-only live status | Returns Stage 40 no-input proof/readback summaries only after the identity gate passes; sends no movement/input and withholds summaries while gated. |
 | `plan_live_control_action` | Plan-only local artifact write | Returns a Stage 42 live-control dry-run plan with target binding, risk classification, approval prompt, and verification requirements under ignored `.riftreader-local` artifacts; never focuses, captures, clicks, sends keys, moves the player, runs ProofOnly, promotes truth, writes providers, or touches CE/x64dbg. |
+| `execute_live_control_action` | Fail-closed execution-boundary artifact write | Evaluates one Stage 43 live-control execution boundary against a Stage 42 plan, exact target gate, and one-shot approval phrase. In this slice it writes ignored `.riftreader-local` run artifacts and blocks before input because the live backend is unavailable; validation keeps `inputSent=false` and `movementSent=false`. |
 | `get_package_proposal_template` | Read-only | Returns the existing Local Artifact Bridge package proposal template/schema. |
 | `submit_package_proposal` | Guarded write | Stores a valid `package-proposal` only under `.riftreader-local\artifact-bridge-inbox`; provider-write intent metadata is preserved as a blocked-by-default label. |
 | `list_inbox` | Read-only | Lists Local Artifact Bridge inbox metadata only. |
@@ -118,7 +119,7 @@ Required current-lane result:
 |---|---|
 | `status` | `running-current` |
 | `ok` | `true` |
-| `selectedListener.classification.toolProfile` | `full` for final 37-tool proof |
+| `selectedListener.classification.toolProfile` | `full` for final 38-tool proof |
 | `selectedListener.classification.transport` | `streamable-http` |
 
 Fail closed on these states:
@@ -135,7 +136,7 @@ Dependency order for proof work:
 2. local backend listener is present on `127.0.0.1:8770`;
 3. listener command line is the current `riftreader_chatgpt_mcp.py --serve`
    adapter, not legacy/foreign;
-4. tool profile matches the intended proof (`full` for the current 37-tool proof);
+4. tool profile matches the intended proof (`full` for the current 38-tool proof);
 5. Cloudflare named Tunnel/public route forwards to that backend;
 6. actual ChatGPT/MCP connector `health` sees the expected tools and schemas;
 7. proof input is checked and recorded, then final readiness is rerun.
@@ -167,11 +168,12 @@ Phase 0 exposes only:
 - `list_bounded_repo_commands`
 - `get_workflow_control_plan`
 
-The default `--tool-profile full` path exposes the current 37-tool final proof
+The default `--tool-profile full` path exposes the current 38-tool final proof
 surface, including runtime/final-readiness/proof-status helpers, tool-surface
 diff, guarded restart, tunnel status, connector setup, and the approval-gated
 apply, local-commit, push, bounded-command, no-input live RIFT status tools, and
-the Stage 42 plan-only live-control artifact writer.
+the Stage 42 plan-only live-control artifact writer plus Stage 43 fail-closed
+execution-boundary artifact writer.
 It is not deleted or downgraded.
 
 For the domain route, use ChatGPT Web/Desktop Developer Mode, not ChatGPT Codex:

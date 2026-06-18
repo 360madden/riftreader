@@ -2,11 +2,12 @@
 
 Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
 
-Current holding point: **Post-Stage-42 live-control plan-only surface**.
+Current holding point: **Post-Stage-43 live-control execution-boundary surface**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
-tool, and the MCP tool contract is now 37 tools.
-A fresh 37-tool actual ChatGPT Web/Desktop proof, including
+tool, Stage 43 exposes a fail-closed live-control execution boundary, and the
+MCP tool contract is now 38 tools.
+A fresh 38-tool actual ChatGPT Web/Desktop proof, including
 `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`, is
 required before final readiness can be called green again.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
@@ -29,8 +30,9 @@ Stage 34 exposure note:
 `run_bounded_repo_command` is exposed for versioned registry keys only. It never
 accepts shell strings or arbitrary argv, and the current full MCP surface was
 33 tools after the post-Stage-37 operational proof and runtime-recovery bundles.
-Stages 38-40 intentionally raised the full MCP surface to 36 tools, and Stage 42
-raises it to 37 tools with a plan-only live-control artifact writer.
+Stages 38-40 intentionally raised the full MCP surface to 36 tools, Stage 42
+raised it to 37 tools with a plan-only live-control artifact writer, and Stage
+43 raises it to 38 tools with a fail-closed execution-boundary artifact writer.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -85,10 +87,18 @@ prompt, and verification requirements. It cannot focus, capture, click, send
 keys, move the player, run ProofOnly, promote truth, write providers, or touch
 CE/x64dbg.
 
+Stage 43 fail-closed execution-boundary note:
+`execute_live_control_action` is exposed in the full profile only. It reads one
+Stage 42 plan artifact, verifies exact target binding and one-shot approval
+phrase state, writes ignored
+`.riftreader-local\riftreader-chatgpt-mcp\live-control-runs\*` artifacts, and
+fails closed before input while the live input backend remains unavailable. It
+must still report `inputSent=false` and `movementSent=false` in validation.
+
 Before final readiness is considered green again, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
 current, Cloudflare named Tunnel route passed, actual ChatGPT Web/Desktop
-37-tool proof recorded and replayed with a successful actual client transport
+38-tool proof recorded and replayed with a successful actual client transport
 call, Phase 2 passed, and final readiness passed. A saved ChatGPT connector
 entry is configuration only; it does not start the local MCP server or prove the
 current tool surface.
@@ -101,7 +111,7 @@ record that as a client-refresh blocker rather than treating the saved connector
 or local backend as sufficient proof.
 A successful Codex Apps wrapper/facade health call is useful diagnostics, but it
 is not a substitute for the non-Codex ChatGPT Web/Desktop proof artifact unless
-that actual-client proof records the same current 37-tool client surface, output
+that actual-client proof records the same current 38-tool client surface, output
 schemas, and successful tool calls.
 The local-only Stage 38 consideration gate remains historical approval evidence:
 
@@ -131,12 +141,14 @@ and `get_current_head_ci_status`; the operational proof bundle adds status/proof
 tools only; arbitrary shell remains absent.
 
 Stage 38-40 no-input live-state tools are now present, Stage 41 documents the
-live movement/control design contract, and Stage 42 exposes
+live movement/control design contract, Stage 42 exposes
 `plan_live_control_action` as a plan-only artifact writer that still sends no
-input. Stage 43 is the next implementation boundary: the smallest
-approval-gated exact-target live action tool.
-Do not expose movement/input execution until the later gated stages explicitly
-require it.
+input, and Stage 43 exposes `execute_live_control_action` as a fail-closed
+execution-boundary artifact writer. It verifies plan/approval binding and still
+blocks before input while the live input backend is unavailable. Stage 44 is the
+next implementation boundary: debugger/CE static-first design.
+Do not enable movement/input execution until a later gated backend slice
+explicitly requires it and receives separate approval.
 
 ## Operating rules
 
@@ -200,7 +212,7 @@ require it.
 | 40 | Live no-input proof tool | Expose no-input readback/proof summaries only after target identity gate passes. | ChatGPT can inspect proof state without movement/input. | complete-local |
 | 41 | Live movement/control design spec | Design bounded live control with explicit movement/input approval, stop conditions, and post-action evidence. | Spec separates no-input, UI/action risk, displacement, movement, and ProofOnly gates without changing the tool surface. | complete-local |
 | 42 | Live control dry-run/planning tool | Expose a plan-only live-control tool that returns exact actions but sends no input. | ChatGPT can propose live actions without executing them. | complete-local |
-| 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | pending |
+| 43 | Expose minimal live action tool | Expose the smallest approved exact-target live action after proof gates and manual approval model are stable. | Action records inputSent/movementSent and fails closed on drift. | complete-local-fail-closed |
 | 44 | Debugger/CE static-first design | Design debugger/CE assist to prefer offline/static evidence and require explicit attach approval. | No attach happens from generic repo commands or no-input lanes. | pending |
 | 45 | Debugger/CE plan-only surface | Expose plan-only debugger/CE guidance and candidate evidence review. | ChatGPT can assist without attaching or setting breakpoints. | pending |
 | 46 | Debugger/CE gated assist | Expose carefully bounded attach/watchpoint assistance only after explicit approval and crash-risk disclosure. | All actions are logged and candidate-only by default. | pending |
@@ -213,10 +225,11 @@ require it.
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 43 | Expose minimal live action tool | Next live-control boundary, but it requires explicit execution approval and fresh exact-target proof before any input can be sent. |
-| 2 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
-| 3 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
-| 4 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
+| 1 | 44 | Debugger/CE static-first design | Next safe boundary; it can document attach/CE limits without touching debuggers. |
+| 2 | 45 | Debugger/CE plan-only surface | Add candidate evidence review without attaching or setting breakpoints. |
+| 3 | 48 | End-to-end product eval suite | Keep regression coverage ready as higher-power tools are added. |
+| 4 | 49 | Operational dashboard and recovery | Surface stage, blockers, proof, CI, and audit paths as tool count grows. |
+| 5 | 50 | Finished product release | Final release remains after live/debugger/auth/eval stages. |
 
 ## High-risk exposure order
 

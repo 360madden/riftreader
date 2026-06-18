@@ -73,7 +73,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
 
     def test_mcp_doc_includes_runtime_and_proof_status_tools(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp.md")
-        self.assertIn("37-tool narrow adapter", text)
+        self.assertIn("38-tool narrow adapter", text)
         self.assertIn("get_mcp_runtime_status", text)
         self.assertIn("get_tool_surface_diff", text)
         self.assertIn("run_mcp_restart_preflight", text)
@@ -87,8 +87,9 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("get_live_target_identity_gate", text)
         self.assertIn("get_live_no_input_proof_status", text)
         self.assertIn("plan_live_control_action", text)
+        self.assertIn("execute_live_control_action", text)
         self.assertIn("list_bounded_repo_commands", text)
-        self.assertIn("final 37-tool proof", text)
+        self.assertIn("final 38-tool proof", text)
 
     def test_stage38_docs_record_no_input_surface_and_historical_consideration_gate(self) -> None:
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
@@ -112,7 +113,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("not a substitute for the non-Codex ChatGPT Web/Desktop proof artifact", plan)
         self.assertIn("prior 19-tool product", plan)
         self.assertNotIn("current 19-tool product", plan)
-        self.assertIn("current ChatGPT Web/Desktop proof contract\nis 37 tools", live_control)
+        self.assertIn("current\nChatGPT Web/Desktop proof contract is 38 tools", live_control)
         self.assertIn("clientTransportStatus=tool-call-succeeded", live_control)
         self.assertIn("healthCallSucceeded=true", live_control)
         self.assertIn("Transport closed", live_control)
@@ -121,12 +122,12 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
     def test_stage41_live_control_design_is_non_executing_and_separates_risks(self) -> None:
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
         live_control = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-live-control-design.md")
-        self.assertIn("Post-Stage-42 live-control plan-only surface", plan)
+        self.assertIn("Post-Stage-43 live-control execution-boundary surface", plan)
         self.assertIn("Stage 41 is a\ndesign-only live-control boundary", plan)
-        self.assertIn("Stage 43 is the next implementation boundary", plan)
+        self.assertIn("Stage 44 is the\nnext implementation boundary", plan)
         self.assertIn("| 41 | Live movement/control design spec", plan)
         self.assertIn("without changing the tool surface. | complete-local |", plan)
-        self.assertIn("Stage 42 complete-local plan-only surface", live_control)
+        self.assertIn("Stage 43 complete-local fail-closed execution boundary", live_control)
         self.assertIn("Design contract only; no new MCP tool", live_control)
         self.assertIn("Stage 41 design contract", live_control)
         self.assertIn("Action taxonomy", live_control)
@@ -141,10 +142,12 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("movementSent=false", live_control)
         self.assertIn("savedVariablesUsedAsLiveTruth=false", live_control)
         self.assertIn("plan_live_control_action", live_control)
+        self.assertIn("execute_live_control_action", live_control)
         self.assertIn("| 42 | `plan_live_control_action` planning tool.", live_control)
+        self.assertIn("| 43 | `execute_live_control_action`", live_control)
         self.assertIn("| 42 | Live control dry-run/planning tool", plan)
         self.assertIn("| complete-local |", plan.split("| 42 |", 1)[1].splitlines()[0])
-        self.assertNotIn("execute_live_control_action` | Smallest approved", live_control.split("| 42 |", 1)[0])
+        self.assertIn("blocks before input because the live backend remains unavailable", live_control)
 
     def test_provider_write_planning_keeps_external_repos_disabled(self) -> None:
         text = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-provider-write-planning.md")

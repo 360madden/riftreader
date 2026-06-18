@@ -224,7 +224,7 @@ Do not start with the ChatGPT connector UI. Prove dependencies in this order:
 3. The selected listener command line is the current
    `riftreader_chatgpt_mcp.py --serve` adapter, not a foreign process or the
    legacy `tools.riftreader_mcp.http_server`.
-4. The selected listener uses the intended profile (`full` for final 37-tool
+4. The selected listener uses the intended profile (`full` for final 38-tool
    proof, `public-read-only` only for Phase 0 domain checks).
 5. The Cloudflare named Tunnel/public route forwards to that backend.
 6. If a local/Codex stdio MCP counterpart is present, treat it as a separate
@@ -260,8 +260,9 @@ scripts\riftreader-stage38-consideration.cmd --status --compact-json
 ```
 
 That helper intentionally never starts live RIFT tooling. The current ChatGPT
-surface is 37 tools after adding Stage 42 plan-only live-control artifacts on
-top of the Stage 38-40 read-only/no-input live status surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel
+surface is 38 tools after adding Stage 42 plan-only live-control artifacts and
+the Stage 43 fail-closed execution-boundary artifact writer on top of the Stage
+38-40 read-only/no-input live status surfaces. The helper combines the runtime-status check, Cloudflare named Tunnel
 public-route check, final-readiness result, and explicit live-boundary approval
 requirement. It reports `blocked` while any prerequisite is missing,
 `approval-required` when all local prerequisites pass but no live-boundary

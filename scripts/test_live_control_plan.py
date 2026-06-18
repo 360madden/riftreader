@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Purpose: Regression tests for Stage 42 plan-only live-control MCP helper.
+# Purpose: Regression tests for Stage 42/43 live-control MCP helpers.
 from __future__ import annotations
 
 import json
@@ -15,7 +15,7 @@ TOOLS_ROOT = REPO_ROOT / "tools"
 if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
-from riftreader_workflow import live_control_plan  # noqa: E402
+from riftreader_workflow import live_control_execute, live_control_plan  # noqa: E402
 
 
 NOW = datetime(2026, 6, 18, 13, 0, tzinfo=timezone.utc)
@@ -168,6 +168,131 @@ class LiveControlPlanTests(unittest.TestCase):
         self.assertTrue(payload["movementRisk"])
         self.assertFalse(payload["safety"]["inputSent"])
         self.assertFalse(payload["safety"]["movementSent"])
+
+    def test_execute_boundary_dry_run_writes_run_artifact_without_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture_repo(root)
+            plan = live_control_plan.build_live_control_plan(
+                root,
+                semantic_action="open-inventory",
+                target_identity={"processId": 130540, "targetWindowHandle": "0x9310EA"},
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            payload = live_control_execute.build_live_control_execution_boundary(
+                root,
+                plan_id=plan["planId"],
+                target_identity={"processId": 130540, "targetWindowHandle": "0x9310EA"},
+                dry_run=True,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            run_path = root / payload["artifact"]["runPath"]
+            self.assertTrue(payload["ok"], payload)
+            self.assertEqual(payload["status"], "ready-for-approval")
+            self.assertEqual(payload["stage"], 43)
+            self.assertEqual(payload["planId"], plan["planId"])
+            self.assertEqual(payload["semanticAction"], "open-inventory")
+            self.assertFalse(payload["movementRisk"])
+            self.assertTrue(str(payload["artifact"]["runPath"]).startswith(".riftreader-local"))
+            self.assertTrue(run_path.is_file())
+            self.assertFalse(payload["safety"]["inputSent"])
+            self.assertFalse(payload["safety"]["movementSent"])
+            self.assertFalse(payload["safety"]["liveInputBackendCalled"])
+            self.assertFalse(payload["safety"]["liveInputBackendAvailable"])
+            self.assertIn(plan["planHash"][:16], payload["approval"]["expectedApprovalPhrase"])
+
+    def test_execute_boundary_missing_approval_blocks_before_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture_repo(root)
+            plan = live_control_plan.build_live_control_plan(
+                root,
+                semantic_action="open-inventory",
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            payload = live_control_execute.build_live_control_execution_boundary(
+                root,
+                plan_id=plan["planId"],
+                dry_run=False,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["status"], "blocked-before-input")
+            self.assertIn("LIVE_APPROVAL_MISSING", payload["blockers"])
+            self.assertIn("LIVE_INPUT_BACKEND_UNAVAILABLE", payload["blockers"])
+            self.assertFalse(payload["safety"]["inputSent"])
+            self.assertFalse(payload["safety"]["movementSent"])
+
+    def test_execute_boundary_matching_approval_still_blocks_when_backend_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture_repo(root)
+            plan = live_control_plan.build_live_control_plan(
+                root,
+                semantic_action="open-inventory",
+                target_identity={"processId": 130540, "targetWindowHandle": "0x9310EA"},
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+            dry_run = live_control_execute.build_live_control_execution_boundary(
+                root,
+                plan_id=plan["planId"],
+                target_identity={"processId": 130540, "targetWindowHandle": "0x9310EA"},
+                dry_run=True,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            payload = live_control_execute.build_live_control_execution_boundary(
+                root,
+                plan_id=plan["planId"],
+                approval_phrase=dry_run["approval"]["expectedApprovalPhrase"],
+                target_identity={"processId": 130540, "targetWindowHandle": "0x9310EA"},
+                dry_run=False,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["approval"]["status"], "matched")
+            self.assertIn("LIVE_INPUT_BACKEND_UNAVAILABLE", payload["blockers"])
+            self.assertFalse(payload["safety"]["liveInputBackendCalled"])
+            self.assertFalse(payload["safety"]["inputSent"])
+            self.assertFalse(payload["safety"]["movementSent"])
+
+    def test_execute_boundary_movement_plan_blocks_without_movement_risk_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fixture_repo(root)
+            plan = live_control_plan.build_live_control_plan(
+                root,
+                key_chord="W",
+                hold_milliseconds=250,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            payload = live_control_execute.build_live_control_execution_boundary(
+                root,
+                plan_id=plan["planId"],
+                dry_run=True,
+                discovery_payload=discovery_payload(),
+                now=NOW,
+            )
+
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["movementRisk"])
+            self.assertIn("LIVE_ROUTE_CONTROL_UNAUTHORIZED", payload["blockers"])
+            self.assertFalse(payload["safety"]["inputSent"])
+            self.assertFalse(payload["safety"]["movementSent"])
 
 
 if __name__ == "__main__":

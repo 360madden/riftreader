@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 try:
     from . import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from . import live_control_plan, live_rift_state, local_artifact_bridge as bridge
+    from . import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from . import mcp_mission_control, safe_commit_packager
     from . import mcp_ci_status, push_current_branch
     from . import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -44,7 +44,7 @@ try:
 except ImportError:  # pragma: no cover - supports direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow import bounded_repo_commands, chatgpt_trial_recorder, commit_reviewed_slice
-    from riftreader_workflow import live_control_plan, live_rift_state, local_artifact_bridge as bridge
+    from riftreader_workflow import live_control_execute, live_control_plan, live_rift_state, local_artifact_bridge as bridge
     from riftreader_workflow import mcp_mission_control, safe_commit_packager
     from riftreader_workflow import mcp_ci_status, push_current_branch
     from riftreader_workflow import mcp_final_readiness, mcp_proof_replay, mcp_runtime_control
@@ -138,6 +138,16 @@ TOOL_ARGUMENT_KEYS: dict[str, frozenset[str]] = {
             "verificationRequirements",
             "stopCondition",
             "dryRun",
+        }
+    ),
+    "execute_live_control_action": frozenset(
+        {
+            "planId",
+            "planPath",
+            "approvalPhrase",
+            "targetIdentity",
+            "dryRun",
+            "allowMovementRisk",
         }
     ),
     "get_package_proposal_template": frozenset(),
@@ -659,13 +669,14 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
     },
     {
         "key": "live-rift-control",
-        "targetToolName": "plan_live_control_action",
-        "currentStatus": "plan-only-live-control-surface-exposed",
+        "targetToolName": "execute_live_control_action",
+        "currentStatus": "execution-boundary-exposed-fail-closed-before-input",
         "riskClass": "live-game-state-mutation",
         "minimumGate": "explicit-live-approval-and-current-target-proof",
         "safePrecursorTools": [
             "get_live_target_identity_gate",
             "plan_live_control_action",
+            "execute_live_control_action",
             "get_live_rift_readonly_state",
             "get_live_no_input_proof_status",
         ],
@@ -701,18 +712,19 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "status": "active",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 43,
-    "currentStageName": "Expose minimal live action tool",
+    "currentStage": 44,
+    "currentStageName": "Debugger/CE static-first design",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated normal current-branch push, read-only current-head CI status, and exposed bounded command "
         "execution for registry keys only. Stage 38-40 no-input live RIFT read-only/status gates are exposed, "
-        "Stage 41 live-control design is complete-local, and Stage 42 exposes plan-only live-control action "
-        "artifacts that do not execute input; provider writes, live input/movement execution, proof promotion, "
-        "CE, and x64dbg remain absent."
+        "Stage 41 live-control design is complete-local, Stage 42 exposes plan-only live-control action "
+        "artifacts that do not execute input, and Stage 43 exposes a fail-closed execution-boundary tool "
+        "that writes ignored run artifacts and blocks before input while the live backend remains unavailable; "
+        "provider writes, actual live input/movement execution, proof promotion, CE, and x64dbg remain absent."
     ),
-    "nextStage": 44,
-    "nextStageName": "Debugger/CE static-first design",
+    "nextStage": 45,
+    "nextStageName": "Debugger/CE plan-only surface",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -748,7 +760,8 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 40, "name": "Live no-input proof tool", "status": "complete-local"},
         {"stage": 41, "name": "Live movement/control design spec", "status": "complete-local"},
         {"stage": 42, "name": "Live control dry-run/planning tool", "status": "complete-local"},
-        {"stage": 43, "name": "Expose minimal live action tool", "status": "pending"},
+        {"stage": 43, "name": "Expose minimal live action tool", "status": "complete-local-fail-closed"},
+        {"stage": 44, "name": "Debugger/CE static-first design", "status": "pending"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -1154,6 +1167,20 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
         read_only=False,
         destructive=False,
+        open_world=True,
+    ),
+    "execute_live_control_action": ToolSpec(
+        name="execute_live_control_action",
+        title="Execute Live Control Action Boundary",
+        description=(
+            "Use this when a Stage 42 plan exists and the operator explicitly wants the Stage 43 live-control "
+            "execution boundary evaluated. In this slice it writes ignored local run artifacts, verifies exact target "
+            "binding and one-shot approval phrase, and fails closed before input because the live input backend remains "
+            "unavailable. Validation must keep dryRun=true or expect blocked-before-input; this never touches CE/x64dbg, "
+            "providers, proof promotion, or generic shell/file tools."
+        ),
+        read_only=False,
+        destructive=True,
         open_world=True,
     ),
     "get_package_proposal_template": ToolSpec(
@@ -1867,6 +1894,16 @@ class RiftReaderChatGptMcpAdapter:
                     ),
                     stop_condition=optional_str(call_args.get("stopCondition"), field_name="stopCondition"),
                     dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
+                ),
+                "execute_live_control_action": lambda call_args: self.execute_live_control_action(
+                    plan_id=optional_str(call_args.get("planId"), field_name="planId"),
+                    plan_path=optional_str(call_args.get("planPath"), field_name="planPath"),
+                    approval_phrase=optional_str(call_args.get("approvalPhrase"), field_name="approvalPhrase"),
+                    target_identity=optional_mapping(call_args.get("targetIdentity"), field_name="targetIdentity"),
+                    dry_run=optional_bool(call_args.get("dryRun"), field_name="dryRun", default=True),
+                    allow_movement_risk=optional_bool(
+                        call_args.get("allowMovementRisk"), field_name="allowMovementRisk", default=False
+                    ),
                 ),
                 "get_package_proposal_template": lambda _: self.get_package_proposal_template(),
                 "submit_package_proposal": lambda call_args: self.submit_package_proposal(call_args.get("proposal")),
@@ -2600,6 +2637,26 @@ class RiftReaderChatGptMcpAdapter:
             dry_run=dry_run,
         )
 
+    def execute_live_control_action(
+        self,
+        *,
+        plan_id: str | None = None,
+        plan_path: str | None = None,
+        approval_phrase: str | None = None,
+        target_identity: dict[str, Any] | None = None,
+        dry_run: bool = True,
+        allow_movement_risk: bool = False,
+    ) -> dict[str, Any]:
+        return live_control_execute.build_live_control_execution_boundary(
+            self.config.repo_root,
+            plan_id=plan_id,
+            plan_path=plan_path,
+            approval_phrase=approval_phrase,
+            target_identity=target_identity,
+            dry_run=dry_run,
+            allow_movement_risk=allow_movement_risk,
+        )
+
     def get_package_proposal_template(self) -> dict[str, Any]:
         schema = bridge.inbox_schema_payload(self.config.bridge_config)
         return {
@@ -3252,9 +3309,10 @@ class RiftReaderChatGptMcpAdapter:
                     "get_live_no_input_proof_status",
                 ],
                 "planLiveRiftControlOnly": ["plan_live_control_action"],
+                "executeLiveRiftControlBoundary": ["execute_live_control_action"],
                 "writeBoundary": (
-                    "Writes stay gated to local inbox/drafts, approved apply/commit/push, registry-key commands, "
-                    "and Stage 42 ignored plan-only artifacts. No live input executes here."
+                    "Writes: local inbox/drafts, gated apply/commit/push, registry commands, Stage 42 plans, "
+                    "Stage 43 fail-closed runs. Stage 43 sends no input."
                 ),
             },
             "missionControl": {
@@ -3275,7 +3333,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "minimal-live-action-tool-next",
+                "status": "debugger-ce-static-design-next",
                 "defaultDevelopmentOrder": [
                     "apply-package-to-repo",
                     "commit-local-slice",
@@ -6897,7 +6955,9 @@ def create_fastmcp_server(
             "for one approval-gated normal non-force current-branch push after local preflight. "
             "run_bounded_repo_command executes only versioned registry keys and never accepts shell strings. "
             "plan_live_control_action is Stage 42 plan-only: it writes ignored local plan artifacts and never sends "
-            "live RIFT input or movement. "
+            "live RIFT input or movement. execute_live_control_action is Stage 43 fail-closed before input in this "
+            "slice: it verifies an exact plan/approval boundary and writes ignored run artifacts, but the live input "
+            "backend remains unavailable unless a future separately approved local backend slice enables it. "
             f"Active tool profile: {tool_profile}."
         ),
         host=host,
@@ -7063,6 +7123,28 @@ def create_fastmcp_server(
                 "verificationRequirements": verificationRequirements,
                 "stopCondition": stopCondition,
                 "dryRun": dryRun,
+            },
+        )
+
+    def execute_live_control_action(
+        planId: str | None = None,  # noqa: N803 - MCP input name.
+        planPath: str | None = None,  # noqa: N803 - MCP input name.
+        approvalPhrase: str | None = None,  # noqa: N803 - MCP input name.
+        targetIdentity: dict[str, Any] | None = None,  # noqa: N803 - MCP input name.
+        dryRun: bool = True,  # noqa: N803 - MCP input name.
+        allowMovementRisk: bool = False,  # noqa: N803 - MCP input name.
+    ) -> dict[str, Any]:
+        """Use this for the Stage 43 fail-closed live-control execution boundary."""
+
+        return adapter.call_tool(
+            "execute_live_control_action",
+            {
+                "planId": planId,
+                "planPath": planPath,
+                "approvalPhrase": approvalPhrase,
+                "targetIdentity": targetIdentity,
+                "dryRun": dryRun,
+                "allowMovementRisk": allowMovementRisk,
             },
         )
 
@@ -7320,6 +7402,7 @@ def create_fastmcp_server(
         "get_live_target_identity_gate": get_live_target_identity_gate,
         "get_live_no_input_proof_status": get_live_no_input_proof_status,
         "plan_live_control_action": plan_live_control_action,
+        "execute_live_control_action": execute_live_control_action,
         "get_package_proposal_template": get_package_proposal_template,
         "submit_package_proposal": submit_package_proposal,
         "list_inbox": list_inbox,
