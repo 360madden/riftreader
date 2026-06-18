@@ -105,6 +105,7 @@ function usage() {
     '  - Calls release_all_movement_keys with dryRun=true.',
     '  - Calls plan_movement_step with dryRun=true.',
     '  - Calls get_movement_execution_preflight read-only and reports Phase 10 blockers.',
+    '  - Calls execute_movement_step with dryRun=true and verifies it sends no input.',
     '  - Never focuses, clicks, resizes, sends input, attaches debuggers,',
     '    writes providers, promotes proof/truth, or uses SavedVariables as live truth.',
   ].join('\n');
@@ -509,20 +510,44 @@ async function runSmoke(args) {
       }),
     );
 
+    const executeDryRun = getStructured(
+      await client.callTool({
+        name: 'execute_movement_step',
+        arguments: {
+          semanticAction: args.semanticAction,
+          holdMilliseconds: args.holdMilliseconds,
+          target: {
+            processId: find.window.processId,
+            processName: find.window.processName,
+            windowHandle,
+            title: find.window.title,
+          },
+          verification: {
+            requireFrameChange: true,
+            requireLiveCoordinateDelta: true,
+            coordinateTolerance: 0.25,
+          },
+          dryRun: true,
+        },
+      }),
+    );
+
     const safety = buildSafety({
       movementSent: Boolean(
         readiness.safety?.movementSent ||
           classification.safety?.movementSent ||
           releaseDryRun.safety?.movementSent ||
           planDryRun.safety?.movementSent ||
-          movementPreflight.safety?.movementSent,
+          movementPreflight.safety?.movementSent ||
+          executeDryRun.safety?.movementSent,
       ),
       inputSent: Boolean(
         readiness.safety?.inputSent ||
           classification.safety?.inputSent ||
           releaseDryRun.safety?.inputSent ||
           planDryRun.safety?.inputSent ||
-          movementPreflight.safety?.inputSent,
+          movementPreflight.safety?.inputSent ||
+          executeDryRun.safety?.inputSent,
       ),
       keysReleased: Boolean(releaseDryRun.safety?.keysReleased),
       savedVariablesUsedAsLiveTruth: Boolean(
@@ -530,7 +555,8 @@ async function runSmoke(args) {
           classification.safety?.savedVariablesUsedAsLiveTruth ||
           releaseDryRun.safety?.savedVariablesUsedAsLiveTruth ||
           planDryRun.safety?.savedVariablesUsedAsLiveTruth ||
-          movementPreflight.safety?.savedVariablesUsedAsLiveTruth,
+          movementPreflight.safety?.savedVariablesUsedAsLiveTruth ||
+          executeDryRun.safety?.savedVariablesUsedAsLiveTruth,
       ),
     });
 
@@ -561,7 +587,10 @@ async function runSmoke(args) {
       planDryRun.dryRun === true &&
       !planDryRun.artifactPaths?.summaryJson &&
       movementPreflight.safety?.movementSent === false &&
-      movementPreflight.safety?.inputSent === false;
+      movementPreflight.safety?.inputSent === false &&
+      executeDryRun.safety?.movementSent === false &&
+      executeDryRun.safety?.inputSent === false &&
+      executeDryRun.executionAttempted === false;
 
     const summary = {
       schemaVersion: 1,
@@ -618,6 +647,14 @@ async function runSmoke(args) {
         recommendedNextAction: movementPreflight.recommendedNextAction,
         phaseReadiness: movementPreflight.phaseReadiness,
         currentTruthFreshness: movementPreflight.currentTruthFreshness,
+      },
+      executeDryRun: {
+        status: executeDryRun.status,
+        ok: executeDryRun.ok,
+        blockers: executeDryRun.blockers,
+        warnings: executeDryRun.warnings,
+        executionAttempted: executeDryRun.executionAttempted,
+        approvalScope: executeDryRun.approvalPacket?.approvalScope ?? null,
       },
       blockers,
       warnings,

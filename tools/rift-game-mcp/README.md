@@ -12,6 +12,7 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `get_movement_execution_preflight`
 - `classify_game_action`
 - `plan_movement_step`
+- `execute_movement_step`
 - `get_latest_control_artifact`
 - `focus_game_window`
 - `capture_game_window`
@@ -61,6 +62,13 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   `.riftreader-local\rift-game-mcp\movement-plans\`. It never sends input and
   never creates a reusable approval token; its approval packet is for one
   bounded movement step only.
+- `execute_movement_step` is the gated Phase 10 wrapper for one bounded
+  movement step. It defaults to `dryRun: true`, internally calls
+  `get_movement_execution_preflight`, and live execution requires the exact
+  one-shot approval phrase returned for the same target/action/hold/current
+  truth. Validation must keep `dryRun: true`; the live path is annotated
+  non-read-only/destructive because it can focus/capture/send/release/wait when
+  all gates pass.
 - `get_latest_control_artifact` reads the latest readiness/plan/run/session/current-window-smoke
   artifact summaries under `.riftreader-local\rift-game-mcp\` without accepting
   arbitrary paths.
@@ -133,6 +141,7 @@ Safe movement-control planning:
 { "tool": "classify_game_action", "arguments": { "actionName": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "plan_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "get_movement_execution_preflight", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
+{ "tool": "execute_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500, "dryRun": true } }
 { "tool": "release_all_movement_keys", "arguments": { "dryRun": true } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "movement-plan" } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "current-window-smoke" } }
@@ -165,10 +174,12 @@ npm run test:smoke
 
 This smoke binds/inspects the exact target, checks readiness, classifies the
 configured semantic movement action, calls `release_all_movement_keys` with
-`dryRun: true`, calls `plan_movement_step` with `dryRun: true`, and calls
-`get_movement_execution_preflight` read-only to report Phase 10 blockers. It
-writes only ignored summaries under `.riftreader-local\rift-game-mcp\current-window-smoke\`
-and fails if any tool reports live input, movement, or key release. The auto
+`dryRun: true`, calls `plan_movement_step` with `dryRun: true`, calls
+`get_movement_execution_preflight` read-only to report Phase 10 blockers, and
+calls `execute_movement_step` with `dryRun: true` to verify the wrapper does not
+send input during smoke validation. It writes only ignored summaries under
+`.riftreader-local\rift-game-mcp\current-window-smoke\` and fails if any tool
+reports live input, movement, or key release. The auto
 variant first runs the existing read-only
 `scripts\get-rift-window-targets.cmd -Json` target discovery helper and selects
 the `movement` lane target. It fails closed if more than one RIFT window is
@@ -228,8 +239,9 @@ That launches the MCP server over stdio, verifies the tool list and control
 output/safety schemas, and runs the no-input current-window smoke self-test.
 The control test exercises action classification and ignored movement-plan
 artifact writing without touching the live game window. It also verifies the
-read-only movement execution preflight blocks safely when no exact window is
-bound and when a non-movement semantic action is supplied. Its classification
+read-only movement execution preflight and dry-run Phase 10 wrapper block safely
+when no exact window is bound and when a non-movement semantic action is
+supplied. Its classification
 matrix covers the fixed movement-risk key set, modifier chords containing
 movement keys, a non-movement chord, unknown-action fail-closed behavior, and
 inventory semantic UI actions.

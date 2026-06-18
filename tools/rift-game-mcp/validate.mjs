@@ -180,6 +180,7 @@ try {
     'click_client',
     'ensure_inventory_closed',
     'ensure_inventory_open',
+    'execute_movement_step',
     'find_game_window',
     'focus_game_window',
     'get_bound_window_state',
@@ -207,6 +208,7 @@ try {
   const controlOutputSchemaSummaries = [
     'get_game_control_readiness',
     'get_movement_execution_preflight',
+    'execute_movement_step',
     'classify_game_action',
     'plan_movement_step',
     'get_latest_control_artifact',
@@ -309,6 +311,37 @@ try {
     throw new Error('get_movement_execution_preflight annotations must mark it read-only and non-destructive.');
   }
 
+  const executeMovementTool = result.tools.find((tool) => tool.name === 'execute_movement_step');
+  const executeMovementProperties = executeMovementTool?.inputSchema?.properties ?? {};
+  const requiredExecuteMovementProperties = [
+    'semanticAction',
+    'keyChord',
+    'holdMilliseconds',
+    'target',
+    'verification',
+    'waitForFrameChange',
+    'dryRun',
+    'approvalPhrase',
+    'maxCurrentTruthAgeMilliseconds',
+  ];
+  const missingExecuteMovementProperties = requiredExecuteMovementProperties.filter(
+    (propertyName) => !(propertyName in executeMovementProperties),
+  );
+  if (!executeMovementTool) {
+    throw new Error('execute_movement_step tool is missing.');
+  }
+  if (missingExecuteMovementProperties.length > 0) {
+    throw new Error(
+      `execute_movement_step input schema is missing properties: ${missingExecuteMovementProperties.join(', ')}`,
+    );
+  }
+  if (
+    executeMovementTool.annotations?.readOnlyHint !== false ||
+    executeMovementTool.annotations?.destructiveHint !== true
+  ) {
+    throw new Error('execute_movement_step annotations must mark it non-read-only and live-input destructive.');
+  }
+
   const classifyTool = result.tools.find((tool) => tool.name === 'classify_game_action');
   const classifyProperties = classifyTool?.inputSchema?.properties ?? {};
   const requiredClassifyProperties = ['actionName', 'keyChord', 'holdMilliseconds'];
@@ -378,6 +411,7 @@ try {
         sendKeyProperties: Object.keys(sendKeyProperties).sort(),
         resizeGameWindowProperties: Object.keys(resizeProperties).sort(),
         movementExecutionPreflightProperties: Object.keys(movementPreflightProperties).sort(),
+        executeMovementStepProperties: Object.keys(executeMovementProperties).sort(),
         classifyGameActionProperties: Object.keys(classifyProperties).sort(),
         planMovementStepProperties: Object.keys(planProperties).sort(),
         releaseAllMovementKeysProperties: Object.keys(releaseMovementKeysProperties).sort(),

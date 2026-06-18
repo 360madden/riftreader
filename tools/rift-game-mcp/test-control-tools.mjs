@@ -279,6 +279,37 @@ try {
   assert.equal('approvalToken' in noBoundMovementPreflight, false);
   assertControlSafety(noBoundMovementPreflight, 'no-bound movement preflight');
 
+  const noBoundExecuteDryRun = getStructured(
+    await client.callTool({
+      name: 'execute_movement_step',
+      arguments: {
+        semanticAction: 'move_forward',
+        holdMilliseconds: 250,
+        dryRun: true,
+        verification: {
+          requireFrameChange: true,
+          requireLiveCoordinateDelta: true,
+          coordinateTolerance: 0.25,
+        },
+      },
+    }),
+  );
+  assert.equal(noBoundExecuteDryRun.ok, false);
+  assert.equal(noBoundExecuteDryRun.status, 'dry-run-blocked');
+  assert.equal(noBoundExecuteDryRun.kind, 'rift-game-mcp-movement-execution');
+  assert.equal(noBoundExecuteDryRun.phase, 'phase-10-bounded-movement-execution');
+  assert.equal(noBoundExecuteDryRun.executionAttempted, false);
+  assert.equal(noBoundExecuteDryRun.dryRun, true);
+  assert.equal(noBoundExecuteDryRun.reusableApprovalTokenGenerated, false);
+  assert.equal('approvalToken' in noBoundExecuteDryRun, false);
+  assert.ok(noBoundExecuteDryRun.blockers.includes('game-window-not-bound'));
+  assert.match(
+    noBoundExecuteDryRun.approvalPacket.expectedApprovalPhrase,
+    /^EXECUTE_ONE_RIFT_MOVEMENT_STEP /,
+  );
+  assert.equal(noBoundExecuteDryRun.artifactPaths.summaryJson, null);
+  assertControlSafety(noBoundExecuteDryRun, 'no-bound execute dry run');
+
   const nonMovementPreflight = getStructured(
     await client.callTool({
       name: 'get_movement_execution_preflight',
@@ -293,6 +324,22 @@ try {
     ),
   );
   assertControlSafety(nonMovementPreflight, 'non-movement preflight');
+
+  const nonMovementExecuteDryRun = getStructured(
+    await client.callTool({
+      name: 'execute_movement_step',
+      arguments: { semanticAction: 'hotbar_1', holdMilliseconds: 80, dryRun: true },
+    }),
+  );
+  assert.equal(nonMovementExecuteDryRun.ok, false);
+  assert.equal(nonMovementExecuteDryRun.status, 'dry-run-blocked');
+  assert.ok(
+    nonMovementExecuteDryRun.blockers.includes(
+      'movement-execution-preflight-requires-movement-risk-action',
+    ),
+  );
+  assert.equal(nonMovementExecuteDryRun.executionAttempted, false);
+  assertControlSafety(nonMovementExecuteDryRun, 'non-movement execute dry run');
 
   const releaseDryRun = getStructured(
     await client.callTool({
@@ -438,6 +485,7 @@ try {
         checkedTools: [
           'classify_game_action',
           'get_movement_execution_preflight',
+          'execute_movement_step',
           'release_all_movement_keys',
           'plan_movement_step',
           'get_latest_control_artifact',

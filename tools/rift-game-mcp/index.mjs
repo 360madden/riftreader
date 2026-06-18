@@ -103,6 +103,7 @@ const toolRiskClasses = Object.freeze({
   classify_game_action: 'readOnly',
   plan_movement_step: 'localIgnoredArtifactWrite',
   get_latest_control_artifact: 'readOnly',
+  execute_movement_step: 'liveMovementInput',
   toggle_inventory: 'uiInput',
   ensure_inventory_open: 'uiInput',
   ensure_inventory_closed: 'uiInput',
@@ -848,6 +849,10 @@ function movementPlanId() {
   return `movement-plan-${nowStamp()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
+function movementRunId() {
+  return `movement-run-${nowStamp()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
 function safeArtifactName(value) {
   return String(value ?? 'artifact')
     .replace(/[^a-zA-Z0-9_.-]+/g, '-')
@@ -909,6 +914,23 @@ async function writeMovementPlanArtifact(plan) {
   await writeFile(summaryJson, `${JSON.stringify(artifactPlan, null, 2)}\n`, 'utf8');
   await writeFile(summaryMarkdown, buildMovementPlanMarkdown(artifactPlan), 'utf8');
   return artifactPlan;
+}
+
+async function writeMovementRunArtifact(run) {
+  await mkdir(controlArtifactDirs.movementRun, { recursive: true });
+  const runDirectory = path.join(controlArtifactDirs.movementRun, safeArtifactName(run.runId));
+  await mkdir(runDirectory, { recursive: true });
+  const summaryJson = path.join(runDirectory, 'run-summary.json');
+  const artifactRun = {
+    ...run,
+    artifactPaths: {
+      ...(run.artifactPaths ?? {}),
+      runDirectory,
+      summaryJson,
+    },
+  };
+  await writeFile(summaryJson, `${JSON.stringify(artifactRun, null, 2)}\n`, 'utf8');
+  return artifactRun;
 }
 
 async function planMovementStep({
@@ -1576,6 +1598,33 @@ function getMovementPreflightRecommendation({ blockers }) {
   };
 }
 
+function buildMovementExecutionApprovalPhrase(preflight) {
+  const inspected = preflight?.targetFacts?.inspected ?? {};
+  const requested = preflight?.targetFacts?.requested ?? {};
+  const currentTruth = preflight?.targetFacts?.currentTruth ?? {};
+  const processId =
+    inspected.processId ?? requested.processId ?? currentTruth.processId ?? 'unknown-pid';
+  const windowHandle =
+    inspected.windowHandleComparable ??
+    requested.windowHandleComparable ??
+    currentTruth.windowHandleComparable ??
+    'unknown-hwnd';
+  const action = preflight?.semanticAction ?? 'unknown-action';
+  const key = preflight?.keyChord ?? 'unknown-key';
+  const hold = preflight?.holdMilliseconds ?? 'unknown-hold';
+  const truthUpdatedAt = preflight?.currentTruth?.updatedAtUtc ?? 'unknown-truth-time';
+
+  return [
+    'EXECUTE_ONE_RIFT_MOVEMENT_STEP',
+    `action=${action}`,
+    `key=${key}`,
+    `holdMs=${hold}`,
+    `pid=${processId}`,
+    `hwnd=${windowHandle}`,
+    `truthUpdatedAt=${truthUpdatedAt}`,
+  ].join(' ');
+}
+
 async function getGameControlReadiness() {
   const blockers = [];
   const warnings = [];
@@ -1656,6 +1705,343 @@ async function getGameControlReadiness() {
     note:
       'This readiness tool is read-only: it does not focus, click, resize, send keys, attach debuggers, write providers, or use SavedVariables as live truth.',
   });
+}
+
+async function executeMovementStep({
+  semanticAction,
+  keyChord,
+  holdMilliseconds = 500,
+  target = {},
+  verification = {},
+  dryRun = true,
+  approvalPhrase,
+  waitForFrameChange = {},
+  maxCurrentTruthAgeMilliseconds = 5 * 60 * 1000,
+} = {}) {
+  const requestedHold = normalizeInteger(holdMilliseconds, 'holdMilliseconds', {
+    min: 10,
+  });
+  const runId = movementRunId();
+  const generatedAtUtc = new Date().toISOString();
+  const preflight = await getMovementExecutionPreflight({
+    semanticAction,
+    keyChord,
+    holdMilliseconds: requestedHold,
+    target,
+    verification,
+    requireForeground: false,
+    maxCurrentTruthAgeMilliseconds,
+  });
+  const expectedApprovalPhrase = buildMovementExecutionApprovalPhrase(preflight);
+  const common = {
+    generatedAtUtc,
+    runId,
+    phase: 'phase-10-bounded-movement-execution',
+    semanticAction: preflight.semanticAction,
+    primitiveTool: preflight.primitiveTool,
+    keyChord: preflight.keyChord,
+    riskClass: preflight.riskClass,
+    movementRisk: preflight.movementRisk,
+    holdMilliseconds: requestedHold,
+    maxHoldMilliseconds: movementPlanMaxHoldMilliseconds,
+    dryRun,
+    executionAttempted: false,
+    preflight,
+    requiredApprovalScope: 'single-bounded-movement-step-live-execution',
+    reusableApprovalTokenGenerated: false,
+    approvalPacket: {
+      required: true,
+      approvalScope: 'single-bounded-movement-step-live-execution',
+      reusableApprovalTokenGenerated: false,
+      expectedApprovalPhrase,
+      operatorPrompt:
+        `To execute this exact one-shot movement step, pass approvalPhrase exactly as: ${expectedApprovalPhrase}. ` +
+        'Do not reuse this approval for another action, target, route loop, proof promotion, x64dbg/CE, provider write, or public-route live control.',
+    },
+    verificationRequirements: preflight.verificationRequirements,
+    artifactPaths: {
+      runDirectory: null,
+      summaryJson: null,
+    },
+  };
+
+  if (dryRun) {
+    return buildControlPayload({
+      kind: 'rift-game-mcp-movement-execution',
+      status: preflight.ok ? 'dry-run-ready' : 'dry-run-blocked',
+      ok: preflight.ok,
+      blockers: preflight.blockers,
+      warnings: preflight.warnings,
+      safety: buildSafetyFlags({
+        movementSent: false,
+        inputSent: false,
+        keysReleased: false,
+      }),
+      ...common,
+      note:
+        'Dry run only: no focus, capture, click, resize, key press, key release, debugger attach, provider write, proof update, or SavedVariables live-truth use occurred.',
+    });
+  }
+
+  const blockers = [...preflight.blockers];
+  const warnings = [...preflight.warnings];
+  if (!preflight.ok) {
+    blockers.push('movement-execution-preflight-blocked');
+  }
+  if (!approvalPhrase || approvalPhrase !== expectedApprovalPhrase) {
+    blockers.push('approval-phrase-missing-or-mismatch');
+  }
+  if (preflight.verificationRequirements?.requireLiveCoordinateDelta !== true) {
+    blockers.push('verification-live-coordinate-delta-required');
+  }
+
+  if (blockers.length > 0) {
+    const blockedRun = buildControlPayload({
+      kind: 'rift-game-mcp-movement-execution',
+      status: 'blocked-before-input',
+      ok: false,
+      blockers: [...new Set(blockers)],
+      warnings: [...new Set(warnings)],
+      safety: buildSafetyFlags({
+        movementSent: false,
+        inputSent: false,
+        keysReleased: false,
+      }),
+      ...common,
+      dryRun: false,
+      note:
+        'Live execution refused before focus/capture/input because preflight, approval, or verification requirements were not satisfied.',
+    });
+    return writeMovementRunArtifact(blockedRun);
+  }
+
+  const waitOptions = {
+    timeoutMilliseconds: waitForFrameChange?.timeoutMilliseconds ?? 3000,
+    pollIntervalMilliseconds: waitForFrameChange?.pollIntervalMilliseconds ?? 150,
+    changeThresholdPercent: waitForFrameChange?.changeThresholdPercent ?? 0.5,
+    region: waitForFrameChange?.region ?? null,
+  };
+  const steps = [];
+  let inputSent = false;
+  let movementSent = false;
+  let keysReleased = false;
+  let focusResult = null;
+  let postFocusPreflight = null;
+  let beforeCapture = null;
+  let keyResult = null;
+  let releaseResult = null;
+  let waitResult = null;
+  let afterCapture = null;
+  const liveWarnings = [...warnings];
+  const liveBlockers = [];
+
+  try {
+    focusResult = await runPowerShell('focus', buildBoundWindowSpec());
+    updateBoundWindow(focusResult);
+    steps.push({ step: 'focus_game_window', status: 'passed' });
+
+    postFocusPreflight = await getMovementExecutionPreflight({
+      semanticAction,
+      keyChord,
+      holdMilliseconds: requestedHold,
+      target,
+      verification,
+      requireForeground: true,
+      maxCurrentTruthAgeMilliseconds,
+    });
+    steps.push({
+      step: 'post_focus_preflight',
+      status: postFocusPreflight.ok ? 'passed' : 'blocked',
+      blockers: postFocusPreflight.blockers,
+    });
+
+    if (!postFocusPreflight.ok) {
+      liveBlockers.push(
+        ...postFocusPreflight.blockers.map((item) => `post-focus-preflight:${item}`),
+      );
+      return await writeMovementRunArtifact(
+        buildControlPayload({
+          kind: 'rift-game-mcp-movement-execution',
+          status: 'blocked-after-focus-before-input',
+          ok: false,
+          blockers: [...new Set(liveBlockers)],
+          warnings: [...new Set(liveWarnings)],
+          safety: buildSafetyFlags({
+            movementSent,
+            inputSent,
+            keysReleased,
+          }),
+          ...common,
+          dryRun: false,
+          executionAttempted: true,
+          focusResult,
+          postFocusPreflight,
+          steps,
+        }),
+      );
+    }
+
+    const postFocusApprovalPhrase = buildMovementExecutionApprovalPhrase(postFocusPreflight);
+    if (postFocusApprovalPhrase !== expectedApprovalPhrase) {
+      liveBlockers.push('post-focus-approval-phrase-drift');
+      return await writeMovementRunArtifact(
+        buildControlPayload({
+          kind: 'rift-game-mcp-movement-execution',
+          status: 'blocked-after-focus-before-input',
+          ok: false,
+          blockers: [...new Set(liveBlockers)],
+          warnings: [...new Set(liveWarnings)],
+          safety: buildSafetyFlags({
+            movementSent,
+            inputSent,
+            keysReleased,
+          }),
+          ...common,
+          dryRun: false,
+          executionAttempted: true,
+          focusResult,
+          postFocusPreflight,
+          postFocusApprovalPhrase,
+          expectedApprovalPhrase,
+          steps,
+        }),
+      );
+    }
+
+    beforeCapture = await captureBoundWindow();
+    steps.push({
+      step: 'capture_game_window_baseline',
+      status: 'passed',
+      screenshotPath: beforeCapture.screenshotPath,
+    });
+
+    keyResult = await sendBoundKey(postFocusPreflight.keyChord, requestedHold);
+    inputSent = Boolean(keyResult.inputSent ?? true);
+    movementSent = true;
+    steps.push({
+      step: 'send_key',
+      status: 'passed',
+      keyChord: postFocusPreflight.keyChord,
+      holdMilliseconds: requestedHold,
+    });
+
+    releaseResult = await releaseAllMovementKeys({ dryRun: false });
+    keysReleased = Boolean(releaseResult.safety?.keysReleased);
+    inputSent = inputSent || Boolean(releaseResult.safety?.inputSent);
+    steps.push({
+      step: 'release_all_movement_keys',
+      status: releaseResult.ok ? 'passed' : 'blocked',
+      keysReleased,
+    });
+    if (!releaseResult.ok || !keysReleased) {
+      liveBlockers.push('movement-key-release-not-confirmed');
+    }
+
+    waitResult = await waitForFrameChangeInternal({
+      baselineScreenshotPath: beforeCapture.screenshotPath,
+      ...waitOptions,
+    });
+    steps.push({
+      step: 'wait_for_frame_change',
+      status: waitResult.changed ? 'changed' : 'unchanged',
+      screenshotPath: waitResult.screenshotPath,
+      changed: Boolean(waitResult.changed),
+      changePercent: waitResult.changePercent ?? null,
+    });
+
+    afterCapture = await captureBoundWindow();
+    steps.push({
+      step: 'capture_game_window_final',
+      status: 'passed',
+      screenshotPath: afterCapture.screenshotPath,
+    });
+
+    if (!waitResult.changed) {
+      liveBlockers.push('visual-frame-change-not-detected');
+    }
+    liveBlockers.push('fresh-live-coordinate-delta-verification-still-required');
+
+    return await writeMovementRunArtifact(
+      buildControlPayload({
+        kind: 'rift-game-mcp-movement-execution',
+        status:
+          liveBlockers.length > 0
+            ? 'executed-awaiting-live-coordinate-verification'
+            : 'executed',
+        ok: liveBlockers.length === 0,
+        blockers: [...new Set(liveBlockers)],
+        warnings: [...new Set(liveWarnings)],
+        safety: buildSafetyFlags({
+          movementSent,
+          inputSent,
+          keysReleased,
+        }),
+        ...common,
+        dryRun: false,
+        executionAttempted: true,
+        focusResult,
+        postFocusPreflight,
+        beforeCapture,
+        keyResult,
+        releaseResult,
+        waitResult,
+        afterCapture,
+        steps,
+        verificationStatus: {
+          visualFrameChangeDetected: Boolean(waitResult.changed),
+          liveCoordinateDeltaVerified: false,
+          savedVariablesUsedAsLiveTruth: false,
+        },
+      }),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    liveBlockers.push('movement-execution-failed');
+    liveWarnings.push(message);
+    if (inputSent || movementSent) {
+      try {
+        releaseResult = await releaseAllMovementKeys({ dryRun: false });
+        keysReleased = Boolean(releaseResult.safety?.keysReleased);
+        inputSent = inputSent || Boolean(releaseResult.safety?.inputSent);
+        steps.push({
+          step: 'release_all_movement_keys_after_failure',
+          status: releaseResult.ok ? 'passed' : 'blocked',
+          keysReleased,
+        });
+      } catch (releaseError) {
+        liveBlockers.push('movement-key-release-after-failure-failed');
+        liveWarnings.push(
+          releaseError instanceof Error ? releaseError.message : String(releaseError),
+        );
+      }
+    }
+
+    return await writeMovementRunArtifact(
+      buildControlPayload({
+        kind: 'rift-game-mcp-movement-execution',
+        status: 'failed',
+        ok: false,
+        blockers: [...new Set(liveBlockers)],
+        warnings: [...new Set(liveWarnings)],
+        safety: buildSafetyFlags({
+          movementSent,
+          inputSent,
+          keysReleased,
+        }),
+        ...common,
+        dryRun: false,
+        executionAttempted: true,
+        focusResult,
+        postFocusPreflight,
+        beforeCapture,
+        keyResult,
+        releaseResult,
+        waitResult,
+        afterCapture,
+        steps,
+      }),
+    );
+  }
 }
 
 async function getMovementExecutionPreflight({
@@ -3264,6 +3650,120 @@ server.registerTool(
         target,
         verification,
         requireForeground,
+        maxCurrentTruthAgeMilliseconds,
+      }),
+    ),
+);
+
+server.registerTool(
+  'execute_movement_step',
+  {
+    title: 'Execute movement step',
+    description:
+      'Phase 10 gated executor for exactly one bounded RIFT movement step. Defaults to dryRun=true. Live execution requires a passing get_movement_execution_preflight result, an exact one-shot approval phrase, focus/capture/send/release/wait/capture sequencing, and fresh live-coordinate verification remains required. Validation must keep dryRun=true.',
+    inputSchema: {
+      semanticAction: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Movement semantic action such as move_forward, move_backward, strafe_left, strafe_right, turn_left, turn_right, jump, ascend, or descend.',
+        ),
+      keyChord: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Raw movement-risk key or chord to execute when no semantic action is supplied, e.g. w, shift+w, space, or left.',
+        ),
+      holdMilliseconds: z
+        .number()
+        .int()
+        .min(10)
+        .max(5000)
+        .default(500)
+        .describe('Planned key hold duration for the bounded movement step.'),
+      target: exactTargetInputSchema
+        .optional()
+        .describe(
+          'Optional exact target facts to compare against the currently bound/inspected window.',
+        ),
+      verification: z
+        .object({
+          requireFrameChange: z.boolean().optional(),
+          requireLiveCoordinateDelta: z.boolean().optional(),
+          coordinateTolerance: z.number().positive().optional(),
+        })
+        .optional()
+        .describe('Verification requirements for the movement step.'),
+      waitForFrameChange: z
+        .object({
+          timeoutMilliseconds: z.number().int().min(100).max(60000).optional(),
+          pollIntervalMilliseconds: z.number().int().min(25).max(5000).optional(),
+          changeThresholdPercent: z.number().min(0.01).max(100).optional(),
+          region: z
+            .object({
+              x: z.number().int().nonnegative(),
+              y: z.number().int().nonnegative(),
+              width: z.number().int().positive(),
+              height: z.number().int().positive(),
+            })
+            .optional(),
+        })
+        .optional()
+        .describe('Optional visual frame-change verification tuning for live execution.'),
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, performs only the internal preflight and approval-packet generation. Keep true during validation.',
+        ),
+      approvalPhrase: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Exact one-shot approval phrase returned by dryRun/preflight for the same target/action/hold/current-truth. Required only when dryRun=false.',
+        ),
+      maxCurrentTruthAgeMilliseconds: z
+        .number()
+        .int()
+        .min(1000)
+        .max(86400000)
+        .default(300000)
+        .describe(
+          'Maximum acceptable age for docs/recovery/current-truth.json updatedAtUtc before live movement execution.',
+        ),
+    },
+    outputSchema: controlToolOutputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async ({
+    semanticAction,
+    keyChord,
+    holdMilliseconds,
+    target,
+    verification,
+    waitForFrameChange,
+    dryRun,
+    approvalPhrase,
+    maxCurrentTruthAgeMilliseconds,
+  }) =>
+    runLoggedTool('execute_movement_step', async () =>
+      executeMovementStep({
+        semanticAction,
+        keyChord,
+        holdMilliseconds,
+        target,
+        verification,
+        waitForFrameChange,
+        dryRun,
+        approvalPhrase,
         maxCurrentTruthAgeMilliseconds,
       }),
     ),
