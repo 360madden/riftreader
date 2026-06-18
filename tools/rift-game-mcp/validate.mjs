@@ -73,6 +73,7 @@ try {
     'open_inventory',
     'plan_movement_step',
     'press_hotbar_slot',
+    'release_all_movement_keys',
     'resize_game_window',
     'send_key',
     'suggest_inventory_region',
@@ -190,6 +191,21 @@ try {
     throw new Error('get_latest_control_artifact annotations must mark it read-only and non-destructive.');
   }
 
+  const releaseMovementKeysTool = result.tools.find((tool) => tool.name === 'release_all_movement_keys');
+  const releaseMovementKeysProperties = releaseMovementKeysTool?.inputSchema?.properties ?? {};
+  if (!releaseMovementKeysTool) {
+    throw new Error('release_all_movement_keys tool is missing.');
+  }
+  if (!('dryRun' in releaseMovementKeysProperties)) {
+    throw new Error('release_all_movement_keys input schema is missing dryRun.');
+  }
+  if (
+    releaseMovementKeysTool.annotations?.readOnlyHint !== false ||
+    releaseMovementKeysTool.annotations?.destructiveHint !== false
+  ) {
+    throw new Error('release_all_movement_keys annotations must mark it non-read-only but non-destructive.');
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -203,6 +219,7 @@ try {
         resizeGameWindowProperties: Object.keys(resizeProperties).sort(),
         classifyGameActionProperties: Object.keys(classifyProperties).sort(),
         planMovementStepProperties: Object.keys(planProperties).sort(),
+        releaseAllMovementKeysProperties: Object.keys(releaseMovementKeysProperties).sort(),
       },
       null,
       2,

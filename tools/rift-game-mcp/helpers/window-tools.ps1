@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "wait-for-change", "compare-images", "detect-diff-region")]
+    [ValidateSet("find", "inspect", "focus", "capture", "click", "send-key", "release-keys", "wait-for-change", "compare-images", "detect-diff-region")]
     [string]$Operation,
 
     [string]$ProcessName,
@@ -680,6 +680,80 @@ function Send-KeyPlan {
     }
 }
 
+function Split-KeyChordList {
+    param([string]$Chords)
+
+    if ([string]::IsNullOrWhiteSpace($Chords)) {
+        throw "At least one key chord is required."
+    }
+
+    $items = @($Chords.Split(',', [System.StringSplitOptions]::RemoveEmptyEntries) |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ })
+
+    if (-not $items -or $items.Count -eq 0) {
+        throw "At least one key chord is required."
+    }
+
+    return $items
+}
+
+function Assert-MovementReleaseKeyChord {
+    param([string]$Chord)
+
+    $normalized = $Chord.Trim().ToUpperInvariant()
+    $allowedReleaseKeys = @(
+        "W",
+        "A",
+        "S",
+        "D",
+        "Q",
+        "E",
+        "UP",
+        "DOWN",
+        "LEFT",
+        "RIGHT",
+        "SPACE"
+    )
+
+    if ($normalized.Contains("+")) {
+        throw "release-keys only accepts single movement-risk keys, not key chords: '$Chord'."
+    }
+
+    if ($allowedReleaseKeys -notcontains $normalized) {
+        throw "release-keys only accepts movement-risk release keys. Unsupported key: '$Chord'."
+    }
+}
+
+function Send-KeyReleasePlan {
+    param(
+        [psobject]$Plan,
+        [IntPtr]$TargetWindowHandle
+    )
+
+    if ($TargetWindowHandle -eq [IntPtr]::Zero) {
+        throw "A target window handle is required for key release."
+    }
+
+    $hasAltModifier = $false
+    foreach ($modifier in $Plan.modifiers) {
+        if ($modifier -eq 0x12) {
+            $hasAltModifier = $true
+            break
+        }
+    }
+
+    for ($i = $Plan.keys.Count - 1; $i -ge 0; $i--) {
+        Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $Plan.keys[$i].virtualKey -KeyUp -AltContext:$hasAltModifier
+        Start-Sleep -Milliseconds 10
+    }
+
+    for ($i = $Plan.modifiers.Count - 1; $i -ge 0; $i--) {
+        Invoke-KeyMessage -Handle $TargetWindowHandle -VirtualKey $Plan.modifiers[$i] -KeyUp -AltContext:($Plan.modifiers[$i] -eq 0x12)
+        Start-Sleep -Milliseconds 10
+    }
+}
+
 function Get-RegionRectangle {
     param(
         [int]$ImageWidth,
@@ -1194,6 +1268,37 @@ try {
                 keyChord = $KeyChord
                 holdMilliseconds = $HoldMilliseconds
                 keyboardInputMethod = "window-message"
+            }
+            break
+        }
+        "release-keys" {
+            $window = Resolve-WindowSnapshot
+            Assert-WindowMatchesExpectations -Window $window
+
+            if (-not $window.isForeground) {
+                throw "Refusing key release because the bound game window is not the foreground window. Call focus_game_window first."
+            }
+
+            if ($window.isMinimized) {
+                throw "Cannot release keys to a minimized window."
+            }
+
+            $handle = ConvertTo-IntPtr -HandleText $window.windowHandle
+            $releaseKeyChords = @(Split-KeyChordList -Chords $KeyChord)
+            foreach ($releaseKeyChord in $releaseKeyChords) {
+                Assert-MovementReleaseKeyChord -Chord $releaseKeyChord
+                $plan = Resolve-KeyPlan -Chord $releaseKeyChord
+                Send-KeyReleasePlan -Plan $plan -TargetWindowHandle $handle
+            }
+
+            [pscustomobject]@{
+                window = (Get-WindowSnapshot -Handle $handle)
+                keyChords = $releaseKeyChords
+                inputSent = $true
+                movementSent = $false
+                keysReleased = $true
+                keyboardInputMethod = "window-message-keyup"
+                verificationRequired = "Key-up messages were sent only; caller must verify the target is no longer moving from a fresh live surface."
             }
             break
         }

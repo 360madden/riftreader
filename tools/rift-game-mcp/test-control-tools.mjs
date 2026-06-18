@@ -86,6 +86,37 @@ try {
   assert.equal(hotbarClassification.primitiveTool, 'press_hotbar_slot');
   assert.equal(hotbarClassification.slot, 1);
 
+  const releaseDryRun = getStructured(
+    await client.callTool({
+      name: 'release_all_movement_keys',
+      arguments: { dryRun: true },
+    }),
+  );
+  assert.equal(releaseDryRun.ok, true);
+  assert.equal(releaseDryRun.status, 'dry-run');
+  assert.equal(releaseDryRun.dryRun, true);
+  assert.equal(releaseDryRun.releaseAttempted, false);
+  assert.deepEqual(releaseDryRun.keyChords, [
+    'w',
+    'a',
+    's',
+    'd',
+    'q',
+    'e',
+    'up',
+    'down',
+    'left',
+    'right',
+    'space',
+  ]);
+  assert.equal(releaseDryRun.safety.movementSent, false);
+  assert.equal(releaseDryRun.safety.inputSent, false);
+  assert.equal(releaseDryRun.safety.keysReleased, false);
+  assert.equal(releaseDryRun.safety.noCheatEngine, true);
+  assert.equal(releaseDryRun.safety.x64dbgAttach, false);
+  assert.equal(releaseDryRun.safety.providerWrites, false);
+  assert.equal(releaseDryRun.safety.savedVariablesUsedAsLiveTruth, false);
+
   const plan = getStructured(
     await client.callTool({
       name: 'plan_movement_step',
@@ -160,6 +191,7 @@ try {
         summaryJson: plan.artifactPaths.summaryJson,
         checkedTools: [
           'classify_game_action',
+          'release_all_movement_keys',
           'plan_movement_step',
           'get_latest_control_artifact',
         ],

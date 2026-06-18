@@ -21,6 +21,7 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
 - `validate_config`
 - `click_client`
 - `send_key`
+- `release_all_movement_keys`
 - `toggle_inventory`
 - `ensure_inventory_open`
 - `ensure_inventory_closed`
@@ -65,6 +66,11 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   Movement-risk keys (`W/A/S/D/Q/E`, arrows, and Space) are blocked by default
   unless `allowMovementKeys: true` is explicitly passed after the movement gate
   is satisfied.
+- `release_all_movement_keys` is a safety primitive, not a movement executor.
+  It is `dryRun: true` by default and its live path sends only key-up messages
+  for the fixed movement-risk key set (`W/A/S/D/Q/E`, arrows, Space) to the
+  exact bound foreground window. It does not send key-down movement input and
+  still requires fresh live-surface verification after use.
 - `resize_game_window` defaults to `dryRun: true`. Pass `dryRun: false` only
   when you intentionally want to resize the exact bound HWND. It changes the
   window/client size only; it does not send game input. Native inspect/resize
@@ -119,6 +125,7 @@ Safe movement-control planning:
 { "tool": "get_game_control_readiness" }
 { "tool": "classify_game_action", "arguments": { "actionName": "move_forward", "holdMilliseconds": 500 } }
 { "tool": "plan_movement_step", "arguments": { "semanticAction": "move_forward", "holdMilliseconds": 500 } }
+{ "tool": "release_all_movement_keys", "arguments": { "dryRun": true } }
 { "tool": "get_latest_control_artifact", "arguments": { "kind": "movement-plan" } }
 ```
 

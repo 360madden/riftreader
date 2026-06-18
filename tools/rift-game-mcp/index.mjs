@@ -94,6 +94,7 @@ const toolRiskClasses = Object.freeze({
   capture_inventory_reference: 'readOnly',
   click_client: 'uiInput',
   send_key: 'uiInput',
+  release_all_movement_keys: 'uiInputSafetyRelease',
   wait_for_frame_change: 'readOnly',
   suggest_inventory_region: 'readOnlyConfigWriteOptional',
   get_game_control_readiness: 'readOnly',
@@ -111,6 +112,19 @@ const toolRiskClasses = Object.freeze({
 
 const keyModifiers = new Set(['shift', 'ctrl', 'control', 'alt']);
 const movementKeys = new Set([
+  'w',
+  'a',
+  's',
+  'd',
+  'q',
+  'e',
+  'up',
+  'down',
+  'left',
+  'right',
+  'space',
+]);
+const movementReleaseKeyChords = Object.freeze([
   'w',
   'a',
   's',
@@ -1329,6 +1343,92 @@ async function sendBoundKey(keyChord, holdMilliseconds) {
 
   updateBoundWindow(result.window);
   return result;
+}
+
+function getMovementReleaseKeyChords() {
+  return [...movementReleaseKeyChords];
+}
+
+async function releaseAllMovementKeys({ dryRun = true } = {}) {
+  const keyChords = getMovementReleaseKeyChords();
+  const targetFacts = normalizeTargetFacts({});
+  const recommendedVerification = {
+    visualBaselineRequired: false,
+    frameChangeRequired: false,
+    liveCoordinateDeltaRequired: false,
+    notes: [
+      'This safety primitive sends key-up messages only when dryRun=false; it never sends key-down movement input.',
+      'After a live release, verify from a fresh live surface that the bound client is not still moving.',
+      'SavedVariables are forbidden as live movement truth.',
+    ],
+  };
+
+  if (dryRun) {
+    return buildControlPayload({
+      kind: 'rift-game-mcp-movement-key-release',
+      status: 'dry-run',
+      ok: true,
+      safety: buildSafetyFlags({
+        keysReleased: false,
+      }),
+      generatedAtUtc: new Date().toISOString(),
+      dryRun: true,
+      releaseAttempted: false,
+      keyChords,
+      targetFacts,
+      requiredApprovalScope: 'exact-bound-window-safety-release',
+      recommendedVerification,
+      note:
+        'Dry run only: no focus, click, resize, key press, key release, debugger attach, provider write, or SavedVariables live-truth use occurred.',
+    });
+  }
+
+  try {
+    const result = await runPowerShell('release-keys', {
+      ...buildBoundWindowSpec(),
+      KeyChord: keyChords.join(','),
+    });
+
+    updateBoundWindow(result.window);
+    return buildControlPayload({
+      kind: 'rift-game-mcp-movement-key-release',
+      status: 'released',
+      ok: true,
+      safety: buildSafetyFlags({
+        movementSent: false,
+        inputSent: Boolean(result.inputSent),
+        keysReleased: Boolean(result.keysReleased),
+      }),
+      generatedAtUtc: new Date().toISOString(),
+      dryRun: false,
+      releaseAttempted: true,
+      keyChords: result.keyChords ?? keyChords,
+      keyboardInputMethod: result.keyboardInputMethod ?? null,
+      targetFacts: normalizeTargetFacts({}),
+      requiredApprovalScope: 'exact-bound-window-safety-release',
+      recommendedVerification,
+      window: state.boundWindow,
+      backendVerificationRequired: result.verificationRequired ?? null,
+    });
+  } catch (error) {
+    return buildControlPayload({
+      kind: 'rift-game-mcp-movement-key-release',
+      status: 'blocked',
+      ok: false,
+      blockers: ['movement-key-release-failed'],
+      warnings: [error instanceof Error ? error.message : String(error)],
+      safety: buildSafetyFlags({
+        keysReleased: false,
+      }),
+      generatedAtUtc: new Date().toISOString(),
+      dryRun: false,
+      releaseAttempted: true,
+      keyChords,
+      targetFacts,
+      requiredApprovalScope: 'exact-bound-window-safety-release',
+      recommendedVerification,
+    });
+  }
 }
 
 function buildRegionParameters({
@@ -2945,6 +3045,34 @@ server.registerTool(
         window: state.boundWindow,
       };
     }),
+);
+
+server.registerTool(
+  'release_all_movement_keys',
+  {
+    title: 'Release all movement keys',
+    description:
+      'Safety primitive that releases the fixed movement-risk key set (W/A/S/D/Q/E, arrows, Space) for the exact bound window. Defaults to dryRun=true and never sends key-down movement input.',
+    inputSchema: {
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, reports the exact release plan without sending any key-up input. Keep true during validation.',
+        ),
+    },
+    outputSchema: controlToolOutputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async ({ dryRun }) =>
+    runLoggedTool('release_all_movement_keys', async () =>
+      releaseAllMovementKeys({ dryRun }),
+    ),
 );
 
 server.registerTool(
