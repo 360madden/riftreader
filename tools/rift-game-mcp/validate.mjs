@@ -16,6 +16,24 @@ const windowToolsProjectPath = path.join(
   'RiftReader.WindowTools',
   'RiftReader.WindowTools.csproj',
 );
+const requiredControlOutputProperties = [
+  'schemaVersion',
+  'kind',
+  'status',
+  'ok',
+  'blockers',
+  'warnings',
+  'safety',
+];
+const requiredControlSafetyProperties = [
+  'movementSent',
+  'inputSent',
+  'keysReleased',
+  'noCheatEngine',
+  'x64dbgAttach',
+  'providerWrites',
+  'savedVariablesUsedAsLiveTruth',
+];
 
 async function assertFileExists(filePath, description) {
   try {
@@ -75,6 +93,42 @@ async function runJsonNodeScript(scriptPath, args, description) {
       }
     });
   });
+}
+
+function assertSchemaProperties(properties, requiredProperties, description) {
+  const missingProperties = requiredProperties.filter(
+    (propertyName) => !(propertyName in properties),
+  );
+  if (missingProperties.length > 0) {
+    throw new Error(`${description} is missing properties: ${missingProperties.join(', ')}`);
+  }
+}
+
+function assertControlOutputSchema(toolName, tools) {
+  const tool = tools.find((candidate) => candidate.name === toolName);
+  if (!tool) {
+    throw new Error(`${toolName} tool is missing.`);
+  }
+
+  const outputProperties = tool.outputSchema?.properties ?? {};
+  assertSchemaProperties(
+    outputProperties,
+    requiredControlOutputProperties,
+    `${toolName} output schema`,
+  );
+
+  const safetyProperties = outputProperties.safety?.properties ?? {};
+  assertSchemaProperties(
+    safetyProperties,
+    requiredControlSafetyProperties,
+    `${toolName} output schema safety object`,
+  );
+
+  return {
+    toolName,
+    outputProperties: Object.keys(outputProperties).sort(),
+    safetyProperties: Object.keys(safetyProperties).sort(),
+  };
 }
 
 const transport = new StdioClientTransport({
@@ -149,6 +203,13 @@ try {
   if (missingTools.length > 0) {
     throw new Error(`Missing expected tool(s): ${missingTools.join(', ')}`);
   }
+  const controlOutputSchemaSummaries = [
+    'get_game_control_readiness',
+    'classify_game_action',
+    'plan_movement_step',
+    'get_latest_control_artifact',
+    'release_all_movement_keys',
+  ].map((toolName) => assertControlOutputSchema(toolName, result.tools));
 
   const findWindowTool = result.tools.find((tool) => tool.name === 'find_game_window');
   if (!findWindowTool) {
@@ -288,6 +349,7 @@ try {
         classifyGameActionProperties: Object.keys(classifyProperties).sort(),
         planMovementStepProperties: Object.keys(planProperties).sort(),
         releaseAllMovementKeysProperties: Object.keys(releaseMovementKeysProperties).sort(),
+        controlOutputSchemaSummaries,
         smokeSelfTest: {
           kind: smokeSelfTest.kind,
           status: smokeSelfTest.status,
