@@ -809,8 +809,7 @@ def live_breadcrumb_global_samples(
         actual_start = rediscovery.get_process_start_utc(handle)
         live_target["actualProcessStartUtc"] = actual_start
         if expected_start and actual_start:
-            expected_prefix = str(expected_start).replace("Z", "+00:00")[:19]
-            if not actual_start.startswith(expected_prefix):
+            if not rediscovery.process_start_matches(actual_start, expected_start):
                 blockers.append("process-start-mismatch")
                 return live_target, [], blockers, warnings
         samples: list[dict[str, Any]] = []
@@ -905,8 +904,7 @@ def live_root_samples(
         actual_start = rediscovery.get_process_start_utc(handle)
         live_target["actualProcessStartUtc"] = actual_start
         if expected_start and actual_start:
-            expected_prefix = str(expected_start).replace("Z", "+00:00")[:19]
-            if not actual_start.startswith(expected_prefix):
+            if not rediscovery.process_start_matches(actual_start, expected_start):
                 blockers.append("process-start-mismatch")
                 return live_target, [], blockers, warnings
         samples: list[dict[str, Any]] = []

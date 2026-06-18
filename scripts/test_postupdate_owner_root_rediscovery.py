@@ -121,6 +121,20 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
             },
         )
 
+    def test_process_start_matches_normalizes_local_and_utc_offsets(self) -> None:
+        self.assertTrue(
+            helper.process_start_matches(
+                "2026-06-18T01:57:01.857121+00:00",
+                "2026-06-17T21:57:01.8571209-04:00",
+            )
+        )
+        self.assertFalse(
+            helper.process_start_matches(
+                "2026-06-18T01:57:01.857121+00:00",
+                "2026-06-18T01:58:01.8571209+00:00",
+            )
+        )
+
     def test_read_game_epoch_extracts_manifest_version_and_exe_entry(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

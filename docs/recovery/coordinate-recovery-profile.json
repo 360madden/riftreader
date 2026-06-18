@@ -1,54 +1,54 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-coordinate-recovery-profile",
-  "generatedAtUtc": "2026-05-15T06:01:59.323577Z",
-  "sourceRunDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971",
+  "generatedAtUtc": "2026-06-18T06:24:31.095581Z",
+  "sourceRunDirectory": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-130540-20260618-060925-343927",
   "target": {
-    "pid": 27552,
-    "hwnd": "0x3411E2",
+    "pid": 130540,
+    "hwnd": "0x9310EA",
     "processName": "rift_x64",
     "titleContains": "RIFT"
   },
   "referenceProvider": "rrapicoord-fallback",
-  "referenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\02-reference-rrapicoord-fallback\\reference.json",
-  "scanPlanJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\03-memory-inventory\\memory-region-inventory-currentpid-27552-20260515-055438-908621\\scan-plan.json",
-  "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\api-family-vec3-candidates.jsonl",
+  "referenceJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-130540-20260618-060925-343927\\02-reference-rrapicoord-fallback\\reference.json",
+  "scanPlanJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-130540-20260618-060925-343927\\03-memory-inventory\\memory-region-inventory-currentpid-130540-20260618-060955-330579\\scan-plan.json",
+  "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-130540-20260618-061435-426019\\api-family-vec3-candidates.jsonl",
   "bestScanRange": {
-    "rank": 1,
-    "minAddressHex": "0x27B1EC70000",
-    "maxAddressHex": "0x27B1FC80000",
+    "rank": 26,
+    "minAddressHex": "0x1F342D20000",
+    "maxAddressHex": "0x1F343D30000",
     "spanMiB": 16.0625,
     "readableMiB": 16.0625,
     "regionCount": 1,
     "plannerScore": 336.5,
     "exitCode": 0,
     "timedOut": false,
-    "durationSeconds": 3.322,
+    "durationSeconds": 8.302,
     "status": "passed",
     "hitCount": 1,
     "blockers": [],
     "warnings": [],
-    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\family-scan-summary.json",
-    "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-27552-20260515-055439-934855\\api-family-vec3-candidates.jsonl",
+    "summaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-130540-20260618-061435-426019\\family-scan-summary.json",
+    "candidateJsonl": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\family-scan-currentpid-130540-20260618-061435-426019\\api-family-vec3-candidates.jsonl",
     "bestHit": {
-      "address": 2727821725888,
-      "addressHex": "0x27B1ED850C0",
-      "regionBase": 2727820591104,
-      "regionBaseHex": "0x27B1EC70000",
-      "regionOffset": 1134784,
-      "regionOffsetHex": "0x1150C0",
+      "address": 2144310790144,
+      "addressHex": "0x1F342E20800",
+      "regionBase": 2144309739520,
+      "regionBaseHex": "0x1F342D20000",
+      "regionOffset": 1050624,
+      "regionOffsetHex": "0x100800",
       "axisOrder": "xyz",
-      "x": 7325.35888671875,
-      "y": 874.0448608398438,
-      "z": 3053.77490234375,
-      "deltaX": -0.001013281250379805,
-      "deltaY": 0.00486083984378638,
-      "deltaZ": -0.005097656250200089,
-      "maxAbsDelta": 0.005097656250200089,
+      "x": 7262.47216796875,
+      "y": 821.380859375,
+      "z": 2996.16455078125,
+      "deltaX": 0.0024679687503521563,
+      "deltaY": 0.0008593750000045475,
+      "deltaZ": 0.004650781249893043,
+      "maxAbsDelta": 0.004650781249893043,
       "neighborFloats": [
         {
           "relativeOffset": -32,
-          "value": 9.183409485952689e-41
+          "value": 0.0
         },
         {
           "relativeOffset": -28,
@@ -64,7 +64,7 @@
         },
         {
           "relativeOffset": -16,
-          "value": 0.0
+          "value": 1.5694542800437951e-43
         },
         {
           "relativeOffset": -12,
@@ -80,19 +80,19 @@
         },
         {
           "relativeOffset": 0,
-          "value": 7325.35888671875
+          "value": 7262.47216796875
         },
         {
           "relativeOffset": 4,
-          "value": 874.0448608398438
+          "value": 821.380859375
         },
         {
           "relativeOffset": 8,
-          "value": 3053.77490234375
+          "value": 2996.16455078125
         },
         {
           "relativeOffset": 12,
-          "value": 8.898245248462588e-43
+          "value": 6.992479336980837e-43
         },
         {
           "relativeOffset": 16,
@@ -104,7 +104,7 @@
         },
         {
           "relativeOffset": 24,
-          "value": 1.8357009882655104e-43
+          "value": 4.077778531185218e-43
         },
         {
           "relativeOffset": 28,
@@ -112,65 +112,78 @@
         },
         {
           "relativeOffset": 32,
-          "value": -3.3324700641787904e+16
+          "value": 9.76175894765952e+35
+        },
+        {
+          "relativeOffset": 36,
+          "value": 4.590513639281668e-41
         },
         {
           "relativeOffset": 40,
-          "value": 2.1108124118098872e-20
+          "value": 0.0
         }
       ]
     }
   },
-  "promotionBatchSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\05-pose-batch\\coordinate-anchor-batch-summary.json",
-  "proofOnlySummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-27552-20260515-055223-314971\\07-proofonly\\live-test-ProofOnly-20260515-060102\\run-summary.json",
+  "profileScanUsed": false,
+  "profileScanRange": null,
+  "profileScanSummaryJson": null,
+  "promotionBatchSummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-130540-20260618-060925-343927\\05-pose-batch-attempt-01-w-750ms\\coordinate-anchor-batch-summary.json",
+  "proofOnlySummaryJson": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\recover-currentpid-coord-anchor-fast-execute-130540-20260618-060925-343927\\07-proofonly\\live-test-ProofOnly-20260618-062341\\run-summary.json",
   "stageTimings": [
+    {
+      "label": "target-window-discovery-preflight",
+      "phase": "target-discovery",
+      "status": "passed",
+      "durationSeconds": 0.77
+    },
     {
       "label": "target-control-visual-gate",
       "phase": "target-gate",
       "status": "passed",
-      "durationSeconds": 13.509
+      "durationSeconds": 22.186
     },
     {
       "label": "reference-chromalink-fast-path",
       "phase": "reference",
       "status": "blocked",
-      "durationSeconds": 0.383
+      "durationSeconds": 2.356
     },
     {
       "label": "reference-rrapicoord-fallback",
       "phase": "reference",
       "status": "passed",
-      "durationSeconds": 121.481
+      "durationSeconds": 4.537
     },
     {
       "label": "memory-region-inventory",
       "phase": "inventory",
       "status": "passed",
-      "durationSeconds": 0.837
+      "durationSeconds": 0.363
     },
     {
       "label": "scan-plan-batch-stop-on-hit",
       "phase": "scan",
       "status": "passed",
-      "durationSeconds": 3.545
+      "durationSeconds": 288.115
     },
     {
       "label": "three-pose-displacement-validation",
       "phase": "pose-validation",
       "status": "passed",
-      "durationSeconds": 367.432
+      "durationSeconds": 529.548
     },
     {
       "label": "promote-current-proof-anchor",
       "phase": "promotion",
       "status": "passed",
-      "durationSeconds": 11.227
+      "durationSeconds": 7.207
     },
     {
       "label": "proofonly-final-gate",
       "phase": "proofonly",
       "status": "passed",
-      "durationSeconds": 57.558
+      "durationSeconds": 50.144
     }
   ],
   "safety": {

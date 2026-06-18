@@ -15,6 +15,12 @@ const logFilePath = path.join(logsDir, 'actions.jsonl');
 const helperScriptPath = path.join(__dirname, 'helpers', 'window-tools.ps1');
 const repoRoot = path.resolve(__dirname, '..', '..');
 const currentTruthPath = path.join(repoRoot, 'docs', 'recovery', 'current-truth.json');
+const currentProofPath = path.join(
+  repoRoot,
+  'docs',
+  'recovery',
+  'current-proof-anchor-readback.json',
+);
 const windowToolsProjectPath = path.join(
   repoRoot,
   'tools',
@@ -798,6 +804,35 @@ function summarizeCurrentTruthTargetFacts(currentTruth) {
   };
 }
 
+function summarizeCurrentProofTargetFacts(currentProof) {
+  const target = currentProof?.target ?? {};
+  const windowHandle = firstPresent(target, [
+    'targetWindowHandle',
+    'windowHandle',
+    'windowHandleHex',
+    'hwnd',
+  ]);
+  const processStartTimeUtc = firstPresent(target, [
+    'processStartUtc',
+    'processStartTimeUtc',
+    'processStart',
+  ]);
+
+  return {
+    source: 'docs/recovery/current-proof-anchor-readback.json',
+    processId: normalizeOptionalProcessId(firstPresent(target, ['processId', 'pid'])),
+    processName: firstPresent(target, ['processName']) ?? null,
+    windowHandle,
+    windowHandleComparable: normalizeComparableWindowHandle(windowHandle),
+    title: firstPresent(target, ['windowTitle', 'title']) ?? null,
+    processStartTimeUtc,
+    processStartComparable: normalizeComparableTimestamp(processStartTimeUtc),
+    proofStatus: currentProof?.status ?? null,
+    latestValidationStatus: currentProof?.latestValidation?.status ?? null,
+    latestProofOnlyStatus: currentProof?.latestProofOnly?.status ?? null,
+  };
+}
+
 function compareTargetIdentity({
   blockers,
   warnings,
@@ -1410,6 +1445,45 @@ async function getRiftReaderCurrentTruth() {
   };
 }
 
+async function getRiftReaderCurrentProof() {
+  const status = await getFileStatus(currentProofPath);
+  if (!status.exists || !status.isFile) {
+    return {
+      ok: false,
+      path: currentProofPath,
+      file: status,
+      error: 'current-proof-anchor-readback.json was not found.',
+    };
+  }
+
+  let document;
+  try {
+    document = JSON.parse(await readFile(currentProofPath, 'utf8'));
+  } catch (error) {
+    return {
+      ok: false,
+      path: currentProofPath,
+      file: status,
+      error: `current-proof-anchor-readback.json could not be parsed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  return {
+    ok: true,
+    path: currentProofPath,
+    file: status,
+    schemaVersion: document.schemaVersion ?? null,
+    kind: document.kind ?? null,
+    status: document.status ?? null,
+    lastUpdatedUtc: document.lastUpdatedUtc ?? null,
+    target: document.target ?? null,
+    latestValidation: document.latestValidation ?? null,
+    latestProofOnly: document.latestProofOnly ?? null,
+    currentTruthClassification: document.currentTruthClassification ?? null,
+    canonicalArtifacts: document.canonicalArtifacts ?? null,
+  };
+}
+
 function summarizeConfigValidation(config) {
   return {
     ok: Boolean(config?.ok),
@@ -1439,7 +1513,58 @@ function summarizeCurrentTruthForReadiness(currentTruth) {
   };
 }
 
-function getReadinessRecommendation({ boundState, inspect, currentTruth, config, blockers }) {
+function summarizeCurrentProofForReadiness(currentProof) {
+  return {
+    ok: Boolean(currentProof?.ok),
+    status: currentProof?.status ?? null,
+    lastUpdatedUtc: currentProof?.lastUpdatedUtc ?? null,
+    target: currentProof?.target ?? null,
+    latestValidation: currentProof?.latestValidation
+      ? {
+          status: currentProof.latestValidation.status ?? null,
+          movementAllowed: currentProof.latestValidation.movementAllowed ?? null,
+          movementSent: currentProof.latestValidation.movementSent ?? null,
+          noCheatEngine: currentProof.latestValidation.noCheatEngine ?? null,
+          proofAnchorCandidateId:
+            currentProof.latestValidation.proofAnchorCandidateId ?? null,
+          proofAnchorCandidateAddressHex:
+            currentProof.latestValidation.proofAnchorCandidateAddressHex ?? null,
+          currentCoordinate: currentProof.latestValidation.currentCoordinate ?? null,
+          generatedAtUtc: currentProof.latestValidation.generatedAtUtc ?? null,
+        }
+      : null,
+    latestProofOnly: currentProof?.latestProofOnly
+      ? {
+          status: currentProof.latestProofOnly.status ?? null,
+          generatedAtUtc: currentProof.latestProofOnly.generatedAtUtc ?? null,
+          movementSent: currentProof.latestProofOnly.movementSent ?? null,
+          movementAttempted: currentProof.latestProofOnly.movementAttempted ?? null,
+          currentCoordinate: currentProof.latestProofOnly.currentCoordinate ?? null,
+          coordinateDelta: currentProof.latestProofOnly.coordinateDelta ?? null,
+        }
+      : null,
+    currentTruthClassification: currentProof?.currentTruthClassification ?? null,
+    canonicalArtifacts: currentProof?.canonicalArtifacts ?? null,
+  };
+}
+
+function getCurrentProofTimestampUtc(currentProof) {
+  return (
+    currentProof?.lastUpdatedUtc ??
+    currentProof?.latestProofOnly?.generatedAtUtc ??
+    currentProof?.latestValidation?.generatedAtUtc ??
+    null
+  );
+}
+
+function getReadinessRecommendation({
+  boundState,
+  inspect,
+  currentTruth,
+  currentProof,
+  config,
+  blockers,
+}) {
   if (!boundState.bound) {
     return {
       key: 'bind-game-window',
@@ -1456,18 +1581,18 @@ function getReadinessRecommendation({ boundState, inspect, currentTruth, config,
     };
   }
 
-  if (!currentTruth?.ok) {
+  if (!currentTruth?.ok && !currentProof?.ok) {
     return {
-      key: 'refresh-current-truth',
-      reason: 'RiftReader current-truth could not be read.',
-      tool: 'get_riftreader_current_truth',
+      key: 'refresh-current-proof',
+      reason: 'Neither RiftReader current-truth nor current-proof could be read.',
+      tool: null,
     };
   }
 
-  const truthBlockers = Array.isArray(currentTruth.currentBlockers)
+  const truthBlockers = Array.isArray(currentTruth?.currentBlockers)
     ? currentTruth.currentBlockers
     : [];
-  if (truthBlockers.length > 0) {
+  if (truthBlockers.length > 0 && !isCurrentProofMovementGateStructurallyUsable(currentProof)) {
     return {
       key: 'resolve-current-truth-blockers',
       reason: 'Current-truth reports blockers before live movement should be planned.',
@@ -1522,6 +1647,173 @@ function summarizeCurrentTruthFreshness(currentTruth, maxAgeMilliseconds) {
   };
 }
 
+function summarizeCurrentProofFreshness(currentProof, maxAgeMilliseconds) {
+  const updatedAtUtc = getCurrentProofTimestampUtc(currentProof);
+  const parsed = updatedAtUtc ? Date.parse(updatedAtUtc) : Number.NaN;
+  const generatedAtMs = Date.now();
+  const ageMilliseconds = Number.isFinite(parsed) ? generatedAtMs - parsed : null;
+  const fresh =
+    ageMilliseconds !== null &&
+    ageMilliseconds >= 0 &&
+    ageMilliseconds <= maxAgeMilliseconds;
+
+  return {
+    updatedAtUtc,
+    ageMilliseconds,
+    maxAgeMilliseconds,
+    fresh,
+    status: fresh
+      ? 'fresh'
+      : ageMilliseconds === null
+        ? 'missing-or-invalid-proof-timestamp'
+        : 'stale',
+  };
+}
+
+function isCurrentProofMovementGateStructurallyUsable(currentProof) {
+  const latestValidation = currentProof?.latestValidation ?? {};
+  const latestProofOnly = currentProof?.latestProofOnly ?? {};
+  const classification = currentProof?.currentTruthClassification ?? {};
+
+  return (
+    currentProof?.ok === true &&
+    (currentProof.status === 'current-target-proofonly-passed' ||
+      latestProofOnly.status === 'passed-proof-only') &&
+    latestValidation.status === 'valid' &&
+    latestValidation.movementAllowed === true &&
+    latestValidation.movementSent !== true &&
+    latestProofOnly.status === 'passed-proof-only' &&
+    latestProofOnly.movementSent !== true &&
+    latestProofOnly.movementAttempted !== true &&
+    latestValidation.noCheatEngine === true &&
+    classification.savedVariablesUsedAsLiveTruth !== true
+  );
+}
+
+function evaluateCurrentTruthMovementProof({
+  currentTruth,
+  currentTruthFreshness,
+  currentTruthTarget,
+  inspectedTarget,
+}) {
+  const blockers = [];
+  const warnings = [];
+
+  if (!currentTruth?.ok) {
+    blockers.push('current-truth-not-readable');
+    return { usable: false, blockers, warnings };
+  }
+
+  if (currentTruthFreshness.status === 'missing-or-invalid-updatedAtUtc') {
+    blockers.push('current-truth-updatedAtUtc-missing-or-invalid');
+  } else if (!currentTruthFreshness.fresh) {
+    blockers.push('current-truth-too-old');
+  }
+
+  if (currentTruth?.movementGate?.allowed !== true) {
+    blockers.push('current-truth-movement-gate-not-allowed');
+  }
+
+  const truthBlockers = Array.isArray(currentTruth.currentBlockers)
+    ? currentTruth.currentBlockers
+    : [];
+  blockers.push(...truthBlockers.map((item) => `current-truth:${item}`));
+
+  if (inspectedTarget) {
+    compareTargetIdentity({
+      blockers,
+      warnings,
+      expected: currentTruthTarget,
+      actual: inspectedTarget,
+      scope: 'current-truth-target',
+      compareProcessStart: true,
+    });
+  }
+
+  return {
+    usable: blockers.length === 0,
+    blockers,
+    warnings,
+  };
+}
+
+function evaluateCurrentProofMovementProof({
+  currentProof,
+  currentProofFreshness,
+  currentProofTarget,
+  inspectedTarget,
+}) {
+  const blockers = [];
+  const warnings = [];
+  const latestValidation = currentProof?.latestValidation ?? {};
+  const latestProofOnly = currentProof?.latestProofOnly ?? {};
+  const classification = currentProof?.currentTruthClassification ?? {};
+
+  if (!currentProof?.ok) {
+    blockers.push('current-proof-not-readable');
+    return { usable: false, blockers, warnings };
+  }
+
+  if (currentProofFreshness.status === 'missing-or-invalid-proof-timestamp') {
+    blockers.push('current-proof-updatedAtUtc-missing-or-invalid');
+  } else if (!currentProofFreshness.fresh) {
+    blockers.push('current-proof-too-old');
+  }
+
+  if (
+    currentProof.status !== 'current-target-proofonly-passed' &&
+    latestProofOnly.status !== 'passed-proof-only'
+  ) {
+    blockers.push('current-proof-status-not-passed');
+  }
+  if (latestValidation.status !== 'valid') {
+    blockers.push('current-proof-latest-validation-not-valid');
+  }
+  if (latestValidation.movementAllowed !== true) {
+    blockers.push('current-proof-movement-not-allowed');
+  }
+  if (latestValidation.movementSent === true) {
+    blockers.push('current-proof-validation-sent-movement');
+  }
+  if (latestProofOnly.status !== 'passed-proof-only') {
+    blockers.push('current-proof-proofonly-not-passed');
+  }
+  if (latestProofOnly.movementSent === true || latestProofOnly.movementAttempted === true) {
+    blockers.push('current-proof-proofonly-used-movement');
+  }
+  if (!latestValidation.proofAnchorCandidateAddressHex) {
+    blockers.push('current-proof-anchor-address-missing');
+  }
+  if (!latestValidation.currentCoordinate && !latestProofOnly.currentCoordinate) {
+    blockers.push('current-proof-current-coordinate-missing');
+  }
+  if (latestValidation.noCheatEngine !== true) {
+    blockers.push('current-proof-no-cheat-engine-not-confirmed');
+  }
+  if (classification.savedVariablesUsedAsLiveTruth === true) {
+    blockers.push('current-proof-savedvariables-used-as-live-truth');
+  } else if (classification.savedVariablesUsedAsLiveTruth !== false) {
+    warnings.push('current-proof-savedvariables-live-truth-flag-missing');
+  }
+
+  if (inspectedTarget) {
+    compareTargetIdentity({
+      blockers,
+      warnings,
+      expected: currentProofTarget,
+      actual: inspectedTarget,
+      scope: 'current-proof-target',
+      compareProcessStart: false,
+    });
+  }
+
+  return {
+    usable: blockers.length === 0,
+    blockers,
+    warnings,
+  };
+}
+
 function getMovementPreflightRecommendation({ blockers }) {
   if (blockers.includes('game-window-not-bound')) {
     return {
@@ -1552,14 +1844,25 @@ function getMovementPreflightRecommendation({ blockers }) {
     };
   }
 
+  if (blockers.some((item) => item.startsWith('current-proof-target-'))) {
+    return {
+      key: 'refresh-current-proof-for-current-target',
+      reason:
+        'docs/recovery/current-proof-anchor-readback.json does not match the currently inspected target identity.',
+      tool: null,
+    };
+  }
+
   if (
     blockers.includes('current-truth-too-old') ||
-    blockers.includes('current-truth-updatedAtUtc-missing-or-invalid')
+    blockers.includes('current-truth-updatedAtUtc-missing-or-invalid') ||
+    blockers.includes('current-proof-too-old') ||
+    blockers.includes('current-proof-updatedAtUtc-missing-or-invalid')
   ) {
     return {
       key: 'refresh-current-pid-proof-readback',
       reason:
-        'Current-truth must be refreshed against the exact current PID/HWND before live movement execution.',
+        'Current proof/truth must be refreshed against the exact current PID/HWND before live movement execution.',
       tool: null,
     };
   }
@@ -1601,18 +1904,28 @@ function getMovementPreflightRecommendation({ blockers }) {
 function buildMovementExecutionApprovalPhrase(preflight) {
   const inspected = preflight?.targetFacts?.inspected ?? {};
   const requested = preflight?.targetFacts?.requested ?? {};
+  const movementProofTarget = preflight?.targetFacts?.movementProof ?? {};
+  const currentProof = preflight?.targetFacts?.currentProof ?? {};
   const currentTruth = preflight?.targetFacts?.currentTruth ?? {};
   const processId =
-    inspected.processId ?? requested.processId ?? currentTruth.processId ?? 'unknown-pid';
+    inspected.processId ??
+    requested.processId ??
+    movementProofTarget.processId ??
+    currentProof.processId ??
+    currentTruth.processId ??
+    'unknown-pid';
   const windowHandle =
     inspected.windowHandleComparable ??
     requested.windowHandleComparable ??
+    movementProofTarget.windowHandleComparable ??
+    currentProof.windowHandleComparable ??
     currentTruth.windowHandleComparable ??
     'unknown-hwnd';
   const action = preflight?.semanticAction ?? 'unknown-action';
   const key = preflight?.keyChord ?? 'unknown-key';
   const hold = preflight?.holdMilliseconds ?? 'unknown-hold';
-  const truthUpdatedAt = preflight?.currentTruth?.updatedAtUtc ?? 'unknown-truth-time';
+  const proofSource = preflight?.movementProof?.source ?? 'unknown-proof-source';
+  const proofUpdatedAt = preflight?.movementProof?.updatedAtUtc ?? 'unknown-proof-time';
 
   return [
     'EXECUTE_ONE_RIFT_MOVEMENT_STEP',
@@ -1621,7 +1934,8 @@ function buildMovementExecutionApprovalPhrase(preflight) {
     `holdMs=${hold}`,
     `pid=${processId}`,
     `hwnd=${windowHandle}`,
-    `truthUpdatedAt=${truthUpdatedAt}`,
+    `proofSource=${proofSource}`,
+    `proofUpdatedAt=${proofUpdatedAt}`,
   ].join(' ');
 }
 
@@ -1631,6 +1945,7 @@ async function getGameControlReadiness() {
   const boundState = getBoundWindowState();
   let inspect = null;
   let currentTruth = null;
+  let currentProof = null;
   let config = null;
 
   if (!boundState.bound) {
@@ -1653,14 +1968,27 @@ async function getGameControlReadiness() {
   try {
     currentTruth = await getRiftReaderCurrentTruth();
     if (!currentTruth.ok) {
-      blockers.push('current-truth-not-readable');
+      warnings.push('current-truth-not-readable');
     }
   } catch (error) {
     currentTruth = {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
     };
-    blockers.push('current-truth-read-failed');
+    warnings.push('current-truth-read-failed');
+  }
+
+  try {
+    currentProof = await getRiftReaderCurrentProof();
+    if (!currentProof.ok) {
+      warnings.push('current-proof-not-readable');
+    }
+  } catch (error) {
+    currentProof = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+    warnings.push('current-proof-read-failed');
   }
 
   try {
@@ -1677,9 +2005,17 @@ async function getGameControlReadiness() {
   }
 
   const truthSummary = summarizeCurrentTruthForReadiness(currentTruth);
+  const proofSummary = summarizeCurrentProofForReadiness(currentProof);
+  if (!currentTruth?.ok && !currentProof?.ok) {
+    blockers.push('current-proof-and-current-truth-not-readable');
+  }
   const truthBlockers = truthSummary.currentBlockers;
-  if (truthBlockers.length > 0) {
+  if (truthBlockers.length > 0 && !isCurrentProofMovementGateStructurallyUsable(currentProof)) {
     blockers.push(...truthBlockers.map((item) => `current-truth:${item}`));
+  } else if (truthBlockers.length > 0) {
+    warnings.push(
+      ...truthBlockers.map((item) => `current-truth-blocker-superseded-by-current-proof:${item}`),
+    );
   }
 
   const ok = blockers.length === 0;
@@ -1694,11 +2030,13 @@ async function getGameControlReadiness() {
     boundWindowState: boundState,
     boundWindowInspection: inspect,
     currentTruth: truthSummary,
+    currentProof: proofSummary,
     config: summarizeConfigValidation(config),
     recommendedNextAction: getReadinessRecommendation({
       boundState,
       inspect,
       currentTruth,
+      currentProof,
       config,
       blockers,
     }),
@@ -2149,18 +2487,28 @@ async function getMovementExecutionPreflight({
   let truthSummary = null;
   let currentTruthTarget = null;
   let currentTruthFreshness = null;
+  let currentProof = null;
+  let proofSummary = null;
+  let currentProofTarget = null;
+  let currentProofFreshness = null;
+  let movementProof = null;
 
   try {
     currentTruth = await getRiftReaderCurrentTruth();
-    if (!currentTruth.ok) {
-      blockers.push('current-truth-not-readable');
-    }
   } catch (error) {
     currentTruth = {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
     };
-    blockers.push('current-truth-read-failed');
+  }
+
+  try {
+    currentProof = await getRiftReaderCurrentProof();
+  } catch (error) {
+    currentProof = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
   truthSummary = summarizeCurrentTruthForReadiness(currentTruth);
@@ -2169,33 +2517,68 @@ async function getMovementExecutionPreflight({
     currentTruth,
     maxCurrentTruthAgeMilliseconds,
   );
+  proofSummary = summarizeCurrentProofForReadiness(currentProof);
+  currentProofTarget = summarizeCurrentProofTargetFacts(currentProof);
+  currentProofFreshness = summarizeCurrentProofFreshness(
+    currentProof,
+    maxCurrentTruthAgeMilliseconds,
+  );
 
-  if (currentTruth?.ok) {
-    if (currentTruthFreshness.status === 'missing-or-invalid-updatedAtUtc') {
-      blockers.push('current-truth-updatedAtUtc-missing-or-invalid');
-    } else if (!currentTruthFreshness.fresh) {
-      blockers.push('current-truth-too-old');
+  const truthProofEvaluation = evaluateCurrentTruthMovementProof({
+    currentTruth,
+    currentTruthFreshness,
+    currentTruthTarget,
+    inspectedTarget,
+  });
+  const currentProofEvaluation = evaluateCurrentProofMovementProof({
+    currentProof,
+    currentProofFreshness,
+    currentProofTarget,
+    inspectedTarget,
+  });
+  warnings.push(...truthProofEvaluation.warnings, ...currentProofEvaluation.warnings);
+
+  if (currentProofEvaluation.usable) {
+    movementProof = {
+      source: 'current-proof-anchor-readback',
+      path: currentProof?.path ?? currentProofPath,
+      updatedAtUtc: currentProofFreshness.updatedAtUtc,
+      freshness: currentProofFreshness,
+      target: currentProofTarget,
+      status: currentProof?.status ?? null,
+      latestValidationStatus: currentProof?.latestValidation?.status ?? null,
+      latestProofOnlyStatus: currentProof?.latestProofOnly?.status ?? null,
+    };
+    if (!truthProofEvaluation.usable && truthProofEvaluation.blockers.length > 0) {
+      warnings.push(
+        ...truthProofEvaluation.blockers.map(
+          (item) => `current-truth-blocker-superseded-by-current-proof:${item}`,
+        ),
+      );
     }
-
-    if (currentTruth?.movementGate?.allowed !== true) {
-      blockers.push('current-truth-movement-gate-not-allowed');
+  } else if (truthProofEvaluation.usable) {
+    movementProof = {
+      source: 'current-truth',
+      path: currentTruth?.path ?? currentTruthPath,
+      updatedAtUtc: currentTruthFreshness.updatedAtUtc,
+      freshness: currentTruthFreshness,
+      target: currentTruthTarget,
+      status: currentTruth?.status ?? null,
+      movementGate: currentTruth?.movementGate ?? null,
+    };
+    if (currentProofEvaluation.blockers.length > 0) {
+      warnings.push(
+        ...currentProofEvaluation.blockers.map(
+          (item) => `current-proof-warning:${item}`,
+        ),
+      );
     }
-
-    const truthBlockers = Array.isArray(currentTruth.currentBlockers)
-      ? currentTruth.currentBlockers
-      : [];
-    blockers.push(...truthBlockers.map((item) => `current-truth:${item}`));
-
-    if (inspectedTarget) {
-      compareTargetIdentity({
-        blockers,
-        warnings,
-        expected: currentTruthTarget,
-        actual: inspectedTarget,
-        scope: 'current-truth-target',
-        compareProcessStart: true,
-      });
-    }
+  } else {
+    blockers.push(
+      ...truthProofEvaluation.blockers,
+      ...currentProofEvaluation.blockers,
+      'no-fresh-same-target-movement-proof',
+    );
   }
 
   const ok = blockers.length === 0;
@@ -2226,11 +2609,16 @@ async function getMovementExecutionPreflight({
       requested: requestedTarget,
       inspected: inspectedTarget,
       currentTruth: currentTruthTarget,
+      currentProof: currentProofTarget,
+      movementProof: movementProof?.target ?? null,
     },
     boundWindowState: boundState,
     boundWindowInspection: inspect,
     currentTruth: truthSummary,
     currentTruthFreshness,
+    currentProof: proofSummary,
+    currentProofFreshness,
+    movementProof,
     verificationRequirements,
     phaseReadiness: {
       phase9PreflightReady: ok,
@@ -3553,7 +3941,7 @@ server.registerTool(
   {
     title: 'Get game-control readiness',
     description:
-      'Read-only readiness packet for live RIFT game-control automation. Aggregates bound-window state, exact-window inspection when bound, RiftReader current-truth movement gate/blockers, config validation summary, and the next safe action. Does not focus, resize, click, send keys, attach debuggers, write provider repos, or use SavedVariables as live truth.',
+      'Read-only readiness packet for live RIFT game-control automation. Aggregates bound-window state, exact-window inspection when bound, RiftReader current-truth movement gate/blockers, current-proof summary, config validation summary, and the next safe action. Does not focus, resize, click, send keys, attach debuggers, write provider repos, or use SavedVariables as live truth.',
     outputSchema: controlToolOutputSchema,
     annotations: {
       readOnlyHint: true,
@@ -3573,7 +3961,7 @@ server.registerTool(
   {
     title: 'Get movement execution preflight',
     description:
-      'Read-only Phase 9 preflight for one future bounded RIFT movement step. Classifies the requested movement action, inspects the exact bound window if available, compares current-truth target identity, checks movement-gate freshness, and reports blockers before any Phase 10 live input. Does not focus, capture, click, resize, send keys, release keys, attach debuggers, write provider repos, promote proof, or use SavedVariables as live truth.',
+      'Read-only Phase 9 preflight for one future bounded RIFT movement step. Classifies the requested movement action, inspects the exact bound window if available, compares current-truth/current-proof target identity, checks movement-proof freshness, and reports blockers before any Phase 10 live input. Does not focus, capture, click, resize, send keys, release keys, attach debuggers, write provider repos, promote proof, or use SavedVariables as live truth.',
     inputSchema: {
       semanticAction: z
         .string()
@@ -3622,7 +4010,7 @@ server.registerTool(
         .max(86400000)
         .default(300000)
         .describe(
-          'Maximum acceptable age for docs/recovery/current-truth.json updatedAtUtc before live movement execution.',
+          'Maximum acceptable age for docs/recovery/current-truth.json or current-proof-anchor-readback.json proof timestamp before live movement execution.',
         ),
     },
     outputSchema: controlToolOutputSchema,
@@ -3660,7 +4048,7 @@ server.registerTool(
   {
     title: 'Execute movement step',
     description:
-      'Phase 10 gated executor for exactly one bounded RIFT movement step. Defaults to dryRun=true. Live execution requires a passing get_movement_execution_preflight result, an exact one-shot approval phrase, focus/capture/send/release/wait/capture sequencing, and fresh live-coordinate verification remains required. Validation must keep dryRun=true.',
+      'Phase 10 gated executor for exactly one bounded RIFT movement step. Defaults to dryRun=true. Live execution requires a passing get_movement_execution_preflight result backed by fresh current-truth or current-proof, an exact one-shot approval phrase, focus/capture/send/release/wait/capture sequencing, and fresh live-coordinate verification remains required. Validation must keep dryRun=true.',
     inputSchema: {
       semanticAction: z
         .string()
@@ -3723,7 +4111,7 @@ server.registerTool(
         .min(1)
         .optional()
         .describe(
-          'Exact one-shot approval phrase returned by dryRun/preflight for the same target/action/hold/current-truth. Required only when dryRun=false.',
+          'Exact one-shot approval phrase returned by dryRun/preflight for the same target/action/hold/current-proof or current-truth. Required only when dryRun=false.',
         ),
       maxCurrentTruthAgeMilliseconds: z
         .number()
@@ -3732,7 +4120,7 @@ server.registerTool(
         .max(86400000)
         .default(300000)
         .describe(
-          'Maximum acceptable age for docs/recovery/current-truth.json updatedAtUtc before live movement execution.',
+          'Maximum acceptable age for docs/recovery/current-truth.json or current-proof-anchor-readback.json proof timestamp before live movement execution.',
         ),
     },
     outputSchema: controlToolOutputSchema,

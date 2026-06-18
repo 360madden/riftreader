@@ -45,13 +45,17 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   acting.
 - `get_game_control_readiness` is a read-only preflight packet for live-control
   automation. It aggregates bound-window state, exact-window inspection when a
-  window is bound, current-truth movement gates/blockers, config readiness, and
-  the next safe action. It does not focus, resize, click, send keys, attach
-  debuggers, write providers, or use SavedVariables as live truth.
+  window is bound, current-truth movement gates/blockers, current-proof anchor
+  summary, config readiness, and the next safe action. It does not focus,
+  resize, click, send keys, attach debuggers, write providers, or use
+  SavedVariables as live truth.
 - `get_movement_execution_preflight` is the read-only Phase 9 gate for one
   future bounded movement step. It classifies the requested movement action,
-  inspects the bound window if available, blocks on stale/mismatched
-  current-truth target identity, minimized or zero-client windows, missing
+  inspects the bound window if available, and accepts either fresh same-target
+  `docs/recovery/current-truth.json` movement-gate truth or fresh same-target
+  `docs/recovery/current-proof-anchor-readback.json` ProofOnly evidence. Stale
+  or mismatched current-truth is reported as a warning when superseded by fresh
+  current-proof. It still blocks on minimized or zero-client windows, missing
   foreground state, overlong holds, and missing live verification requirements.
   It does not capture, focus, release keys, or send input.
 - `classify_game_action` is read-only and classifies semantic actions or raw
@@ -66,9 +70,9 @@ Local MCP server for Codex to interact with a **bound Rift game window** on Wind
   movement step. It defaults to `dryRun: true`, internally calls
   `get_movement_execution_preflight`, and live execution requires the exact
   one-shot approval phrase returned for the same target/action/hold/current
-  truth. Validation must keep `dryRun: true`; the live path is annotated
-  non-read-only/destructive because it can focus/capture/send/release/wait when
-  all gates pass.
+  proof or current truth. Validation must keep `dryRun: true`; the live path is
+  annotated non-read-only/destructive because it can
+  focus/capture/send/release/wait when all gates pass.
 - `get_latest_control_artifact` reads the latest readiness/plan/run/session/current-window-smoke
   artifact summaries under `.riftreader-local\rift-game-mcp\` without accepting
   arbitrary paths.

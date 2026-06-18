@@ -1,3 +1,19 @@
+# 2026-06-18 - RIFT game MCP Phase 10 live wrapper proof complete
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-18-rift-game-mcp-phase10-live-proof-complete.md`.
+
+| Item | Current truth |
+|---|---|
+| Phase 10 live wrapper | Completed one exact-target `move_forward` / `W` hold for `750 ms` through the repo-owned patched `tools\rift-game-mcp` MCP server. |
+| Target | PID `130540`, HWND `0x9310EA`, process `rift_x64`, title `RIFT`; visible/non-minimized/foreground during live execution. |
+| Proof source | `docs\recovery\current-proof-anchor-readback.json` current-proof for PID `130540` / HWND `0x9310EA` superseded stale `docs\recovery\current-truth.json` PID `12664` / HWND `0x205146C` for MCP preflight. |
+| Visual proof | `wait_for_frame_change` changed `26.6389%`; baseline `capture-20260618-023753-919.png`, changed `capture-20260618-023758-438.png`, final `capture-20260618-023759-699.png`. |
+| Coordinate proof | RRAPICOORD moved from `7262.2197, 821.75, 3004.52` to `7262.0698, 822.18, 3009.21`; `maxAbs=4.69`, `planarXZ=4.6924`, `spatialXYZ=4.7121`. |
+| Safety | Movement was intentionally sent once by the wrapper; keys released. No CE/x64dbg/provider writes/SavedVariables live truth/broad approval token/public route live control. |
+| Caveat | In-thread injected `mcp__rift_game` was stale and still reported old current-truth-only blockers; restart/reload that transport before using injected MCP for the new proof-backed behavior. |
+
+---
 # 2026-06-17 - MCP compact response final-green baseline
 
 Fresh compact handoff:

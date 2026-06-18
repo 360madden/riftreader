@@ -277,6 +277,20 @@ try {
   assert.equal(noBoundMovementPreflight.phaseReadiness.phase9PreflightReady, false);
   assert.equal(noBoundMovementPreflight.phaseReadiness.phase10ExecutionReady, false);
   assert.equal('approvalToken' in noBoundMovementPreflight, false);
+  assert.ok(noBoundMovementPreflight.currentTruth, 'preflight should include currentTruth summary');
+  assert.ok(noBoundMovementPreflight.currentProof, 'preflight should include currentProof summary');
+  assert.ok(
+    noBoundMovementPreflight.currentProofFreshness,
+    'preflight should include currentProof freshness',
+  );
+  assert.ok(
+    'movementProof' in noBoundMovementPreflight,
+    'preflight should include selected movementProof source field',
+  );
+  assert.ok(
+    noBoundMovementPreflight.targetFacts.currentProof,
+    'preflight targetFacts should include currentProof target facts',
+  );
   assertControlSafety(noBoundMovementPreflight, 'no-bound movement preflight');
 
   const noBoundExecuteDryRun = getStructured(
@@ -307,8 +321,28 @@ try {
     noBoundExecuteDryRun.approvalPacket.expectedApprovalPhrase,
     /^EXECUTE_ONE_RIFT_MOVEMENT_STEP /,
   );
+  assert.match(
+    noBoundExecuteDryRun.approvalPacket.expectedApprovalPhrase,
+    /proofSource=/,
+  );
+  assert.match(
+    noBoundExecuteDryRun.approvalPacket.expectedApprovalPhrase,
+    /proofUpdatedAt=/,
+  );
   assert.equal(noBoundExecuteDryRun.artifactPaths.summaryJson, null);
   assertControlSafety(noBoundExecuteDryRun, 'no-bound execute dry run');
+
+  const noBoundReadiness = getStructured(
+    await client.callTool({
+      name: 'get_game_control_readiness',
+      arguments: {},
+    }),
+  );
+  assert.equal(noBoundReadiness.kind, 'rift-game-mcp-control-readiness');
+  assert.equal(noBoundReadiness.ok, false);
+  assert.ok(noBoundReadiness.blockers.includes('game-window-not-bound'));
+  assert.ok(noBoundReadiness.currentProof, 'readiness should include currentProof summary');
+  assertControlSafety(noBoundReadiness, 'no-bound readiness');
 
   const nonMovementPreflight = getStructured(
     await client.callTool({

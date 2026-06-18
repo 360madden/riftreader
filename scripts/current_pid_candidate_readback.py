@@ -136,6 +136,19 @@ def load_candidates(path: Path, top: int) -> list[dict[str, Any]]:
     return candidates[: max(1, int(top))]
 
 
+def load_reference_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise RuntimeError(f"reference file not found: {path}")
+    document = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(document, dict):
+        raise RuntimeError(f"reference JSON does not contain an object: {path}")
+    coord = document.get("coordinate") or document.get("Coordinate") or document
+    reference = coordinate_from_mapping(coord)
+    if reference is None:
+        raise RuntimeError(f"reference file missing coordinate x/y/z: {path}")
+    return {"coordinate": reference, "raw": document, "referenceFile": str(path.resolve())}
+
+
 def snapshot_offsets(candidate: dict[str, Any]) -> list[dict[str, float]]:
     offsets: list[dict[str, float]] = []
     for prefix in ("baseline", "displaced"):
@@ -330,6 +343,7 @@ def main() -> int:
     parser.add_argument("--top", type=int, default=25)
     parser.add_argument("--direct-tolerance", type=float, default=0.75)
     parser.add_argument("--offset-tolerance", type=float, default=0.75)
+    parser.add_argument("--reference-file", default=None)
     parser.add_argument("--reference-timeout-seconds", type=int, default=45)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -411,23 +425,31 @@ def main() -> int:
             exit_code = 2
             return exit_code
 
-        reference, reference_envelope, reference_file = capture_reference(
-            repo_root,
-            run_dir,
-            args.pid,
-            args.hwnd,
-            args.process_name,
-            args.reference_timeout_seconds,
-        )
+        if args.reference_file:
+            reference = load_reference_file(Path(args.reference_file).resolve())
+            reference_envelope = None
+            reference_file = Path(str(reference["referenceFile"]))
+        else:
+            reference, reference_envelope, reference_file = capture_reference(
+                repo_root,
+                run_dir,
+                args.pid,
+                args.hwnd,
+                args.process_name,
+                args.reference_timeout_seconds,
+            )
         summary["reference"] = reference["coordinate"]
         summary["artifacts"]["referenceFile"] = str(reference_file)
-        summary["commandEnvelopes"] = {
-            "referenceCapture": {
-                **{key: value for key, value in reference_envelope.items() if key not in {"stdout", "stderr"}},
-                "stdoutPreview": str(reference_envelope.get("stdout") or "")[:2000],
-                "stderrPreview": str(reference_envelope.get("stderr") or "")[:2000],
+        if reference_envelope is None:
+            summary["warnings"].append("reference-file-reused-no-fresh-reference-capture")
+        else:
+            summary["commandEnvelopes"] = {
+                "referenceCapture": {
+                    **{key: value for key, value in reference_envelope.items() if key not in {"stdout", "stderr"}},
+                    "stdoutPreview": str(reference_envelope.get("stdout") or "")[:2000],
+                    "stderrPreview": str(reference_envelope.get("stderr") or "")[:2000],
+                }
             }
-        }
 
         handle = open_process(args.pid)
         try:

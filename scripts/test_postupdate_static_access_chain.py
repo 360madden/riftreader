@@ -171,6 +171,14 @@ class PostUpdateStaticAccessChainTests(unittest.TestCase):
         self.assertEqual(target["moduleBase"], "0x7FF7211C0000")
         self.assertEqual(target["expectedProcessStartUtc"], "2026-06-02T15:45:29.2617327Z")
 
+    def test_process_start_guard_accepts_same_instant_with_different_offsets(self) -> None:
+        self.assertTrue(
+            helper.rediscovery.process_start_matches(
+                "2026-06-18T01:57:01.857121+00:00",
+                "2026-06-17T21:57:01.8571209-04:00",
+            )
+        )
+
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")
 

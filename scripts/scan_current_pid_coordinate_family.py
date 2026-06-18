@@ -161,6 +161,10 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
+def load_json_file(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
 def is_readable_region(mbi: MEMORY_BASIC_INFORMATION) -> bool:
     if mbi.State != MEM_COMMIT:
         return False
@@ -437,7 +441,7 @@ def main() -> int:
                 summary["warnings"].append(f"process image does not obviously match process name: {image}")
 
             if args.reference_file:
-                ref_doc = json.loads(Path(args.reference_file).read_text(encoding="utf-8"))
+                ref_doc = load_json_file(Path(args.reference_file))
                 coord = ref_doc.get("coordinate") or ref_doc.get("Coordinate") or ref_doc
                 ref_x = float(coord.get("x", coord.get("X")))
                 ref_y = float(coord.get("y", coord.get("Y")))

@@ -52,6 +52,42 @@ def parse_int(value: Any) -> int | None:
         return None
 
 
+def parse_process_start_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    if "." in text:
+        prefix, suffix = text.split(".", 1)
+        timezone = ""
+        if "+" in suffix:
+            fraction, timezone = suffix.split("+", 1)
+            timezone = "+" + timezone
+        elif "-" in suffix:
+            fraction, timezone = suffix.split("-", 1)
+            timezone = "-" + timezone
+        else:
+            fraction = suffix
+        if len(fraction) > 6:
+            text = f"{prefix}.{fraction[:6]}{timezone}"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def process_start_matches(actual_utc: Any, expected_utc: Any, *, tolerance_seconds: float = 2.0) -> bool:
+    actual = parse_process_start_datetime(actual_utc)
+    expected = parse_process_start_datetime(expected_utc)
+    if actual is None or expected is None:
+        return False
+    return abs((actual - expected).total_seconds()) <= tolerance_seconds
+
+
 def hex_int(value: int | None) -> str | None:
     return None if value is None else f"0x{value:X}"
 
@@ -737,10 +773,7 @@ def live_owner_hypotheses(
         actual_start = get_process_start_utc(handle)
         target["actualProcessStartUtc"] = actual_start
         if expected_process_start_utc and actual_start:
-            # The existing repo checks use sub-second tolerant string comparison;
-            # here record a warning instead of failing on formatting precision.
-            expected_prefix = expected_process_start_utc.replace("Z", "+00:00")[:19]
-            if not actual_start.startswith(expected_prefix):
+            if not process_start_matches(actual_start, expected_process_start_utc):
                 blockers.append("process-start-mismatch")
         hypotheses: list[dict[str, Any]] = []
         for offset in OWNER_HYPOTHESIS_OFFSETS:
