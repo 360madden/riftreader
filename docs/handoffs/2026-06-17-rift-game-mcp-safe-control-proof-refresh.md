@@ -6,6 +6,7 @@
 |---|---|
 | Scope | Durable handoff for the safe local `tools\rift-game-mcp` Phase 10 wrapper slice. Implementation and validation stayed no-input: no live RIFT movement, focus, click, resize, CE, x64dbg, proof promotion, provider writes, branch rewrite, reset, or cleanup was performed. |
 | Baseline head before this wrapper slice | `968c3a1db81e5d536c6c05325807bedcf5bbd0d2` (`Update RIFT game MCP Phase 9 handoff`) pushed to `origin/main`. |
+| Phase 10 wrapper code commit | `a53ebab90b96d45a408dc8af0ea88c095163f7fa` (`Add gated RIFT movement execution wrapper`) was pushed to `origin/main`. |
 | Tool count - RIFT game MCP | `npm run validate` in `tools\rift-game-mcp` passed with 26 expected tools after adding `execute_movement_step`. |
 | Phase 10 wrapper | `execute_movement_step` defaults to `dryRun: true`, internally calls `get_movement_execution_preflight`, emits an exact one-shot approval phrase, and refuses live execution before input if preflight, approval, or verification requirements are not satisfied. It is annotated non-read-only/destructive because the gated live path can focus/capture/send/release/wait when all gates pass. |
 | No-input current-window smoke artifact | `.riftreader-local\rift-game-mcp\current-window-smoke\current-window-safe-smoke-20260618T053555Z.json` was written by `npm run smoke:current-window:auto`. The smoke stayed safe/pass because no input was sent while `movementPreflight` and `executeDryRun` correctly reported Phase 10 blocked. |
@@ -13,7 +14,7 @@
 | Phase 10 blocker facts from preflight | `bound-window-minimized`, `bound-window-client-area-empty`, `bound-window-not-foreground`, `current-truth-too-old`, `current-truth-target-process-id-mismatch:12664!=130540`, and `current-truth-target-window-handle-mismatch:0x205146c!=0x9310ea`. |
 | Phase 10 blocker facts from executor dry-run | `execute_movement_step` with `dryRun:true` returned `dry-run-blocked`, `executionAttempted=false`, `movementSent=false`, `inputSent=false`; blockers were minimized/zero-client/stale-current-truth/PID-HWND mismatch. |
 | Current-truth status | `docs\recovery\current-truth.json` still points at historical PID `12664` / HWND `0x205146C`, updated `2026-06-02T04:13:42Z`; it must not be treated as current live movement truth for PID `130540`. |
-| Latest final readiness before this slice | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-18T05:28:08Z` for head `968c3a1db81e5d536c6c05325807bedcf5bbd0d2`; rerun after this wrapper slice commit/push. |
+| Final readiness after wrapper slice | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-18T05:40:24Z` for head `a53ebab90b96d45a408dc8af0ea88c095163f7fa`; blockers `[]`, CI `passed`, proof freshness `fresh`, proof replay `passed`. |
 
 ## Implemented safe game-control tools
 
@@ -36,10 +37,10 @@
 | `npm run test:control` in `tools\rift-game-mcp` | Passed; classifier matrix, read-only preflight blocks, dry-run Phase 10 wrapper no-bound/non-movement blocks, dry-run release, movement-plan artifact writing, and latest artifact lookup. |
 | `npm run test:smoke` in `tools\rift-game-mcp` | Passed; synthetic target-discovery lane selection and multi-target guard. |
 | `npm run smoke:current-window:auto` in `tools\rift-game-mcp` | Passed as a no-input safety smoke; it also reported Phase 10 preflight and executor dry-run blocked for minimized/stale-target conditions. |
-| `git diff --check` | Pending after this handoff edit. |
-| `pre-commit` | Pending after this handoff edit. |
-| GitHub Actions | Pending after this wrapper slice commit/push. |
-| Final readiness | Pending after this wrapper slice commit/push. |
+| `git diff --check` | Passed. |
+| `pre-commit run --files tools/rift-game-mcp/index.mjs tools/rift-game-mcp/validate.mjs tools/rift-game-mcp/test-control-tools.mjs tools/rift-game-mcp/safe-current-window-smoke.mjs tools/rift-game-mcp/README.md docs/handoffs/2026-06-17-rift-game-mcp-safe-control-proof-refresh.md` | Passed. |
+| GitHub Actions for `a53ebab` | `.NET build and test` run `27739112345` passed; `RiftReader Policy` run `27739112354` passed. |
+| Final readiness for `a53ebab` | Passed at `2026-06-18T05:40:24Z`; expected warnings were expired public-session artifacts and default serve port `8770` busy. |
 
 ## Operational notes
 
@@ -53,13 +54,13 @@
 
 | # | Action | Why |
 |---:|---|---|
-| 1 | Commit/push the Phase 10 dry-run wrapper slice after `git diff --check` and pre-commit pass. | Makes the executor gate durable. |
-| 2 | Rerun GitHub Actions and `scripts\riftreader-mcp-final.cmd --status --compact-json` after push. | Restores final-readiness evidence for the new head. |
-| 3 | Add a fresh exact-target current-truth/readback refresh lane for PID `130540` / HWND `0x9310EA`. | Current truth still points at PID `12664` / HWND `0x205146C`. |
-| 4 | Restore/unminimize the RIFT window only as an explicit live-window action. | Current target has a zero client area, so visual verification is impossible. |
-| 5 | Rerun `npm run smoke:current-window:auto` after restore/current-truth refresh. | Confirms Phase 10 blockers are resolved without sending input. |
-| 6 | Generate a one-shot `plan_movement_step` artifact for the exact target/action/hold. | Records approval scope and target facts. |
-| 7 | Run `execute_movement_step` first with `dryRun:true` and copy only its exact approval phrase if all gates pass. | Prevents broad/reusable movement approval. |
-| 8 | Execute one bounded Phase 10 movement step only after the exact approval phrase and fresh proof gates pass. | Keeps live action narrow and reversible. |
-| 9 | Add/attach a true live coordinate delta verifier before marking Phase 10 proof complete. | Visual frame change alone is not movement proof. |
-| 10 | Update this handoff after the first actual live proof or if blockers persist. | Keeps the current state durable. |
+| 1 | Keep `execute_movement_step` in dry-run mode until exact target and current-truth blockers clear. | The wrapper is durable and CI/final-readiness validated, but live input remains blocked-safe. |
+| 2 | Add a fresh exact-target current-truth/readback refresh lane for PID `130540` / HWND `0x9310EA`. | Current truth still points at PID `12664` / HWND `0x205146C`. |
+| 3 | Restore/unminimize the RIFT window only as an explicit live-window action. | Current target has a zero client area, so visual verification is impossible. |
+| 4 | Rerun `npm run smoke:current-window:auto` after restore/current-truth refresh. | Confirms Phase 10 blockers are resolved without sending input. |
+| 5 | Generate a one-shot `plan_movement_step` artifact for the exact target/action/hold. | Records approval scope and target facts. |
+| 6 | Run `execute_movement_step` first with `dryRun:true` and copy only its exact approval phrase if all gates pass. | Prevents broad/reusable movement approval. |
+| 7 | Execute one bounded Phase 10 movement step only after the exact approval phrase and fresh proof gates pass. | Keeps live action narrow and reversible. |
+| 8 | Add/attach a true live coordinate delta verifier before marking Phase 10 proof complete. | Visual frame change alone is not movement proof. |
+| 9 | Update this handoff after the first actual live proof or if blockers persist. | Keeps the current state durable. |
+| 10 | Keep CE/x64dbg/provider/proof-promotion work separate from this MCP wrapper. | Prevents movement-control scope drift. |
