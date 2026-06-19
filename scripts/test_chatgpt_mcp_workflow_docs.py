@@ -137,7 +137,7 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
     def test_stage41_live_control_design_is_non_executing_and_separates_risks(self) -> None:
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")
         live_control = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-live-control-design.md")
-        self.assertIn("Post-Stage-49 operational dashboard/recovery surface", plan)
+        self.assertIn("Stage 50 finished-product release complete", plan)
         self.assertIn("Stage 41 is a\ndesign-only live-control boundary", plan)
         self.assertIn("Stage 44 now\ndocuments the debugger/CE static-first boundary", plan)
         self.assertIn("Stage 46\nexposes `execute_debugger_ce_action` as a fail-closed", plan)
@@ -185,6 +185,8 @@ class ChatGptMcpWorkflowDocsTests(unittest.TestCase):
         self.assertIn("complete-local", plan.split("| 48 |", 1)[1].splitlines()[0])
         self.assertIn("| 49 | Operational dashboard and recovery", plan)
         self.assertIn("complete-local", plan.split("| 49 |", 1)[1].splitlines()[0])
+        self.assertIn("| 50 | Finished product release", plan)
+        self.assertIn("| complete |", plan.split("| 50 |", 1)[1].splitlines()[0])
 
     def test_stage44_debugger_ce_static_first_design_is_non_executing(self) -> None:
         plan = self.read_doc("docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md")

@@ -200,8 +200,8 @@ Mixed Authentication, auth middleware, connector mutation, or server startup.
 The `health`, `tool_manifest`, and `get_chatgpt_connector_setup_packet`
 payloads now include compact or full `authRolePolicy` metadata so ChatGPT and
 the operator can see the boundary without changing the current no-auth personal
-flow. The workflow-control plan stays transport-budgeted and, after Stage49,
-reports `futureCapabilityPolicy.status=stage49-dashboard-recovery-complete-release-next`;
+flow. The workflow-control plan stays transport-budgeted and, after Stage 50,
+reports `futureCapabilityPolicy.status=stage50-finished-product-release-complete-maintenance-loop`;
 the tiny `get_workflow_control_summary` fallback remains summary-only.
 
 ## Stage 48 eval suite

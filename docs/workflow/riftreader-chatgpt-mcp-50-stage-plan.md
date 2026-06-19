@@ -1,8 +1,10 @@
 # RiftReader ChatGPT MCP 50-stage finished-product plan
 
-Status: living plan from current Cloudflare named Tunnel proof gap to full ChatGPT Web/Desktop MCP product.
+Status: complete current-product plan for the 40-tool ChatGPT Web/Desktop MCP
+surface, kept as the release/maintenance contract.
 
-Current holding point: **Post-Stage-49 operational dashboard/recovery surface**.
+Current holding point: **Stage 50 finished-product release complete; maintenance
+and release-demo verification loop**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
 design-only live-control boundary, Stage 42 exposes a plan-only live-control
 tool, Stage 43 exposes a fail-closed live-control execution boundary, Stage 44
@@ -14,11 +16,13 @@ personal **No Authentication** lane while recommending `public-read-only` for
 shared no-auth diagnostics, Stage 48 adds a non-executing local eval-suite
 checklist for local regression commands, denial paths, and actual-client proof
 requirements, Stage 49 surfaces that eval-suite state in the localhost-only
-dashboard/recovery view, and the MCP tool contract remains 40 tools.
-The current 40-tool actual ChatGPT Web/Desktop proof must record
+dashboard/recovery view, and Stage 50 closed the current finished-product
+release with the fresh 40-tool actual-client proof, current-head CI, final gate,
+and published handoff. The MCP tool contract remains 40 tools.
+The current 40-tool actual ChatGPT Web/Desktop proof records
 `clientTransportStatus=tool-call-succeeded` and `healthCallSucceeded=true`.
-Keep that proof fresh before claiming final readiness or adding another
-high-power tool surface.
+Keep that proof fresh before release/demo use or adding another high-power tool
+surface.
 Runtime dependency note: after Stage 31, the server-status helper was hardened
 to require live runtime `list_tools` + `health` agreement with the expected
 loaded tool surface. A matching PID/port/command line alone is no longer sufficient
@@ -42,7 +46,7 @@ accepts shell strings or arbitrary argv, and the current full MCP surface was
 Stages 38-40 intentionally raised the full MCP surface to 36 tools, Stage 42
 raised it to 37 tools with a plan-only live-control artifact writer, and Stage
 43 raised it to 38 tools with a fail-closed execution-boundary artifact writer.
-Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer, and Stage 46 raises it to 40 tools with a fail-closed debugger/CE execution-boundary artifact writer. Stages 47-49 do not change tool count.
+Stage 45 raises it to 39 tools with a debugger/CE plan-only artifact writer, and Stage 46 raises it to 40 tools with a fail-closed debugger/CE execution-boundary artifact writer. Stages 47-50 do not change tool count.
 
 Stage 35 audit note:
 `tools/riftreader_workflow/bounded_repo_commands.py` now provides local-only
@@ -156,6 +160,15 @@ local command and denial-case counts, required actual-client proof fields, and
 read-only safety flags. It is still a status/recovery surface only: no server
 startup, tunnel startup, ChatGPT registration, Git mutation, remote mutation,
 RIFT input, CE/x64dbg attach, provider write, or proof promotion endpoint.
+
+Stage 50 release closure note:
+`docs/handoffs/2026-06-19-chatgpt-mcp-40-tool-proof-refresh-final-ready.md`
+is the release handoff for the current 40-tool product. It records fresh
+`final-40-tool` actual-client proof, 40 tools with 40 output schemas,
+package-loop proof, the expected `APPLY_APPROVAL_MISSING` denial, and a passing
+final-readiness gate. Stage 50 does not mean the local HTTP backend must stay
+running forever; before any live release/demo, start the operator-owned launcher
+if needed and rerun `scripts\riftreader-mcp-final.cmd --status --compact-json`.
 
 To keep final readiness green, rerun the dependency sequence
 in `docs/workflow/riftreader-chatgpt-mcp-final-readiness.md`: local runtime
@@ -286,17 +299,17 @@ explicitly requires it and receives separate approval.
 | 47 | Role and auth hardening | Add optional auth/role modes for broader sharing while preserving no-auth personal mode. | No-auth personal mode remains easy; shared/high-power use is classified for `public-read-only` or future auth/explicit gates. | complete-local |
 | 48 | End-to-end product eval suite | Build automated local plus actual-client eval checklist covering all tool classes and denial paths. | Eval-suite helper and thin launcher emit local commands, denial expectations, actual-client proof checklist, and ignored artifacts on request. | complete-local |
 | 49 | Operational dashboard and recovery | Surface current stage, blockers, last proof, CI, tunnel health, audit paths, and next action in one dashboard. | Localhost dashboard JSON/HTML surfaces Stage 48 eval-suite commands, latest artifacts, proof requirements, and read-only safety context without control endpoints. | complete-local |
-| 50 | Finished product release | All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows are implemented, gated, proven, documented, and recoverable. | Final gate passes, CI passes, proof artifacts are fresh, and release handoff is published. | pending |
+| 50 | Finished product release | All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows are implemented, gated, proven, documented, and recoverable. | Final gate passes, CI passes, proof artifacts are fresh, and release handoff is published. | complete |
 
-## Immediate implementation window
+## Maintenance / release-demo verification window
 
 | Priority | Stage | Action | Why |
 |---:|---:|---|---|
-| 1 | 50 | Finished product release | Re-run final readiness after Stage 49 and confirm the remaining blockers from current evidence. |
-| 2 | 50 | Finished product release | Refresh the non-Codex MCP runtime and actual-client proof only when the operator is ready for the external ChatGPT Web/Desktop proof lane. |
-| 3 | 50 | Finished product release | Publish a final handoff only after fresh actual-client proof and final readiness pass. |
-| 4 | 50 | Finished product release | Keep push/remote release separate from local validation until explicitly approved at the remote-mutation gate. |
-| 5 | 50 | Finished product release | Keep live input, proof promotion, CE/x64dbg, and provider writes gated out of the release path unless a later explicit gate opens them. |
+| 1 | 50 | Release/demo verification | Re-run final readiness immediately before release/demo so proof age, CI, branch sync, and safety flags are current. |
+| 2 | 50 | Runtime startup check | Start `START_RIFTREADER_CHATGPT_MCP.cmd serve` only when a live ChatGPT/public-route demo is needed, then verify server status and domain diagnostics. |
+| 3 | 50 | Proof freshness maintenance | Refresh actual-client proof only after the tool contract changes, proof expires, or release/demo needs fresh external evidence. |
+| 4 | 50 | Remote mutation gate | Keep any push/remote release separate from local validation until explicitly approved at the remote-mutation gate. |
+| 5 | 50 | High-risk gates | Keep live input, proof promotion, CE/x64dbg, and provider writes gated out of the release path unless a later explicit gate opens them. |
 
 ## High-risk exposure order
 

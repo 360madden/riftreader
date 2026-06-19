@@ -7,13 +7,14 @@ Fresh compact handoff:
 |---|---|
 | Proof refresh | Fresh `final-40-tool` actual-client proof replay passed at `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260619-122018Z\proof.json`. |
 | Tool surface | Full non-Codex ChatGPT MCP profile is 40 tools with 40 output schemas. |
-| Runtime | Local HTTP runtime is `running-current` on `http://127.0.0.1:8770/mcp`, full profile, source-fresh, PID `15944`. |
+| Roadmap | Stage 50 finished-product release is complete for the current 40-tool product; current work is the maintenance / release-demo verification loop. |
+| Runtime | Proof-time local HTTP runtime was `running-current` on `http://127.0.0.1:8770/mcp`, full profile, source-fresh, PID `15944`; later operator checks may find the backend stopped until `START_RIFTREADER_CHATGPT_MCP.cmd serve` is launched again. |
 | Public route | Active route remains `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to local `127.0.0.1:8770`. |
 | Package proof | Template, proposal submit, inbox, draft, read-only review, and dry-run passed; apply without approval blocked with `APPLY_APPROVAL_MISSING`. |
 | Final readiness | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-19T12:25:51Z`, `ok=true`, blockers `[]`. |
 | Git/GitHub before handoff commit | `main`, `origin/main`, and remote `refs/heads/main` matched `b3bc6408395cf7a967a9b860efe3c0021c1acebe`. |
 | Safety | No RIFT input, movement, CE/x64dbg, provider write, proof promotion, repo-source apply, branch rewrite, reset, cleanup, or Git mutation occurred during proof refresh. |
-| Next command | After this handoff commit is pushed and GitHub Actions complete, rerun `scripts\riftreader-mcp-final.cmd --status --compact-json` before release/demo. |
+| Next command | Before release/demo, rerun `scripts\riftreader-mcp-final.cmd --status --compact-json`; if a live ChatGPT/public route is needed, start the launcher first and verify server status/domain diagnostics. |
 
 ---
 

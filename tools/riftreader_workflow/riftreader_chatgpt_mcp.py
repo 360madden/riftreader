@@ -795,11 +795,11 @@ FUTURE_CAPABILITY_ROADMAP: tuple[dict[str, Any], ...] = (
 FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
     "schemaVersion": SCHEMA_VERSION,
     "kind": "riftreader-chatgpt-mcp-50-stage-finished-product-plan",
-    "status": "active",
+    "status": "complete",
     "planPath": "docs/workflow/riftreader-chatgpt-mcp-50-stage-plan.md",
     "stageCount": 50,
-    "currentStage": 49,
-    "currentStageName": "Operational dashboard and recovery",
+    "currentStage": 50,
+    "currentStageName": "Finished product release",
     "currentTruth": (
         f"Current {len(EXPECTED_TOOL_ORDER)}-tool MCP includes gated apply, approval-gated explicit-path local commit, "
         "approval-gated push, CI status, bounded registry commands, Stage 38-40 no-input live status, "
@@ -810,10 +810,12 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         "static-first design is complete-local; provider writes, live input/movement execution, proof promotion, "
         "CE attach, x64dbg attach, OAuth setup, and auth enforcement changes remain absent. Stage 48 adds a "
         "non-executing local eval-suite checklist for local regression commands, denial paths, and actual-client "
-        "proof requirements. Stage 49 surfaces that eval-suite state in the localhost-only dashboard/recovery view."
+        "proof requirements. Stage 49 surfaces that eval-suite state in the localhost-only dashboard/recovery view. "
+        "Stage 50 is the finished-product release state: final readiness passes only with fresh 40-tool "
+        "actual-client proof, successful current-head CI, a clean synced branch, and the published release handoff."
     ),
-    "nextStage": 50,
-    "nextStageName": "Finished product release",
+    "nextStage": None,
+    "nextStageName": "Maintenance / release-demo verification loop",
     "phaseOrder": [
         f"prove current {len(EXPECTED_TOOL_ORDER)}-tool gated-apply Cloudflare named Tunnel product",
         "add package apply with reviewed dry-run gates",
@@ -856,6 +858,7 @@ FULL_PRODUCT_STAGE_PLAN: dict[str, Any] = {
         {"stage": 47, "name": "Role and auth hardening", "status": "complete-local"},
         {"stage": 48, "name": "End-to-end product eval suite", "status": "complete-local"},
         {"stage": 49, "name": "Operational dashboard and recovery", "status": "complete-local"},
+        {"stage": 50, "name": "Finished product release", "status": "complete"},
     ],
     "finishedProductDefinition": (
         "All intended ChatGPT Web/Desktop repo, Git, command, live, and debugger workflows "
@@ -3667,7 +3670,7 @@ class RiftReaderChatGptMcpAdapter:
                 "run_bounded_repo_command": compact_bounded_command_contract(BOUNDED_COMMAND_DESIGN_CONTRACT),
             },
             "futureCapabilityPolicy": {
-                "status": "stage49-dashboard-recovery-complete-release-next",
+                "status": "stage50-finished-product-release-complete-maintenance-loop",
             },
             "gatedActions": [
                 "apply-package-to-repo",
