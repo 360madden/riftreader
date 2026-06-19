@@ -289,6 +289,21 @@ Fail closed on `not-running`, `foreign-listener`, or `running-legacy`; these
 states mean the MCP backend dependency is not satisfied even if a connector
 entry or stale proof artifact exists.
 
+For the common stale-client case, run the recovery packet:
+
+```powershell
+scripts\riftreader-mcp-client-proof-recovery.cmd --json
+```
+
+It may start the root launcher when the backend is missing, then verifies local
+runtime status, public route health, latest proof replay, and the current proof
+template. It writes an ignored JSON/Markdown summary under
+`.riftreader-local\riftreader-chatgpt-mcp\client-proof-recovery\` and reports
+the exact missing tools and proof check/record commands. It must still fail
+closed when actual ChatGPT Web/Desktop has not refreshed to the current tool
+surface; local runtime evidence is supporting evidence only, not a proof
+substitute.
+
 ## Stage 38 consideration guard
 
 Stage 38 was the first live RIFT boundary. The local-only consideration gate is

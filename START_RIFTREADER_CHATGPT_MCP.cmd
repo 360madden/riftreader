@@ -64,7 +64,7 @@ echo Adapter: %ADAPTER%
 goto EXIT_WITH_CODE
 
 :SERVE_FULL
-echo RiftReader ChatGPT MCP local server - FULL 36-tool profile
+echo RiftReader ChatGPT MCP local server - FULL profile
 echo Repo: %CD%
 echo Local backend: http://127.0.0.1:8770/mcp
 echo ChatGPT Server URL: https://mcp.360madden.com/mcp
