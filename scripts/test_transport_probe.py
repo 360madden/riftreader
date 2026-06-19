@@ -97,6 +97,10 @@ class TransportProbeTests(unittest.TestCase):
         bridge_target = self.repo_root / "tools" / "riftreader_workflow" / "local_artifact_bridge.py"
         bridge_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(bridge_source, bridge_target)
+        package_manifest_source = Path(probe.__file__).with_name("package_manifest.py")
+        if not package_manifest_source.is_file():
+            self.skipTest("package_manifest.py is not installed beside transport_probe.py")
+        shutil.copy2(package_manifest_source, bridge_target.parent / "package_manifest.py")
         result = probe.run_local_bridge_smoke(
             self.repo_root,
             self.payload_root,
