@@ -25,6 +25,7 @@ try:
     from .desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from .desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
     from .chatgpt_mcp_eval_suite import EVAL_ROOT_REL, build_eval_suite
+    from .mcp_contract_audit import build_contract_audit
     from .mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -47,6 +48,7 @@ except ImportError:  # pragma: no cover
     from riftreader_workflow.desktop_control_readiness import readiness_payload as desktop_control_readiness_payload
     from riftreader_workflow.desktop_control_queue_contract import contract_payload as desktop_control_queue_contract_payload
     from riftreader_workflow.chatgpt_mcp_eval_suite import EVAL_ROOT_REL, build_eval_suite
+    from riftreader_workflow.mcp_contract_audit import build_contract_audit
     from riftreader_workflow.mcp_domain_diagnostics import (
         DEFAULT_PUBLIC_HOST,
         check_dns,
@@ -198,6 +200,28 @@ def eval_suite_status(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def contract_audit_status(repo_root: Path) -> dict[str, Any]:
+    try:
+        return build_contract_audit(repo_root)
+    except Exception as exc:  # noqa: BLE001 - dashboard must stay up for diagnosis.
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "riftreader-mcp-contract-audit",
+            "status": "failed",
+            "ok": False,
+            "blockers": [f"contract-audit-failed:{type(exc).__name__}:{exc}"],
+            "warnings": [],
+            "toolSurface": {},
+            "performanceWarnings": {},
+            "commands": {
+                "contractAudit": ["scripts\\riftreader-mcp-contract-audit.cmd", "--json"],
+                "contractAuditWrite": ["scripts\\riftreader-mcp-contract-audit.cmd", "--json", "--write", "--summary-md"],
+                "releaseDemoPacket": ["scripts\\riftreader-release-demo-packet.cmd", "--json", "--write", "--summary-md"],
+            },
+            "safety": {**safety_flags(), "readOnlyAudit": True, "serverStarted": False, "publicTunnelStarted": False},
+        }
+
+
 def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: bool = True) -> dict[str, Any]:
     public_url = public_mcp_url(public_host)
     backend_connect = _socket_connect(DEFAULT_HOST, DEFAULT_PORT, 1.0)
@@ -227,6 +251,7 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
     latest_template = load_json_file(latest_template_path)
     latest_proof = load_json_file(latest_proof_path)
     eval_suite = eval_suite_status(repo_root)
+    contract_audit = contract_audit_status(repo_root)
     status = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-dashboard-status",
@@ -308,6 +333,13 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
                 "ok": eval_suite.get("ok"),
                 "blockers": [],
             },
+            {
+                "key": "contract-audit",
+                "label": "Contract audit",
+                "status": contract_audit.get("status"),
+                "ok": contract_audit.get("ok"),
+                "blockers": (contract_audit.get("blockers") or [])[:5],
+            },
         ],
         "toolSurface": {
             "phase0ReadOnlyTools": list(PUBLIC_READ_ONLY_TOOL_ORDER),
@@ -328,6 +360,17 @@ def collect_status(repo_root: Path, public_host: str, *, include_public_smoke: b
             "blockers": (final_status.get("blockers") or [])[:10],
         },
         "evalSuite": eval_suite,
+        "contractAudit": {
+            "status": contract_audit.get("status"),
+            "ok": contract_audit.get("ok"),
+            "blockers": (contract_audit.get("blockers") or [])[:10],
+            "warnings": (contract_audit.get("warnings") or [])[:10],
+            "toolSurface": contract_audit.get("toolSurface"),
+            "docsAlignment": contract_audit.get("docsAlignment"),
+            "performanceWarnings": contract_audit.get("performanceWarnings"),
+            "commands": contract_audit.get("commands"),
+            "safety": contract_audit.get("safety"),
+        },
         "desktopControl": {
             "status": desktop_control.get("status"),
             "ok": desktop_control.get("ok"),
@@ -468,6 +511,7 @@ function renderStatus(s, source) {
   cards.push(card("Tool surface", `<h3>Phase 0 read-only</h3>${list(s.toolSurface.phase0ReadOnlyTools)}<h3>Full ${esc(s.toolSurface.fullFinalProofToolCount)}-tool final proof</h3><p>${s.toolSurface.fullFinalProofToolCount} tools retained.</p>`));
   cards.push(card("Mission Control", `${pill("mission", s.missionControl.ok, s.missionControl.status)}<p>Next: <code>${esc(JSON.stringify(s.missionControl.recommendedNextAction || {}))}</code></p>${list(s.missionControl.blockers)}`));
   cards.push(card("Eval Suite", `${pill("eval-suite", s.evalSuite?.ok, s.evalSuite?.status)}<p>Stage: <code>${esc(s.evalSuite?.stage)}</code> <code>${esc(s.evalSuite?.stageName)}</code></p><p>Latest artifact: <code>${esc(s.evalSuite?.latestArtifactPath)}</code></p><p>Local commands: <code>${esc(s.evalSuite?.localEvalCommandCount)}</code>; denial cases: <code>${esc(s.evalSuite?.denialCaseCount)}</code></p>${commandBlock("Generate eval suite JSON", s.evalSuite?.commandText)}${commandBlock("Write ignored eval suite artifact", s.evalSuite?.writeCommandText)}<h3>Actual-client requirements</h3><p>Tools: <code>${esc(s.evalSuite?.requiredToolCount)}</code>; schemas: <code>${esc(s.evalSuite?.requiredOutputSchemaCount)}</code>; transport: <code>${esc(s.evalSuite?.requiredTransportStatus)}</code></p><h3>Safety</h3><pre>${esc(JSON.stringify(s.evalSuite?.safety || {}, null, 2))}</pre>`));
+  cards.push(card("Contract Audit & Performance", `${pill("contract-audit", s.contractAudit?.ok, s.contractAudit?.status)}<h3>Blockers</h3>${list(s.contractAudit?.blockers)}<h3>Warnings</h3>${list(s.contractAudit?.warnings)}<h3>Tool contract</h3><p>Expected tools: <code>${esc(s.contractAudit?.toolSurface?.expectedToolCount)}</code>; proposal smoke observed: <code>${esc(s.contractAudit?.toolSurface?.observedProposalSmokeToolCount)}</code></p><h3>Docs alignment</h3><pre>${esc(JSON.stringify(s.contractAudit?.docsAlignment || {}, null, 2))}</pre><h3>Slow MCP stages</h3><pre>${esc(JSON.stringify(s.contractAudit?.performanceWarnings?.slowMcpStages || [], null, 2))}</pre><h3>Slow unittest modules</h3><pre>${esc(JSON.stringify((s.contractAudit?.performanceWarnings?.slowUnittestModules || []).slice(0, 10), null, 2))}</pre>${commandBlock("Run contract audit", (s.contractAudit?.commands?.contractAudit || []).join(" "))}${commandBlock("Write contract audit artifact", (s.contractAudit?.commands?.contractAuditWrite || []).join(" "))}${commandBlock("Write release/demo packet", (s.contractAudit?.commands?.releaseDemoPacket || []).join(" "))}<h3>Safety</h3><pre>${esc(JSON.stringify(s.contractAudit?.safety || {}, null, 2))}</pre>`));
   cards.push(card("Proof", `<p>Latest template: <code>${esc(s.proof.latestTemplatePath)}</code></p><p>Template mode: <code>${esc(s.proof.latestTemplateProofMode)}</code></p><p>Latest proof: <code>${esc(s.proof.latestProofPath)}</code></p><p>Proof status: <code>${esc(s.proof.latestProofStatus)}</code></p>`));
   cards.push(card("Browser & Computer Use", `${pill("desktop-control", s.desktopControl.ok, s.desktopControl.status)}<h3>Blockers</h3>${list(s.desktopControl.blockers)}<h3>Surfaces</h3><pre>${esc(JSON.stringify(s.desktopControl.surfaces || {}, null, 2))}</pre>`));
   cards.push(card("Desktop Queue Contract", `${pill("contract", s.desktopControlQueue.ok, s.desktopControlQueue.status)} ${pill("execution", s.desktopControlQueue.execution?.enabled, s.desktopControlQueue.execution?.status)}<p>${esc(s.desktopControlQueue.summary)}</p><h3>Required gates</h3>${list(s.desktopControlQueue.requiredGatesBeforeAnyFutureExecutor)}<h3>Forbidden action families</h3>${list(s.desktopControlQueue.queueItemSchema?.forbiddenActionFamilies)}<h3>Execution</h3><pre>${esc(JSON.stringify(s.desktopControlQueue.execution || {}, null, 2))}</pre>`));
@@ -591,6 +635,17 @@ def self_test(repo_root: Path, public_host: str) -> dict[str, Any]:
             blockers.append("desktop-control-commands-not-copy-only")
         if commands_safety.get("executionEndpoint") is not False:
             blockers.append("desktop-control-commands-execution-endpoint")
+    contract = status.get("contractAudit")
+    if isinstance(contract, dict):
+        contract_safety = contract.get("safety") if isinstance(contract.get("safety"), dict) else {}
+        if contract_safety.get("readOnlyAudit") is not True:
+            blockers.append("contract-audit-not-read-only")
+        if contract_safety.get("serverStarted") is not False and contract_safety.get("persistentServerStarted") is not False:
+            blockers.append("contract-audit-server-started")
+        if contract_safety.get("publicTunnelStarted") is not False:
+            blockers.append("contract-audit-public-tunnel-started")
+        if contract_safety.get("executionEndpoint") is not False:
+            blockers.append("contract-audit-execution-endpoint")
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "riftreader-chatgpt-mcp-dashboard-self-test",

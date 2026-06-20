@@ -60,7 +60,9 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("Desktop Queue Draft Viewer", html)
         self.assertIn("Desktop Readiness Commands", html)
         self.assertIn("Eval Suite", html)
+        self.assertIn("Contract Audit & Performance", html)
         self.assertIn("Generate eval suite JSON", html)
+        self.assertIn("Write release/demo packet", html)
         self.assertIn("Status JSON", html)
         self.assertIn("legacy Caddy/router is deprecated", html)
         self.assertIn("Full ${esc(s.toolSurface.fullFinalProofToolCount)}-tool final proof", html)
@@ -95,6 +97,49 @@ class McpDashboardTests(unittest.TestCase):
                     return_value={"ok": True, "status": "passed", "blockers": []},
                 ),
                 mock.patch.object(dashboard, "command_json", return_value={"ok": True, "status": "passed"}),
+                mock.patch.object(
+                    dashboard,
+                    "contract_audit_status",
+                    return_value={
+                        "ok": True,
+                        "status": "passed",
+                        "blockers": [],
+                        "warnings": [],
+                        "toolSurface": {
+                            "expectedToolCount": 40,
+                            "observedProposalSmokeToolCount": 40,
+                        },
+                        "docsAlignment": {
+                            "mcpEndpoint": "/mcp",
+                            "transport": "streamable-http",
+                        },
+                        "performanceWarnings": {
+                            "slowMcpStages": [],
+                            "slowUnittestModules": [],
+                        },
+                        "commands": {
+                            "contractAudit": ["scripts\\riftreader-mcp-contract-audit.cmd", "--json"],
+                            "contractAuditWrite": [
+                                "scripts\\riftreader-mcp-contract-audit.cmd",
+                                "--json",
+                                "--write",
+                                "--summary-md",
+                            ],
+                            "releaseDemoPacket": [
+                                "scripts\\riftreader-release-demo-packet.cmd",
+                                "--json",
+                                "--write",
+                                "--summary-md",
+                            ],
+                        },
+                        "safety": {
+                            "readOnlyAudit": True,
+                            "serverStarted": False,
+                            "publicTunnelStarted": False,
+                            "executionEndpoint": False,
+                        },
+                    },
+                ),
                 mock.patch.object(
                     dashboard,
                     "desktop_control_readiness_payload",
@@ -165,6 +210,7 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("local-mcp-server", [badge["key"] for badge in status["readinessBadges"]])
         self.assertIn("computer-use", [badge["key"] for badge in status["readinessBadges"]])
         self.assertIn("eval-suite", [badge["key"] for badge in status["readinessBadges"]])
+        self.assertIn("contract-audit", [badge["key"] for badge in status["readinessBadges"]])
         self.assertEqual("running-current", status["backend"]["serverDependency"]["status"])
         self.assertEqual(status["evalSuite"]["stage"], 48)
         self.assertEqual(status["evalSuite"]["status"], "ready-no-artifact")
@@ -175,6 +221,10 @@ class McpDashboardTests(unittest.TestCase):
         self.assertTrue(status["evalSuite"]["safety"]["readOnlyStatus"])
         self.assertFalse(status["evalSuite"]["safety"]["executionEndpoint"])
         self.assertFalse(status["evalSuite"]["safety"]["serverStarted"])
+        self.assertEqual(status["contractAudit"]["toolSurface"]["expectedToolCount"], 40)
+        self.assertEqual(status["contractAudit"]["docsAlignment"]["mcpEndpoint"], "/mcp")
+        self.assertTrue(status["contractAudit"]["safety"]["readOnlyAudit"])
+        self.assertFalse(status["contractAudit"]["safety"]["executionEndpoint"])
         self.assertEqual(status["desktopControlQueue"]["execution"]["status"], "disabled")
         self.assertFalse(status["desktopControlQueue"]["execution"]["enabled"])
         self.assertEqual(status["desktopControlQueue"]["queueDraftViewer"]["status"], "ready")
@@ -233,6 +283,29 @@ class McpDashboardTests(unittest.TestCase):
         self.assertIn("desktop-control-draft-viewer-execution-endpoint", payload["blockers"])
         self.assertIn("desktop-control-commands-not-copy-only", payload["blockers"])
         self.assertIn("desktop-control-commands-execution-endpoint", payload["blockers"])
+
+    def test_self_test_blocks_contract_audit_execution_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            unsafe_status = {
+                "safety": {"localhostOnly": True},
+                "contractAudit": {
+                    "safety": {
+                        "readOnlyAudit": False,
+                        "serverStarted": True,
+                        "publicTunnelStarted": True,
+                        "executionEndpoint": True,
+                    },
+                },
+            }
+            with mock.patch.object(dashboard, "collect_status", return_value=unsafe_status):
+                payload = dashboard.self_test(root, "mcp.360madden.com")
+
+        self.assertFalse(payload["ok"])
+        self.assertIn("contract-audit-not-read-only", payload["blockers"])
+        self.assertIn("contract-audit-server-started", payload["blockers"])
+        self.assertIn("contract-audit-public-tunnel-started", payload["blockers"])
+        self.assertIn("contract-audit-execution-endpoint", payload["blockers"])
 
 
 if __name__ == "__main__":
