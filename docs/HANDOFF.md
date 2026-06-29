@@ -1,3 +1,25 @@
+# 2026-06-29 - ChatGPT MCP 40-tool proof refresh final-ready
+
+Fresh compact handoff:
+`docs/handoffs/2026-06-29-chatgpt-mcp-40-tool-proof-refresh-final-ready.md`.
+
+| Item | Current truth |
+|---|---|
+| Proof refresh | Fresh `final-40-tool` actual-client proof replay passed at `.riftreader-local\riftreader-chatgpt-mcp\actual-client-proof\20260629-182953Z\proof.json`. |
+| Tool surface | Full non-Codex ChatGPT MCP profile is 40 tools with 40 output schemas. |
+| Roadmap | Stage 50+ finished-product/release-demo local lane remains green for the current 40-tool product; current work is the maintenance / release-demo verification loop. |
+| Runtime | Proof-time local HTTP runtime was `running-current` on `http://127.0.0.1:8770/mcp`, full profile, source-fresh, PID `92060`; later operator checks may find the backend stopped until `START_RIFTREADER_CHATGPT_MCP.cmd serve` is launched again. |
+| Public route | Active route remains `https://mcp.360madden.com/mcp` via Cloudflare named Tunnel to local `127.0.0.1:8770`. |
+| Package proof | Template, proposal submit, inbox, draft, read-only review, and dry-run passed; apply without approval blocked with `APPLY_APPROVAL_MISSING`. |
+| Local readiness | `scripts\riftreader-operator-lite.cmd --mcp-trial-readiness --json` passed and refreshed trial-readiness/proposal-transport-smoke artifacts. |
+| Final readiness | `scripts\riftreader-mcp-final.cmd --status --compact-json` passed at `2026-06-29T18:36:13Z`, `ok=true`, blockers `[]`. |
+| Release/demo packet | `.riftreader-local\riftreader-chatgpt-mcp\release-demo-packet\20260629-183928Z\summary.md` passed with release blockers `[]`. |
+| Git/GitHub before handoff commit | `main`, `origin/main`, and remote `refs/heads/main` matched `2f7bad2161e548e4ee41ae02ff2905aa3d38c0c2`. |
+| Safety | No RIFT input, movement, CE/x64dbg, provider write, proof promotion, repo-source apply, branch rewrite, reset, cleanup, or Git mutation occurred during proof refresh. |
+| Next command | Before release/demo, rerun `scripts\riftreader-mcp-final.cmd --status --compact-json`; if a live ChatGPT/public route is needed, start the launcher first and verify server status/domain diagnostics. |
+
+---
+
 # 2026-06-19 - ChatGPT MCP 40-tool proof refresh final-ready
 
 Fresh compact handoff:
