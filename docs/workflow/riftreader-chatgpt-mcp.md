@@ -12,6 +12,8 @@ metadata that preserves the personal No Authentication lane, the Stage 48
 local eval-suite checklist helper, and the Stage 49 dashboard/recovery surface
 for eval-suite status.
 
+Architecture map: `docs\workflow\riftreader-chatgpt-mcp-architecture-map.md`.
+
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
 ## Purpose
@@ -571,7 +573,6 @@ Retired transport paths:
 | OpenAI Secure MCP Tunnel / `tunnel-client` | Do not use as primary or backup for this lane. |
 | Cloudflare quick tunnel / `trycloudflare.com` | Do not use as primary or backup for this lane. |
 | Caddy/router/direct public-IP route | Deprecated legacy path; do not recreate it for this lane. |
-
 
 ## MCP Workflow Suite helpers
 

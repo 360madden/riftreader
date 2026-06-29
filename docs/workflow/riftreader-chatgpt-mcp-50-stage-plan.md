@@ -3,6 +3,9 @@
 Status: complete current-product plan for the 40-tool ChatGPT Web/Desktop MCP
 surface, kept as the release/maintenance contract.
 
+Architecture map:
+`docs\workflow\riftreader-chatgpt-mcp-architecture-map.md`.
+
 Current holding point: **Stage 50 finished-product release complete; maintenance
 and release-demo verification loop**.
 Stages 38-40 are implemented as read-only/no-input local surfaces, Stage 41 is a
