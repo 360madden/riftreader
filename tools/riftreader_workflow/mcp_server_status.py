@@ -15,7 +15,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -94,43 +94,144 @@ def classify_command_line(command_line: str) -> dict[str, Any]:
     }
 
 
-def query_windows_listeners(host: str, port: int, *, timeout_seconds: int = 10) -> dict[str, Any]:
-    host_json = json.dumps(host)
-    script = f"""
-$ErrorActionPreference = 'SilentlyContinue'
-$items = @()
-$connections = @(Get-NetTCPConnection -LocalAddress {host_json} -LocalPort {int(port)} -State Listen -ErrorAction SilentlyContinue)
-foreach ($conn in $connections) {{
-  $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$($conn.OwningProcess)" -ErrorAction SilentlyContinue
-    $items += [ordered]@{{
-    localAddress = [string]$conn.LocalAddress
-    localPort = [int]$conn.LocalPort
-    state = [string]$conn.State
-    owningProcess = [int]$conn.OwningProcess
-    processExists = ($null -ne $proc)
-    processName = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.Name }}
-    executablePath = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.ExecutablePath }}
-    creationDate = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.CreationDate.ToString("o") }}
-    commandLine = if ($null -eq $proc) {{ $null }} else {{ [string]$proc.CommandLine }}
-  }}
-}}
-[ordered]@{{
-  ok = $true
-  exists = ($items.Count -gt 0)
-  host = {host_json}
-  port = {int(port)}
-  listeners = $items
-}} | ConvertTo-Json -Depth 6 -Compress
-"""
+def _run_text_command(args: list[str], *, timeout_seconds: int) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        stdin=subprocess.DEVNULL,
+        text=True,
+        errors="replace",
+        timeout=timeout_seconds,
+    )
+
+
+def _int_or_none(value: Any) -> int | None:
     try:
-        completed = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-            check=False,
-            capture_output=True,
-            stdin=subprocess.DEVNULL,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_wmic_list_output(stdout: str) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip().lstrip("\ufeff")
+        if not line:
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        current[key] = value.strip()
+        if key == "ProcessId":
+            records.append(current)
+            current = {}
+    if current:
+        records.append(current)
+    return records
+
+
+def _process_record_from_wmic(record: dict[str, str]) -> dict[str, Any] | None:
+    pid = _int_or_none(record.get("ProcessId"))
+    if pid is None:
+        return None
+    return {
+        "processId": pid,
+        "parentProcessId": _int_or_none(record.get("ParentProcessId")),
+        "processExists": True,
+        "processName": record.get("Name") or None,
+        "executablePath": record.get("ExecutablePath") or None,
+        "creationDate": record.get("CreationDate") or None,
+        "commandLine": record.get("CommandLine") or None,
+    }
+
+
+def _query_process_by_pid(pid: int, *, timeout_seconds: int) -> dict[str, Any]:
+    completed = _run_text_command(
+        [
+            "wmic",
+            "process",
+            "where",
+            f"processid={int(pid)}",
+            "get",
+            "ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate,CommandLine",
+            "/format:list",
+        ],
+        timeout_seconds=timeout_seconds,
+    )
+    if completed.returncode != 0:
+        return {
+            "processId": int(pid),
+            "processExists": False,
+            "processQueryExitCode": completed.returncode,
+            "processQueryStderr": completed.stderr[-1000:],
+        }
+    for record in _parse_wmic_list_output(completed.stdout):
+        payload = _process_record_from_wmic(record)
+        if payload is not None:
+            return payload
+    return {"processId": int(pid), "processExists": False}
+
+
+def _query_all_processes(*, timeout_seconds: int) -> dict[str, Any]:
+    completed = _run_text_command(
+        [
+            "wmic",
+            "process",
+            "get",
+            "ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate,CommandLine",
+            "/format:list",
+        ],
+        timeout_seconds=timeout_seconds,
+    )
+    if completed.returncode != 0:
+        return {
+            "ok": False,
+            "status": "query-failed",
+            "count": 0,
+            "processes": [],
+            "exitCode": completed.returncode,
+            "stderr": completed.stderr[-1000:],
+            "warnings": [],
+        }
+    processes = [
+        process
+        for record in _parse_wmic_list_output(completed.stdout)
+        if (process := _process_record_from_wmic(record)) is not None
+    ]
+    return {"ok": True, "count": len(processes), "processes": processes}
+
+
+def _split_netstat_address(value: str) -> tuple[str, int] | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.startswith("[") and "]:" in text:
+        address, port_text = text.rsplit("]:", 1)
+        address = address[1:]
+    elif ":" in text:
+        address, port_text = text.rsplit(":", 1)
+    else:
+        return None
+    port = _int_or_none(port_text)
+    if port is None:
+        return None
+    return address, port
+
+
+def _host_matches(observed: str, expected: str) -> bool:
+    normalized_observed = observed.strip("[]").lower()
+    normalized_expected = expected.strip("[]").lower()
+    return normalized_observed in {normalized_expected, "0.0.0.0", "::"}
+
+
+def query_windows_listeners(host: str, port: int, *, timeout_seconds: int = 10) -> dict[str, Any]:
+    """Return loopback listeners using Python plus Windows CLI tools, not PowerShell."""
+
+    try:
+        completed = _run_text_command(["netstat", "-ano", "-p", "tcp"], timeout_seconds=timeout_seconds)
     except subprocess.TimeoutExpired as exc:
         return {
             "ok": False,
@@ -151,19 +252,47 @@ foreach ($conn in $connections) {{
             "exitCode": completed.returncode,
             "stderr": completed.stderr[-1000:],
         }
-    try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        return {
-            "ok": False,
-            "exists": False,
-            "host": host,
-            "port": port,
-            "listeners": [],
-            "error": f"JSONDecodeError:{exc}",
-            "stdout": completed.stdout[-1000:],
-        }
-    return payload if isinstance(payload, dict) else {"ok": False, "exists": False, "listeners": []}
+
+    listeners: list[dict[str, Any]] = []
+    pids_seen: set[int] = set()
+    for line in completed.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 5 or parts[0].upper() != "TCP":
+            continue
+        local = _split_netstat_address(parts[1])
+        if local is None:
+            continue
+        local_address, local_port = local
+        state = parts[3].upper()
+        pid = _int_or_none(parts[4])
+        if local_port != int(port) or state != "LISTENING" or pid is None:
+            continue
+        if not _host_matches(local_address, host):
+            continue
+        if pid in pids_seen:
+            continue
+        pids_seen.add(pid)
+        process = _query_process_by_pid(pid, timeout_seconds=timeout_seconds)
+        listeners.append(
+            {
+                "localAddress": local_address,
+                "localPort": int(local_port),
+                "state": "Listen",
+                "owningProcess": int(pid),
+                "processExists": bool(process.get("processExists")),
+                "processName": process.get("processName"),
+                "executablePath": process.get("executablePath"),
+                "creationDate": process.get("creationDate"),
+                "commandLine": process.get("commandLine"),
+            }
+        )
+    return {
+        "ok": True,
+        "exists": bool(listeners),
+        "host": host,
+        "port": int(port),
+        "listeners": listeners,
+    }
 
 
 def query_stdio_counterparts(repo_root: Path, *, timeout_seconds: int = 10) -> dict[str, Any]:
@@ -177,49 +306,9 @@ def query_stdio_counterparts(repo_root: Path, *, timeout_seconds: int = 10) -> d
     older surface.
     """
 
-    repo_root_text = str(repo_root.resolve())
-    script = f"""
-$ErrorActionPreference = 'SilentlyContinue'
-$repoRoot = {json.dumps(repo_root_text)}
-$repoRootSlash = $repoRoot.Replace('\\', '/')
-$items = @()
-$processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {{
-  $cmd = [string]$_.CommandLine
-  if (-not $cmd) {{ return $false }}
-  $normalized = $cmd.Replace('\\', '/')
-  return (
-    $normalized -like '*riftreader_chatgpt_mcp.py*' -and
-    $normalized -like '*--serve*' -and
-    ($normalized -match '--transport(?:=|\\s+)stdio') -and
-    ($normalized -like "*$repoRootSlash*" -or $normalized -like '*tools/riftreader_workflow/riftreader_chatgpt_mcp.py*')
-  )
-}})
-foreach ($proc in $processes) {{
-  $items += [ordered]@{{
-    processId = [int]$proc.ProcessId
-    parentProcessId = [int]$proc.ParentProcessId
-    processExists = $true
-    processName = [string]$proc.Name
-    executablePath = [string]$proc.ExecutablePath
-    creationDate = [string]$proc.CreationDate.ToString("o")
-    commandLine = [string]$proc.CommandLine
-  }}
-}}
-[ordered]@{{
-  ok = $true
-  count = $items.Count
-  processes = $items
-}} | ConvertTo-Json -Depth 6 -Compress
-"""
+    repo_root_text = str(repo_root.resolve()).replace("\\", "/")
     try:
-        completed = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-            check=False,
-            capture_output=True,
-            stdin=subprocess.DEVNULL,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        payload = _query_all_processes(timeout_seconds=timeout_seconds)
     except subprocess.TimeoutExpired as exc:
         return {
             "ok": False,
@@ -230,29 +319,23 @@ foreach ($proc in $processes) {{
             "error": f"TimeoutExpired:{exc}",
             "warnings": [],
         }
-    if completed.returncode != 0:
-        return {
-            "ok": False,
-            "status": "query-failed",
-            "count": 0,
-            "processes": [],
-            "exitCode": completed.returncode,
-            "stderr": completed.stderr[-1000:],
-            "warnings": [],
-        }
-    try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        return {
-            "ok": False,
-            "status": "query-failed",
-            "count": 0,
-            "processes": [],
-            "error": f"JSONDecodeError:{exc}",
-            "stdout": completed.stdout[-1000:],
-            "warnings": [],
-        }
-    return summarize_stdio_counterparts(repo_root, payload if isinstance(payload, dict) else {})
+    if not payload.get("ok", True):
+        return payload
+
+    processes: list[dict[str, Any]] = []
+    for process in payload.get("processes", []):
+        if not isinstance(process, dict):
+            continue
+        command_line = str(process.get("commandLine") or "")
+        normalized = command_line.replace("\\", "/")
+        if (
+            "riftreader_chatgpt_mcp.py" in normalized
+            and "--serve" in normalized
+            and re.search(r"--transport(?:=|\s+)stdio", normalized)
+            and (repo_root_text in normalized or "tools/riftreader_workflow/riftreader_chatgpt_mcp.py" in normalized)
+        ):
+            processes.append(process)
+    return summarize_stdio_counterparts(repo_root, {"ok": True, "count": len(processes), "processes": processes})
 
 
 def summarize_stdio_counterparts(repo_root: Path, query: dict[str, Any]) -> dict[str, Any]:
@@ -323,6 +406,20 @@ def parse_windows_creation_date(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     text = value.strip()
+    dmtf_match = re.match(r"^(\d{14})\.(\d{1,6})([+-]\d{3})$", text)
+    if dmtf_match:
+        timestamp, microseconds_text, offset_text = dmtf_match.groups()
+        try:
+            parsed = datetime.strptime(timestamp, "%Y%m%d%H%M%S")
+        except ValueError:
+            return None
+        microseconds = int(microseconds_text.ljust(6, "0")[:6])
+        offset_minutes = int(offset_text)
+        parsed = parsed.replace(
+            microsecond=microseconds,
+            tzinfo=timezone(timedelta(minutes=offset_minutes)),
+        )
+        return parsed.astimezone(timezone.utc)
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:

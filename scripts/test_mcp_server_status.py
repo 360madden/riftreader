@@ -75,6 +75,33 @@ def write_runtime_source(root: Path, *, mtime_utc: datetime) -> None:
 
 
 class McpServerStatusTests(unittest.TestCase):
+    def test_wmic_list_parser_handles_extra_carriage_return_blank_lines(self) -> None:
+        stdout = (
+            "\r\r\n"
+            "CommandLine=python tools\\riftreader_workflow\\riftreader_chatgpt_mcp.py --serve\r\r\n"
+            "CreationDate=20260629073918.431153-240\r\r\n"
+            "ExecutablePath=C:\\Python\\python.exe\r\r\n"
+            "Name=python.exe\r\r\n"
+            "ParentProcessId=100\r\r\n"
+            "ProcessId=123\r\r\n"
+            "\r\r\n"
+        )
+
+        records = mcp_server_status._parse_wmic_list_output(stdout)
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("123", records[0]["ProcessId"])
+        self.assertIn("riftreader_chatgpt_mcp.py", records[0]["CommandLine"])
+        self.assertEqual("20260629073918.431153-240", records[0]["CreationDate"])
+
+    def test_parse_windows_creation_date_accepts_wmic_dmtf_timestamp(self) -> None:
+        parsed = mcp_server_status.parse_windows_creation_date("20260629073918.431153-240")
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(timezone.utc, parsed.tzinfo)
+        self.assertEqual("2026-06-29T11:39:18.431153+00:00", parsed.isoformat())
+
     def test_runtime_source_freshness_watches_status_helper_itself(self) -> None:
         self.assertIn(
             Path("tools/riftreader_workflow/mcp_server_status.py"),
