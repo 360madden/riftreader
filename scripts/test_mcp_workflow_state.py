@@ -279,8 +279,70 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertTrue(payload["latestArtifacts"]["cloudflare-smoke"]["publicUrlExpectedExpired"])
         self.assertTrue(payload["latestArtifacts"]["draft"]["selfTest"])
         self.assertEqual(payload["latestArtifacts"]["draft"]["origin"], "self-test")
-        self.assertTrue(any("ephemeral-public-url-expected-expired:cloudflare-smoke" in item for item in payload["warnings"]))
-        self.assertTrue(any("latest-draft-is-self-test" in item for item in payload["warnings"]))
+        classifications = payload["artifactClassifications"]
+        records = classifications["records"]
+        self.assertTrue(any(item["category"] == "expected-expired" for item in records))
+        self.assertTrue(any(item["category"] == "ignored-local-evidence" for item in records))
+        self.assertIn("ephemeral-public-url-expected-expired:cloudflare-smoke", classifications["summary"]["expectedExpiredKeys"])
+        self.assertEqual(classifications["summary"]["ignoredLocalEvidenceCount"], 1)
+        self.assertFalse(any("ephemeral-public-url-expected-expired:cloudflare-smoke" in item for item in payload["warnings"]))
+        self.assertFalse(any("latest-draft-is-self-test" in item for item in payload["warnings"]))
+
+    def test_classifies_current_stale_required_artifacts_as_release_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_json(
+                root / state.TRANSPORT_SMOKE_ROOT / "20200101T000000Z-trial-readiness.json",
+                {"kind": "riftreader-chatgpt-mcp-trial-readiness", "status": "passed", "ok": True, "blockers": []},
+                1,
+            )
+            write_json(
+                root / state.TRANSPORT_SMOKE_ROOT / "20200101T000001Z-proposal-transport-smoke.json",
+                {"kind": "riftreader-chatgpt-mcp-proposal-transport-smoke", "status": "passed", "ok": True, "blockers": []},
+                2,
+            )
+
+            payload = state.build_mcp_workflow_state(root)
+
+        summary = payload["artifactClassifications"]["summary"]
+        self.assertIn("artifact-age-exceeds-budget:readiness", summary["releaseBlockerKeys"])
+        self.assertIn("artifact-age-exceeds-budget:proposal-smoke", summary["releaseBlockerKeys"])
+        self.assertTrue(any("artifact-age-exceeds-budget:readiness" in item for item in payload["warnings"]))
+
+    def test_classifies_superseded_missing_actual_client_proof_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_transport_artifacts(root)
+            (root / state.ACTUAL_CLIENT_PROOF_ROOT / "20200101-000000Z").mkdir(parents=True)
+            write_json(
+                root / state.ACTUAL_CLIENT_PROOF_ROOT / "20260519-010800Z" / "proof.json",
+                {
+                    "kind": "riftreader-chatgpt-actual-client-proof",
+                    "status": "passed",
+                    "ok": True,
+                    "proof": {
+                        "clientTransportStatus": recorder.CLIENT_TRANSPORT_SUCCEEDED,
+                        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+                        "applyLatestPackageDraftWithoutApprovalApplied": False,
+                    },
+                },
+                1_800_000_080,
+            )
+
+            payload = state.build_mcp_workflow_state(root)
+
+        classifications = payload["artifactClassifications"]
+        self.assertEqual(classifications["summary"]["obsoleteSupersededCount"], 1)
+        self.assertTrue(
+            any(
+                item["category"] == "obsolete-superseded"
+                and item["message"] == "actual-client-proof-summary-missing:20200101-000000Z"
+                for item in classifications["records"]
+            )
+        )
+        self.assertFalse(any("actual-client-proof-summary-missing" in item for item in payload["warnings"]))
 
     def test_malformed_json_is_reported_as_warning_and_failed_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

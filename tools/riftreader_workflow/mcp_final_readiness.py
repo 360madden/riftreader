@@ -684,6 +684,9 @@ def final_readiness(
     status = "passed" if not blockers else "blocked"
     release_handoff_path = _latest_release_handoff_path(repo_root)
     latest_mcp_handoff_path = _latest_mcp_handoff_path(repo_root)
+    artifact_classifications = (
+        state_payload.get("artifactClassifications") if isinstance(state_payload.get("artifactClassifications"), dict) else {}
+    )
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-readiness",
@@ -699,6 +702,7 @@ def final_readiness(
         "artifacts": {
             "freshness": artifact_freshness,
             "latest": state_payload.get("latestArtifacts"),
+            "classifications": artifact_classifications,
             "releaseHandoffPath": release_handoff_path,
             "latestMcpHandoffPath": latest_mcp_handoff_path,
             "toolSurface": tool_surface_payload,
@@ -733,6 +737,10 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     release_handoff_path = ((payload.get("artifacts") or {}).get("releaseHandoffPath") if isinstance(payload.get("artifacts"), dict) else None)
     latest_mcp_handoff_path = ((payload.get("artifacts") or {}).get("latestMcpHandoffPath") if isinstance(payload.get("artifacts"), dict) else None)
     public_session = payload.get("publicSession") if isinstance(payload.get("publicSession"), dict) else {}
+    classifications = ((payload.get("artifacts") or {}).get("classifications") if isinstance(payload.get("artifacts"), dict) else {}) or {}
+    classification_summary = classifications.get("summary") if isinstance(classifications, dict) else {}
+    operator_warnings = classifications.get("operatorWarnings") if isinstance(classifications, dict) else None
+    warnings = operator_warnings if isinstance(operator_warnings, list) else payload.get("warnings") or []
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-compact-status",
@@ -763,10 +771,11 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
         "publicSessionStates": public_session.get("states"),
         "releaseHandoffPath": release_handoff_path,
         "latestMcpHandoffPath": latest_mcp_handoff_path,
+        "artifactClassificationSummary": classification_summary or {},
         "recommendedNextAction": payload.get("recommendedNextAction"),
         "blockers": payload.get("blockers") or [],
-        "warningCount": len(payload.get("warnings") or []),
-        "warnings": payload.get("warnings") or [],
+        "warningCount": len(warnings),
+        "warnings": warnings,
         "safety": payload.get("safety"),
     }
 

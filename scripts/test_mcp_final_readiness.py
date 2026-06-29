@@ -79,6 +79,31 @@ def state_with_stale_shape_proof_input_template() -> dict[str, object]:
     return payload
 
 
+def state_with_classified_artifact_warning() -> dict[str, object]:
+    payload = base_state()
+    payload["warnings"] = ["artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json"]
+    payload["artifactClassifications"] = {
+        "summary": {
+            "categoryCounts": {
+                "release-blocker": 1,
+                "operator-action-needed": 0,
+                "historical-warning": 0,
+                "expected-expired": 2,
+                "ignored-local-evidence": 1,
+                "obsolete-superseded": 3,
+            },
+            "releaseBlockerKeys": ["artifact-age-exceeds-budget:actual-client-proof"],
+            "operatorActionKeys": ["artifact-age-exceeds-budget:actual-client-proof"],
+            "expectedExpiredKeys": ["ephemeral-public-url-expected-expired:trial-session"],
+            "obsoleteSupersededCount": 3,
+            "historicalWarningCount": 0,
+            "ignoredLocalEvidenceCount": 1,
+        },
+        "operatorWarnings": payload["warnings"],
+    }
+    return payload
+
+
 def ok_gate_overrides() -> dict[str, dict[str, object]]:
     return {
         "git_sync_payload": {"status": "passed", "ok": True, "blockers": [], "warnings": [], "ahead": 0, "behind": 0},
@@ -548,6 +573,15 @@ class McpFinalReadinessTests(unittest.TestCase):
         self.assertIsNone(compact["secureTunnelClient"]["binaryDiagnosticsStatus"])
         self.assertEqual(compact["environmentStatus"], "passed")
         self.assertIn("recommendedNextAction", compact)
+
+    def test_compact_status_includes_artifact_classification_summary(self) -> None:
+        payload = final_status(state=state_with_classified_artifact_warning())
+        compact = final.compact_final_readiness(payload)
+
+        summary = compact["artifactClassificationSummary"]
+        self.assertEqual(summary["categoryCounts"]["release-blocker"], 1)
+        self.assertEqual(summary["obsoleteSupersededCount"], 3)
+        self.assertEqual(compact["warnings"], ["artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json"])
 
     def test_self_test_passes(self) -> None:
         payload = final.self_test()

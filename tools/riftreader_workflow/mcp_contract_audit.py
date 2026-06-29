@@ -329,6 +329,8 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
     warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
     performance = _as_dict(payload.get("performanceWarnings"))
+    classification_summary = _as_dict(payload.get("artifactClassificationSummary"))
+    category_counts = _as_dict(classification_summary.get("categoryCounts"))
     slow_stages = performance.get("slowMcpStages") if isinstance(performance.get("slowMcpStages"), list) else []
     slow_modules = performance.get("slowUnittestModules") if isinstance(performance.get("slowUnittestModules"), list) else []
     lines = [
@@ -344,6 +346,11 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     lines.extend(f"- `{item}`" for item in blockers) if blockers else lines.append("- none")
     lines.extend(["", "## Warnings"])
     lines.extend(f"- `{item}`" for item in warnings) if warnings else lines.append("- none")
+    lines.extend(["", "## Artifact classifications"])
+    if category_counts:
+        lines.extend(f"- `{category}`: `{count}`" for category, count in category_counts.items())
+    else:
+        lines.append("- none")
     lines.extend(["", "## Slow MCP stages"])
     lines.extend(
         f"- `{item.get('stage')}`: `{item.get('durationSeconds')}` seconds" for item in slow_stages[:10]
@@ -367,6 +374,7 @@ def build_contract_audit(
     repo_root = repo_root.resolve()
     state = build_mcp_workflow_state(repo_root)
     latest = _as_dict(state.get("latestArtifacts"))
+    artifact_classifications = _as_dict(state.get("artifactClassifications"))
     blockers: list[str] = []
     warnings: list[str] = [str(item) for item in _as_list(state.get("warnings"))]
 
@@ -421,6 +429,7 @@ def build_contract_audit(
             "slowUnittestModules": unittest_timing.get("slowModules"),
             "activeUnittestTiming": unittest_timing,
         },
+        "artifactClassificationSummary": _as_dict(artifact_classifications.get("summary")),
         "latestArtifacts": {
             "readiness": readiness,
             "proposalSmoke": proposal_smoke,

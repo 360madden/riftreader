@@ -38,6 +38,7 @@ class McpContractAuditTests(unittest.TestCase):
         self.assertTrue(payload["toolSurface"]["actualClientProof"]["toolOutputSchemasPresent"])
         self.assertTrue(payload["performanceWarnings"]["slowMcpStages"])
         self.assertTrue(payload["performanceWarnings"]["slowUnittestModules"])
+        self.assertIn("categoryCounts", payload["artifactClassificationSummary"])
         self.assertTrue(payload["safety"]["readOnlyAudit"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
 

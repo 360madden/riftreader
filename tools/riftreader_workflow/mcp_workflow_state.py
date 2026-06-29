@@ -17,13 +17,13 @@ from typing import Any, Iterable
 
 try:
     from .mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
-    from .common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from .common import find_repo_root, repo_rel as rel, safety_flags, unique, utc_iso
 except ImportError:  # pragma: no cover - supports direct script execution.
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from riftreader_workflow.mcp_tool_surface import EXPECTED_CHATGPT_MCP_TOOL_COUNT, EXPECTED_CHATGPT_MCP_TOOL_NAMES
-    from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, utc_iso
+    from riftreader_workflow.common import find_repo_root, repo_rel as rel, safety_flags, unique, utc_iso
 
 
 SCHEMA_VERSION = 1
@@ -42,6 +42,17 @@ FRESHNESS_BUDGET_SECONDS = {
     "proof-input-template": 24 * 60 * 60,
     "actual-client-proof": 24 * 60 * 60,
 }
+ARTIFACT_CLASSIFICATION_CATEGORIES = (
+    "release-blocker",
+    "operator-action-needed",
+    "historical-warning",
+    "expected-expired",
+    "ignored-local-evidence",
+    "obsolete-superseded",
+)
+TOP_LEVEL_WARNING_CATEGORIES = frozenset({"release-blocker", "operator-action-needed"})
+RELEASE_BLOCKER_STALE_KINDS = frozenset({"readiness", "proposal-smoke", "actual-client-proof"})
+OPERATOR_ACTION_STALE_KINDS = frozenset({"manual-public-ip-plan", "proof-input-template"})
 CURRENT_PROOF_INPUT_CONNECTION_MODE = "cloudflare-named-tunnel"
 CURRENT_PROOF_INPUT_TOOL_COUNT = EXPECTED_CHATGPT_MCP_TOOL_COUNT
 CURRENT_PROOF_INPUT_REQUIRED_TOOLS = frozenset(EXPECTED_CHATGPT_MCP_TOOL_NAMES)
@@ -199,23 +210,187 @@ def summarize_payload(repo_root: Path, path: Path, payload: dict[str, Any], arti
     return item
 
 
-def state_artifact_warnings(latest_artifacts: dict[str, dict[str, Any] | None]) -> list[str]:
-    warnings: list[str] = []
+def _classification_record(
+    *,
+    key: str,
+    category: str,
+    message: str,
+    artifact_kind: str | None = None,
+    path: object = None,
+    reason: str,
+    latest: bool = False,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "category": category,
+        "message": message,
+        "artifactKind": artifact_kind,
+        "path": path,
+        "reason": reason,
+        "latest": latest,
+        "releaseBlocker": category == "release-blocker",
+        "operatorActionNeeded": category in {"release-blocker", "operator-action-needed"},
+    }
+
+
+def _category_counts(records: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {category: 0 for category in ARTIFACT_CLASSIFICATION_CATEGORIES}
+    for record in records:
+        category = str(record.get("category") or "")
+        if category in counts:
+            counts[category] += 1
+    return counts
+
+
+def _classify_raw_artifact_warning(
+    warning: str,
+    by_kind: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    key = warning.split(":", 1)[0] if ":" in warning else warning
+    artifact_kind: str | None = None
+    category = "historical-warning"
+    reason = "Preserved raw artifact discovery warning for diagnostics."
+    if warning.startswith("artifact-root-not-directory:"):
+        category = "operator-action-needed"
+        reason = "Artifact root shape is unexpected and should be inspected before relying on that surface."
+    elif warning.startswith(("json-invalid:", "json-not-object:")):
+        category = "operator-action-needed"
+        reason = "Malformed JSON can hide the latest artifact state and needs operator cleanup or regeneration."
+    elif "-summary-missing:" in warning:
+        artifact_kind = warning.split("-summary-missing:", 1)[0]
+        if by_kind.get(artifact_kind):
+            category = "obsolete-superseded"
+            reason = "A newer readable artifact for this kind exists; the missing older summary is superseded evidence."
+        else:
+            category = "historical-warning"
+            reason = "Directory exists without the expected summary, but no current readable replacement was found."
+    return _classification_record(
+        key=key,
+        category=category,
+        message=warning,
+        artifact_kind=artifact_kind,
+        reason=reason,
+    )
+
+
+def _latest_artifact_classification_records(latest_artifacts: dict[str, dict[str, Any] | None]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
     for kind, budget_seconds in FRESHNESS_BUDGET_SECONDS.items():
         item = latest_artifacts.get(kind)
         if not item:
             continue
         age_seconds = item.get("artifactAgeSeconds")
         if isinstance(age_seconds, int) and age_seconds > budget_seconds:
-            warnings.append(f"artifact-age-exceeds-budget:{kind}:{age_seconds}s>{budget_seconds}s:{item.get('path')}")
+            message = f"artifact-age-exceeds-budget:{kind}:{age_seconds}s>{budget_seconds}s:{item.get('path')}"
+            if item.get("publicUrlExpectedExpired"):
+                category = "expected-expired"
+                reason = "The latest public URL artifact came from a stopped ephemeral tunnel and is expected to expire."
+            elif kind in RELEASE_BLOCKER_STALE_KINDS:
+                category = "release-blocker"
+                reason = "The latest artifact is required for final release readiness and is outside its freshness budget."
+            elif kind in OPERATOR_ACTION_STALE_KINDS:
+                category = "operator-action-needed"
+                reason = "The latest helper artifact is stale enough that the operator should refresh it before reuse."
+            else:
+                category = "historical-warning"
+                reason = "The latest artifact is stale but not a final-readiness release blocker."
+            records.append(
+                _classification_record(
+                    key=f"artifact-age-exceeds-budget:{kind}",
+                    category=category,
+                    message=message,
+                    artifact_kind=kind,
+                    path=item.get("path"),
+                    reason=reason,
+                    latest=True,
+                )
+            )
     for kind in ("cloudflare-smoke", "trial-session", "actual-client-proof"):
         item = latest_artifacts.get(kind)
         if item and item.get("publicUrlExpectedExpired"):
-            warnings.append(f"ephemeral-public-url-expected-expired:{kind}:{item.get('path')}")
+            message = f"ephemeral-public-url-expected-expired:{kind}:{item.get('path')}"
+            records.append(
+                _classification_record(
+                    key=f"ephemeral-public-url-expected-expired:{kind}",
+                    category="expected-expired",
+                    message=message,
+                    artifact_kind=kind,
+                    path=item.get("path"),
+                    reason="Ephemeral public tunnel URL was stopped and should not be treated as an active public session.",
+                    latest=True,
+                )
+            )
     for kind in ("inbox", "draft"):
         item = latest_artifacts.get(kind)
         if item and item.get("selfTest"):
-            warnings.append(f"latest-{kind}-is-self-test:{item.get('path')}")
+            message = f"latest-{kind}-is-self-test:{item.get('path')}"
+            records.append(
+                _classification_record(
+                    key=f"latest-{kind}-is-self-test",
+                    category="ignored-local-evidence",
+                    message=message,
+                    artifact_kind=kind,
+                    path=item.get("path"),
+                    reason="Self-test local artifacts are useful diagnostics but should not be treated as operator/live evidence.",
+                    latest=True,
+                )
+            )
+    return records
+
+
+def classify_artifact_warnings(
+    by_kind: dict[str, list[dict[str, Any]]],
+    latest_artifacts: dict[str, dict[str, Any] | None],
+    raw_warnings: list[str],
+) -> dict[str, Any]:
+    records = [_classify_raw_artifact_warning(str(warning), by_kind) for warning in raw_warnings]
+    records.extend(_latest_artifact_classification_records(latest_artifacts))
+    seen_records: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for record in records:
+        message = str(record.get("message") or "")
+        key = (str(record.get("category") or ""), message)
+        if key in seen_records:
+            continue
+        seen_records.add(key)
+        deduped.append(record)
+    category_counts = _category_counts(deduped)
+    operator_warnings = unique(
+        [
+            str(record.get("message"))
+            for record in deduped
+            if record.get("category") in TOP_LEVEL_WARNING_CATEGORIES and record.get("message")
+        ]
+    )
+    return {
+        "schemaVersion": 1,
+        "categories": list(ARTIFACT_CLASSIFICATION_CATEGORIES),
+        "records": deduped,
+        "summary": {
+            "categoryCounts": category_counts,
+            "releaseBlockerKeys": unique([record.get("key") for record in deduped if record.get("category") == "release-blocker"]),
+            "operatorActionKeys": unique(
+                [
+                    record.get("key")
+                    for record in deduped
+                    if record.get("category") in {"release-blocker", "operator-action-needed"}
+                ]
+            ),
+            "expectedExpiredKeys": unique([record.get("key") for record in deduped if record.get("category") == "expected-expired"]),
+            "obsoleteSupersededCount": category_counts["obsolete-superseded"],
+            "historicalWarningCount": category_counts["historical-warning"],
+            "ignoredLocalEvidenceCount": category_counts["ignored-local-evidence"],
+        },
+        "operatorWarnings": operator_warnings,
+    }
+
+
+def state_artifact_warnings(latest_artifacts: dict[str, dict[str, Any] | None]) -> list[str]:
+    warnings: list[str] = []
+    for record in _latest_artifact_classification_records(latest_artifacts):
+        message = record.get("message")
+        if message:
+            warnings.append(str(message))
     return warnings
 
 
@@ -560,11 +735,12 @@ def proof_input_template_next_action(latest_artifacts: dict[str, dict[str, Any] 
 
 
 def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:
-    by_kind, warnings = discover_mcp_artifacts(repo_root)
+    by_kind, raw_warnings = discover_mcp_artifacts(repo_root)
     latest_artifacts = latest_by_kind(by_kind)
     git_state = git_dirty_state(repo_root)
-    warnings.extend(git_state.get("warnings") or [])
-    warnings.extend(state_artifact_warnings(latest_artifacts))
+    raw_warnings.extend(git_state.get("warnings") or [])
+    artifact_classifications = classify_artifact_warnings(by_kind, latest_artifacts, raw_warnings)
+    warnings = artifact_classifications.get("operatorWarnings") if isinstance(artifact_classifications.get("operatorWarnings"), list) else []
     counts = {kind: len(items) for kind, items in by_kind.items()}
     blockers: list[str] = []
     if not passed(latest_artifacts.get("readiness")):
@@ -581,6 +757,8 @@ def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:
         "repoRoot": str(repo_root),
         "blockers": blockers,
         "warnings": warnings,
+        "rawWarnings": unique(state_artifact_warnings(latest_artifacts) + raw_warnings),
+        "artifactClassifications": artifact_classifications,
         "latestArtifacts": latest_artifacts,
         "counts": counts,
         "gitDirtyState": git_state,
