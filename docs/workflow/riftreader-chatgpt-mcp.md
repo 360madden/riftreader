@@ -14,6 +14,8 @@ for eval-suite status.
 
 Architecture map: `docs\workflow\riftreader-chatgpt-mcp-architecture-map.md`.
 
+Contract index: `docs\workflow\riftreader-chatgpt-mcp-contracts.md`.
+
 Final-product readiness contract: `docs\workflow\riftreader-chatgpt-mcp-final-readiness.md`.
 
 ## Purpose
