@@ -393,6 +393,7 @@ def build_release_demo_packet(
                 "slowUnittestModuleCount": len(_as_list(performance.get("slowUnittestModules"))),
                 "activeUnittestTiming": _as_dict(performance.get("activeUnittestTiming")),
             },
+            "artifactClassificationSummary": _as_dict(contract.get("artifactClassificationSummary")),
         },
         "workflowState": {
             "status": workflow_state.get("status"),
@@ -414,6 +415,7 @@ def build_release_demo_packet(
                 "releaseBlockerKeys": blockers,
                 "releaseBlockers": blockers,
                 "warnings": sorted(set(warnings)),
+                "artifactClassificationSummary": _as_dict(contract.get("artifactClassificationSummary")),
                 "deferredProofRecoveryIsReleaseBlocker": False,
             },
         }

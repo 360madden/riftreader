@@ -310,6 +310,42 @@ class McpWorkflowStateTests(unittest.TestCase):
         self.assertIn("artifact-age-exceeds-budget:proposal-smoke", summary["releaseBlockerKeys"])
         self.assertTrue(any("artifact-age-exceeds-budget:readiness" in item for item in payload["warnings"]))
 
+    def test_classifies_stale_actual_client_proof_as_operator_action_release_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            make_repo(root)
+            write_transport_artifacts(root)
+            write_json(
+                root / state.ACTUAL_CLIENT_PROOF_ROOT / "20200101-000000Z" / "proof.json",
+                {
+                    "kind": "riftreader-chatgpt-actual-client-proof",
+                    "status": "passed",
+                    "ok": True,
+                    "proof": {
+                        "clientTransportStatus": recorder.CLIENT_TRANSPORT_SUCCEEDED,
+                        "applyLatestPackageDraftWithoutApprovalBlocked": True,
+                        "applyLatestPackageDraftWithoutApprovalApplied": False,
+                    },
+                },
+                1,
+            )
+
+            payload = state.build_mcp_workflow_state(root)
+
+        records = payload["artifactClassifications"]["records"]
+        actual_proof_records = [
+            item
+            for item in records
+            if item["key"] == "artifact-age-exceeds-budget:actual-client-proof"
+        ]
+        self.assertEqual(len(actual_proof_records), 1)
+        self.assertEqual(actual_proof_records[0]["category"], "operator-action-needed")
+        self.assertTrue(actual_proof_records[0]["releaseBlocker"])
+        self.assertIn(
+            "artifact-age-exceeds-budget:actual-client-proof",
+            payload["artifactClassifications"]["summary"]["releaseBlockerKeys"],
+        )
+
     def test_classifies_superseded_missing_actual_client_proof_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

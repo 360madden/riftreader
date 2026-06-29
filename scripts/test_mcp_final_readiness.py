@@ -81,8 +81,23 @@ def state_with_stale_shape_proof_input_template() -> dict[str, object]:
 
 def state_with_classified_artifact_warning() -> dict[str, object]:
     payload = base_state()
-    payload["warnings"] = ["artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json"]
+    classified_warning = "artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json"
+    payload["warnings"] = ["non-artifact-warning", "actual-client-proof-summary-missing:old-proof"]
     payload["artifactClassifications"] = {
+        "records": [
+            {
+                "key": "artifact-age-exceeds-budget:actual-client-proof",
+                "category": "operator-action-needed",
+                "message": classified_warning,
+                "releaseBlocker": True,
+            },
+            {
+                "key": "actual-client-proof-summary-missing",
+                "category": "obsolete-superseded",
+                "message": "actual-client-proof-summary-missing:old-proof",
+                "releaseBlocker": False,
+            },
+        ],
         "summary": {
             "categoryCounts": {
                 "release-blocker": 1,
@@ -99,7 +114,7 @@ def state_with_classified_artifact_warning() -> dict[str, object]:
             "historicalWarningCount": 0,
             "ignoredLocalEvidenceCount": 1,
         },
-        "operatorWarnings": payload["warnings"],
+        "operatorWarnings": [classified_warning],
     }
     return payload
 
@@ -581,7 +596,14 @@ class McpFinalReadinessTests(unittest.TestCase):
         summary = compact["artifactClassificationSummary"]
         self.assertEqual(summary["categoryCounts"]["release-blocker"], 1)
         self.assertEqual(summary["obsoleteSupersededCount"], 3)
-        self.assertEqual(compact["warnings"], ["artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json"])
+        self.assertEqual(
+            compact["warnings"],
+            [
+                "non-artifact-warning",
+                "artifact-age-exceeds-budget:actual-client-proof:90000s>86400s:.riftreader-local\\proof.json",
+            ],
+        )
+        self.assertNotIn("actual-client-proof-summary-missing:old-proof", compact["warnings"])
 
     def test_self_test_passes(self) -> None:
         payload = final.self_test()

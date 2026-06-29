@@ -740,7 +740,21 @@ def compact_final_readiness(payload: dict[str, Any]) -> dict[str, Any]:
     classifications = ((payload.get("artifacts") or {}).get("classifications") if isinstance(payload.get("artifacts"), dict) else {}) or {}
     classification_summary = classifications.get("summary") if isinstance(classifications, dict) else {}
     operator_warnings = classifications.get("operatorWarnings") if isinstance(classifications, dict) else None
-    warnings = operator_warnings if isinstance(operator_warnings, list) else payload.get("warnings") or []
+    payload_warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+    classification_warnings = operator_warnings if isinstance(operator_warnings, list) else []
+    records_value = classifications.get("records") if isinstance(classifications, dict) else []
+    classification_records = records_value if isinstance(records_value, list) else []
+    classified_keys = [
+        str(record.get("key"))
+        for record in classification_records
+        if isinstance(record, dict) and isinstance(record.get("key"), str)
+    ]
+
+    def is_classified_artifact_warning(warning: object) -> bool:
+        text = str(warning)
+        return any(text == key or text.startswith(f"{key}:") for key in classified_keys)
+
+    warnings = unique([*[item for item in payload_warnings if not is_classified_artifact_warning(item)], *classification_warnings])
     return {
         "schemaVersion": 1,
         "kind": "riftreader-mcp-final-compact-status",

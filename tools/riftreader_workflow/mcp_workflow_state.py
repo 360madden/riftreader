@@ -219,7 +219,9 @@ def _classification_record(
     path: object = None,
     reason: str,
     latest: bool = False,
+    release_blocker: bool | None = None,
 ) -> dict[str, Any]:
+    is_release_blocker = category == "release-blocker" if release_blocker is None else bool(release_blocker)
     return {
         "key": key,
         "category": category,
@@ -228,8 +230,8 @@ def _classification_record(
         "path": path,
         "reason": reason,
         "latest": latest,
-        "releaseBlocker": category == "release-blocker",
-        "operatorActionNeeded": category in {"release-blocker", "operator-action-needed"},
+        "releaseBlocker": is_release_blocker,
+        "operatorActionNeeded": is_release_blocker or category in {"release-blocker", "operator-action-needed"},
     }
 
 
@@ -285,6 +287,9 @@ def _latest_artifact_classification_records(latest_artifacts: dict[str, dict[str
             if item.get("publicUrlExpectedExpired"):
                 category = "expected-expired"
                 reason = "The latest public URL artifact came from a stopped ephemeral tunnel and is expected to expire."
+            elif kind == "actual-client-proof":
+                category = "operator-action-needed"
+                reason = "The actual ChatGPT proof must be refreshed by the operator before final release readiness."
             elif kind in RELEASE_BLOCKER_STALE_KINDS:
                 category = "release-blocker"
                 reason = "The latest artifact is required for final release readiness and is outside its freshness budget."
@@ -303,6 +308,7 @@ def _latest_artifact_classification_records(latest_artifacts: dict[str, dict[str
                     path=item.get("path"),
                     reason=reason,
                     latest=True,
+                    release_blocker=kind in RELEASE_BLOCKER_STALE_KINDS or kind == "actual-client-proof",
                 )
             )
     for kind in ("cloudflare-smoke", "trial-session", "actual-client-proof"):
@@ -368,7 +374,7 @@ def classify_artifact_warnings(
         "records": deduped,
         "summary": {
             "categoryCounts": category_counts,
-            "releaseBlockerKeys": unique([record.get("key") for record in deduped if record.get("category") == "release-blocker"]),
+            "releaseBlockerKeys": unique([record.get("key") for record in deduped if record.get("releaseBlocker") is True]),
             "operatorActionKeys": unique(
                 [
                     record.get("key")
@@ -735,12 +741,15 @@ def proof_input_template_next_action(latest_artifacts: dict[str, dict[str, Any] 
 
 
 def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:
-    by_kind, raw_warnings = discover_mcp_artifacts(repo_root)
+    by_kind, artifact_warnings = discover_mcp_artifacts(repo_root)
     latest_artifacts = latest_by_kind(by_kind)
     git_state = git_dirty_state(repo_root)
-    raw_warnings.extend(git_state.get("warnings") or [])
-    artifact_classifications = classify_artifact_warnings(by_kind, latest_artifacts, raw_warnings)
-    warnings = artifact_classifications.get("operatorWarnings") if isinstance(artifact_classifications.get("operatorWarnings"), list) else []
+    git_warnings = [str(item) for item in (git_state.get("warnings") or [])]
+    artifact_classifications = classify_artifact_warnings(by_kind, latest_artifacts, artifact_warnings)
+    classified_warnings = (
+        artifact_classifications.get("operatorWarnings") if isinstance(artifact_classifications.get("operatorWarnings"), list) else []
+    )
+    warnings = unique([*git_warnings, *classified_warnings])
     counts = {kind: len(items) for kind, items in by_kind.items()}
     blockers: list[str] = []
     if not passed(latest_artifacts.get("readiness")):
@@ -757,7 +766,7 @@ def build_mcp_workflow_state(repo_root: Path) -> dict[str, Any]:
         "repoRoot": str(repo_root),
         "blockers": blockers,
         "warnings": warnings,
-        "rawWarnings": unique(state_artifact_warnings(latest_artifacts) + raw_warnings),
+        "rawWarnings": unique(state_artifact_warnings(latest_artifacts) + artifact_warnings + git_warnings),
         "artifactClassifications": artifact_classifications,
         "latestArtifacts": latest_artifacts,
         "counts": counts,

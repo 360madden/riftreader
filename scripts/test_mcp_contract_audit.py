@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import sys
 import tempfile
 import unittest
@@ -14,6 +16,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from riftreader_workflow import mcp_contract_audit as audit  # noqa: E402
+from riftreader_workflow import mcp_workflow_state as state  # noqa: E402
 
 TEMP_ROOT = REPO_ROOT / ".riftreader-local" / "unit-test-temp"
 
@@ -41,6 +44,48 @@ class McpContractAuditTests(unittest.TestCase):
         self.assertIn("categoryCounts", payload["artifactClassificationSummary"])
         self.assertTrue(payload["safety"]["readOnlyAudit"])
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
+
+    def test_contract_audit_summarizes_non_blocking_artifact_classifications(self) -> None:
+        with temporary_repo_child() as temp_dir:
+            root = Path(temp_dir)
+            audit._seed_contract_artifacts(root)  # noqa: SLF001 - shared test fixture.
+            cloudflare = root / state.TRANSPORT_SMOKE_ROOT / "20200101T000000Z-cloudflare-tunnel-smoke.json"
+            cloudflare.parent.mkdir(parents=True, exist_ok=True)
+            cloudflare.write_text(
+                json.dumps(
+                    {
+                        "kind": "riftreader-chatgpt-mcp-cloudflare-tunnel-smoke",
+                        "status": "passed",
+                        "ok": True,
+                        "publicMcpUrl": "https://expired.trycloudflare.com/mcp",
+                        "safety": {"publicTunnelStopped": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            os.utime(cloudflare, (1, 1))
+            draft = root / state.DRAFT_ROOT / "20200101T000001Z-self-test" / "summary.json"
+            draft.parent.mkdir(parents=True, exist_ok=True)
+            draft.write_text(
+                json.dumps(
+                    {
+                        "kind": "riftreader-local-artifact-bridge-inbox-package-draft",
+                        "status": "created",
+                        "ok": True,
+                        "messageMetadata": {"selfTest": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = audit.build_contract_audit(root)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["blockers"], [])
+        summary = payload["artifactClassificationSummary"]
+        self.assertEqual(summary["categoryCounts"]["expected-expired"], 2)
+        self.assertEqual(summary["ignoredLocalEvidenceCount"], 1)
+        self.assertNotIn("ephemeral-public-url-expected-expired", "\n".join(payload["warnings"]))
 
     def test_contract_audit_blocks_missing_expected_tool(self) -> None:
         with temporary_repo_child() as temp_dir:
