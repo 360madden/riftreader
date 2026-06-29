@@ -3383,6 +3383,8 @@ class RiftReaderChatGptMcpTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["publicTunnelStarted"])
         self.assertTrue(summary_exists)
         self.assertTrue(transport_mock.call_args.kwargs["include_proposal_submit"])
+        self.assertEqual(transport_mock.call_args.kwargs["timeout_seconds"], chatgpt_mcp.DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS)
+        self.assertEqual(chatgpt_mcp.DEFAULT_TRANSPORT_SMOKE_TIMEOUT_SECONDS, 90.0)
 
     def test_trial_readiness_blocks_on_core_stage_failure_without_blocking_optional_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
