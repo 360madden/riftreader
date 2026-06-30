@@ -31,6 +31,7 @@ SCHEMA_FILES = {
     "navigation-live-run-request": "navigation-live-run-request.schema.json",
     "navigation-live-run-review": "navigation-live-run-review.schema.json",
     "navigation-live-run-command-plan": "navigation-live-run-command-plan.schema.json",
+    "navigation-offline-simulation": "navigation-offline-simulation.schema.json",
 }
 
 KIND_TO_SCHEMA_KEY = {
@@ -48,6 +49,7 @@ KIND_TO_SCHEMA_KEY = {
     "riftreader-navigation-live-run-request": "navigation-live-run-request",
     "riftreader-navigation-live-run-review": "navigation-live-run-review",
     "riftreader-navigation-live-run-command-plan": "navigation-live-run-command-plan",
+    "riftreader-navigation-offline-simulation": "navigation-offline-simulation",
 }
 
 

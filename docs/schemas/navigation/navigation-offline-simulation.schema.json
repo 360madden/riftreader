@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://riftreader.local/schemas/navigation/navigation-offline-simulation.schema.json",
+  "title": "RiftReader navigation offline simulation",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generatedAtUtc",
+    "status",
+    "verdict",
+    "input",
+    "waypoints",
+    "simulation",
+    "contract",
+    "safety",
+    "artifacts",
+    "blockers",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "riftreader-navigation-offline-simulation" },
+    "generatedAtUtc": { "type": "string" },
+    "status": { "enum": ["passed", "blocked", "failed"] },
+    "verdict": { "type": "string" },
+    "input": { "type": "object" },
+    "waypoints": { "type": "array" },
+    "simulation": {
+      "type": "object",
+      "required": [
+        "status",
+        "verdict",
+        "stepsRun",
+        "arrived",
+        "lastRouteStatus",
+        "arrivedWaypointIds",
+        "finalPose",
+        "steps",
+        "blockers",
+        "warnings",
+        "errors"
+      ],
+      "properties": {
+        "status": { "enum": ["passed", "blocked", "failed"] },
+        "verdict": { "type": "string" },
+        "stepsRun": { "type": "number", "minimum": 0 },
+        "arrived": { "type": "boolean" },
+        "lastRouteStatus": { "type": "string" },
+        "arrivedWaypointIds": { "type": "array", "items": { "type": "string" } },
+        "finalPose": {
+          "type": "object",
+          "required": ["x", "y", "z", "yawDegrees"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" },
+            "yawDegrees": { "type": "number" }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "stepNumber",
+              "activeWaypointId",
+              "action",
+              "routeStatus",
+              "initialPose",
+              "finalPose",
+              "initialPlanarDistance",
+              "finalPlanarDistance",
+              "progressDistance",
+              "bearingDegrees",
+              "initialYawDeltaDegrees"
+            ],
+            "properties": {
+              "stepNumber": { "type": "number", "minimum": 1 },
+              "activeWaypointId": { "type": "string" },
+              "action": { "type": "string" },
+              "routeStatus": { "type": "string" },
+              "initialPose": { "type": "object" },
+              "finalPose": { "type": "object" },
+              "initialPlanarDistance": { "type": "number", "minimum": 0 },
+              "finalPlanarDistance": { "type": "number", "minimum": 0 },
+              "progressDistance": { "type": "number" },
+              "bearingDegrees": { "type": "number" },
+              "initialYawDeltaDegrees": { "type": "number" }
+            }
+          }
+        },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["status", "blockers", "warnings"],
+      "properties": {
+        "status": { "enum": ["passed", "blocked"] },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "movementSent",
+        "inputSent",
+        "targetMemoryBytesRead",
+        "targetMemoryBytesWritten",
+        "offlineSimulationOnly",
+        "routeControlAuthorized"
+      ],
+      "properties": {
+        "movementSent": { "const": false },
+        "inputSent": { "const": false },
+        "targetMemoryBytesRead": { "const": false },
+        "targetMemoryBytesWritten": { "const": false },
+        "offlineSimulationOnly": { "const": true },
+        "routeControlAuthorized": { "const": false },
+        "providerWrites": { "const": false },
+        "x64dbgAttach": { "const": false },
+        "debuggerAttached": { "const": false },
+        "gitMutation": { "const": false },
+        "proofPromotion": { "const": false },
+        "actorChainPromotion": { "const": false },
+        "facingPromotion": { "const": false },
+        "savedVariablesUsedAsLiveTruth": { "const": false }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["summaryJson", "summaryMarkdown"],
+      "properties": {
+        "runDirectory": { "type": "string" },
+        "summaryJson": { "type": "string" },
+        "summaryMarkdown": { "type": "string" }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

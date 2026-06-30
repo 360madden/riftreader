@@ -135,6 +135,22 @@ needed before queueing a gated live-run request. For map/UI preview only, pass
 `--max-consumer-state-age-seconds <seconds>` when a wider freshness budget is
 acceptable; live execution remains separately gated either way.
 
+### Run an offline navigation simulation (no game target required)
+```powershell
+scripts\riftreader-navigation-offline-simulator.cmd `
+  --start-x 0 --start-z 0 --start-yaw-degrees 0 `
+  --destination-x 10 --destination-z 0 `
+  --step-distance 2 `
+  --json
+```
+
+This is a pure synthetic harness for route logic, arrival handling,
+turn-before-forward behavior, no-progress classification, and wrong-way
+classification. It reads only an optional waypoint JSON file, writes ignored
+`scripts\captures\navigation-offline-simulation-*` artifacts, and sends no
+input/movement. Use it for fast route logic regression tests before any
+consumer package or live-run review work.
+
 ### Build one-command downstream navigation package
 ```powershell
 scripts\riftreader-navigation-downstream-package.cmd `
