@@ -152,7 +152,8 @@ class PostpatchProfileTests(unittest.TestCase):
             )
 
         self.assertIn(".riftreader-local\\postpatch-profile", artifacts["summaryJson"])
-        self.assertTrue((root / artifacts["summaryJson"]).is_file())
+        summary_path = root / Path(artifacts["summaryJson"].replace("\\", "/"))
+        self.assertTrue(summary_path.is_file())
         self.assertTrue((root / ".riftreader-local" / "postpatch-profile" / "latest-run.txt").is_file())
 
 
