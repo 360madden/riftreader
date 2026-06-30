@@ -30,7 +30,9 @@ from scan_current_pid_coordinate_family import (  # noqa: E402
     extract_json,
     find_repo_root,
     format_hex,
+    get_process_start_utc,
     open_process,
+    process_start_matches,
     query_process_image,
     read_memory,
     resolve_powershell,
@@ -344,7 +346,9 @@ def main() -> int:
     parser.add_argument("--direct-tolerance", type=float, default=0.75)
     parser.add_argument("--offset-tolerance", type=float, default=0.75)
     parser.add_argument("--reference-file", default=None)
-    parser.add_argument("--reference-timeout-seconds", type=int, default=45)
+    parser.add_argument("--reference-timeout-seconds", type=int, default=90)
+    parser.add_argument("--expected-process-start-utc", default=None)
+    parser.add_argument("--module-base", default=None)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -394,6 +398,13 @@ def main() -> int:
         },
         "readbacks": [],
         "next": {},
+        "target": {
+            "pid": args.pid,
+            "hwnd": args.hwnd,
+            "moduleBase": args.module_base,
+            "expectedProcessStartUtc": args.expected_process_start_utc,
+            "processIdentityVerified": False,
+        },
     }
     exit_code = 1
 
@@ -418,12 +429,35 @@ def main() -> int:
             return exit_code
 
         hwnd_info = verify_hwnd_owner(args.hwnd, args.pid)
-        summary["target"] = hwnd_info
+        summary["target"].update(hwnd_info)
         if hwnd_info.get("blocker"):
             summary["status"] = "blocked"
             summary["blockers"].append(str(hwnd_info["blocker"]))
             exit_code = 2
             return exit_code
+
+        identity_handle = open_process(args.pid)
+        try:
+            actual_start = get_process_start_utc(identity_handle)
+            summary["target"]["actualProcessStartUtc"] = actual_start
+            image = query_process_image(identity_handle)
+            summary["target"]["processImage"] = image
+            if args.expected_process_start_utc:
+                if not actual_start:
+                    summary["status"] = "blocked"
+                    summary["blockers"].append("process-start-unavailable")
+                    exit_code = 2
+                    return exit_code
+                if not process_start_matches(actual_start, args.expected_process_start_utc):
+                    summary["status"] = "blocked"
+                    summary["blockers"].append("process-start-mismatch")
+                    exit_code = 2
+                    return exit_code
+                summary["target"]["processIdentityVerified"] = True
+            else:
+                summary["warnings"].append("process-start-not-bound-pass---expected-process-start-utc-for-exact-target-safety")
+        finally:
+            close_handle(identity_handle)
 
         if args.reference_file:
             reference = load_reference_file(Path(args.reference_file).resolve())
@@ -453,8 +487,13 @@ def main() -> int:
 
         handle = open_process(args.pid)
         try:
-            image = query_process_image(handle)
-            summary["target"]["processImage"] = image
+            actual_start = get_process_start_utc(handle)
+            summary["target"]["postReferenceActualProcessStartUtc"] = actual_start
+            if args.expected_process_start_utc and not process_start_matches(actual_start, args.expected_process_start_utc):
+                summary["status"] = "blocked"
+                summary["blockers"].append("process-start-mismatch-after-reference-capture")
+                exit_code = 2
+                return exit_code
             readbacks = []
             for index, candidate in enumerate(candidates, start=1):
                 address = candidate_address(candidate)

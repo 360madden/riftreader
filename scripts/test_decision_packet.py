@@ -380,6 +380,110 @@ class DecisionPacketTests(unittest.TestCase):
         )
         self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
 
+    def test_postupdate_stale_candidate_readback_routes_to_current_pid_family_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 77152,
+                        "targetWindowHandle": "0x17A0DB2",
+                        "processStartUtc": "2026-06-02T15:45:29.2617327Z",
+                        "moduleBase": "0x7FF7211C0000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "staticChainStatus": {
+                        "status": "promoted",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootRva": "0x32EBC80",
+                        },
+                    },
+                },
+            )
+            write_blocked_static_owner_summary(root)
+            write_postupdate_yaw_facing_inventory_summary(
+                root,
+                blockers=["no-owner-root-hypothesis-yet", "candidate-readback-target-mismatch"],
+            )
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["safeNextAction"]["key"], "current-pid-coordinate-family-scan-refresh")
+        self.assertEqual(
+            packet["safeNextAction"]["command"],
+            [
+                "python",
+                ".\\scripts\\scan_current_pid_coordinate_family.py",
+                "--pid",
+                "77152",
+                "--hwnd",
+                "0x17A0DB2",
+                "--process-name",
+                "rift_x64",
+                "--module-base",
+                "0x7FF7211C0000",
+                "--expected-process-start-utc",
+                "2026-06-02T15:45:29.2617327Z",
+                "--tolerance",
+                "0.25",
+                "--max-hits",
+                "200",
+                "--max-seconds",
+                "180",
+                "--json",
+            ],
+        )
+        self.assertIn("candidate-readback-target-mismatch", packet["safeNextAction"]["why"])
+
+    def test_postupdate_root_signature_exhaustion_routes_to_static_caller_chain_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            init_repo(root)
+            write_json(
+                root / "docs" / "recovery" / "current-truth.json",
+                {
+                    "updatedAtUtc": "2026-06-02T04:13:42Z",
+                    "target": {
+                        "processName": "rift_x64",
+                        "processId": 77152,
+                        "targetWindowHandle": "0x17A0DB2",
+                        "processStartUtc": "2026-06-02T15:45:29.2617327Z",
+                        "moduleBase": "0x7FF7211C0000",
+                        "inWorld": True,
+                        "live": True,
+                    },
+                    "staticChainStatus": {
+                        "status": "promoted",
+                        "promotionAllowed": True,
+                        "primaryCandidate": {
+                            "chain": "[rift_x64+0x32EBC80]+0x320/+0x324/+0x328",
+                            "rootRva": "0x32EBC80",
+                        },
+                    },
+                },
+            )
+            write_blocked_static_owner_summary(root)
+            write_postupdate_yaw_facing_inventory_summary(
+                root,
+                blockers=["old-static-root-null", "root-signature-sweeps-found-no-parent-root-candidate"],
+            )
+
+            packet = decision_packet.build_decision_packet(root)
+
+        self.assertEqual(packet["safeNextAction"]["key"], "postupdate-static-caller-chain-review")
+        self.assertEqual(
+            packet["safeNextAction"]["command"],
+            [".\\scripts\\riftreader-ghidra-static-evidence.cmd", "--plan", "--json"],
+        )
+        self.assertIn("root-signature-sweeps-found-no-parent-root-candidate", packet["safeNextAction"]["why"])
+
     def test_target_epoch_classifies_current_match(self) -> None:
         truth = {"target": {"processId": 1, "targetWindowHandle": "0x1", "inWorld": True}}
         proof = {"status": "current-target-proofonly-passed", "target": {"processId": 1, "targetWindowHandle": "0x1"}}

@@ -70,6 +70,15 @@ POSTUPDATE_TARGET_IDENTITY_BLOCKER_TOKENS = (
     "no-rift-window-targets-present",
     "target-drift",
 )
+POSTUPDATE_CANDIDATE_REFRESH_BLOCKER_TOKENS = (
+    "candidate-readback-target-mismatch",
+    "candidate-readback-pid-mismatch",
+    "candidate-readback-hwnd-mismatch",
+    "candidate-readback-process-start-mismatch",
+)
+POSTUPDATE_ROOT_SIGNATURE_EXHAUSTED_TOKENS = (
+    "root-signature-sweeps-found-no-parent-root-candidate",
+)
 FORBIDDEN_ACTIONS = [
     "movement",
     "live_input",
@@ -126,6 +135,38 @@ def postupdate_target_identity_blockers(post_update_recovery: dict[str, Any]) ->
         for item in source:
             blocker = str(item)
             if any(token in blocker for token in POSTUPDATE_TARGET_IDENTITY_BLOCKER_TOKENS):
+                blockers.append(blocker)
+    return sorted(set(blockers))
+
+
+def postupdate_candidate_refresh_blockers(post_update_recovery: dict[str, Any]) -> list[str]:
+    """Return blockers showing the latest coordinate candidate readback is stale."""
+
+    sources = [
+        safe_list(post_update_recovery.get("blockers")),
+        safe_list(safe_mapping(post_update_recovery.get("yawFacingCandidates")).get("blockers")),
+    ]
+    blockers: list[str] = []
+    for source in sources:
+        for item in source:
+            blocker = str(item)
+            if any(token in blocker for token in POSTUPDATE_CANDIDATE_REFRESH_BLOCKER_TOKENS):
+                blockers.append(blocker)
+    return sorted(set(blockers))
+
+
+def postupdate_root_signature_exhausted_blockers(post_update_recovery: dict[str, Any]) -> list[str]:
+    """Return blockers showing current root-signature sweeps are exhausted."""
+
+    sources = [
+        safe_list(post_update_recovery.get("blockers")),
+        safe_list(safe_mapping(post_update_recovery.get("yawFacingCandidates")).get("blockers")),
+    ]
+    blockers: list[str] = []
+    for source in sources:
+        for item in source:
+            blocker = str(item)
+            if any(token in blocker for token in POSTUPDATE_ROOT_SIGNATURE_EXHAUSTED_TOKENS):
                 blockers.append(blocker)
     return sorted(set(blockers))
 
@@ -1477,6 +1518,40 @@ def build_safe_next_action(
                     "The promoted static root is blocked and the latest post-update recovery evidence reports "
                     f"target identity drift ({', '.join(target_identity_blockers)}). Refresh read-only RIFT "
                     "window target discovery before repeating current-PID owner/root rediscovery."
+                ),
+            }
+        candidate_refresh_blockers = postupdate_candidate_refresh_blockers(post_update_recovery)
+        if candidate_refresh_blockers:
+            static_target = safe_mapping(safe_mapping(static_owner_readback).get("target"))
+            family_scan_command = ["python", ".\\scripts\\scan_current_pid_coordinate_family.py"]
+            if static_target.get("processId") is not None:
+                family_scan_command.extend(["--pid", str(static_target.get("processId"))])
+            if static_target.get("targetWindowHandle"):
+                family_scan_command.extend(["--hwnd", str(static_target.get("targetWindowHandle"))])
+            family_scan_command.extend(["--process-name", "rift_x64"])
+            if static_target.get("moduleBase"):
+                family_scan_command.extend(["--module-base", str(static_target.get("moduleBase"))])
+            if static_target.get("expectedProcessStartUtc"):
+                family_scan_command.extend(["--expected-process-start-utc", str(static_target.get("expectedProcessStartUtc"))])
+            family_scan_command.extend(["--tolerance", "0.25", "--max-hits", "200", "--max-seconds", "180", "--json"])
+            return {
+                "key": "current-pid-coordinate-family-scan-refresh",
+                "command": family_scan_command,
+                "why": (
+                    "The promoted static root is blocked and the latest owner/root rediscovery evidence says the "
+                    f"coordinate candidate readback is stale ({', '.join(candidate_refresh_blockers)}). Refresh "
+                    "same-target no-input coordinate-family candidates before repeating owner/root rediscovery."
+                ),
+            }
+        root_signature_exhausted = postupdate_root_signature_exhausted_blockers(post_update_recovery)
+        if root_signature_exhausted:
+            return {
+                "key": "postupdate-static-caller-chain-review",
+                "command": [".\\scripts\\riftreader-ghidra-static-evidence.cmd", "--plan", "--json"],
+                "why": (
+                    "The exact-target owner/root rediscovery found candidate evidence, but current root-signature "
+                    f"sweeps did not find a parent/root candidate ({', '.join(root_signature_exhausted)}). "
+                    "Stop repeating the same live module-RVA sweeps and pivot to offline static caller-chain review."
                 ),
             }
         if post_update_recovery.get("status") == "candidate" and post_update_recovery.get("chain"):

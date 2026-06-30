@@ -291,6 +291,41 @@ def target_fields_from_readback(candidate_readback: Mapping[str, Any]) -> dict[s
     return {key: value for key, value in fields.items() if value not in (None, "")}
 
 
+def hwnd_values_match(left: Any, right: Any) -> bool:
+    left_int = parse_int(left)
+    right_int = parse_int(right)
+    if left_int is not None and right_int is not None:
+        return left_int == right_int
+    return str(left).strip().lower() == str(right).strip().lower()
+
+
+def candidate_target_mismatch_blockers(
+    candidate_target: Mapping[str, Any],
+    *,
+    pid: Any,
+    hwnd: Any,
+    expected_process_start_utc: Any,
+) -> list[str]:
+    blockers: list[str] = []
+    candidate_pid = parse_int(candidate_target.get("pid"))
+    current_pid = parse_int(pid)
+    if candidate_pid is not None and current_pid is not None and candidate_pid != current_pid:
+        blockers.append("candidate-readback-pid-mismatch")
+
+    candidate_hwnd = candidate_target.get("hwnd")
+    if candidate_hwnd not in (None, "") and hwnd not in (None, "") and not hwnd_values_match(candidate_hwnd, hwnd):
+        blockers.append("candidate-readback-hwnd-mismatch")
+
+    candidate_start = candidate_target.get("expectedProcessStartUtc")
+    if candidate_start not in (None, "") and expected_process_start_utc not in (None, ""):
+        if not process_start_matches(candidate_start, expected_process_start_utc):
+            blockers.append("candidate-readback-process-start-mismatch")
+
+    if blockers:
+        blockers.append("candidate-readback-target-mismatch")
+    return sorted(set(blockers))
+
+
 def read_vec3_from_bytes(data: bytes, offset: int) -> dict[str, float] | None:
     if offset < 0 or offset + 12 > len(data):
         return None
@@ -995,6 +1030,12 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         or candidate_target.get("expectedProcessStartUtc")
         or safe_mapping(static_readback.get("target")).get("expectedProcessStartUtc")
     )
+    candidate_target_blockers = candidate_target_mismatch_blockers(
+        candidate_target,
+        pid=pid,
+        hwnd=hwnd,
+        expected_process_start_utc=expected_start,
+    )
 
     blockers: list[str] = []
     warnings: list[str] = []
@@ -1017,6 +1058,11 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         blockers.append("coordinate-candidate-address-missing")
     if not module_base:
         blockers.append("module-base-missing")
+    if candidate_target_blockers:
+        blockers.extend(candidate_target_blockers)
+        warnings.append("coordinate-candidate-from-stale-readback-skipped")
+    elif candidate_path and expected_start and not candidate_target.get("expectedProcessStartUtc"):
+        warnings.append("candidate-readback-process-start-unbound")
 
     stale_root = {
         "status": static_readback.get("status"),
@@ -1038,7 +1084,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "moduleSize": hex_int(module_size),
         "liveOwnerProbe": False,
     }
-    if not args.artifact_only and pid and hwnd and candidate_address and module_base:
+    if not args.artifact_only and not candidate_target_blockers and pid and hwnd and candidate_address and module_base:
         live_target, owner_hypotheses, live_blockers, live_warnings = live_owner_hypotheses(
             pid=int(pid),
             hwnd=str(hwnd),
@@ -1056,6 +1102,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         warnings.extend(live_warnings)
     elif args.artifact_only:
         warnings.append("artifact-only-live-owner-shape-not-probed")
+    elif candidate_target_blockers:
+        warnings.append("live-owner-probe-skipped-until-current-target-candidate-readback-refresh")
     else:
         blockers.append("live-owner-probe-missing-required-target-fields")
 
@@ -1108,7 +1156,14 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     )
 
     top_rvas = [str(item.get("rva")) for item in safe_list(owner_batch_summary.get("moduleRvaHints"))[:3] if item.get("rva")]
-    if root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
+    if candidate_target_blockers:
+        recommended = (
+            "Refresh the current-PID coordinate-family candidate evidence for the exact target before repeating owner/root "
+            "rediscovery. The latest candidate-readback artifact belongs to a different PID/HWND/start epoch, so its "
+            "absolute heap address is historical only. Run a fresh no-input family scan, then current_pid_candidate_readback.py, "
+            "then re-run this helper with --candidate-readback-json pointing at the fresh candidate-readback summary."
+        )
+    elif root_signature_batch_summary.get("classification") == "heap-ref-storage-only-no-parent-root":
         if static_access_chain_path:
             recommended = (
                 "Stop repeating the same module-RVA root sweeps for this epoch; they reconfirm the heap/ref-storage island but found no parent/root candidate. "
@@ -1130,6 +1185,87 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if top_rvas:
         recommended += " Top current module RVA hints: " + ", ".join(top_rvas) + "."
 
+    top_read_only_commands = []
+    if candidate_target_blockers:
+        top_read_only_commands.extend(
+            [
+                [
+                    "python",
+                    "scripts\\scan_current_pid_coordinate_family.py",
+                    "--pid",
+                    str(pid or "<pid>"),
+                    "--hwnd",
+                    str(hwnd or "<hwnd>"),
+                    "--process-name",
+                    "rift_x64",
+                    "--module-base",
+                    hex_int(module_base) or "<module-base>",
+                    "--expected-process-start-utc",
+                    str(expected_start or "<process-start-utc>"),
+                    "--tolerance",
+                    str(args.tolerance),
+                    "--max-hits",
+                    "200",
+                    "--max-seconds",
+                    "180",
+                    "--json",
+                ],
+                [
+                    "python",
+                    "scripts\\current_pid_candidate_readback.py",
+                    "--pid",
+                    str(pid or "<pid>"),
+                    "--hwnd",
+                    str(hwnd or "<hwnd>"),
+                    "--candidate-jsonl",
+                    "<fresh-family-scan-api-family-vec3-candidates.jsonl>",
+                    "--expected-process-start-utc",
+                    str(expected_start or "<process-start-utc>"),
+                    "--json",
+                ],
+            ]
+        )
+    top_read_only_commands.extend(
+        [
+            [
+                "python",
+                "scripts\\postupdate_static_access_chain.py",
+                "--json",
+            ],
+            [
+                "python",
+                "scripts\\postupdate_root_signature_seed.py",
+                "--from-owner-batch-summary",
+                str(owner_batch_path) if owner_batch_path else "<owner-batch-summary>",
+                "--json",
+            ],
+            [
+                "python",
+                "scripts\\pointer_owner_batch_inspector.py",
+                "--from-pointer-family-summary",
+                str(pointer_family_path) if pointer_family_path else "<pointer-family-summary>",
+                "--target-pid",
+                str(pid or "<pid>"),
+                "--target-hwnd",
+                str(hwnd or "<hwnd>"),
+                "--expected-module-base",
+                hex_int(module_base) or "<module-base>",
+                "--include-module-pointers",
+                "--json",
+            ],
+            [
+                "python",
+                "scripts\\root_signature_batch_sweep.py",
+                "--from-owner-batch-summary",
+                str(owner_batch_path) if owner_batch_path else "<owner-batch-summary>",
+                "--root-signature-json",
+                "<current-root-signature-summary.json>",
+                "--dry-run",
+                "--json",
+            ],
+        ]
+    )
+
     output_root = resolve_path(repo_root, args.output_root) if args.output_root else repo_root / "scripts" / "captures"
     output_dir = output_root / f"postupdate-owner-root-rediscovery-{utc_stamp()}"
     summary_json = output_dir / "summary.json"
@@ -1144,6 +1280,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "repoRoot": str(repo_root),
         "gameEpoch": game_epoch,
         "target": target,
+        "candidateReadbackTarget": candidate_target,
         "artifactInputs": {
             "candidateReadback": str(candidate_path.resolve()) if candidate_path else None,
             "staticReadback": str(static_readback_path.resolve()) if static_readback_path else None,
@@ -1184,44 +1321,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "safety": safety,
         "next": {
             "recommendedAction": recommended,
-            "topReadOnlyCommands": [
-                [
-                    "python",
-                    "scripts\\postupdate_static_access_chain.py",
-                    "--json",
-                ],
-                [
-                    "python",
-                    "scripts\\postupdate_root_signature_seed.py",
-                    "--from-owner-batch-summary",
-                    str(owner_batch_path) if owner_batch_path else "<owner-batch-summary>",
-                    "--json",
-                ],
-                [
-                    "python",
-                    "scripts\\pointer_owner_batch_inspector.py",
-                    "--from-pointer-family-summary",
-                    str(pointer_family_path) if pointer_family_path else "<pointer-family-summary>",
-                    "--target-pid",
-                    str(pid or "<pid>"),
-                    "--target-hwnd",
-                    str(hwnd or "<hwnd>"),
-                    "--expected-module-base",
-                    hex_int(module_base) or "<module-base>",
-                    "--include-module-pointers",
-                    "--json",
-                ],
-                [
-                    "python",
-                    "scripts\\root_signature_batch_sweep.py",
-                    "--from-owner-batch-summary",
-                    str(owner_batch_path) if owner_batch_path else "<owner-batch-summary>",
-                    "--root-signature-json",
-                    "<current-root-signature-summary.json>",
-                    "--dry-run",
-                    "--json",
-                ],
-            ],
+            "topReadOnlyCommands": top_read_only_commands,
             "requiresApprovalBefore": [
                 "movement/displacement stimulus",
                 "x64dbg or Cheat Engine",

@@ -46,6 +46,10 @@ class MEMORY_BASIC_INFORMATION(ctypes.Structure):
     ]
 
 
+class FILETIME(ctypes.Structure):
+    _fields_ = [("dwLowDateTime", ctypes.c_ulong), ("dwHighDateTime", ctypes.c_ulong)]
+
+
 kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 kernel32.OpenProcess.restype = wintypes.HANDLE
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
@@ -56,6 +60,14 @@ kernel32.ReadProcessMemory.argtypes = [wintypes.HANDLE, ctypes.c_void_p, ctypes.
 kernel32.ReadProcessMemory.restype = wintypes.BOOL
 kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
 kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.GetProcessTimes.argtypes = [
+    wintypes.HANDLE,
+    ctypes.POINTER(FILETIME),
+    ctypes.POINTER(FILETIME),
+    ctypes.POINTER(FILETIME),
+    ctypes.POINTER(FILETIME),
+]
+kernel32.GetProcessTimes.restype = wintypes.BOOL
 user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
@@ -163,6 +175,65 @@ def write_json(path: Path, value: Any) -> None:
 
 def load_json_file(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def parse_process_start_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    if "." in text:
+        prefix, suffix = text.split(".", 1)
+        tz_suffix = ""
+        if "+" in suffix:
+            fraction, tz_suffix = suffix.split("+", 1)
+            tz_suffix = "+" + tz_suffix
+        elif "-" in suffix:
+            fraction, tz_suffix = suffix.split("-", 1)
+            tz_suffix = "-" + tz_suffix
+        else:
+            fraction = suffix
+        if len(fraction) > 6:
+            text = f"{prefix}.{fraction[:6]}{tz_suffix}"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def process_start_matches(actual_utc: Any, expected_utc: Any, *, tolerance_seconds: float = 2.0) -> bool:
+    actual = parse_process_start_datetime(actual_utc)
+    expected = parse_process_start_datetime(expected_utc)
+    if actual is None or expected is None:
+        return False
+    return abs((actual - expected).total_seconds()) <= tolerance_seconds
+
+
+def filetime_to_iso(filetime: FILETIME) -> str:
+    value = (int(filetime.dwHighDateTime) << 32) + int(filetime.dwLowDateTime)
+    unix_seconds = (value - 116444736000000000) / 10000000
+    return datetime.fromtimestamp(unix_seconds, timezone.utc).isoformat()
+
+
+def get_process_start_utc(handle: int) -> str | None:
+    create = FILETIME()
+    exit_time = FILETIME()
+    kernel = FILETIME()
+    user = FILETIME()
+    ok = kernel32.GetProcessTimes(
+        wintypes.HANDLE(handle),
+        ctypes.byref(create),
+        ctypes.byref(exit_time),
+        ctypes.byref(kernel),
+        ctypes.byref(user),
+    )
+    if not ok:
+        return None
+    return filetime_to_iso(create)
 
 
 def is_readable_region(mbi: MEMORY_BASIC_INFORMATION) -> bool:
@@ -372,6 +443,8 @@ def main() -> int:
     parser.add_argument("--reference-x", type=float, default=None)
     parser.add_argument("--reference-y", type=float, default=None)
     parser.add_argument("--reference-z", type=float, default=None)
+    parser.add_argument("--module-base", default=None)
+    parser.add_argument("--expected-process-start-utc", default=None)
     parser.add_argument("--tolerance", type=float, default=0.25)
     parser.add_argument("--max-hits", type=int, default=200)
     parser.add_argument("--chunk-bytes", type=int, default=4 * 1024 * 1024)
@@ -403,6 +476,13 @@ def main() -> int:
         "processName": args.process_name,
         "processId": args.pid,
         "targetWindowHandle": args.hwnd,
+        "target": {
+            "pid": args.pid,
+            "hwnd": args.hwnd,
+            "moduleBase": args.module_base,
+            "expectedProcessStartUtc": args.expected_process_start_utc,
+            "processIdentityVerified": False,
+        },
         "safety": {
             "movementSent": False,
             "inputSent": False,
@@ -426,7 +506,7 @@ def main() -> int:
             return return_code
 
         hwnd_info = verify_hwnd_owner(args.hwnd, args.pid)
-        summary["target"] = hwnd_info
+        summary["target"].update(hwnd_info)
         if hwnd_info.get("blocker"):
             summary["status"] = "blocked"
             summary["blockers"].append(str(hwnd_info["blocker"]))
@@ -435,6 +515,23 @@ def main() -> int:
 
         handle = open_process(args.pid)
         try:
+            actual_start = get_process_start_utc(handle)
+            summary["target"]["actualProcessStartUtc"] = actual_start
+            if args.expected_process_start_utc:
+                if not actual_start:
+                    summary["status"] = "blocked"
+                    summary["blockers"].append("process-start-unavailable")
+                    return_code = 2
+                    return return_code
+                if not process_start_matches(actual_start, args.expected_process_start_utc):
+                    summary["status"] = "blocked"
+                    summary["blockers"].append("process-start-mismatch")
+                    return_code = 2
+                    return return_code
+                summary["target"]["processIdentityVerified"] = True
+            else:
+                summary["warnings"].append("process-start-not-bound-pass---expected-process-start-utc-for-exact-target-safety")
+
             image = query_process_image(handle)
             summary["target"]["processImage"] = image
             if image and args.process_name.lower() not in Path(image).stem.lower():

@@ -135,6 +135,23 @@ class PostUpdateOwnerRootRediscoveryTests(unittest.TestCase):
             )
         )
 
+    def test_candidate_target_mismatch_blockers_detect_stale_pid_hwnd_readback(self) -> None:
+        blockers = helper.candidate_target_mismatch_blockers(
+            {
+                "pid": 130540,
+                "hwnd": "0x9310EA",
+                "expectedProcessStartUtc": "2026-06-18T06:07:51Z",
+            },
+            pid=148616,
+            hwnd="0x618C8",
+            expected_process_start_utc="2026-06-30T08:49:06.8032030-04:00",
+        )
+
+        self.assertIn("candidate-readback-pid-mismatch", blockers)
+        self.assertIn("candidate-readback-hwnd-mismatch", blockers)
+        self.assertIn("candidate-readback-process-start-mismatch", blockers)
+        self.assertIn("candidate-readback-target-mismatch", blockers)
+
     def test_read_game_epoch_extracts_manifest_version_and_exe_entry(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

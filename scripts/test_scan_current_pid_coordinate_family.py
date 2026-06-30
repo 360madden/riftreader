@@ -22,6 +22,20 @@ class ScanCurrentPidCoordinateFamilyTests(unittest.TestCase):
 
         self.assertEqual(payload["coordinate"], {"x": 1, "y": 2, "z": 3})
 
+    def test_process_start_matches_normalizes_seven_digit_fraction_and_offsets(self) -> None:
+        self.assertTrue(
+            scan.process_start_matches(
+                "2026-06-30T12:49:06.803203+00:00",
+                "2026-06-30T08:49:06.8032030-04:00",
+            )
+        )
+        self.assertFalse(
+            scan.process_start_matches(
+                "2026-06-30T12:49:06.803203+00:00",
+                "2026-06-30T12:50:06.803203+00:00",
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

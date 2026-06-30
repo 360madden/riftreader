@@ -178,6 +178,111 @@ def build_seed_packet(
     }
 
 
+def select_owner_hypothesis(owner_rediscovery: Mapping[str, Any], explicit_owner: str | None = None) -> dict[str, Any]:
+    wanted_owner = normalize_hex(explicit_owner) if explicit_owner else None
+    hypotheses = [safe_mapping(item) for item in safe_list(owner_rediscovery.get("ownerShapeHypotheses"))]
+    if wanted_owner:
+        for hypothesis in hypotheses:
+            if normalize_hex(hypothesis.get("ownerHypothesisAddress")) == wanted_owner:
+                return hypothesis
+        return {"ownerHypothesisAddress": wanted_owner}
+    for hypothesis in hypotheses:
+        if hypothesis.get("classification") == "owner-shaped-candidate":
+            return hypothesis
+    return hypotheses[0] if hypotheses else {}
+
+
+def owner_hypothesis_module_fields(hypothesis: Mapping[str, Any], owner_hex: str | None) -> list[dict[str, Any]]:
+    fields: list[dict[str, Any]] = []
+    owner_int = parse_int(owner_hex)
+    seen: set[tuple[str | None, str | None]] = set()
+    for pointer in safe_list(hypothesis.get("modulePointersFirst0x90")):
+        pointer_map = safe_mapping(pointer)
+        offset = signed_hex(parse_int(pointer_map.get("offset")))
+        rva = normalize_hex(pointer_map.get("rva"))
+        value = normalize_hex(pointer_map.get("value"))
+        offset_int = parse_int(offset)
+        storage = int_hex(owner_int + offset_int) if owner_int is not None and offset_int is not None else None
+        key = (offset, rva)
+        if key in seen:
+            continue
+        seen.add(key)
+        fields.append(
+            {
+                "offsetFromOwner": offset,
+                "rva": rva,
+                "absoluteValue": value,
+                "sourceStorageAddress": storage,
+                "candidateOnly": True,
+            }
+        )
+    return sorted(fields, key=lambda item: (parse_int(item.get("offsetFromOwner")) or 0, str(item.get("rva"))))
+
+
+def build_seed_packet_from_owner_rediscovery(
+    owner_rediscovery: Mapping[str, Any],
+    *,
+    source_owner_rediscovery: str | None = None,
+    explicit_owner: str | None = None,
+) -> dict[str, Any]:
+    hypothesis = select_owner_hypothesis(owner_rediscovery, explicit_owner)
+    owner_hex = normalize_hex(hypothesis.get("ownerHypothesisAddress") or explicit_owner)
+    coordinate_candidate = safe_mapping(owner_rediscovery.get("coordinateCandidate"))
+    coordinate_address = normalize_hex(coordinate_candidate.get("addressHex"))
+    coordinate_slot_offset = normalize_hex(hypothesis.get("offsetAssumption"))
+    fields = owner_hypothesis_module_fields(hypothesis, owner_hex)
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not owner_hex:
+        blockers.append("owner-base-missing")
+    if not coordinate_address:
+        blockers.append("coordinate-address-missing")
+    if not fields:
+        blockers.append("owner-module-fields-missing")
+    if len(fields) < 3:
+        warnings.append(f"weak-owner-module-field-count:{len(fields)}")
+
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "postupdate-root-signature-seed",
+        "generatedAtUtc": utc_iso(),
+        "status": "blocked" if blockers else "candidate-only",
+        "sourceOwnerRediscovery": source_owner_rediscovery,
+        "target": owner_rediscovery.get("target"),
+        "signature": {
+            "ownerBase": owner_hex,
+            "coordinateAddress": coordinate_address,
+            "coordinateSlotOffset": coordinate_slot_offset,
+            "coordPointer": None,
+            "coordPointerSlotOffset": None,
+            "ownerModuleFields": fields,
+        },
+        "rootSearch": {
+            "candidateOnly": True,
+            "source": "owner-shaped-coordinate-candidate",
+        },
+        "blockers": blockers or ["candidate-only-owner-shaped-not-promoted-root"],
+        "warnings": warnings,
+        "safety": {
+            "movementSent": False,
+            "inputSent": False,
+            "reloaduiSent": False,
+            "screenshotKeySent": False,
+            "targetMemoryBytesRead": False,
+            "targetMemoryBytesWritten": False,
+            "x64dbgAttached": False,
+            "debuggerAttached": False,
+            "noCheatEngine": True,
+            "providerWrites": False,
+            "proofPromoted": False,
+            "candidateOnly": True,
+        },
+        "next": {
+            "recommendedAction": "Use only as a current-PID owner-shape module-hint seed for read-only sweeps; do not promote.",
+        },
+    }
+
+
 def build_markdown(packet: Mapping[str, Any], *, seed_path: Path) -> str:
     signature = safe_mapping(packet.get("signature"))
     lines = [
@@ -205,14 +310,24 @@ def build_markdown(packet: Mapping[str, Any], *, seed_path: Path) -> str:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_module()
-    owner_batch_path = args.from_owner_batch_summary.resolve()
-    owner_batch = load_json_object(owner_batch_path)
-    packet = build_seed_packet(
-        owner_batch,
-        source_owner_batch=str(owner_batch_path),
-        explicit_owner=args.owner,
-    )
-    target = safe_mapping(owner_batch.get("target"))
+    if args.from_owner_rediscovery_summary:
+        owner_rediscovery_path = args.from_owner_rediscovery_summary.resolve()
+        owner_rediscovery = load_json_object(owner_rediscovery_path)
+        packet = build_seed_packet_from_owner_rediscovery(
+            owner_rediscovery,
+            source_owner_rediscovery=str(owner_rediscovery_path),
+            explicit_owner=args.owner,
+        )
+        target = safe_mapping(owner_rediscovery.get("target"))
+    else:
+        owner_batch_path = args.from_owner_batch_summary.resolve()
+        owner_batch = load_json_object(owner_batch_path)
+        packet = build_seed_packet(
+            owner_batch,
+            source_owner_batch=str(owner_batch_path),
+            explicit_owner=args.owner,
+        )
+        target = safe_mapping(owner_batch.get("target"))
     pid = parse_int(target.get("pid"))
     run_dir = (
         args.output_root.resolve()
@@ -279,6 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a candidate-only post-update root-signature seed from an owner-batch summary.")
     parser.add_argument("--repo-root", type=Path, default=None)
     parser.add_argument("--from-owner-batch-summary", type=Path, required=False)
+    parser.add_argument("--from-owner-rediscovery-summary", type=Path, required=False)
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--owner", default=None)
     parser.add_argument("--self-test", action="store_true")
@@ -295,8 +411,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(result["status"])
         return 0 if result["status"] == "passed" else 1
-    if not args.from_owner_batch_summary:
-        raise SystemExit("--from-owner-batch-summary is required unless --self-test is used")
+    if not args.from_owner_batch_summary and not args.from_owner_rediscovery_summary:
+        raise SystemExit("--from-owner-batch-summary or --from-owner-rediscovery-summary is required unless --self-test is used")
+    if args.from_owner_batch_summary and args.from_owner_rediscovery_summary:
+        raise SystemExit("Pass only one of --from-owner-batch-summary or --from-owner-rediscovery-summary")
     packet = run(args)
     if args.json:
         signature = safe_mapping(packet.get("signature"))

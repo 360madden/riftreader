@@ -80,6 +80,33 @@ class PostUpdateRootSignatureSeedTests(unittest.TestCase):
         self.assertEqual(packet["status"], "blocked")
         self.assertIn("owner-module-fields-missing", packet["blockers"])
 
+    def test_build_seed_packet_from_owner_rediscovery_uses_owner_shape_module_pointer(self) -> None:
+        packet = helper.build_seed_packet_from_owner_rediscovery(
+            {
+                "target": {"pid": 148616, "hwnd": "0x618C8"},
+                "coordinateCandidate": {"addressHex": "0x2443766F5F8"},
+                "ownerShapeHypotheses": [
+                    {
+                        "ownerHypothesisAddress": "0x2443766F2D8",
+                        "offsetAssumption": "0x320",
+                        "classification": "owner-shaped-candidate",
+                        "modulePointersFirst0x90": [
+                            {"offset": "0x38", "value": "0x7FF677EAD1F0", "rva": "0x265D1F0"}
+                        ],
+                    }
+                ],
+            },
+            source_owner_rediscovery="owner-root-summary.json",
+        )
+
+        self.assertEqual(packet["status"], "candidate-only")
+        self.assertEqual(packet["signature"]["ownerBase"], "0x2443766F2D8")
+        self.assertEqual(packet["signature"]["coordinateAddress"], "0x2443766F5F8")
+        self.assertEqual(packet["signature"]["coordinateSlotOffset"], "0x320")
+        self.assertEqual(packet["signature"]["ownerModuleFields"][0]["offsetFromOwner"], "0x38")
+        self.assertEqual(packet["signature"]["ownerModuleFields"][0]["rva"], "0x265D1F0")
+        self.assertIn("weak-owner-module-field-count:1", packet["warnings"])
+
     def test_self_test_passes(self) -> None:
         self.assertEqual(helper.self_test()["status"], "passed")
 
