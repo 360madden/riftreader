@@ -158,6 +158,19 @@ def active_waypoint_index(pose: Mapping[str, float], waypoints: Sequence[Mapping
     return None
 
 
+def record_arrived_waypoints(
+    pose: Mapping[str, float],
+    waypoints: Sequence[Mapping[str, Any]],
+    arrived_waypoint_ids: list[str],
+) -> None:
+    """Record contiguous route-order waypoints already satisfied by the current pose."""
+    while len(arrived_waypoint_ids) < len(waypoints):
+        waypoint = waypoints[len(arrived_waypoint_ids)]
+        if planar_distance(pose, waypoint) > float(waypoint["arrivalRadius"]):
+            return
+        arrived_waypoint_ids.append(str(waypoint["id"]))
+
+
 def turn_direction(delta_degrees: float) -> str:
     if delta_degrees > 0:
         return "right"
@@ -202,8 +215,8 @@ def simulate_route(
     last_route_status = "not-started"
 
     for step_number in range(1, max_steps + 1):
-        active_index = active_waypoint_index(pose, waypoints)
-        if active_index is None:
+        record_arrived_waypoints(pose, waypoints, arrived_waypoint_ids)
+        if len(arrived_waypoint_ids) >= len(waypoints):
             last_route_status = "arrived"
             return {
                 "status": "passed",
@@ -218,6 +231,7 @@ def simulate_route(
                 "warnings": warnings,
                 "errors": [],
             }
+        active_index = len(arrived_waypoint_ids)
 
         waypoint = waypoints[active_index]
         initial_distance = planar_distance(pose, waypoint)
@@ -246,8 +260,7 @@ def simulate_route(
             if final_distance <= float(waypoint["arrivalRadius"]):
                 route_status = "arrived"
                 stop_reason = "within-arrival-radius"
-                if str(waypoint["id"]) not in arrived_waypoint_ids:
-                    arrived_waypoint_ids.append(str(waypoint["id"]))
+                record_arrived_waypoints(pose, waypoints, arrived_waypoint_ids)
             elif progress < -float(wrong_way_tolerance_distance):
                 route_status = "wrong-way"
                 stop_reason = "distance-increased-beyond-tolerance"
@@ -298,8 +311,8 @@ def simulate_route(
                 "errors": [],
             }
 
-    active_index = active_waypoint_index(pose, waypoints)
-    if active_index is None:
+    record_arrived_waypoints(pose, waypoints, arrived_waypoint_ids)
+    if len(arrived_waypoint_ids) >= len(waypoints):
         return {
             "status": "passed",
             "verdict": "offline-simulation-route-complete",
@@ -371,6 +384,11 @@ def validate_simulation_contract(summary: Mapping[str, Any]) -> dict[str, Any]:
             blockers.append("simulation-steps-run-must-match-step-count")
         if simulation.get("arrived") is True and simulation.get("lastRouteStatus") != "arrived":
             blockers.append("arrived-simulation-last-route-status-must-be-arrived")
+        arrived_waypoint_ids = simulation.get("arrivedWaypointIds")
+        waypoints = summary.get("waypoints")
+        if simulation.get("arrived") is True and isinstance(arrived_waypoint_ids, list) and isinstance(waypoints, list):
+            if len(arrived_waypoint_ids) != len(waypoints):
+                blockers.append("arrived-simulation-must-record-all-waypoints")
     return {
         "status": "blocked" if blockers else "passed",
         "blockers": sorted(set(blockers)),

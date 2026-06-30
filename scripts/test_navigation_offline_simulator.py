@@ -77,6 +77,34 @@ class NavigationOfflineSimulatorTests(unittest.TestCase):
         self.assertEqual("forward", result["steps"][2]["action"])
         self.assertTrue(result["arrived"])
 
+    def test_start_inside_waypoint_records_arrived_id(self) -> None:
+        result = simulate_route(
+            start_pose={"x": 0.0, "y": 0.0, "z": 0.0, "yawDegrees": 0.0},
+            waypoints=[{"id": "start", "label": "Start", "x": 0.0, "y": 0.0, "z": 0.0, "arrivalRadius": 1.0}],
+            max_steps=5,
+        )
+
+        self.assertEqual("passed", result["status"])
+        self.assertTrue(result["arrived"])
+        self.assertEqual(0, result["stepsRun"])
+        self.assertEqual(["start"], result["arrivedWaypointIds"])
+
+    def test_completed_waypoint_stays_completed_after_leaving_radius(self) -> None:
+        result = simulate_route(
+            start_pose={"x": 0.0, "y": 0.0, "z": 0.0, "yawDegrees": 0.0},
+            waypoints=[
+                {"id": "first", "label": "First", "x": 2.0, "y": 0.0, "z": 0.0, "arrivalRadius": 1.0},
+                {"id": "second", "label": "Second", "x": 8.0, "y": 0.0, "z": 0.0, "arrivalRadius": 1.0},
+            ],
+            step_distance=2.0,
+            max_steps=5,
+        )
+
+        self.assertEqual("passed", result["status"])
+        self.assertTrue(result["arrived"])
+        self.assertEqual(["first", "second"], result["arrivedWaypointIds"])
+        self.assertEqual(["first", "second"], sorted({step["activeWaypointId"] for step in result["steps"]}))
+
     def test_no_progress_blocks(self) -> None:
         result = simulate_route(
             start_pose={"x": 0.0, "y": 0.0, "z": 0.0, "yawDegrees": 0.0},
