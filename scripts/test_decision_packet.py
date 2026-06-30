@@ -691,6 +691,22 @@ class DecisionPacketTests(unittest.TestCase):
         self.assertIn("latest-static-owner-readback-root-pointer-null", packet["blockers"])
         self.assertTrue(packet["staticOwnerReadback"]["blocksCurrentStaticResolver"])
         self.assertEqual(packet["safeNextAction"]["key"], "postupdate-owner-root-rediscovery")
+        self.assertEqual(
+            packet["safeNextAction"]["command"],
+            [
+                "python",
+                ".\\scripts\\postupdate_owner_root_rediscovery.py",
+                "--pid",
+                "77152",
+                "--hwnd",
+                "0x17A0DB2",
+                "--module-base",
+                "0x7FF7211C0000",
+                "--expected-process-start-utc",
+                "2026-06-02T15:45:29Z",
+                "--json",
+            ],
+        )
         self.assertFalse(packet["truth"]["movementGate"]["allowed"])
         self.assertEqual(packet["truth"]["movementGate"]["status"], "blocked-post-update-static-root-null")
         self.assertFalse(packet["truth"]["actorChain"]["staticResolver"]["usableForNavigation"])

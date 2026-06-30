@@ -649,6 +649,7 @@ def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any
         reads = safe_mapping(data.get("reads"))
         candidate = safe_mapping(data.get("candidate"))
         target = safe_mapping(data.get("target"))
+        process_details = safe_mapping(target.get("processDetails"))
         latest_generated = parse_iso(data.get("generatedAtUtc"))
         root_rva = reads.get("rootRva") or candidate.get("rootRva")
         root_pointer = reads.get("rootPointer")
@@ -673,10 +674,15 @@ def summarize_latest_static_owner_readback(repo_root: Path, truth: dict[str, Any
             "trackedStaticRootRva": static_root_rva,
             "sameRootRvaAsTrackedStaticResolver": same_root,
             "target": {
-                "processId": target.get("processId"),
-                "targetWindowHandle": target.get("targetWindowHandle"),
-                "expectedProcessStartUtc": target.get("expectedProcessStartUtc"),
-                "moduleBase": target.get("moduleBase"),
+                "processId": first_nonempty(target.get("processId"), target.get("pid")),
+                "targetWindowHandle": first_nonempty(target.get("targetWindowHandle"), target.get("hwnd"), target.get("hwndHex")),
+                "expectedProcessStartUtc": first_nonempty(
+                    target.get("expectedProcessStartUtc"),
+                    target.get("processStartUtc"),
+                    target.get("startTimeUtc"),
+                    process_details.get("startTimeUtc"),
+                ),
+                "moduleBase": first_nonempty(target.get("moduleBase"), target.get("moduleBaseAddressHex"), process_details.get("moduleBaseAddressHex")),
             },
             "blocksCurrentStaticResolver": blocks,
             "blocker": "latest-static-owner-readback-root-pointer-null" if blocks else None,
@@ -1449,6 +1455,7 @@ def build_safe_next_action(
     git_state: dict[str, Any],
     truth: dict[str, Any],
     post_update_recovery: dict[str, Any] | None = None,
+    static_owner_readback: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     retired_paths = retired_surface_paths(git_state)
     if retired_paths:
@@ -1481,9 +1488,20 @@ def build_safe_next_action(
                     "Refresh the no-input candidate readback before any movement/restart/proof planning."
                 ),
             }
+        static_target = safe_mapping(safe_mapping(static_owner_readback).get("target"))
+        rediscovery_command = ["python", ".\\scripts\\postupdate_owner_root_rediscovery.py"]
+        if static_target.get("processId") is not None:
+            rediscovery_command.extend(["--pid", str(static_target.get("processId"))])
+        if static_target.get("targetWindowHandle"):
+            rediscovery_command.extend(["--hwnd", str(static_target.get("targetWindowHandle"))])
+        if static_target.get("moduleBase"):
+            rediscovery_command.extend(["--module-base", str(static_target.get("moduleBase"))])
+        if static_target.get("expectedProcessStartUtc"):
+            rediscovery_command.extend(["--expected-process-start-utc", str(static_target.get("expectedProcessStartUtc"))])
+        rediscovery_command.append("--json")
         return {
             "key": "postupdate-owner-root-rediscovery",
-            "command": ["python", ".\\scripts\\postupdate_owner_root_rediscovery.py", "--json"],
+            "command": rediscovery_command,
             "why": (
                 "A newer exact-target static-owner readback found the promoted root pointer null after the game update; "
                 "continue no-input owner/root rediscovery instead of using stale navigation truth."
@@ -1831,7 +1849,7 @@ def build_decision_packet(
     state = milestone_state(sorted(set(blockers)), validation_results)
     commit_plan = build_commit_plan(git_state, validation_results if run_safe_checks else None)
     safe_next_action = build_post_validation_next_action(run_safe_checks, commit_plan) or build_safe_next_action(
-        lane, target_epoch, git_state, truth_summary, post_update_recovery
+        lane, target_epoch, git_state, truth_summary, post_update_recovery, static_owner_readback
     )
     status = "failed" if errors or state == "failed" else ("blocked" if blockers else "passed")
     packet = {

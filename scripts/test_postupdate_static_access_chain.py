@@ -171,6 +171,25 @@ class PostUpdateStaticAccessChainTests(unittest.TestCase):
         self.assertEqual(target["moduleBase"], "0x7FF7211C0000")
         self.assertEqual(target["expectedProcessStartUtc"], "2026-06-02T15:45:29.2617327Z")
 
+    def test_target_with_overrides_replaces_stale_artifact_target(self) -> None:
+        target = helper.target_with_overrides(
+            {
+                "pid": 130540,
+                "hwnd": "0x9310EA",
+                "moduleBase": "0x7FF778CD0000",
+                "expectedProcessStartUtc": "2026-06-17T21:57:01.8571209-04:00",
+            },
+            pid="148616",
+            hwnd="0x618C8",
+            module_base="0x7FF675850000",
+            expected_process_start_utc="2026-06-30T08:49:06.8032030-04:00",
+        )
+
+        self.assertEqual(target["pid"], 148616)
+        self.assertEqual(target["hwnd"], "0x618C8")
+        self.assertEqual(target["moduleBase"], "0x7FF675850000")
+        self.assertEqual(target["expectedProcessStartUtc"], "2026-06-30T08:49:06.8032030-04:00")
+
     def test_process_start_guard_accepts_same_instant_with_different_offsets(self) -> None:
         self.assertTrue(
             helper.rediscovery.process_start_matches(

@@ -943,6 +943,26 @@ def target_from_artifacts(static_readback: Mapping[str, Any], candidate_readback
     return merged
 
 
+def target_with_overrides(
+    target: Mapping[str, Any],
+    *,
+    pid: Any = None,
+    hwnd: Any = None,
+    module_base: Any = None,
+    expected_process_start_utc: Any = None,
+) -> dict[str, Any]:
+    merged = dict(target)
+    if pid not in (None, ""):
+        merged["pid"] = parse_int(pid) or pid
+    if hwnd not in (None, ""):
+        merged["hwnd"] = hwnd
+    if module_base not in (None, ""):
+        merged["moduleBase"] = module_base
+    if expected_process_start_utc not in (None, ""):
+        merged["expectedProcessStartUtc"] = expected_process_start_utc
+    return merged
+
+
 def build_markdown(summary: Mapping[str, Any]) -> str:
     constructor = safe_mapping(summary.get("constructorEvidence"))
     live_samples = [safe_mapping(item) for item in safe_list(summary.get("liveRootSamples"))]
@@ -1112,7 +1132,13 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     static_readback = load_json_object(static_readback_path)
     reference = reference_from_candidate(candidate_readback)
     coordinate_candidate = parse_int(args.coordinate_candidate_address) or rediscovery.candidate_address_from_readback(candidate_readback)
-    target = target_from_artifacts(static_readback, candidate_readback)
+    target = target_with_overrides(
+        target_from_artifacts(static_readback, candidate_readback),
+        pid=args.pid,
+        hwnd=args.hwnd,
+        module_base=args.module_base,
+        expected_process_start_utc=args.expected_process_start_utc,
+    )
 
     candidate_global_roots = [safe_mapping(item) for item in safe_list(constructor.get("candidateGlobalRoots"))]
     root_rvas = [parse_int(item.get("globalRva")) for item in candidate_global_roots]
@@ -1356,6 +1382,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-readback-json")
     parser.add_argument("--static-readback-json")
     parser.add_argument("--static-field-matrix-json")
+    parser.add_argument("--pid")
+    parser.add_argument("--hwnd")
+    parser.add_argument("--module-base")
+    parser.add_argument("--expected-process-start-utc")
     parser.add_argument("--module-size", default=hex(DEFAULT_MODULE_SIZE))
     parser.add_argument("--root-sample-bytes", default=hex(DEFAULT_ROOT_SAMPLE_BYTES))
     parser.add_argument("--global-sample-bytes", default=hex(DEFAULT_GLOBAL_SAMPLE_BYTES))
