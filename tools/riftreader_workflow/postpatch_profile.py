@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -157,7 +156,9 @@ def classify_chain(chain: str) -> dict[str, Any]:
     ) or (
         "+0x28" in lower and "+0x2c" in lower and "+0x30" in lower
     )
-    orientation_like = any(token in lower for token in ["0x335f508", "orientation", "matrix", "+0x30c"])
+    orientation_like = any(
+        token in lower for token in ["0x335f508", "orientation", "matrix", "+0x30c"]
+    )
     if coordinate_like:
         role = "coordinate"
     elif orientation_like:
