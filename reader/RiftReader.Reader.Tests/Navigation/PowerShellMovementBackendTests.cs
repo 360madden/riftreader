@@ -7,7 +7,7 @@ public sealed class PowerShellMovementBackendTests
 {
     // The fixture script records arguments without sleeping; this only extends
     // the backend subprocess timeout for slow PowerShell startup under CI load.
-    private const int FixtureHoldMilliseconds = 12_000;
+    private const int FixtureHoldMilliseconds = 60_000;
 
     [Fact]
     public void Create_UsesNativeWindowMessageBackendWhenExactWindowHandleIsAvailable()
