@@ -494,6 +494,9 @@ def cleanup(state: SessionState, console: Console) -> None:
 
 
 def synthetic_path_with_spaces_test() -> dict:
+    # This self-test runs inside broad Windows CI/unittest discovery, where a
+    # cold Python subprocess can be delayed by CPU contention or AV scanning.
+    synthetic_timeout_seconds = 60
     with tempfile.TemporaryDirectory(prefix="Rift Reader Space Test ") as temp_raw:
         temp = Path(temp_raw)
         script = temp / "fake bridge core.py"
@@ -512,7 +515,7 @@ def synthetic_path_with_spaces_test() -> dict:
             [sys.executable, str(script), "--preflight", "--payload-root", str(temp / "payload root with spaces"), "--json"],
             cwd=temp,
             description="Synthetic path-with-spaces Python launch",
-            timeout=20,
+            timeout=synthetic_timeout_seconds,
         )
         payload = json.loads(result.stdout)
         return {

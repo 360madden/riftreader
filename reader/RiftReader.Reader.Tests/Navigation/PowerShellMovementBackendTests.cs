@@ -5,6 +5,10 @@ namespace RiftReader.Reader.Tests.Navigation;
 
 public sealed class PowerShellMovementBackendTests
 {
+    // The fixture script records arguments without sleeping; this only extends
+    // the backend subprocess timeout for slow PowerShell startup under CI load.
+    private const int FixtureHoldMilliseconds = 12_000;
+
     [Fact]
     public void Create_UsesNativeWindowMessageBackendWhenExactWindowHandleIsAvailable()
     {
@@ -138,13 +142,13 @@ public sealed class PowerShellMovementBackendTests
             targetProcessId: 49504,
             targetWindowHandle: "0x5121A");
 
-        var result = backend.PressKey("w", 250);
+        var result = backend.PressKey("w", FixtureHoldMilliseconds);
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
         using var document = fixture.ReadInvocation();
         var root = document.RootElement;
         Assert.Equal("w", root.GetProperty("Key").GetString());
-        Assert.Equal(250, root.GetProperty("HoldMilliseconds").GetInt32());
+        Assert.Equal(FixtureHoldMilliseconds, root.GetProperty("HoldMilliseconds").GetInt32());
         Assert.Equal("rift_x64", root.GetProperty("TargetProcessName").GetString());
         Assert.Equal(49504, root.GetProperty("TargetProcessId").GetInt32());
         Assert.Equal("0x5121A", root.GetProperty("TargetWindowHandle").GetString());
@@ -162,7 +166,7 @@ public sealed class PowerShellMovementBackendTests
             "rift_x64",
             targetProcessId: 49504);
 
-        var result = backend.PressKey("w", 250);
+        var result = backend.PressKey("w", FixtureHoldMilliseconds);
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
         using var document = fixture.ReadInvocation();
