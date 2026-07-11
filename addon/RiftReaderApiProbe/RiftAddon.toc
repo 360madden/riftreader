@@ -1,10 +1,10 @@
 Identifier = "RiftReaderApiProbe"
 Name = "RiftReader API Probe"
 NameShort = "RRAP"
-Description = "Live Rift API probe for player coordinate reacquisition without SavedVariables."
+Description = "Comprehensive live API truth source: player, target, environment, nearby units for navigation."
 Author = "OpenAI Codex"
 Website = ""
-Version = "0.1.0"
+Version = "0.2.0"
 Email = "noreply@example.com"
 Environment = "4.4"
 

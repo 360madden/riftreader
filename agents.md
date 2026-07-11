@@ -13,6 +13,37 @@ This file defines the default assistant behavior for work inside
 - Keep responses concise but still detailed enough to be actionable.
 - Prefer technical clarity over narration.
 
+## RIFT addon path (OneDrive invariant)
+
+RIFT loads addons **only** from the OneDrive path:
+
+```
+C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\
+```
+
+**Never read from or write to** `C:\Users\mrkoo\Documents\RIFT\Interface\Addons`
+(non-OneDrive). That path is a stale dead copy and must not be used for
+any addon development, file lookup, or copy operations.
+
+## Cross-repo addon boundaries
+
+Treat `C:\work\rift-bridge\addons\RiftBridge` as **scaffolding**. Use it to
+develop and validate navigation, coordinate, and automation features until
+the repo's own tools are self-sufficient. Once the repo replaces a RiftBridge
+capability, retire that scaffolding module — do not maintain dual paths.
+
+Treat `C:\Users\mrkoo\OneDrive\Documents\RIFT\Interface\AddOns\ReaderBridge`
+as a **data pipe** (live Lua string read by the C# scanner). It is not
+scaffolding; it is a durable dependency until a native memory reader replaces
+it entirely.
+
+| Addon | Role | Lifecycle |
+|---|---|---|
+| `RiftBridge` | Scaffolding | Use during dev, retire when repo replaces it |
+| `ReaderBridge` | Data pipe | Durable until replaced by native memory reader |
+| `RiftReaderApiProbe` | Live API source | Owned by this repo, permanent |
+| `RiftReaderValidator` | Validation | Owned by this repo, permanent |
+
 ## Recommendations
 
 - When recommendations add real value, include **Top 10 recommended next
@@ -771,6 +802,10 @@ Durable workflow doc: `docs/workflow/non-codex-desktop-chatgpt-workflow.md`.
   `docs/recovery/optimized-player-actor-coordinate-chain-workflow.md`; the
   10-phase checklist is
   `docs/recovery/static-coordinate-chain-10-phase-plan-2026-05-21.md`.
+- The target coordinate resolution architecture is now the **hybrid
+  fast-reacquire** strategy (static global seed → dynamic container child →
+  API validation → ProofOnly), not a pure static pointer chain. See
+  `docs/recovery/hybrid-fast-reacquire-strategy.md`.
 - Treat x64dbg coordinate access events as candidate evidence only until they
   are converted into a repo-owned chain resolver and validated against fresh
   API/runtime coordinates.

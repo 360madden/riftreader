@@ -15,7 +15,6 @@ if defined RIFT_ADDONS_DIR (
   call :AddRootsFromList "%RIFT_ADDONS_DIR%"
 ) else (
   call :AddRoot "%USERPROFILE%\OneDrive\Documents\RIFT\Interface\AddOns"
-  call :AddRoot "%USERPROFILE%\Documents\RIFT\Interface\AddOns"
   if defined OneDrive call :AddRoot "%OneDrive%\Documents\RIFT\Interface\AddOns"
 )
 
