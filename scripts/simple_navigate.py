@@ -160,6 +160,7 @@ def navigate_single_target(
     steps: list[dict[str, Any]] = []
     consecutive_closer = 0
     consecutive_further = 0
+    consecutive_stuck = 0
     last_dist = None
 
     for step in range(max_steps):
@@ -205,8 +206,9 @@ def navigate_single_target(
 
         # Check if we got closer or further
         improvement = last_dist - dist
-        if improvement > 0.5:
-            # Got closer — keep going same direction
+
+        if improvement > 0:
+            # Got closer — keep going, don't turn
             consecutive_closer += 1
             consecutive_further = 0
             rec["action"] = "closer"
@@ -216,42 +218,34 @@ def navigate_single_target(
                 print(f"    closer by {improvement:.2f}")
             move_forward(hold_ms=400)
             time.sleep(0.4)
-        elif improvement < -0.5:
-            # Got further — we're going wrong way, try turning
+        elif improvement < -1.5:
+            # Clearly going wrong way — back up and turn
             consecutive_further += 1
             consecutive_closer = 0
-            rec["action"] = "further"
+            rec["action"] = "wrong-way"
             rec["improvement"] = round(improvement, 2)
             steps.append(rec)
             if verbose:
-                print(f"    further by {improvement:.2f} — turning")
+                print(f"    WRONG WAY by {improvement:.2f} — turning")
 
-            # Back up a bit
             move_backward(hold_ms=300)
             time.sleep(0.3)
 
-            # Alternate turn direction based on failure count
             if consecutive_further % 2 == 1:
                 turn_left(hold_ms=400)
             else:
                 turn_right(hold_ms=500)
             time.sleep(0.3)
         else:
-            # Not much change — we're stuck, try turning to find a clear path
-            rec["action"] = "stuck"
+            # Small change or small regression — just keep moving forward
+            consecutive_stuck += 1
+            rec["action"] = "nudge"
+            rec["stuck_count"] = consecutive_stuck
             steps.append(rec)
             if verbose:
-                print(f"    stuck ({improvement:+.2f}) — turning to find clear path")
-
-            # Back up first
-            move_backward(hold_ms=300)
-            time.sleep(0.3)
-
-            # Alternate turn direction each time we get stuck
-            if step % 2 == 0:
-                turn_left(hold_ms=500)
-            else:
-                turn_right(hold_ms=600)
+                print(f"    nudge ({improvement:+.2f}) #{consecutive_stuck}")
+            move_forward(hold_ms=400)
+            time.sleep(0.4)
             time.sleep(0.3)
 
         last_dist = dist
