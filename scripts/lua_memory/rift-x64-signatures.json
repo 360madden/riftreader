@@ -1,0 +1,96 @@
+{
+  "$schema": "https://rift-modding.dev/schemas/binary-signatures-v1.schema.json",
+  "SchemaVersion": "binary-signatures/v1",
+  "BinaryTarget": "rift_x64.exe",
+  "ImageBase": "0x140000000",
+  "ExtractedAt": "2026-07-11T00:00:00Z",
+  "WildcardPolicy": "CALL-rel32, JMP-rel32, Jcc-rel32, RIP-relative, ModRM-disp32, MOV-imm32, LEA-RIP",
+  "CandidateOnly": false,
+  "Provenance": {
+    "Source": "Assets repo binary-signature-consumer-contract.md",
+    "CrossCheckerVersion": "8.0"
+  },
+  "Anchors": [
+    {
+      "Name": "api-anchor-inspect-unit-detail",
+      "StabilityTier": 1,
+      "Description": "Inspect.Unit.Detail string in .rdata — primary entry point for unit registry access",
+      "SignatureHex": "49 6E 73 70 65 63 74 2E 55 6E 69 74 2E 44 65 74 61 69 6C 00",
+      "SignatureLength": 22,
+      "WildcardCount": 0,
+      "UniquenessVerified": true,
+      "DiscoveryMethod": "string-scan",
+      "KnownVA": "0x1426772D8",
+      "RuntimeOffset": "string-data"
+    },
+    {
+      "Name": "handler-thunk",
+      "StabilityTier": 1,
+      "Description": "Handler function for Inspect.Unit.Detail field lookups",
+      "SignatureHex": "45 33 C0 BA 10 00 00 00 E9",
+      "SignatureLength": 9,
+      "WildcardCount": 0,
+      "UniquenessVerified": true,
+      "DiscoveryMethod": "byte-scan",
+      "KnownVA": "0x140989570"
+    },
+    {
+      "Name": "vtable-dispatch",
+      "StabilityTier": 1,
+      "Description": "C++ virtual dispatch gate — most stable anchor, zero wildcards",
+      "SignatureHex": "48 85 D2 74 0A 48 83 C1 10 48 8B 01 FF 50 08",
+      "SignatureLength": 15,
+      "WildcardCount": 0,
+      "UniquenessVerified": true,
+      "DiscoveryMethod": "modrm-cluster-heuristic",
+      "KnownVA": "0x14129C834"
+    },
+    {
+      "Name": "registry-accessor",
+      "StabilityTier": 1,
+      "Description": "Unit registry accessor — indexes into unit array to get unit object pointer",
+      "SignatureHex": "48 8B 84 C1 10 08 00 00",
+      "SignatureLength": 8,
+      "WildcardCount": 0,
+      "UniquenessVerified": true,
+      "DiscoveryMethod": "modrm-cluster-heuristic",
+      "KnownVA": "0x140758bd3",
+      "Instruction": "MOV RAX, [RAX + RCX * 8 + 0x810]"
+    }
+  ],
+  "Structs": [
+    {
+      "Name": "LocalPlayer",
+      "Description": "Player coordinate/heading sub-structure — accessed via registry + offsets",
+      "EvidenceSource": "modrm-memory-access-scan/v1",
+      "Fields": [
+        {"Offset": 772, "OffsetHex": "0x304", "Name": "turn_rate", "Type": "float32", "Confidence": "inferred", "ModRMHitCount": 35},
+        {"Offset": 780, "OffsetHex": "0x30C", "Name": "facing_x", "Type": "float32", "Confidence": "inferred", "ModRMHitCount": 38},
+        {"Offset": 784, "OffsetHex": "0x310", "Name": "facing_y", "Type": "float32", "Confidence": "confirmed", "ModRMHitCount": 566},
+        {"Offset": 792, "OffsetHex": "0x318", "Name": "facing_z", "Type": "float32", "Confidence": "inferred", "ModRMHitCount": 41},
+        {"Offset": 800, "OffsetHex": "0x320", "Name": "pos_x", "Type": "float32", "Confidence": "confirmed", "ModRMHitCount": 623},
+        {"Offset": 804, "OffsetHex": "0x324", "Name": "pos_y", "Type": "float32", "Confidence": "inferred", "ModRMHitCount": 39},
+        {"Offset": 808, "OffsetHex": "0x328", "Name": "pos_z", "Type": "float32", "Confidence": "confirmed", "ModRMHitCount": 646}
+      ]
+    },
+    {
+      "Name": "UnitObject",
+      "Description": "RIFT unit object — base structure for all game entities",
+      "EvidenceSource": "binary-signature-consumer-contract/v8",
+      "Fields": [
+        {"Offset": 288, "OffsetHex": "0x120", "Name": "player_flag", "Type": "uint32", "Notes": "1 = player, 0 = NPC"},
+        {"Offset": 1760, "OffsetHex": "0x6E0", "Name": "details_substructure", "Type": "pointer", "Notes": "Pointer to name/details sub-struct"},
+        {"Offset": 1792, "OffsetHex": "0x700", "Name": "flag_byte", "Type": "uint8", "Notes": "Boolean flag"},
+        {"Offset": 3852, "OffsetHex": "0xF0C", "Name": "comparison_field", "Type": "uint32", "Notes": "Compared with register value"}
+      ]
+    }
+  ],
+  "Summary": {
+    "TotalAnchors": 4,
+    "UniqueSignatures": 4,
+    "StabilityTier1Count": 4,
+    "StabilityTier2Count": 0,
+    "StabilityTier3Count": 0,
+    "AttachedStructCount": 2
+  }
+}
