@@ -1,0 +1,11 @@
+{
+    "name": "Silverwood Test Loop",
+    "description": "Short loop near Silver Landing for navigation testing",
+    "waypoints": [
+        {"x": 7000.0, "y": 842.0, "z": 3300.0, "label": "Start"},
+        {"x": 7020.0, "y": 842.0, "z": 3300.0, "label": "East"},
+        {"x": 7020.0, "y": 842.0, "z": 3320.0, "label": "South-East"},
+        {"x": 7000.0, "y": 842.0, "z": 3320.0, "label": "South"},
+        {"x": 7000.0, "y": 842.0, "z": 3300.0, "label": "Back to Start"}
+    ]
+}
