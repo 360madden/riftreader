@@ -1,0 +1,17 @@
+{
+  "name": "South then West",
+  "waypoints": [
+    {
+      "z": 3313.27,
+      "x": 6999.22,
+      "y": 842.0,
+      "label": "South 4m"
+    },
+    {
+      "z": 3313.27,
+      "x": 6995.22,
+      "y": 842.0,
+      "label": "West 4m"
+    }
+  ]
+}
