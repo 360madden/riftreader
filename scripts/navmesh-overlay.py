@@ -79,12 +79,13 @@ class NavmeshOverlay:
         tk.Button(controls, text="-", command=lambda: self.zoom(0.8)).pack(side=tk.LEFT)
         tk.Button(controls, text="Center", command=self.center_on_player).pack(side=tk.LEFT)
         tk.Button(controls, text="Clear WP", command=self.clear_waypoints).pack(side=tk.LEFT)
-        tk.Label(controls, text="Click=waypoint, Drag=pan", fg="gray", bg="black").pack(side=tk.RIGHT)
+        tk.Label(controls, text="L-click=waypoint, R-drag=pan", fg="gray", bg="black").pack(side=tk.RIGHT)
 
-        # Bindings
+        # Bindings — scroll on root so it works anywhere in the overlay
+        self.root.bind("<MouseWheel>", self.on_scroll)
         self.canvas.bind("<Button-1>", self.on_click)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        self.canvas.bind("<MouseWheel>", self.on_scroll)
+        self.canvas.bind("<Button-3>", self.on_right_click)
+        self.canvas.bind("<B3-Motion>", self.on_drag)
 
         self._drag_start = None
         self._draw()
@@ -158,8 +159,14 @@ class NavmeshOverlay:
         for (x, z), val in self.navmesh["nodes"].items():
             cx, cy = self._game_to_canvas(x, z)
 
+            # Handle both dict and list node formats
+            if isinstance(val, dict):
+                neighbors = val.get("neighbors", [])
+            else:
+                neighbors = []
+
             # Draw connections
-            for neighbor_key in val.get("neighbors", []):
+            for neighbor_key in neighbors:
                 neighbor_tuple = tuple(neighbor_key) if isinstance(neighbor_key, list) else neighbor_key
                 edge = tuple(sorted([(x, z), neighbor_tuple]))
                 if edge in drawn_edges:
@@ -208,6 +215,9 @@ class NavmeshOverlay:
         if self.target_waypoint is None:
             self.target_waypoint = 0
         print(f"Waypoint set: ({gx:.1f}, {gz:.1f})")
+
+    def on_right_click(self, event):
+        self._drag_start = (event.x, event.y)
 
     def on_drag(self, event):
         if self._drag_start:
@@ -262,12 +272,14 @@ class NavmeshOverlay:
             self.recorded_positions.append([round(x, 2), round(y, 2), round(z, 2)])
             self.record_sample_count += 1
             self.record_label.config(text=f"{self.record_sample_count} pts")
-            # Add to navmesh live
             gs = self.navmesh.get("grid_size", 2.0)
             key = (round(x / gs) * gs, round(z / gs) * gs)
             if key not in self.navmesh["nodes"]:
-                self.navmesh["nodes"][key] = []
-            self.navmesh["nodes"][key].append({"x": round(x, 1), "y": round(y, 1), "z": round(z, 1)})
+                self.navmesh["nodes"][key] = {"x": round(x, 1), "y": round(y, 1), "z": round(z, 1), "neighbors": []}
+            else:
+                self.navmesh["nodes"][key]["x"] = round(x, 1)
+                self.navmesh["nodes"][key]["y"] = round(y, 1)
+                self.navmesh["nodes"][key]["z"] = round(z, 1)
         self.root.after(self.record_interval_ms, self._sample_record_position)
 
     def _save_recorded(self):
