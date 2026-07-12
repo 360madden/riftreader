@@ -6,6 +6,7 @@ import math
 import os
 import sys
 import time
+import threading
 import tkinter as tk
 from pathlib import Path
 
@@ -34,6 +35,9 @@ class NavmeshOverlay:
         self.recorded_positions = []
         self.record_sample_count = 0
         self.record_interval_ms = 500
+
+        # Navigation state
+        self.is_navigating = False
 
         # View settings
         self.scale = 2.0  # pixels per game unit
@@ -70,6 +74,16 @@ class NavmeshOverlay:
         self.record_btn.pack(side=tk.LEFT, padx=2)
         self.record_label = tk.Label(controls, text="", fg="gray", bg="black")
         self.record_label.pack(side=tk.LEFT, padx=4)
+
+        # Separator
+        tk.Frame(controls, width=2, bg="gray").pack(side=tk.LEFT, fill=tk.Y, padx=4)
+
+        # Navigate button
+        self.nav_btn = tk.Button(controls, text="Navigate", command=self.start_navigation,
+                                 fg="white", bg="#336")
+        self.nav_btn.pack(side=tk.LEFT, padx=2)
+        self.nav_label = tk.Label(controls, text="", fg="gray", bg="black")
+        self.nav_label.pack(side=tk.LEFT, padx=4)
 
         # Separator
         tk.Frame(controls, width=2, bg="gray").pack(side=tk.LEFT, fill=tk.Y, padx=4)
@@ -242,6 +256,73 @@ class NavmeshOverlay:
     def clear_waypoints(self):
         self.waypoints = []
         self.target_waypoint = None
+
+    def start_navigation(self):
+        """Navigate to all waypoints using nav7."""
+        if not self.waypoints:
+            self.nav_label.config(text="No waypoints!", fg="red")
+            return
+        if self.is_navigating:
+            self.nav_label.config(text="Already navigating!", fg="yellow")
+            return
+
+        self.is_navigating = True
+        self.nav_btn.config(state=tk.DISABLED, bg="#633")
+        self.nav_label.config(text=f"Navigating {len(self.waypoints)} WPs...", fg="cyan")
+        self.root.after(100, self._run_navigation)
+
+    def _run_navigation(self):
+        """Run nav7 in background thread."""
+        import subprocess
+        import threading
+
+        def nav_thread():
+            try:
+                cmd = [
+                    sys.executable, str(REPO_ROOT / "scripts" / "nav7.py"),
+                    "--pid", str(self.pid),
+                    "--radius", "5",
+                    "--verbose",
+                ]
+                for wx, wz in self.waypoints:
+                    cmd.extend(["--waypoints", f"{wx:.1f},{wz:.1f}"])
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
+                                        cwd=str(REPO_ROOT))
+
+                # Parse result
+                try:
+                    lines = result.stdout.strip().split('\n')
+                    json_start = -1
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith('{'):
+                            json_start = i
+                            break
+                    if json_start >= 0:
+                        data = json.loads('\n'.join(lines[json_start:]))
+                        completed = data.get("completed", 0)
+                        total = data.get("total_waypoints", 0)
+                        self.root.after(0, lambda: self.nav_label.config(
+                            text=f"Done: {completed}/{total} WPs", fg="green" if completed == total else "yellow"))
+                    else:
+                        self.root.after(0, lambda: self.nav_label.config(text="Done", fg="green"))
+                except Exception:
+                    self.root.after(0, lambda: self.nav_label.config(text="Done", fg="green"))
+            except subprocess.TimeoutExpired:
+                self.root.after(0, lambda: self.nav_label.config(text="Timeout!", fg="red"))
+            except Exception as exc:
+                err_msg = str(exc)
+                self.root.after(0, lambda m=err_msg: self.nav_label.config(text=f"Error: {m}", fg="red"))
+            finally:
+                self.root.after(0, self._navigation_done)
+
+        self.is_navigating = True
+        thread = threading.Thread(target=nav_thread, daemon=True)
+        thread.start()
+
+    def _navigation_done(self):
+        self.is_navigating = False
+        self.nav_btn.config(state=tk.NORMAL, bg="#336")
 
     def toggle_recording(self):
         if self.is_recording:
