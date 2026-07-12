@@ -114,6 +114,9 @@ def bearing_deg(from_pos, to_pos):
     return math.degrees(math.atan2(dx, dz))
 
 
+TURN_RATE_DEG_PER_SEC = 172.0  # Calibrated: ~172°/s for both left and right
+
+
 def turn_to_heading(current_heading, target_heading, verbose=False):
     """Calculate turn needed and execute it. Returns (direction, degrees)."""
     diff = normalize_angle(target_heading - current_heading)
@@ -123,19 +126,18 @@ def turn_to_heading(current_heading, target_heading, verbose=False):
             print(f"  already aligned (diff={diff:+.1f}°)")
         return "none", 0
 
+    # Calibrated: 172°/s, so hold_ms = abs(diff) / 172 * 1000
+    # Cap at 1000ms for safety
+    hold_ms = min(1000, max(150, int(abs(diff) / TURN_RATE_DEG_PER_SEC * 1000)))
+
     # RIFT: D = right turn = heading decreases, A = left turn = heading increases
     # So positive diff means turn left (A), negative means turn right (D)
     if diff > 0:
-        # Need to turn left
-        # Hold duration proportional to angle, capped
-        hold_ms = min(500, max(200, int(abs(diff) * 4)))
         if verbose:
             print(f"  turn LEFT {abs(diff):.1f}° (hold {hold_ms}ms)")
         send_key("A", hold_ms)
         return "left", diff
     else:
-        # Need to turn right
-        hold_ms = min(500, max(200, int(abs(diff) * 4)))
         if verbose:
             print(f"  turn RIGHT {abs(diff):.1f}° (hold {hold_ms}ms)")
         send_key("D", hold_ms)
