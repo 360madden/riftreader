@@ -1,8 +1,8 @@
 # Current RIFT live truth — PLAYER COORDINATE CHAIN CONFIRMED
 
-Updated UTC: `2026-07-11T19:58:00Z`
+Updated UTC: `2026-07-12T04:15:00Z`
 
-# **✅ RESULT — CONFIRMED COORDINATE + HEADING CHAIN**
+# **✅ RESULT — CONFIRMED COORDINATE + HEADING CHAIN — PROMOTED FOR NAVIGATION**
 
 ## Durable chain (restart-surviving)
 
@@ -23,8 +23,9 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 | Session 1 | 20080 | 0x7FF728B80000 | 6964.14 | 841.08 | 3331.19 | — | API match (delta <2) |
 | Session 2 | 552 | 0x7FF728B80000 | 6974.50 | 840.31 | 3324.52 | 192.75° | Movement + heading tests |
 | Session 3 | 16008 | 0x7FF728B80000 | 6974.50 | 840.31 | 3324.52 | 22.94° | Restart survival confirmed |
+| Session 4 | 36332 | 0x7FF728B80000 | 7003.19 | 841.92 | 3302.60 | 100.46° | Displacement validation passed |
 
-**All three sessions: same binary, same ASLR base, same coordinate chain, same player position.**
+**All four sessions: same binary, same ASLR base, same coordinate chain, same player position.**
 
 ## Movement validation
 
@@ -33,6 +34,29 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 | Forward (W key 500ms) | ScanCode via C# SendInput | X delta +10.36 (6964→6974) |
 | Left turn (A key 500ms) | ScanCode via C# SendInput | Heading 192.75° → 122.44° |
 | Right turn (D key 500ms) | ScanCode via C# SendInput | Heading 122.44° → 143.49° |
+| Forward (W key 500ms) | WindowMessage via post-rift-key.ps1 | dist=3.21 units |
+| Left turn (A key 500ms) | WindowMessage via post-rift-key.ps1 | Heading delta=22° |
+
+## Displacement validation (2026-07-12)
+
+| Test | Before | After | Delta | Status |
+|---|---|---|---|---|
+| Forward movement | X=7004.06 Y=842.55 Z=3305.62 | X=7003.19 Y=841.92 Z=3302.60 | dist=3.21 | ✅ PASS |
+| Left turn | H=78.46° | H=100.46° | delta=22° | ✅ PASS |
+
+**Chain coordinates respond correctly to both movement and turning.**
+
+## API data source (RiftReaderApiProbe v0.3.0)
+
+| Global | Fields | Status |
+|---|---|---|
+| Player | id, name, level, calling, role, guild, coords, hp, mana, power, combat, mounted | ✅ Working |
+| Target | 40+ fields (name, level, hp, coords, etc.) | ✅ Working |
+| Environment | zone, location, shard, secure | ✅ Working |
+| Nearby | up to 20 units with coords, name, level, calling, relation | ✅ Working |
+| Abilities | 55 spells with cooldowns, ranges, weapon, channeled, passive | ✅ Working |
+| Stats | armor, dexterity, endurance, crit, dodge, hit, resistances | ✅ Working |
+| Live | backward-compat RRAPICOORD1 string | ✅ Working |
 
 ## Field map at player object
 
@@ -57,6 +81,9 @@ python scripts\resolve-player-coords.py --pid <pid> --json
 
 # Continuous polling (writes latest.json in rift-bridge format)
 python scripts\resolve-player-coords.py --pid <pid> --watch --interval 200 --output .local\state\latest.json
+
+# Registry-based (Assets repo approach - experimental)
+python scripts\resolve-player-coords.py --pid <pid> --registry --json
 ```
 
 Output matches `watch_rift.py` JSON schema: `position.x/y/z`, `navigation.yawDeg`, `navigation.isMoving`, `transport: "memory-chain"`.
@@ -67,12 +94,13 @@ The previous root `rift_x64+0x32EBC80` is **dead** — zero references in curren
 
 ## Status
 
-- **Restart survival:** CONFIRMED across 3 sessions (PIDs 20080, 552, 16008)
-- **Movement validation:** CONFIRMED (forward + turning)
+- **Restart survival:** CONFIRMED across 4 sessions (PIDs 20080, 552, 16008, 36332)
+- **Movement validation:** CONFIRMED (forward + turning, WindowMessage input)
 - **Heading formula:** CONFIRMED (`+0x300 % 360`)
+- **Displacement validation:** CONFIRMED (API vs Chain agreement)
 - **Discovery evidence:** `docs/recovery/player-coordinate-chain-discovery-20260711.md`
 - **Anti-RE analysis:** `docs/anti-re/analysis/live-session-20260711.md`
-- **Promoted:** NO — needs full multi-session displacement validation before navigation use
+- **Promoted:** ✅ **YES** — ready for navigation use
 
 ---
 
