@@ -1,28 +1,12 @@
 #!/usr/bin/env python3
 """Autonomous navigation using the promoted coordinate chain.
 
-Provides single-target and multi-waypoint navigation with stuck detection,
-recovery, and detailed JSON summary output.
+Uses a hill-climbing approach: move forward, check if distance decreased.
+If not, try turning the other way. No heading counter or facing measurement needed.
 
 Usage:
-    # Single target
     python simple_navigate.py --pid <pid> --target-x <x> --target-y <y> --target-z <z>
-
-    # Multi-waypoint route from JSON file
     python simple_navigate.py --pid <pid> --route route.json
-
-    # Dry run
-    python simple_navigate.py --pid <pid> --route route.json --dry-run
-
-Route JSON format:
-    {
-        "name": "Silverwood Run",
-        "waypoints": [
-            {"x": 7000.0, "y": 842.0, "z": 3300.0, "label": "Start"},
-            {"x": 7050.0, "y": 850.0, "z": 3350.0, "label": "Midpoint"},
-            {"x": 7100.0, "y": 860.0, "z": 3400.0, "label": "End"}
-        ]
-    }
 """
 
 from __future__ import annotations
@@ -39,20 +23,17 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Direct memory reading (fast, no subprocess overhead)
+# Direct memory reading
 # ---------------------------------------------------------------------------
 kernel32 = ctypes.windll.kernel32
-PROCESS_VM_READ = 0x0010
 COORD_GLOBAL_RVA = 0x32EBDC0
 OFFSET_X = 0x320
 OFFSET_Y = 0x324
 OFFSET_Z = 0x328
-OFFSET_HEADING_RAW = 0x300
 
 
 def find_module_base(pid: int) -> int | None:
-    """Find rift_x64.exe base address in target process."""
-    handle = kernel32.OpenProcess(PROCESS_VM_READ, False, pid)
+    handle = kernel32.OpenProcess(0x0010, False, pid)
     if not handle:
         return None
     try:
@@ -70,9 +51,8 @@ def find_module_base(pid: int) -> int | None:
         kernel32.CloseHandle(handle)
 
 
-def read_chain_coords(pid: int, base: int) -> dict[str, float] | None:
-    """Read X/Y/Z/heading directly from the promoted memory chain."""
-    handle = kernel32.OpenProcess(PROCESS_VM_READ, False, pid)
+def read_coords(pid: int, base: int) -> dict[str, float] | None:
+    handle = kernel32.OpenProcess(0x0010, False, pid)
     if not handle:
         return None
     try:
@@ -92,56 +72,34 @@ def read_chain_coords(pid: int, base: int) -> dict[str, float] | None:
             ):
                 return None
             coords[name] = ctypes.c_float.from_buffer(buf).value
-        if kernel32.ReadProcessMemory(
-            handle, ctypes.c_void_p(obj + OFFSET_HEADING_RAW), buf, 4, ctypes.byref(br)
-        ):
-            raw = ctypes.c_float.from_buffer(buf).value
-            coords["heading"] = raw % 360.0 if raw % 360.0 >= 0 else raw % 360.0 + 360.0
-        else:
-            coords["heading"] = 0.0
         return coords
     finally:
         kernel32.CloseHandle(handle)
 
 
 # ---------------------------------------------------------------------------
-# Geometry helpers
+# Geometry
 # ---------------------------------------------------------------------------
+def distance_planar(a: dict, b: dict) -> float:
+    return math.sqrt((b["x"] - a["x"]) ** 2 + (b["z"] - a["z"]) ** 2)
+
+
 def bearing_deg(from_pos: dict, to_pos: dict) -> float:
     dx = to_pos["x"] - from_pos["x"]
     dz = to_pos["z"] - from_pos["z"]
     return (math.degrees(math.atan2(dx, dz)) + 360) % 360
 
 
-def distance_3d(a: dict, b: dict) -> float:
-    return math.sqrt((b["x"] - a["x"]) ** 2 + (b["y"] - a["y"]) ** 2 + (b["z"] - a["z"]) ** 2)
-
-
-def distance_planar(a: dict, b: dict) -> float:
-    return math.sqrt((b["x"] - a["x"]) ** 2 + (b["z"] - a["z"]) ** 2)
-
-
 # ---------------------------------------------------------------------------
 # Input backend
 # ---------------------------------------------------------------------------
-CSharp_SENDINPUT = str(Path(__file__).parent.parent / "tools" / "RiftReader.SendInput" / "bin" / "Release" / "net10.0-windows" / "RiftReader.SendInput.dll")
-
-
-def send_key(key: str, hold_ms: int = 500) -> bool:
-    """Send a key to RIFT.
-
-    Uses C# SendInput ScanCode for A/D (turning) since WindowMessage doesn't
-    process turn keys. Uses WindowMessage for W/S (movement) since it works
-    without requiring foreground focus.
-    """
-    if key in ("A", "D", "a", "d"):
-        return _send_scan(key, hold_ms)
-    else:
-        return _send_wm(key, hold_ms)
+CSharp_SENDINPUT = str(
+    Path(__file__).parent.parent / "tools" / "RiftReader.SendInput"
+    / "bin" / "Release" / "net10.0-windows" / "RiftReader.SendInput.dll"
+)
 
 
 def _send_wm(key: str, hold_ms: int) -> bool:
-    """WindowMessage backend — works for W/S movement."""
     try:
         r = subprocess.run(
             ["pwsh", "-File", str(Path(__file__).parent / "post-rift-key.ps1"),
@@ -154,7 +112,6 @@ def _send_wm(key: str, hold_ms: int) -> bool:
 
 
 def _send_scan(key: str, hold_ms: int) -> bool:
-    """C# SendInput ScanCode backend — works for A/D turning."""
     try:
         r = subprocess.run(
             ["dotnet", CSharp_SENDINPUT,
@@ -166,70 +123,64 @@ def _send_scan(key: str, hold_ms: int) -> bool:
         return False
 
 
+def turn_left(hold_ms: int = 400) -> bool:
+    """WindowMessage A key — ~70° left."""
+    return _send_wm("A", hold_ms)
+
+
+def turn_right(hold_ms: int = 500) -> bool:
+    """C# SendInput D key — ~88° right."""
+    return _send_scan("D", hold_ms)
+
+
+def move_forward(hold_ms: int = 400) -> bool:
+    """WindowMessage W key."""
+    return _send_wm("W", hold_ms)
+
+
+def move_backward(hold_ms: int = 400) -> bool:
+    """WindowMessage S key."""
+    return _send_wm("S", hold_ms)
+
+
 # ---------------------------------------------------------------------------
-# Navigation primitives
+# Navigation — hill climbing
 # ---------------------------------------------------------------------------
-def turn_to_bearing(current_hdg: float, target_brg: float, threshold: float = 10.0) -> str | None:
-    """Return 'A' (turn left via ScanCode) or 'D' (turn right via ScanCode) to face target bearing.
-
-    Uses shortest-path rotation. ScanCode: A = turn left (counterclockwise),
-    D = turn right (clockwise).
-    """
-    # Signed shortest delta: positive means target is clockwise (right) from current
-    delta = (target_brg - current_hdg) % 360
-    if delta > 180:
-        delta -= 360  # now negative = counterclockwise (left)
-
-    if abs(delta) < threshold:
-        return None
-    # ScanCode: A = turn left, D = turn right
-    return "D" if delta > 0 else "A"
-
-
 def navigate_single_target(
     pid: int,
     base: int,
     target: dict[str, float],
     *,
     arrival_radius: float = 5.0,
-    max_steps: int = 50,
-    step_delay: float = 0.3,
-    stuck_threshold: int = 5,
-    stuck_recovery_delay: float = 1.0,
+    max_steps: int = 30,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> dict[str, Any]:
-    """Navigate to a single target, returning step history and outcome."""
+    """Navigate to target using hill-climbing: move, check, adjust."""
     steps: list[dict[str, Any]] = []
-    stuck_count = 0
-    last_pos: dict[str, float] | None = None
+    consecutive_closer = 0
+    consecutive_further = 0
+    last_dist = None
 
     for step in range(max_steps):
-        coords = read_chain_coords(pid, base)
-        if not coords:
+        pos = read_coords(pid, base)
+        if not pos:
             steps.append({"step": step, "error": "cannot-read-coords"})
             break
 
-        pos = {"x": coords["x"], "y": coords["y"], "z": coords["z"]}
-        hdg = coords["heading"]
         dist = distance_planar(pos, target)
-        dist3 = distance_3d(pos, target)
         brg = bearing_deg(pos, target)
 
         rec: dict[str, Any] = {
             "step": step,
             "pos": {k: round(v, 2) for k, v in pos.items()},
-            "heading": round(hdg, 1),
             "bearing": round(brg, 1),
-            "dist_planar": round(dist, 2),
-            "dist_3d": round(dist3, 2),
+            "dist": round(dist, 2),
         }
 
         if verbose:
-            print(
-                f"  step={step:2d}  pos=({pos['x']:.1f},{pos['y']:.1f},{pos['z']:.1f})  "
-                f"hdg={hdg:.0f}  brg={brg:.0f}  dist={dist:.1f}"
-            )
+            print(f"  step={step:2d}  pos=({pos['x']:.1f},{pos['y']:.1f},{pos['z']:.1f})  "
+                  f"brg={brg:.0f}  dist={dist:.1f}")
 
         # --- Arrival check ---
         if dist <= arrival_radius:
@@ -237,54 +188,76 @@ def navigate_single_target(
             steps.append(rec)
             return {"ok": True, "steps": steps, "final_pos": pos, "total_steps": step + 1}
 
-        # --- Stuck detection ---
-        if last_pos is not None:
-            movement = distance_planar(last_pos, pos)
-            if movement < 0.3:
-                stuck_count += 1
-            else:
-                stuck_count = 0
-        last_pos = pos.copy()
-
-        if stuck_count >= stuck_threshold:
-            if verbose:
-                print(f"  STUCK at step {step} (no movement for {stuck_threshold} reads)")
-            rec["action"] = "stuck"
+        # --- Hill climbing: move, check distance change ---
+        if dry_run:
+            rec["action"] = "dry-run"
             steps.append(rec)
-            # Recovery: back up, turn right, then try again
-            if not dry_run:
-                send_key("S", hold_ms=500)
-                time.sleep(0.3)
-                send_key("D", hold_ms=500)
-                time.sleep(0.3)
-            stuck_count = 0
             continue
 
-        # --- Turn or move ---
-        turn = turn_to_bearing(hdg, brg)
-        if turn:
-            rec["action"] = f"turn_{turn}"
+        # First move: just go forward
+        if last_dist is None:
+            rec["action"] = "initial_move"
             steps.append(rec)
-            if not dry_run:
-                # Calculate how many pulses needed
-                delta_to_target = (brg - hdg) % 360
-                if delta_to_target > 180:
-                    delta_to_target -= 360
-                pulses = max(2, min(6, int(abs(delta_to_target) / 15)))
-                for _ in range(pulses):
-                    send_key(turn, hold_ms=300)
-                    time.sleep(0.05)
-                time.sleep(step_delay)
-        else:
-            rec["action"] = "move_forward"
-            steps.append(rec)
-            if not dry_run:
-                # Adaptive hold: shorter when close, longer when far
-                hold = max(300, min(600, int(dist * 30)))
-                send_key("W", hold_ms=hold)
-                time.sleep(step_delay)
+            move_forward(hold_ms=400)
+            time.sleep(0.4)
+            last_dist = dist
+            continue
 
-    return {"ok": False, "steps": steps, "final_pos": pos if coords else None, "total_steps": max_steps}
+        # Check if we got closer or further
+        improvement = last_dist - dist
+        if improvement > 0.5:
+            # Got closer — keep going same direction
+            consecutive_closer += 1
+            consecutive_further = 0
+            rec["action"] = "closer"
+            rec["improvement"] = round(improvement, 2)
+            steps.append(rec)
+            if verbose:
+                print(f"    closer by {improvement:.2f}")
+            move_forward(hold_ms=400)
+            time.sleep(0.4)
+        elif improvement < -0.5:
+            # Got further — we're going wrong way, try turning
+            consecutive_further += 1
+            consecutive_closer = 0
+            rec["action"] = "further"
+            rec["improvement"] = round(improvement, 2)
+            steps.append(rec)
+            if verbose:
+                print(f"    further by {improvement:.2f} — turning")
+
+            # Back up a bit
+            move_backward(hold_ms=300)
+            time.sleep(0.3)
+
+            # Alternate turn direction based on failure count
+            if consecutive_further % 2 == 1:
+                turn_left(hold_ms=400)
+            else:
+                turn_right(hold_ms=500)
+            time.sleep(0.3)
+        else:
+            # Not much change — we're stuck, try turning to find a clear path
+            rec["action"] = "stuck"
+            steps.append(rec)
+            if verbose:
+                print(f"    stuck ({improvement:+.2f}) — turning to find clear path")
+
+            # Back up first
+            move_backward(hold_ms=300)
+            time.sleep(0.3)
+
+            # Alternate turn direction each time we get stuck
+            if step % 2 == 0:
+                turn_left(hold_ms=500)
+            else:
+                turn_right(hold_ms=600)
+            time.sleep(0.3)
+
+        last_dist = dist
+
+    return {"ok": False, "steps": steps, "final_pos": pos if 'pos' in dir() else None,
+            "total_steps": max_steps}
 
 
 # ---------------------------------------------------------------------------
@@ -296,13 +269,10 @@ def navigate_route(
     waypoints: list[dict[str, Any]],
     *,
     arrival_radius: float = 5.0,
-    max_steps_per_waypoint: int = 40,
-    step_delay: float = 0.3,
-    stuck_threshold: int = 5,
+    max_steps_per_waypoint: int = 30,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> dict[str, Any]:
-    """Navigate through a list of waypoints in order."""
     results: list[dict[str, Any]] = []
     total_steps = 0
     start_time = datetime.now(UTC)
@@ -317,8 +287,6 @@ def navigate_route(
             pid, base, target,
             arrival_radius=arrival_radius,
             max_steps=max_steps_per_waypoint,
-            step_delay=step_delay,
-            stuck_threshold=stuck_threshold,
             dry_run=dry_run,
             verbose=verbose,
         )
@@ -336,9 +304,8 @@ def navigate_route(
             print(f"  ARRIVED at waypoint {i}: {label}")
 
     elapsed = (datetime.now(UTC) - start_time).total_seconds()
-    all_ok = all(r["ok"] for r in results)
     return {
-        "ok": all_ok,
+        "ok": all(r["ok"] for r in results),
         "waypoints_total": len(waypoints),
         "waypoints_completed": sum(1 for r in results if r["ok"]),
         "total_steps": total_steps,
@@ -347,11 +314,7 @@ def navigate_route(
     }
 
 
-# ---------------------------------------------------------------------------
-# Route file I/O
-# ---------------------------------------------------------------------------
 def load_route(path: str | Path) -> list[dict[str, Any]]:
-    """Load waypoints from a JSON route file."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if isinstance(data, list):
         return data
@@ -362,20 +325,18 @@ def load_route(path: str | Path) -> list[dict[str, Any]]:
 # Main
 # ---------------------------------------------------------------------------
 def main() -> None:
-    p = argparse.ArgumentParser(description="Autonomous RIFT navigation via coordinate chain")
-    p.add_argument("--pid", type=int, required=True, help="RIFT process ID")
-    p.add_argument("--target-x", type=float, help="Single target X")
-    p.add_argument("--target-y", type=float, help="Single target Y")
-    p.add_argument("--target-z", type=float, help="Single target Z")
-    p.add_argument("--route", type=str, help="JSON route file with waypoints")
+    p = argparse.ArgumentParser(description="Autonomous RIFT navigation")
+    p.add_argument("--pid", type=int, required=True)
+    p.add_argument("--target-x", type=float)
+    p.add_argument("--target-y", type=float)
+    p.add_argument("--target-z", type=float)
+    p.add_argument("--route", type=str)
     p.add_argument("--arrival-radius", type=float, default=5.0)
-    p.add_argument("--max-steps", type=int, default=50, help="Max steps per waypoint")
-    p.add_argument("--step-delay", type=float, default=0.3)
-    p.add_argument("--stuck-threshold", type=int, default=5)
+    p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--json", action="store_true")
-    p.add_argument("--output", type=str, help="Write summary JSON to this path")
+    p.add_argument("--output", type=str)
     args = p.parse_args()
 
     base = find_module_base(args.pid)
@@ -386,7 +347,6 @@ def main() -> None:
     if args.verbose:
         print(f"Module base: 0x{base:X}")
 
-    # Build waypoints
     if args.route:
         waypoints = load_route(args.route)
         if not waypoints:
@@ -398,7 +358,6 @@ def main() -> None:
         print("ERROR: Provide --target-x/y/z or --route", file=sys.stderr)
         sys.exit(1)
 
-    # Navigate
     if len(waypoints) == 1:
         target = waypoints[0]
         res = navigate_single_target(
@@ -406,8 +365,6 @@ def main() -> None:
             {"x": target["x"], "y": target["y"], "z": target["z"]},
             arrival_radius=args.arrival_radius,
             max_steps=args.max_steps,
-            step_delay=args.step_delay,
-            stuck_threshold=args.stuck_threshold,
             dry_run=args.dry_run,
             verbose=args.verbose,
         )
@@ -416,27 +373,23 @@ def main() -> None:
             args.pid, base, waypoints,
             arrival_radius=args.arrival_radius,
             max_steps_per_waypoint=args.max_steps,
-            step_delay=args.step_delay,
-            stuck_threshold=args.stuck_threshold,
             dry_run=args.dry_run,
             verbose=args.verbose,
         )
 
-    # Output
     if args.json:
         print(json.dumps(res, indent=2))
     else:
         status = "ARRIVED" if res["ok"] else "BLOCKED"
         if "waypoints_completed" in res:
             print(f"{status}: {res['waypoints_completed']}/{res['waypoints_total']} waypoints "
-                  f"in {res['total_steps']} steps ({res['elapsed_seconds']}s)")
+                  f"in {res['total_steps']} steps ({res.get('elapsed_seconds', '?')}s)")
         else:
             print(f"{status}: {res['total_steps']} steps")
         if res.get("final_pos"):
             fp = res["final_pos"]
             print(f"  Final: ({fp['x']:.1f}, {fp['y']:.1f}, {fp['z']:.1f})")
 
-    # Write summary
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         Path(args.output).write_text(json.dumps(res, indent=2), encoding="utf-8")
