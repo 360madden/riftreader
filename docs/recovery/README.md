@@ -58,6 +58,24 @@ prove current PID/HWND, capture fresh API/runtime truth, scan grouped current-PI
 families, rank by displacement tracking, promote only same-PID multi-pose stable
 readbacks, then rerun `ProofOnly` before any movement.
 
+## Coordinate resolution strategy
+
+The pure static pointer chain (module RVA → owner → fixed offset) has not been
+achieved in any tested PID epoch. The durable target architecture is now
+**fast reacquire + validate**:
+
+```text
+Layer 1: Static global seed (survives restart)
+  → Layer 2: Dynamic container child (predictable layout per session)
+    → Layer 3: API validation gate (ProofOnly each session)
+```
+
+| Document | Use |
+|---|---|
+| `docs/recovery/hybrid-fast-reacquire-strategy.md` | **Primary strategy doc.** Defines the three-layer architecture, evidence base, session workflow, failure modes, and proof requirements. |
+| `docs/recovery/optimized-player-actor-coordinate-chain-workflow.md` | Provenance-first discovery process. Still valid for finding candidates; target output is now a hybrid resolution path. |
+| `docs/recovery/static-coordinate-chain-10-phase-plan-2026-05-21.md` | 10-phase promotion plan. Phases 1–4 still apply; Phases 8–10 should target the hybrid architecture. |
+
 ## Coordinate freshness rule
 
 Do not treat a stored coordinate from

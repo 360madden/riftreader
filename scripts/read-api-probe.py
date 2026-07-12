@@ -183,6 +183,53 @@ def parse_nearby_string(text):
     return units
 
 
+def parse_abilities_string(text):
+    """Parse pipe-delimited abilities string.
+
+    Format: RRAPICAPABILITIES|count=N|index|id|name|cd|cast|rangeMax|rangeMin|weapon|channeled|passive|autoattack|cdRemain|index|id|...
+    Each ability = 12 fields (index, id, name, cooldown, castingTime, rangeMax, rangeMin, weapon, channeled, passive, autoattack, cooldownRemaining)
+    """
+    parts = text.split("|")
+    if len(parts) < 3:
+        return []
+    try:
+        count = int(parts[1].split("=", 1)[1])
+    except (ValueError, IndexError):
+        return []
+    abilities = []
+    i = 2
+    FIELDS_PER_ABILITY = 12
+    while i + FIELDS_PER_ABILITY <= len(parts):
+        abilities.append({
+            "index": parts[i],
+            "id": parts[i + 1],
+            "name": parts[i + 2],
+            "cooldown": parts[i + 3],
+            "castingTime": parts[i + 4],
+            "rangeMax": parts[i + 5],
+            "rangeMin": parts[i + 6],
+            "weapon": parts[i + 7],
+            "channeled": parts[i + 8],
+            "passive": parts[i + 9],
+            "autoattack": parts[i + 10],
+            "cooldownRemaining": parts[i + 11],
+        })
+        i += FIELDS_PER_ABILITY
+    return abilities
+
+
+def parse_stats_string(text):
+    """Parse pipe-delimited stats string. Format: RRAPISTATS|key=value|..."""
+    parts = text.split("|")
+    stats = {}
+    for part in parts:
+        if "=" in part:
+            k, v = part.split("=", 1)
+            if k != "RRAPISTATS":
+                stats[k] = v
+    return stats
+
+
 def main():
     parser = argparse.ArgumentParser(description="Read RiftReaderApiProbe globals from RIFT memory")
     parser.add_argument("--pid", type=int, required=True)
@@ -197,35 +244,25 @@ def main():
         sys.exit(1)
 
     # Map global names to their value prefixes
-    GLOBAL_MAP = {
+    # Unique-prefix globals: search directly
+    UNIQUE_MAP = {
         "Player": b"version=2|seq=",
         "Target": b"present=1|sampledAt=",
         "Environment": b"secure=",
-        "Nearby": b"version=2|count=",
+        "Stats": b"RRAPISTATS|",
         "Live": b"RRAPICOORD1|schema=1",
     }
-
-    if args.global_name:
-        match = [k for k in GLOBAL_MAP if args.global_name.lower() in k.lower()]
-        if not match:
-            print(f"Unknown global: {args.global_name}", file=sys.stderr)
-            sys.exit(1)
-        targets = {k: GLOBAL_MAP[k] for k in match}
-    else:
-        targets = GLOBAL_MAP
 
     def pick_latest(matches):
         """From all matches, return the cleanest one with the highest sampledAt or seq."""
         if not matches:
             return None
         best = None
-        best_val = -1
+        best_val = -2
         for addr, text in matches:
-            # Skip strings with HTML, console formatting, or non-ASCII garbage
             if "<" in text or ">" in text or "\ufffd" in text:
                 continue
-            # Must start cleanly (not preceded by console output)
-            if not text.startswith("version=2") and not text.startswith("present=1") and not text.startswith("RRAPICOORD1") and not text.startswith("secure="):
+            if not text.startswith("version=2") and not text.startswith("present=1") and not text.startswith("RRAPICOORD1") and not text.startswith("secure=") and not text.startswith("RRAPISTATS") and not text.startswith("RRAPICAPABILITIES"):
                 continue
             val = -1
             for part in text.split("|"):
@@ -244,10 +281,60 @@ def main():
                 best = text
         return best
 
+    def classify_count_match(text):
+        """Classify a version=2|count=... string as Nearby or Abilities by content."""
+        if "|friendly|" in text or "|hostile|" in text:
+            return "Nearby"
+        return "Abilities"
+
+    if args.global_name:
+        match = [k for k in UNIQUE_MAP if args.global_name.lower() in k.lower()]
+        if not match and args.global_name.lower() in ("nearby", "abilities"):
+            match = [args.global_name.capitalize()]
+        if not match:
+            print(f"Unknown global: {args.global_name}", file=sys.stderr)
+            sys.exit(1)
+        targets = {k: UNIQUE_MAP.get(k, b"version=2|count=") for k in match}
+    else:
+        targets = dict(UNIQUE_MAP)
+
     results = {}
+
+    # Search unique-prefix globals
     for global_name, prefix in targets.items():
+        if global_name in ("Nearby", "Abilities"):
+            continue  # handled below
         matches = search_all_heaps_all(handle, prefix)
         results[global_name] = pick_latest(matches)
+
+    # Search version=2|count= once, classify as Nearby or Abilities
+    count_matches = search_all_heaps_all(handle, b"version=2|count=")
+    nearby_candidates = []
+    abilities_candidates = []
+    for addr, text in count_matches:
+        if "<" in text or ">" in text or "\ufffd" in text:
+            continue
+        if not text.startswith("version=2|count="):
+            continue
+        if classify_count_match(text) == "Abilities":
+            abilities_candidates.append((addr, text))
+        else:
+            nearby_candidates.append((addr, text))
+
+    # Also search for RRAPICAPABILITIES| (unique prefix for abilities)
+    cap_matches = search_all_heaps_all(handle, b"RRAPICAPABILITIES|")
+    for addr, text in cap_matches:
+        if "<" in text or ">" in text or "\ufffd" in text:
+            continue
+        if text.startswith("RRAPICAPABILITIES|"):
+            abilities_candidates.append((addr, text))
+
+    show_all = args.global_name is None or args.global_name.lower() in ("nearby", "abilities")
+    if show_all:
+        if args.global_name is None or args.global_name.lower() == "nearby":
+            results["Nearby"] = pick_latest(nearby_candidates)
+        if args.global_name is None or args.global_name.lower() == "abilities":
+            results["Abilities"] = pick_latest(abilities_candidates)
 
     kernel32.CloseHandle(handle)
 
@@ -262,6 +349,10 @@ def main():
                 output[k] = parse_player_string(v)
             elif k == "Nearby":
                 output[k] = parse_nearby_string(v)
+            elif k == "Abilities":
+                output[k] = parse_abilities_string(v)
+            elif k == "Stats":
+                output[k] = parse_stats_string(v)
             else:
                 output[k] = v
         print(json.dumps(output, indent=2))

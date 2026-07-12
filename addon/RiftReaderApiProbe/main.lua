@@ -39,6 +39,8 @@ RiftReaderApiProbe_Player = RiftReaderApiProbe_Player or ""
 RiftReaderApiProbe_Target = RiftReaderApiProbe_Target or ""
 RiftReaderApiProbe_Environment = RiftReaderApiProbe_Environment or ""
 RiftReaderApiProbe_Nearby = RiftReaderApiProbe_Nearby or ""
+RiftReaderApiProbe_Abilities = RiftReaderApiProbe_Abilities or ""
+RiftReaderApiProbe_Stats = RiftReaderApiProbe_Stats or ""
 
 -- ---------- helpers ----------
 
@@ -253,6 +255,54 @@ local function readNearbyUnits(excludePlayerId, excludeTargetId)
   return #result > 0 and result or nil
 end
 
+local function readAbilities()
+  local abilityApi = Inspect and Inspect.Ability and Inspect.Ability.New or nil
+  if not abilityApi then return nil end
+
+  local ids = safeCall(abilityApi.List)
+  if type(ids) ~= "table" then return nil end
+
+  local details = safeCall(abilityApi.Detail, ids)
+  if type(details) ~= "table" then
+    console("Ability.Detail failed for " .. tostring(#ids) .. " ids", "#FF0000")
+    return nil
+  end
+
+  local result = {}
+  for id, d in pairs(details) do
+    if type(d) == "table" and d.name then
+      result[#result + 1] = {
+        id = s(d.id),
+        name = s(d.name),
+        cooldown = n(d.cooldown),
+        castingTime = n(d.castingTime),
+        rangeMax = n(d.rangeMax),
+        rangeMin = n(d.rangeMin),
+        costMana = n(d.costMana),
+        costEnergy = n(d.costEnergy),
+        costPower = n(d.costPower),
+        costCharge = n(d.costCharge),
+        costPlanarCharge = n(d.costPlanarCharge),
+        channeled = b(d.channeled),
+        passive = b(d.passive),
+        autoattack = b(d.autoattack),
+        weapon = s(d.weapon),
+        currentCooldownRemaining = n(d.currentCooldownRemaining),
+        unusable = b(d.unusable),
+      }
+    end
+  end
+
+  return #result > 0 and result or nil
+end
+
+local function readStats()
+  if not (Inspect and Inspect.Stat) then return nil end
+  local ok, stats = pcall(Inspect.Stat)
+  if not ok or type(stats) ~= "table" then return nil end
+  return stats
+end
+
 -- ---------- formatters ----------
 
 local function formatLive(player)
@@ -402,6 +452,36 @@ local function formatNearby(units)
   return table.concat(parts, "|")
 end
 
+local function formatAbilities(abilities)
+  if not abilities then return "RRAPICAPABILITIES|count=0" end
+  local parts = {"RRAPICAPABILITIES", "count=" .. #abilities}
+  for i, a in ipairs(abilities) do
+    table.insert(parts, string.format(
+      "%d|%s|%s|%.1f|%.1f|%.0f|%.0f|%s|%s|%s|%s",
+      i,
+      a.id, a.name,
+      a.cooldown or 0, a.castingTime or 0,
+      a.rangeMax or 0, a.rangeMin or 0,
+      a.weapon or "",
+      a.channeled or "", a.passive or "", a.autoattack or "",
+      a.currentCooldownRemaining or ""
+    ))
+  end
+  return table.concat(parts, "|")
+end
+
+local function formatStats(stats)
+  if not stats then return "RRAPISTATS|count=0" end
+  local parts = {"RRAPISTATS"}
+  local keys = {}
+  for k in pairs(stats) do keys[#keys + 1] = k end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    parts[#parts + 1] = k .. "=" .. tostring(stats[k])
+  end
+  return table.concat(parts, "|")
+end
+
 -- ---------- refresh ----------
 
 local function refreshAll(force)
@@ -433,6 +513,12 @@ local function refreshAll(force)
     RiftReaderApiProbe_Nearby = formatNearby(nearby)
   end
 
+  local abilities = readAbilities()
+  RiftReaderApiProbe_Abilities = formatAbilities(abilities)
+
+  local stats = readStats()
+  RiftReaderApiProbe_Stats = formatStats(stats)
+
   RiftReaderApiProbe_State = {
     sequence = liveSequence,
     sampledAt = currentTime,
@@ -440,6 +526,8 @@ local function refreshAll(force)
     target = target,
     environment = environment,
     nearby = nearby,
+    abilities = abilities,
+    stats = stats,
   }
 end
 
@@ -679,7 +767,94 @@ function Probe.OnSlashCommand(args)
     return
   end
 
+  if command == "diag" then
+    runDiagnostics()
+    return
+  end
+
   console("Unknown command. Use /rap help", "#FF4444")
+end
+
+local function runDiagnostics()
+  console("=== RIFT API DIAGNOSTICS ===", "#FFFF00")
+
+  -- Check API availability
+  local apiChecks = {
+    {"Inspect", Inspect},
+    {"Inspect.Ability", Inspect and Inspect.Ability},
+    {"Inspect.Ability.New", Inspect and Inspect.Ability and Inspect.Ability.New},
+    {"Inspect.Ability.New.List", Inspect and Inspect.Ability and Inspect.Ability.New and Inspect.Ability.New.List},
+    {"Inspect.Ability.New.Detail", Inspect and Inspect.Ability and Inspect.Ability.New and Inspect.Ability.New.Detail},
+    {"Inspect.Stat", Inspect and Inspect.Stat},
+    {"Inspect.Unit", Inspect and Inspect.Unit},
+    {"Inspect.Unit.Detail", Inspect and Inspect.Unit and Inspect.Unit.Detail},
+    {"Inspect.Buff", Inspect and Inspect.Buff},
+    {"Inspect.Buff.Detail", Inspect and Inspect.Buff and Inspect.Buff.Detail},
+  }
+  for _, check in ipairs(apiChecks) do
+    local name, val = check[1], check[2]
+    local status = type(val) == "function" and "FUNCTION" or type(val) == "table" and "TABLE" or "MISSING"
+    local color = status == "MISSING" and "#FF4444" or "#00CC88"
+    console(string.format("  %s: %s", name, status), color)
+  end
+
+  -- Test Ability.New.List
+  if Inspect and Inspect.Ability and Inspect.Ability.New and Inspect.Ability.New.List then
+    local ok, ids = pcall(Inspect.Ability.New.List)
+    if ok and type(ids) == "table" then
+      local count = 0
+      for _ in pairs(ids) do count = count + 1 end
+      console(string.format("  Ability.List: %d abilities found", count), "#00CC88")
+
+      -- Test Detail on first ability
+      for id, _ in pairs(ids) do
+        local ok2, d = pcall(Inspect.Ability.New.Detail, id)
+        if ok2 and type(d) == "table" then
+          console(string.format("  First ability: %s (cooldown=%.1f, cast=%.1f)", tostring(d.name), d.cooldown or 0, d.castingTime or 0), "#CCCCCC")
+        else
+          console(string.format("  Ability.Detail(%s) failed: %s", tostring(id), tostring(d)), "#FF4444")
+        end
+        break
+      end
+    else
+      console(string.format("  Ability.List failed: %s", tostring(ids)), "#FF4444")
+    end
+  end
+
+  -- Test Inspect.Stat
+  if Inspect and Inspect.Stat then
+    local ok, stats = pcall(Inspect.Stat)
+    if ok and type(stats) == "table" then
+      local count = 0
+      for _ in pairs(stats) do count = count + 1 end
+      console(string.format("  Inspect.Stat: %d stats found", count), "#00CC88")
+      for k, v in pairs(stats) do
+        console(string.format("    %s = %s", tostring(k), tostring(v)), "#CCCCCC")
+        count = count - 1
+        if count < 0 then break end
+      end
+    else
+      console(string.format("  Inspect.Stat failed: %s", tostring(stats)), "#FF4444")
+    end
+  end
+
+  -- Check globals
+  console("=== GLOBALS ===", "#FFFF00")
+  local globals = {
+    {"RiftReaderApiProbe_Live", RiftReaderApiProbe_Live},
+    {"RiftReaderApiProbe_Player", RiftReaderApiProbe_Player},
+    {"RiftReaderApiProbe_Target", RiftReaderApiProbe_Target},
+    {"RiftReaderApiProbe_Environment", RiftReaderApiProbe_Environment},
+    {"RiftReaderApiProbe_Nearby", RiftReaderApiProbe_Nearby},
+    {"RiftReaderApiProbe_Abilities", RiftReaderApiProbe_Abilities},
+    {"RiftReaderApiProbe_Stats", RiftReaderApiProbe_Stats},
+  }
+  for _, g in ipairs(globals) do
+    local name, val = g[1], g[2]
+    local len = val and #val or 0
+    local preview = val and val:sub(1, 60) or "(nil)"
+    console(string.format("  %s: len=%d preview=%s", name, len, preview), len > 0 and "#00CC88" or "#FF4444")
+  end
 end
 
 function Probe.OnStartup()

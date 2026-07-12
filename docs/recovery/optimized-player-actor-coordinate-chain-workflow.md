@@ -1,7 +1,17 @@
 # Optimized player actor coordinate-chain discovery workflow
 
 Created: 2026-05-21
+Updated: 2026-07-11
 Scope: fast, current-PID player actor coordinate anchor and static pointer-chain discovery.
+
+> **Strategy update (2026-07-11):** The pure static pointer chain
+> (module RVA → owner → fixed offset) has not been achieved in any tested PID
+> epoch. The durable target architecture is now the **hybrid fast-reacquire**
+> strategy documented in `docs/recovery/hybrid-fast-reacquire-strategy.md`:
+> static global seed → dynamic container child → API validation → ProofOnly.
+> This workflow's provenance-first process is still valid for discovering
+> candidates; the target output is a hybrid resolution path, not a promoted
+> static chain.
 
 ## Verdict
 
