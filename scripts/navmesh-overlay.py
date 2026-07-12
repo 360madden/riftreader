@@ -3,10 +3,14 @@
 
 import json
 import math
+import os
 import sys
 import time
 import tkinter as tk
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CAPTURES_DIR = str(REPO_ROOT / "scripts" / "captures")
 
 try:
     import ctypes
@@ -24,6 +28,12 @@ class NavmeshOverlay:
         self.player_pos = None
         self.waypoints = []
         self.target_waypoint = None
+
+        # Recording state
+        self.is_recording = False
+        self.recorded_positions = []
+        self.record_sample_count = 0
+        self.record_interval_ms = 500
 
         # View settings
         self.scale = 2.0  # pixels per game unit
@@ -53,6 +63,18 @@ class NavmeshOverlay:
         # Controls
         controls = tk.Frame(self.root, bg="black")
         controls.pack(fill=tk.X)
+
+        # Recording buttons
+        self.record_btn = tk.Button(controls, text="Record", command=self.toggle_recording,
+                                    fg="white", bg="#333")
+        self.record_btn.pack(side=tk.LEFT, padx=2)
+        self.record_label = tk.Label(controls, text="", fg="gray", bg="black")
+        self.record_label.pack(side=tk.LEFT, padx=4)
+
+        # Separator
+        tk.Frame(controls, width=2, bg="gray").pack(side=tk.LEFT, fill=tk.Y, padx=4)
+
+        # View buttons
         tk.Button(controls, text="+", command=lambda: self.zoom(1.2)).pack(side=tk.LEFT)
         tk.Button(controls, text="-", command=lambda: self.zoom(0.8)).pack(side=tk.LEFT)
         tk.Button(controls, text="Center", command=self.center_on_player).pack(side=tk.LEFT)
@@ -172,7 +194,10 @@ class NavmeshOverlay:
         # Draw status
         node_count = len(self.navmesh["nodes"])
         wp_count = len(self.waypoints)
-        self.canvas.create_text(10, 10, text=f"Nodes: {node_count} | Waypoints: {wp_count}",
+        status = f"Nodes: {node_count} | Waypoints: {wp_count}"
+        if self.is_recording:
+            status += f" | REC: {self.record_sample_count} samples"
+        self.canvas.create_text(10, 10, text=status,
                                fill="#aabbcc", anchor=tk.NW, font=("Arial", 9))
 
         self.root.after(500, self._draw)
@@ -207,6 +232,56 @@ class NavmeshOverlay:
     def clear_waypoints(self):
         self.waypoints = []
         self.target_waypoint = None
+
+    def toggle_recording(self):
+        if self.is_recording:
+            self._stop_recording()
+        else:
+            self._start_recording()
+
+    def _start_recording(self):
+        self.is_recording = True
+        self.recorded_positions = []
+        self.record_sample_count = 0
+        self.record_btn.config(text="Stop", bg="#933")
+        self.record_label.config(text="0 pts", fg="red")
+        self._sample_record_position()
+
+    def _stop_recording(self):
+        self.is_recording = False
+        self.record_btn.config(text="Record", bg="#333")
+        self.record_label.config(fg="gray")
+        if self.recorded_positions:
+            self._save_recorded()
+
+    def _sample_record_position(self):
+        if not self.is_recording:
+            return
+        if self.player_pos:
+            x, y, z = self.player_pos
+            self.recorded_positions.append([round(x, 2), round(y, 2), round(z, 2)])
+            self.record_sample_count += 1
+            self.record_label.config(text=f"{self.record_sample_count} pts")
+            # Add to navmesh live
+            gs = self.navmesh.get("grid_size", 2.0)
+            key = (round(x / gs) * gs, round(z / gs) * gs)
+            if key not in self.navmesh["nodes"]:
+                self.navmesh["nodes"][key] = []
+            self.navmesh["nodes"][key].append({"x": round(x, 1), "y": round(y, 1), "z": round(z, 1)})
+        self.root.after(self.record_interval_ms, self._sample_record_position)
+
+    def _save_recorded(self):
+        if not self.recorded_positions:
+            return
+        rec_path = os.path.join(CAPTURES_DIR, "recorded-navmesh-overlay.json")
+        with open(rec_path, "w") as f:
+            json.dump({"positions": self.recorded_positions, "count": len(self.recorded_positions)}, f, indent=2)
+        nm_path = os.path.join(CAPTURES_DIR, "navmesh-merged.json")
+        with open(nm_path, "w") as f:
+            json.dump({"nodes": {f"{k[0]},{k[1]}": v for k, v in self.navmesh["nodes"].items()},
+                       "grid_size": self.navmesh.get("grid_size", 2.0)}, f, indent=2)
+        print(f"Saved {len(self.recorded_positions)} positions -> {rec_path}")
+        print(f"Navmesh saved -> {nm_path} ({len(self.navmesh['nodes'])} nodes)")
 
     def run(self):
         self.root.mainloop()
