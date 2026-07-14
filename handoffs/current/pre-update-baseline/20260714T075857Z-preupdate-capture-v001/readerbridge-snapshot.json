@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "pre-update-baseline-readerbridge-snapshot",
+  "capturedAtUtc": "2026-07-14T07:58:57+00:00",
+  "freshnessClassification": "post-save-snapshot-not-live-ipc",
+  "addOnSourcePath": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\AddOns\\ReaderBridge",
+  "addOnSourceNote": "AddOns folder contains ReaderBridge.lua sources only; no ReaderBridgeExport.lua present there.",
+  "savedVariablesSource": {
+    "path": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Atank\\SavedVariables\\ReaderBridgeExport.lua",
+    "lastWriteTimeUtc": "2026-07-11T21:32:23.4581766Z",
+    "lengthBytes": 133147,
+    "selectionReason": "Most recently modified ReaderBridgeExport.lua under OneDrive RIFT Interface tree"
+  },
+  "alternateSavedVariables": [
+    {
+      "path": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.2@gmail.com\\Deepwood\\Bolinao\\SavedVariables\\ReaderBridgeExport.lua",
+      "lastWriteTimeUtc": "2026-05-29T07:15:58.0000000Z",
+      "lengthBytes": 3704
+    },
+    {
+      "path": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.2@gmail.com\\Deepwood\\Betatest\\SavedVariables\\ReaderBridgeExport.lua",
+      "lastWriteTimeUtc": "2026-04-26T00:26:09.8038716Z",
+      "lengthBytes": 1557
+    },
+    {
+      "path": "C:\\Users\\mrkoo\\OneDrive\\Documents\\RIFT\\Interface\\Saved\\rift315.1@gmail.com\\Deepwood\\Syracuse\\SavedVariables\\ReaderBridgeExport.lua",
+      "lastWriteTimeUtc": "2026-04-12T10:48:17.4744061Z",
+      "lengthBytes": 976
+    }
+  ],
+  "character": {
+    "account": "rift315.1@gmail.com",
+    "shard": "Deepwood",
+    "name": "Atank",
+    "id": "u035400012FA2D207",
+    "level": 45,
+    "calling": "warrior",
+    "role": "tank"
+  },
+  "zone": {
+    "zoneId": "z0000000CB7B53FD7",
+    "locationName": "Silver Landing"
+  },
+  "coords": {
+    "x": 6974.5,
+    "y": 840.30999755859,
+    "z": 3324.5200195312
+  },
+  "export": {
+    "exportCount": 2201,
+    "exportReason": "save-begin",
+    "exportVersion": "0.1.0",
+    "generatedAtRealtime": 5720.654296875
+  },
+  "stalenessWarnings": [
+    "SavedVariables snapshot is ~2.4 days older than capture time (2026-07-11 vs 2026-07-14).",
+    "Do not treat as live IPC truth; use only as offline cross-check reference.",
+    "Coordinates may not match current live memory chain for PID 24224."
+  ]
+}

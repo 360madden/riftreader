@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-aob-signature",
+  "capturedAtUtc": "2026-07-14T08:02:21.554790+00:00",
+  "label": "preupdate-final-coord-root",
+  "module": "rift_x64.exe",
+  "rva": "0x32EBDC0",
+  "chain": "[rift_x64.exe+0x32EBDC0]",
+  "whatThisFinds": "Player owner pointer root \u2014 dereference to reach the player object (coordinates at +0x320, facing target at +0x30C, candidate/support yaw-adjacent scalar at +0x304)",
+  "sessionContext": {
+    "pid": 24224,
+    "moduleBase": "0x7FF63CA90000",
+    "moduleSize": 62676992,
+    "rootAddress": "0x7FF63FD7BDC0",
+    "ownerPointerValue": "0x11E3AED06A0"
+  },
+  "signature": {
+    "aobPattern": "1E 01 00 00 ?? ?? ?? ??",
+    "patternSize": 8,
+    "windowStartRva": 53394876,
+    "windowEndRva": 53394884,
+    "rootRvaInPattern": 4,
+    "moduleScanCount": 1
+  },
+  "validation": {
+    "status": "pending",
+    "instructions": "After capturing, validate by restarting RIFT and running: dotnet run --project reader/RiftReader.Reader -- --process-name rift_x64 --scan-module-pattern \"<aob>\" --json"
+  }
+}

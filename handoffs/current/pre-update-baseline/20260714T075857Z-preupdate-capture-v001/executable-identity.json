@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "pre-update-baseline-executable-identity",
+  "capturedAtUtc": "2026-07-14T07:58:57+00:00",
+  "executable": {
+    "path": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "sha256": "7D2595BE8D9543ACFF7808B12796C967FB690C7825FD7DD6846AC2194E551D40",
+    "lengthBytes": 60024256,
+    "lastWriteTimeUtc": "2026-06-30T10:00:16.7422086Z"
+  },
+  "glyphManifest": {
+    "manifestPath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\manifest64.txt",
+    "manifestPresent": true,
+    "manifestVersionLine": "version STABLE-1-1159-a-1256439",
+    "rift_x64_entry": {
+      "fileName": "rift_x64.exe",
+      "sha1": "4705144e32c0da22006b32c84a7661688a8658d7",
+      "lengthBytes": 60024256
+    },
+    "assetsManifestFiles": [
+      "assets64.manifest",
+      "assets64_dev.manifest",
+      "assets64_debug.manifest"
+    ],
+    "notes": [
+      "Glyph manifest64.txt uses SHA1 hashes, not SHA256.",
+      "Manifest length matches on-disk file length (60024256 bytes)."
+    ]
+  },
+  "liveProcessBinding": {
+    "processId": 24224,
+    "moduleBaseAddressHex": "0x7FF63CA90000",
+    "modulePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "processStartTime": "2026-07-13T20:02:31.1107979Z"
+  }
+}

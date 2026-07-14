@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "captureId": "20260714T080500Z-preupdate-final-v002",
+  "capturedAtUtc": "2026-07-14T08:05:00Z",
+  "status": "complete-pre-server-shutdown",
+  "liveTarget": {
+    "processId": 24224,
+    "windowHandleHex": "0x1909B0",
+    "moduleBaseHex": "0x7FF63CA90000",
+    "processStartUtc": "2026-07-13T20:02:31Z"
+  },
+  "staticChain": {
+    "expression": "[rift_x64.exe+0x32EBDC0]+0x320/+0x324/+0x328",
+    "ownerPointer": "0x11E3AED06A0",
+    "ownerVtableRva": "0x2648FD8",
+    "coordinates": { "x": 7455.5825, "y": 885.5834, "z": 3056.175 },
+    "aobPattern": "1E 01 00 00 ?? ?? ?? ??",
+    "aobFiles": [
+      "signatures/rift_x64/root_coord-root-32ebdc0.json",
+      "signatures/rift_x64/root_preupdate-final-coord-root.json"
+    ]
+  },
+  "executable": {
+    "sha256": "7D2595BE8D9543ACFF7808B12796C967FB690C7825FD7DD6846AC2194E551D40",
+    "lengthBytes": 60024256,
+    "glyphManifestVersion": "STABLE-1-1159-a-1256439"
+  },
+  "apiValidation": {
+    "markerSeq": 6555,
+    "coordinate": { "x": 7455.58, "y": 885.58, "z": 3056.18 },
+    "maxAbsDelta": 0.005,
+    "verdict": "pass"
+  },
+  "disconnectNotes": [
+    "Coords at +0x320/+0x324/+0x328 frozen and still readable after server disconnect.",
+    "owner+0x330 camera child pointer zeroed after disconnect; heading chain unavailable until in-world relog."
+  ],
+  "artifacts": {
+    "baselineV001": "handoffs/current/pre-update-baseline/20260714T075857Z-preupdate-capture-v001/",
+    "handoff": "handoffs/current/PRE_UPDATE_SERVER_SHUTDOWN_HANDOFF_2026-07-14.md",
+    "chainReadback3Sample": "scripts/captures/static-owner-coordinate-chain-readback-20260714-080203-661753/summary.json",
+    "ownerWindowFinal": "scripts/captures/static-owner-facing-snapshot-preupdate-final-owner-window-20260714-080203-769997/summary.json",
+    "apiReference": "scripts/captures/rift-api-reference-currentpid-24224-20260714-080205.json",
+    "coordFamilySnapshot": "scripts/captures/coordinate-family-snapshot-currentpid-24224-20260714-080221/"
+  },
+  "staleDoNotUse": [
+    "docs/recovery/current-proof-anchor-readback.json (PID 130540)",
+    "ReaderBridge SavedVariables 2026-07-11"
+  ]
+}

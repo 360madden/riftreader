@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "pre-update-baseline-static-chain",
+  "capturedAtUtc": "2026-07-14T07:58:57+00:00",
+  "status": "promoted-coordinate-chain-from-current-truth",
+  "authoritativeDoc": "docs/recovery/current-truth.md",
+  "lastTruthDocUpdateUtc": "2026-07-12T15:08:54Z",
+  "liveTarget": {
+    "processName": "rift_x64",
+    "processId": 24224,
+    "windowHandleHex": "0x1909B0",
+    "moduleBaseAddressHex": "0x7FF63CA90000",
+    "executablePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe"
+  },
+  "chain": {
+    "staticGlobalRva": "0x32EBDC0",
+    "staticGlobalExpression": "rift_x64+0x32EBDC0",
+    "rootAddressAtCapture": "0x7FF63FD7BDC0",
+    "dereference": "pointer to heap owner object",
+    "ownerPointerValueAtCapture": "0x11E3AED06A0",
+    "signatureFile": "signatures/rift_x64/root_coord-root-32ebdc0.json"
+  },
+  "ownerOffsets": {
+    "coordinates": {
+      "x": "0x320",
+      "y": "0x324",
+      "z": "0x328"
+    },
+    "legacyRotationCounter": "0x300",
+    "speedOrTurnRate": "0x304",
+    "cameraStateChildPointer": "0x330",
+    "directHeadingRadians": "[[owner+0x330]+0x158]",
+    "cameraDirectionVector": {
+      "x": "[[owner+0x330]+0x2C]",
+      "z": "[[owner+0x330]+0x34]"
+    }
+  },
+  "deadChains": [
+    {
+      "rva": "0x32EBC80",
+      "status": "dead",
+      "note": "Zero references in current binary; do not use."
+    }
+  ],
+  "stalePointerWarnings": [
+    {
+      "artifact": "docs/recovery/current-proof-anchor-readback.json",
+      "recordedPid": 130540,
+      "recordedHwndHex": "0x9310EA",
+      "livePid": 24224,
+      "liveHwndHex": "0x1909B0",
+      "lastUpdatedUtc": "2026-06-18T06:24:30.980596+00:00",
+      "action": "Historical-only; do not use proof-anchor readback without same-PID/HWND revalidation."
+    }
+  ],
+  "notes": [
+    "Coordinate chain promoted and restart-validated per current-truth.md (sessions PIDs 20080, 552, 16008, 36332).",
+    "Direct heading at [[owner+0x330]+0x158] is practically validated but provisionally classified pending formal promotion gates.",
+    "owner+0x300 is cumulative rotation counter, not canonical direct facing."
+  ]
+}

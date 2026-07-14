@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "pre-update-baseline-process-target",
+  "capturedAtUtc": "2026-07-14T07:58:57.1143074+00:00",
+  "sourceScript": "scripts/get-rift-window-targets.ps1",
+  "mode": "rift-window-target-discovery",
+  "processName": "rift_x64",
+  "count": 1,
+  "movement": {
+    "ProcessId": 24224,
+    "ProcessName": "rift_x64",
+    "WindowHandle": 1640880,
+    "WindowHandleHex": "0x1909B0",
+    "Title": "RIFT",
+    "Foreground": false,
+    "Left": -8,
+    "Top": -8,
+    "Right": 1928,
+    "Bottom": 1040,
+    "Width": 1936,
+    "Height": 1048,
+    "StartTime": "2026-07-13T16:02:31.1107979-04:00",
+    "ModuleBaseAddressHex": "0x7FF63CA90000",
+    "ModulePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+    "Responding": true
+  },
+  "background": null,
+  "windows": [
+    {
+      "ProcessId": 24224,
+      "ProcessName": "rift_x64",
+      "WindowHandle": 1640880,
+      "WindowHandleHex": "0x1909B0",
+      "Title": "RIFT",
+      "Foreground": false,
+      "Left": -8,
+      "Top": -8,
+      "Right": 1928,
+      "Bottom": 1040,
+      "Width": 1936,
+      "Height": 1048,
+      "StartTime": "2026-07-13T16:02:31.1107979-04:00",
+      "ModuleBaseAddressHex": "0x7FF63CA90000",
+      "ModulePath": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
+      "Responding": true
+    }
+  ],
+  "expectedChecks": [
+    {
+      "Lane": "movement",
+      "Supplied": false,
+      "Matches": null,
+      "Error": null
+    },
+    {
+      "Lane": "background",
+      "Supplied": false,
+      "Matches": null,
+      "Error": null
+    }
+  ],
+  "ok": true,
+  "errors": [],
+  "notes": [
+    "Read-only discovery only; this script does not focus, click, post messages, send keys, or attach a debugger.",
+    "Default movement/background suggestion is sorted by window Top coordinate: uppermost as movement, lowermost as background."
+  ]
+}

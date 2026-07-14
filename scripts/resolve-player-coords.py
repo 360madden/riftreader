@@ -34,6 +34,9 @@ OFFSET_Y = 0x324
 OFFSET_Z = 0x328
 OFFSET_HEADING_RAW = 0x300
 OFFSET_SPEED = 0x304
+OFFSET_CAMERA_CHILD = 0x330  # Camera state object pointer
+OFFSET_CAM_DIR_X = 0x2C       # Camera direction X within child
+OFFSET_CAM_DIR_Z = 0x34       # Camera direction Z within child
 PROCESS_VM_READ = 0x0010
 
 # --- Registry configuration (from Assets repo) ---
@@ -48,7 +51,7 @@ def find_module_base(pid):
         return None, "Cannot open process with VM_READ"
 
     # Fast path: try known bases
-    known_bases = [0x7FF728B80000, 0x7FF728A00000, 0x7FF728C00000, 0x7FF6EE5D0000]
+    known_bases = [0x7FF63CA90000, 0x7FF728B80000, 0x7FF728A00000, 0x7FF728C00000, 0x7FF6EE5D0000]
     for addr in known_bases:
         data = _read_bytes(handle, addr, 2)
         if data == b"MZ":
