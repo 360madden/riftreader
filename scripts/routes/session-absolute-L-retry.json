@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "session-absolute-L-retry",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 3.0,
+  "notes": "Retry after operator cleared window glitch",
+  "sourcePose": {
+    "x": 7140.45263671875,
+    "y": 871.7698974609375,
+    "z": 3067.590576171875,
+    "pid": 21436
+  },
+  "waypoints": [
+    {
+      "id": "wp-a",
+      "x": 7140.45263671875,
+      "y": 871.7698974609375,
+      "z": 3072.590576171875,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-b",
+      "x": 7143.45263671875,
+      "y": 871.7698974609375,
+      "z": 3067.590576171875,
+      "arrivalRadius": 3.0
+    }
+  ]
+}

@@ -749,6 +749,37 @@ def norm_angle(d: float) -> float:
     return d
 
 
+def _run_sendinput_wrapper(repo: Path, args: list[str], timeout: int = 60) -> dict[str, Any]:
+    wrapper = repo / "scripts" / "send-rift-key-csharp.ps1"
+    if not wrapper.exists():
+        raise FileNotFoundError(f"missing {wrapper}")
+    cmd = [
+        "pwsh",
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(wrapper),
+        *args,
+    ]
+    proc = subprocess.run(cmd, cwd=str(repo), capture_output=True, text=True, timeout=timeout)
+    out = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    payload: dict[str, Any] = {
+        "exitCode": proc.returncode,
+        "backend": "RiftReader.SendInput",
+        "stdoutTail": out[-1500:],
+    }
+    if "{" in out:
+        try:
+            start = out.index("{")
+            end = out.rindex("}") + 1
+            payload["result"] = json.loads(out[start:end])
+        except (ValueError, json.JSONDecodeError):
+            pass
+    return payload
+
+
 def click_client_sendinput(
     repo: Path,
     pid: int,
@@ -766,17 +797,7 @@ def click_client_sendinput(
     Without this, SendInput restores the previous window every step → visible
     focus/unfocus flicker during multi-click routes.
     """
-    wrapper = repo / "scripts" / "send-rift-key-csharp.ps1"
-    if not wrapper.exists():
-        raise FileNotFoundError(f"missing {wrapper}")
-    cmd = [
-        "pwsh",
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(wrapper),
+    args = [
         "--pid",
         str(pid),
         "--hwnd",
@@ -792,26 +813,143 @@ def click_client_sendinput(
         "--json",
     ]
     if no_refocus:
-        cmd.append("--no-refocus")
-    proc = subprocess.run(cmd, cwd=str(repo), capture_output=True, text=True, timeout=60)
-    out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    payload: dict[str, Any] = {
-        "exitCode": proc.returncode,
-        "backend": "RiftReader.SendInput",
-        "stdoutTail": out[-1500:],
-    }
-    if "{" in out:
-        try:
-            start = out.index("{")
-            end = out.rindex("}") + 1
-            payload["result"] = json.loads(out[start:end])
-        except (ValueError, json.JSONDecodeError):
-            pass
-    if proc.returncode != 0:
+        args.append("--no-refocus")
+    payload = _run_sendinput_wrapper(repo, args)
+    # Note: exitCode 0 is success — do not use `or 1` (0 is falsy).
+    exit_code = payload.get("exitCode")
+    if exit_code is None:
+        exit_code = 1
+    if int(exit_code) != 0:
         err = payload.get("result") or {}
         msg = err.get("error") if isinstance(err, dict) else None
-        raise RuntimeError(msg or f"SendInput mouse click failed exit={proc.returncode}: {out[-500:]}")
+        raise RuntimeError(msg or f"SendInput mouse click failed exit={exit_code}: {payload.get('stdoutTail', '')[-500:]}")
+    result = payload.get("result")
+    if isinstance(result, dict) and result.get("ok") is False:
+        raise RuntimeError(result.get("error") or "SendInput mouse reported ok=false")
     return payload
+
+
+def send_key_sendinput(
+    repo: Path,
+    pid: int,
+    hwnd: int,
+    key: str,
+    hold_ms: int = 200,
+    focus_delay_ms: int = 80,
+    *,
+    no_refocus: bool = True,
+) -> dict[str, Any]:
+    """Keyboard via C# SendInput ScanCode (A/D turn, W forward)."""
+    args = [
+        "--pid",
+        str(pid),
+        "--hwnd",
+        hex(int(hwnd)),
+        "--key",
+        key,
+        "--hold-ms",
+        str(int(hold_ms)),
+        "--input-mode",
+        "ScanCode",
+        "--focus-delay-ms",
+        str(int(focus_delay_ms)),
+        "--json",
+    ]
+    if no_refocus:
+        args.append("--no-refocus")
+    payload = _run_sendinput_wrapper(repo, args)
+    exit_code = payload.get("exitCode")
+    if exit_code is None:
+        exit_code = 1
+    if int(exit_code) != 0:
+        err = payload.get("result") or {}
+        msg = err.get("error") if isinstance(err, dict) else None
+        raise RuntimeError(msg or f"SendInput key failed exit={exit_code}")
+    result = payload.get("result")
+    if isinstance(result, dict) and result.get("ok") is False:
+        raise RuntimeError(result.get("error") or "SendInput key reported ok=false")
+    return payload
+
+
+def read_heading_deg(pid: int, *, module_base: int | None = None, root_rva: int = DEFAULT_ROOT_RVA) -> float | None:
+    """Heading degrees from [[owner+0x330]+0x158] (atan2-compatible world yaw)."""
+    base = module_base or find_module_base(pid)
+    if not base:
+        return None
+    h = _RR_CACHE.get("handle")
+    if _RR_CACHE.get("pid") != pid or not h:
+        h = _open_process(pid)
+        _RR_CACHE["pid"] = pid
+        _RR_CACHE["handle"] = h
+    owner = _read_u64(h, base + root_rva)
+    if not owner:
+        return None
+    cam = _read_u64(h, owner + DEFAULT_CAMERA_CHILD_OFFSET)
+    if not cam:
+        return None
+    vals = _read_f32s(h, cam + 0x158, 1)
+    if not vals:
+        return None
+    return math.degrees(float(vals[0]))
+
+
+def maybe_heading_prestep(
+    *,
+    repo: Path,
+    t: dict[str, Any],
+    goal_bearing_deg: float,
+    module_base: int | None,
+    root_rva: int,
+    enabled: bool,
+    threshold_deg: float = 50.0,
+    turn_hold_ms: int = 220,
+    focus_delay_ms: int = 80,
+) -> dict[str, Any] | None:
+    """If heading is far from goal bearing, pulse A/D once before C2M click."""
+    if not enabled:
+        return None
+    heading = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva)
+    if heading is None:
+        return {"ok": False, "reason": "heading-unreadable"}
+    err = norm_angle(goal_bearing_deg - heading)
+    if abs(err) < threshold_deg:
+        return {
+            "ok": True,
+            "skipped": True,
+            "headingDeg": heading,
+            "goalBearingDeg": goal_bearing_deg,
+            "errorDeg": err,
+            "thresholdDeg": threshold_deg,
+        }
+    # Positive err => goal is left of facing => turn left (A); negative => D
+    key = "a" if err > 0 else "d"
+    try:
+        payload = send_key_sendinput(
+            repo,
+            t["pid"],
+            t["hwnd"],
+            key,
+            hold_ms=turn_hold_ms,
+            focus_delay_ms=focus_delay_ms,
+            no_refocus=True,
+        )
+        time.sleep(0.15)
+        heading2 = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva)
+        return {
+            "ok": True,
+            "skipped": False,
+            "key": key,
+            "holdMs": turn_hold_ms,
+            "headingDegBefore": heading,
+            "headingDegAfter": heading2,
+            "goalBearingDeg": goal_bearing_deg,
+            "errorDegBefore": err,
+            "errorDegAfter": None if heading2 is None else norm_angle(goal_bearing_deg - heading2),
+            "sendInputOk": True,
+            "resultStatus": (payload.get("result") or {}).get("status"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "reason": str(exc), "key": key, "errorDeg": err}
 
 
 def choose_click(
@@ -1017,6 +1155,9 @@ def drive_to_goal(
     module_base: int | None = None,
     dwell_ms: int = 600,
     stuck_streak_limit: int = 6,
+    heading_prestep: bool = True,
+    heading_threshold_deg: float = 50.0,
+    turn_hold_ms: int = 220,
 ) -> dict[str, Any]:
     """Drive from start_pos toward goal. Returns leg summary (does not close RR cache)."""
     if click_mode in ("post", "cursor"):
@@ -1032,6 +1173,7 @@ def drive_to_goal(
     invert_lateral = False
     wrong_way_streak = 0
     reaim_events = 0
+    heading_turns = 0
     warnings: list[str] = []
     blockers: list[str] = []
     best_dist = planar(start_pos, goal)
@@ -1107,9 +1249,42 @@ def drive_to_goal(
             step["stuckReaimRefreshW2s"] = True
 
         goal_bearing = bearing_deg(prev, goal)
-        err = None if motion_bearing is None else norm_angle(goal_bearing - motion_bearing)
+        # Prefer heading error for aim bias when available; fall back to motion bearing
+        heading_now = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva)
+        if heading_now is not None:
+            err = norm_angle(goal_bearing - heading_now)
+            step["headingDeg"] = heading_now
+            step["headingErrorDeg"] = err
+        else:
+            err = None if motion_bearing is None else norm_angle(goal_bearing - motion_bearing)
         if err is not None and abs(err) > 40.0:
             turn_hard = True
+
+        # Heading-aware pre-step: A/D if far from goal bearing (before first clicks / when stuck)
+        if heading_prestep and (i == 0 or no_progress_streak >= 1 or (err is not None and abs(err) >= heading_threshold_deg)):
+            pre = maybe_heading_prestep(
+                repo=repo,
+                t=t,
+                goal_bearing_deg=goal_bearing,
+                module_base=module_base,
+                root_rva=root_rva,
+                enabled=True,
+                threshold_deg=heading_threshold_deg,
+                turn_hold_ms=turn_hold_ms,
+                focus_delay_ms=focus_delay_ms if clicks_sent == 0 else 80,
+            )
+            if pre:
+                step["headingPrestep"] = pre
+                if pre.get("ok") and not pre.get("skipped"):
+                    heading_turns += 1
+                    safety["inputSent"] = True
+                    safety["movementSent"] = True
+                    safety["noRefocusDuringRoute"] = True
+                    # refresh err after turn
+                    if pre.get("headingDegAfter") is not None:
+                        err = norm_angle(goal_bearing - float(pre["headingDegAfter"]))
+                        step["headingErrorDeg"] = err
+
         cam = None
         if step_aim == "w2s":
             cam = read_camera_for_w2s(t["pid"], module_base=module_base, root_rva=root_rva)
@@ -1279,6 +1454,8 @@ def drive_to_goal(
         "bestDistToGoal": best_dist,
         "steps": steps,
         "reaimEvents": reaim_events,
+        "headingTurns": heading_turns,
+        "headingPrestep": heading_prestep,
         "dwellMs": dwell_ms,
         "warnings": warnings,
         "blockers": blockers,
@@ -1410,6 +1587,14 @@ def main() -> int:
     ap.add_argument("--poll-ms", type=int, default=200)
     ap.add_argument("--dwell-ms", type=int, default=600, help="Must remain in arrival radius this long (0=off)")
     ap.add_argument("--stuck-streak-limit", type=int, default=6, help="Stop leg after this many no-progress steps")
+    ap.add_argument(
+        "--heading-prestep",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="A/D turn toward goal using cam+0x158 when heading error is large (default: on)",
+    )
+    ap.add_argument("--heading-threshold-deg", type=float, default=50.0)
+    ap.add_argument("--turn-hold-ms", type=int, default=220)
     ap.add_argument(
         "--click-mode",
         choices=["sendinput"],
@@ -1667,6 +1852,9 @@ def main() -> int:
             module_base=module_base,
             dwell_ms=args.dwell_ms,
             stuck_streak_limit=args.stuck_streak_limit,
+            heading_prestep=bool(args.heading_prestep),
+            heading_threshold_deg=float(args.heading_threshold_deg),
+            turn_hold_ms=int(args.turn_hold_ms),
         )
         leg["id"] = g["id"]
         leg["arrivalRadius"] = radius

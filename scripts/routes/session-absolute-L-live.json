@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "session-absolute-L-live",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 3.0,
+  "notes": "Live absolute L from pose-now; r=3.0 after prior near-miss",
+  "sourcePose": {
+    "x": 7412.8251953125,
+    "y": 863.6981811523438,
+    "z": 3117.632080078125,
+    "pid": 21436
+  },
+  "waypoints": [
+    {
+      "id": "wp-a",
+      "x": 7412.8251953125,
+      "y": 863.6981811523438,
+      "z": 3122.632080078125,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-b",
+      "x": 7415.8251953125,
+      "y": 863.6981811523438,
+      "z": 3117.632080078125,
+      "arrivalRadius": 3.0
+    }
+  ]
+}
