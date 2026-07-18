@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "session-absolute-square",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 3.0,
+  "notes": "4-leg absolute square with heading prestep",
+  "sourcePose": {
+    "x": 7143.318359375,
+    "y": 871.7677612304688,
+    "z": 3066.56787109375,
+    "pid": 21436,
+    "headingDeg": -62.3626597262079
+  },
+  "waypoints": [
+    {
+      "id": "n",
+      "x": 7143.318359375,
+      "y": 871.7677612304688,
+      "z": 3071.56787109375
+    },
+    {
+      "id": "ne",
+      "x": 7148.318359375,
+      "y": 871.7677612304688,
+      "z": 3071.56787109375
+    },
+    {
+      "id": "e",
+      "x": 7148.318359375,
+      "y": 871.7677612304688,
+      "z": 3066.56787109375
+    },
+    {
+      "id": "home",
+      "x": 7143.318359375,
+      "y": 871.7677612304688,
+      "z": 3066.56787109375
+    }
+  ]
+}
