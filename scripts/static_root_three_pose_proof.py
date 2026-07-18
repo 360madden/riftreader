@@ -184,6 +184,7 @@ def send_key(pid: int, hwnd_hex: str, key: str, hold_ms: int) -> dict[str, Any]:
             "ScanCode",
             "--focus-delay-ms",
             "400",
+            "--no-refocus",
             "--json",
         ],
         cwd=str(REPO),

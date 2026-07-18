@@ -192,6 +192,7 @@ def main() -> int:
         str(args.hold_ms),
         "--focus-delay-ms",
         str(args.focus_delay_ms),
+        "--no-refocus",
         "--json",
     ]
     t0 = time.time()

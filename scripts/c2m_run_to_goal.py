@@ -757,8 +757,15 @@ def click_client_sendinput(
     y: int,
     hold_ms: int = 45,
     focus_delay_ms: int = 500,
+    *,
+    no_refocus: bool = True,
 ) -> dict[str, Any]:
-    """Ground click via repo C# SendInput (foreground required). Never PostMessage mouse."""
+    """Ground click via repo C# SendInput (foreground required). Never PostMessage mouse.
+
+    no_refocus=True (default for C2M routes): leave RIFT foreground after the click.
+    Without this, SendInput restores the previous window every step → visible
+    focus/unfocus flicker during multi-click routes.
+    """
     wrapper = repo / "scripts" / "send-rift-key-csharp.ps1"
     if not wrapper.exists():
         raise FileNotFoundError(f"missing {wrapper}")
@@ -784,6 +791,8 @@ def click_client_sendinput(
         str(int(focus_delay_ms)),
         "--json",
     ]
+    if no_refocus:
+        cmd.append("--no-refocus")
     proc = subprocess.run(cmd, cwd=str(repo), capture_output=True, text=True, timeout=60)
     out = (proc.stdout or "") + "\n" + (proc.stderr or "")
     payload: dict[str, Any] = {
@@ -1028,6 +1037,8 @@ def drive_to_goal(
     best_dist = planar(start_pos, goal)
     # Effective aim can temporarily force center after stuck
     force_center_steps = 0
+    # First click may need full focus delay; later clicks keep RIFT focused (--no-refocus)
+    clicks_sent = 0
 
     for i in range(max_steps):
         rect = wintypes.RECT()
@@ -1119,6 +1130,8 @@ def drive_to_goal(
         )
         if no_progress_streak >= 1:
             why = f"stuck-reaim(streak={no_progress_streak})/" + why
+        # Keep RIFT focused for the whole leg; only first click needs full settle delay
+        step_focus_delay = focus_delay_ms if clicks_sent == 0 else min(80, focus_delay_ms)
         try:
             click_payload = click_client_sendinput(
                 repo,
@@ -1127,14 +1140,18 @@ def drive_to_goal(
                 cx,
                 cy,
                 hold_ms=45,
-                focus_delay_ms=focus_delay_ms,
+                focus_delay_ms=step_focus_delay,
+                no_refocus=True,
             )
             step["sendInput"] = {
                 "ok": True,
                 "exitCode": click_payload.get("exitCode"),
                 "resultStatus": (click_payload.get("result") or {}).get("status"),
                 "focus": (click_payload.get("result") or {}).get("focus"),
+                "noRefocus": True,
+                "focusDelayMs": step_focus_delay,
             }
+            clicks_sent += 1
         except Exception as exc:  # noqa: BLE001
             step["sendInput"] = {"ok": False, "error": str(exc)}
             steps.append(step)
@@ -1149,6 +1166,7 @@ def drive_to_goal(
         safety["sendInputMouseUsed"] = True
         safety["postMessageMouseUsed"] = False
         safety["requiresForeground"] = True
+        safety["noRefocusDuringRoute"] = True
         step["click"] = {
             "clientX": cx,
             "clientY": cy,
@@ -1157,6 +1175,7 @@ def drive_to_goal(
             "mode": "sendinput",
             "effectiveAimMode": step_aim,
             "centerOnlyY": cy == height // 2 or step_aim in ("center", "w2s"),
+            "noRefocus": True,
         }
         step["goalBearingDeg"] = goal_bearing
         step["motionBearingDeg"] = motion_bearing

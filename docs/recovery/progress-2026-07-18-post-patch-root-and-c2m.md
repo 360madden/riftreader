@@ -99,6 +99,7 @@ python scripts\static_root_three_pose_proof.py --movement-approved --json
 | NPC under crosshair | Operator clears center; do not treat NPC select as C2M proof | Center is crosshair/units, not pure ground |
 | Mouse backend | **SendInput** absolute mouse after foreground focus | PostMessage mouse does not drive RIFT C2M reliably |
 | Focus | Activate only; **`SW_RESTORE` only if iconic** | Restore un-maximizes / changes client size |
+| Multi-click focus | C2M/route clicks use **`--no-refocus`** | Default SendInput returned focus to previous app every click → flicker |
 | Static vs heap | Promote **RVA + offsets only**; reacquire owner each session | Heap owner changes every restart |
 | Engine C2M destination | **Not required** for travel MVP | In-game C2M + click + pose arrival is enough |
 | Facing probe scripts | Most already tracked historical; **do not** commit leftover scratch without cleanup | Hardcoded dead roots/PIDs |

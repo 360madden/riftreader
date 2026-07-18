@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "session-absolute-L-20260718",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 2.5,
+  "zoneHint": "session live open ground — PID 21436 pose snapshot",
+  "notes": "Absolute L from static_owner_pose_now at run time. wp-a: +5 Z, wp-b: +3 X from start snapshot. Re-capture if zone changes.",
+  "sourcePose": {
+    "x": 7412.09814453125,
+    "y": 863.682861328125,
+    "z": 3116.5068359375,
+    "capturedAt": "2026-07-18T17:35:00Z-approx",
+    "pid": 21436
+  },
+  "waypoints": [
+    {
+      "id": "wp-a-north5",
+      "x": 7412.09814453125,
+      "y": 863.682861328125,
+      "z": 3121.5068359375,
+      "arrivalRadius": 2.5
+    },
+    {
+      "id": "wp-b-east3",
+      "x": 7415.09814453125,
+      "y": 863.682861328125,
+      "z": 3116.5068359375,
+      "arrivalRadius": 2.5
+    }
+  ]
+}
