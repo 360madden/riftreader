@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "smoke-heading-scurve6",
+  "coordinateMode": "relative",
+  "relativeFrame": "heading",
+  "defaultArrivalRadius": 3.0,
+  "notes": "6-leg heading S-curve \u2014 face open ground; gentle left/right weave forward",
+  "waypoints": [
+    {
+      "id": "f1",
+      "forward": 5,
+      "right": 0
+    },
+    {
+      "id": "r1",
+      "forward": 8,
+      "right": 2.5
+    },
+    {
+      "id": "f2",
+      "forward": 12,
+      "right": 2.5
+    },
+    {
+      "id": "l1",
+      "forward": 15,
+      "right": 0
+    },
+    {
+      "id": "l2",
+      "forward": 18,
+      "right": -2.5
+    },
+    {
+      "id": "f3",
+      "forward": 22,
+      "right": -2.5
+    }
+  ]
+}
