@@ -168,18 +168,26 @@ For the **next** client update, prefer:
 
 ---
 
-## 8. Recommended next (not done yet)
+## 8. Recommended next
 
-Ordered; do these only after reading this note + current-truth:
-
-| # | Action | Why |
+| # | Action | Status |
 |---|---|---|
-| 1 | Stuck / re-aim loop in C2M | Reliability on real terrain |
-| 2 | Arrival dwell | Stop leg overshoot |
-| 3 | Absolute waypoint JSON routes | Production path files |
-| 4 | Truth fail-closed bind on C2M | Restart safety |
-| 5 | Heading-aware pre-step | Cleaner long legs |
-| 6 | Operator smoke + short runbook polish | Fast post-login check |
+| 1 | Stuck / re-aim loop in C2M | **Done** — flip + center + W2S refresh on no-progress streak |
+| 2 | Arrival dwell | **Done** — `--dwell-ms` (default 600) |
+| 3 | Absolute / relative waypoint JSON | **Done** — `scripts/routes/` + `--waypoints-json` |
+| 4 | Truth fail-closed bind on C2M | **Done** — `--use-current-truth` default on |
+| 5 | Heading-aware pre-step | Still open |
+| 6 | Operator smoke runbook polish | Partial (`scripts/routes/README.md`) |
+
+### Route + reliability usage
+
+```powershell
+python scripts\c2m_run_to_goal.py --execute --stimulus-approved `
+  --use-current-truth --aim-mode w2s --pose-source static-chain `
+  --waypoints-json scripts\routes\smoke-rel-L.json --json
+```
+
+After restart: refresh `current-truth` target bind (or recovery-only `--allow-target-drift`).
 
 **Do not** next: re-seed root, CE attach, mass-commit facing scratch probes.
 

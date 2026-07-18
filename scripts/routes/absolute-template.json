@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "absolute-template",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 2.5,
+  "zoneHint": "fill from live pose — not portable across zones",
+  "notes": "Copy x/y/z from: python scripts/static_owner_pose_now.py --json. Replace placeholders before run.",
+  "waypoints": [
+    { "id": "wp-a", "x": 0.0, "y": 0.0, "z": 0.0 },
+    { "id": "wp-b", "x": 0.0, "y": 0.0, "z": 0.0 }
+  ]
+}

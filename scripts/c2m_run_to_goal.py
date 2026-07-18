@@ -416,19 +416,193 @@ def find_module_base(pid: int) -> int | None:
     return base
 
 
-def load_root_rva(repo: Path) -> int:
+def load_current_truth(repo: Path) -> dict[str, Any] | None:
     truth = repo / "docs" / "recovery" / "current-truth.json"
     try:
         data = json.loads(truth.read_text(encoding="utf-8"))
-        rva = (
-            (data.get("bestCurrentCandidate") or {}).get("rootRva")
-            or ((data.get("staticChainStatus") or {}).get("primaryCandidate") or {}).get("rootRva")
-        )
-        if rva:
-            return int(str(rva), 0)
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        pass
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+
+
+def load_root_rva(repo: Path) -> int:
+    data = load_current_truth(repo)
+    if data:
+        try:
+            rva = (
+                (data.get("bestCurrentCandidate") or {}).get("rootRva")
+                or ((data.get("staticChainStatus") or {}).get("primaryCandidate") or {}).get("rootRva")
+            )
+            if rva:
+                return int(str(rva), 0)
+        except (ValueError, TypeError):
+            pass
     return DEFAULT_ROOT_RVA
+
+
+def get_process_start_utc(pid: int) -> str | None:
+    """Best-effort process start UTC (PowerShell)."""
+    try:
+        proc = subprocess.run(
+            [
+                "pwsh",
+                "-NoLogo",
+                "-NoProfile",
+                "-Command",
+                f"(Get-Process -Id {int(pid)}).StartTime.ToUniversalTime().ToString('o')",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        text = (proc.stdout or "").strip()
+        return text or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def parse_utc(text: str | None) -> datetime | None:
+    if not text:
+        return None
+    t = str(text).strip()
+    if t.endswith("Z"):
+        t = t[:-1] + "+00:00"
+    # trim fractional seconds > 6 digits
+    if "." in t:
+        head, rest = t.split(".", 1)
+        frac = rest
+        tz = ""
+        for sep in ("+", "-"):
+            if sep in rest[1:] if rest[:1].isdigit() else rest:
+                # find timezone from end
+                break
+        # simpler: fromisoformat after truncating
+        try:
+            return datetime.fromisoformat(t)
+        except ValueError:
+            if "+" in rest:
+                frac, tzpart = rest.split("+", 1)
+                t = f"{head}.{frac[:6]}+{tzpart}"
+            elif rest.count("-") >= 1 and "T" in t:
+                # handle -offset
+                idx = rest.rfind("-")
+                if idx > 0:
+                    frac, tzpart = rest[:idx], rest[idx:]
+                    t = f"{head}.{frac[:6]}{tzpart}"
+            try:
+                return datetime.fromisoformat(t)
+            except ValueError:
+                return None
+    try:
+        return datetime.fromisoformat(t)
+    except ValueError:
+        return None
+
+
+def bind_target_fail_closed(
+    *,
+    repo: Path,
+    live: dict[str, Any],
+    module_base: int | None,
+    root_rva: int,
+    use_current_truth: bool,
+    allow_target_drift: bool,
+    process_start_tolerance_seconds: float = 2.0,
+) -> dict[str, Any]:
+    """Compare live RIFT target to current-truth. Fail closed unless drift allowed."""
+    result: dict[str, Any] = {
+        "enabled": bool(use_current_truth),
+        "status": "skipped",
+        "blockers": [],
+        "warnings": [],
+        "truthPath": str(repo / "docs" / "recovery" / "current-truth.json"),
+        "live": {
+            "pid": live.get("pid"),
+            "hwnd": live.get("hwndHex") or hex(int(live.get("hwnd") or 0)),
+            "moduleBase": hex(module_base) if module_base else None,
+            "rootRva": hex(root_rva),
+        },
+        "truth": None,
+        "allowTargetDrift": bool(allow_target_drift),
+    }
+    if not use_current_truth:
+        result["status"] = "disabled"
+        return result
+
+    truth = load_current_truth(repo)
+    if not truth:
+        result["status"] = "blocked"
+        result["blockers"].append("current-truth-json-missing-or-invalid")
+        return result
+
+    tgt = truth.get("target") or {}
+    best = truth.get("bestCurrentCandidate") or {}
+    truth_pid = tgt.get("processId")
+    truth_hwnd = str(tgt.get("targetWindowHandle") or "").lower()
+    truth_base = str(tgt.get("moduleBase") or "").lower()
+    truth_start = tgt.get("processStartUtc")
+    truth_root = best.get("rootRva") or ((truth.get("staticChainStatus") or {}).get("primaryCandidate") or {}).get(
+        "rootRva"
+    )
+    result["truth"] = {
+        "pid": truth_pid,
+        "hwnd": truth_hwnd,
+        "moduleBase": truth_base,
+        "processStartUtc": truth_start,
+        "rootRva": truth_root,
+        "status": truth.get("status"),
+    }
+
+    live_pid = int(live["pid"])
+    live_hwnd = str(live.get("hwndHex") or hex(int(live["hwnd"]))).lower()
+    live_base = hex(module_base).lower() if module_base else None
+
+    if truth_pid is not None and int(truth_pid) != live_pid:
+        result["blockers"].append(f"pid-mismatch:live={live_pid}:truth={truth_pid}")
+    if truth_hwnd and truth_hwnd != live_hwnd:
+        result["blockers"].append(f"hwnd-mismatch:live={live_hwnd}:truth={truth_hwnd}")
+    if truth_base and live_base and truth_base != live_base:
+        # module base can change on ASLR restart — warn if PID matched but base differed without start check
+        result["warnings"].append(f"module-base-differs:live={live_base}:truth={truth_base}")
+    if truth_root:
+        try:
+            if int(str(truth_root), 0) != int(root_rva):
+                result["blockers"].append(f"root-rva-mismatch:live={hex(root_rva)}:truth={truth_root}")
+        except (ValueError, TypeError):
+            result["warnings"].append("truth-root-rva-unparseable")
+
+    live_start = get_process_start_utc(live_pid)
+    result["live"]["processStartUtc"] = live_start
+    if truth_start and live_start:
+        ts = parse_utc(str(truth_start))
+        ls = parse_utc(live_start)
+        if ts and ls:
+            # normalize tz
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ls.tzinfo is None:
+                ls = ls.replace(tzinfo=timezone.utc)
+            delta = abs((ts - ls).total_seconds())
+            result["processStartDeltaSeconds"] = delta
+            if delta > process_start_tolerance_seconds:
+                result["blockers"].append(
+                    f"process-start-mismatch:deltaSec={delta:.3f}:tol={process_start_tolerance_seconds}"
+                )
+        else:
+            result["warnings"].append("process-start-parse-failed")
+    elif truth_start and not live_start:
+        result["warnings"].append("live-process-start-unavailable")
+
+    if result["blockers"]:
+        if allow_target_drift:
+            result["status"] = "drift-allowed"
+            result["warnings"].extend([f"allowed:{b}" for b in result["blockers"]])
+        else:
+            result["status"] = "blocked"
+    else:
+        result["status"] = "passed"
+    return result
 
 
 def read_static_chain_pose(
@@ -761,6 +935,58 @@ def poll_until_settled(
     return best or last
 
 
+def confirm_arrival_dwell(
+    *,
+    repo: Path,
+    t: dict[str, Any],
+    run_dir: Path,
+    pos: dict[str, float],
+    goal: dict[str, float],
+    arrival_radius: float,
+    dwell_ms: int,
+    poll_ms: int,
+    pose_source: str,
+    root_rva: int,
+    module_base: int | None,
+) -> dict[str, Any]:
+    """Require pose to stay inside arrival radius for dwell_ms."""
+    if dwell_ms <= 0:
+        return {"ok": True, "skipped": True, "final": pos}
+    deadline = time.time() + dwell_ms / 1000.0
+    samples = 0
+    last = pos
+    while time.time() < deadline:
+        cur = capture_pose(
+            repo,
+            t["pid"],
+            t["hwndHex"],
+            run_dir / "dwell",
+            pose_source=pose_source,
+            root_rva=root_rva,
+            module_base=module_base,
+            prefer_fast=True,
+        )
+        if cur:
+            last = cur
+            samples += 1
+            if planar(cur, goal) > arrival_radius:
+                return {
+                    "ok": False,
+                    "reason": "left-radius-during-dwell",
+                    "final": cur,
+                    "dist": planar(cur, goal),
+                    "samples": samples,
+                }
+        time.sleep(max(0.05, poll_ms / 1000.0))
+    return {
+        "ok": True,
+        "final": last,
+        "dist": planar(last, goal),
+        "samples": samples,
+        "dwellMs": dwell_ms,
+    }
+
+
 def drive_to_goal(
     *,
     repo: Path,
@@ -780,6 +1006,8 @@ def drive_to_goal(
     pose_source: str = "auto",
     root_rva: int = DEFAULT_ROOT_RVA,
     module_base: int | None = None,
+    dwell_ms: int = 600,
+    stuck_streak_limit: int = 6,
 ) -> dict[str, Any]:
     """Drive from start_pos toward goal. Returns leg summary (does not close RR cache)."""
     if click_mode in ("post", "cursor"):
@@ -794,9 +1022,12 @@ def drive_to_goal(
     no_progress_streak = 0
     invert_lateral = False
     wrong_way_streak = 0
+    reaim_events = 0
     warnings: list[str] = []
     blockers: list[str] = []
     best_dist = planar(start_pos, goal)
+    # Effective aim can temporarily force center after stuck
+    force_center_steps = 0
 
     for i in range(max_steps):
         rect = wintypes.RECT()
@@ -813,21 +1044,67 @@ def drive_to_goal(
             "atUtc": utc_now(),
             "aimMode": aim_mode,
             "poseSourcePref": pose_source,
+            "noProgressStreak": no_progress_streak,
         }
         if dist <= arrival_radius:
-            arrived = True
-            step["arrived"] = True
-            steps.append(step)
-            break
+            dwell = confirm_arrival_dwell(
+                repo=repo,
+                t=t,
+                run_dir=run_dir / f"{step_prefix}dwell-{i}",
+                pos=prev,
+                goal=goal,
+                arrival_radius=arrival_radius,
+                dwell_ms=dwell_ms,
+                poll_ms=poll_ms,
+                pose_source=pose_source,
+                root_rva=root_rva,
+                module_base=module_base,
+            )
+            step["dwell"] = dwell
+            if dwell.get("ok"):
+                arrived = True
+                step["arrived"] = True
+                if dwell.get("final"):
+                    prev = dwell["final"]
+                steps.append(step)
+                break
+            warnings.append(f"{step_prefix}dwell-failed-step-{i}")
+            if dwell.get("final"):
+                prev = dwell["final"]
+            # fall through — re-aim if we left radius
+
+        # --- stuck re-aim policy before click ---
+        step_aim = aim_mode
+        turn_hard = False
+        if force_center_steps > 0:
+            step_aim = "center"
+            force_center_steps -= 1
+            step["forcedCenterReaim"] = True
+        if no_progress_streak >= 1:
+            invert_lateral = not invert_lateral
+            step["stuckReaimFlip"] = invert_lateral
+            reaim_events += 1
+        if no_progress_streak >= 2:
+            step_aim = "center"
+            turn_hard = True
+            force_center_steps = max(force_center_steps, 1)
+            step["stuckReaimCenter"] = True
+        if no_progress_streak >= 3:
+            # refresh W2S cam + hard center-safe lateral sweep next
+            step_aim = "w2s" if aim_mode == "w2s" else "center"
+            turn_hard = True
+            step["stuckReaimRefreshW2s"] = True
 
         goal_bearing = bearing_deg(prev, goal)
         err = None if motion_bearing is None else norm_angle(goal_bearing - motion_bearing)
-        turn_hard = err is not None and abs(err) > 40.0
+        if err is not None and abs(err) > 40.0:
+            turn_hard = True
         cam = None
-        if aim_mode == "w2s":
+        if step_aim == "w2s":
             cam = read_camera_for_w2s(t["pid"], module_base=module_base, root_rva=root_rva)
             if not cam:
                 warnings.append(f"{step_prefix}w2s-cam-unavailable-step-{i}")
+                step_aim = "center"
         cx, cy, why = choose_click(
             width,
             height,
@@ -836,10 +1113,12 @@ def drive_to_goal(
             dist,
             invert_lateral=invert_lateral,
             turn_hard=turn_hard,
-            aim_mode=aim_mode if cam or aim_mode != "w2s" else "center",
+            aim_mode=step_aim if cam or step_aim != "w2s" else "center",
             goal=goal,
             cam=cam,
         )
+        if no_progress_streak >= 1:
+            why = f"stuck-reaim(streak={no_progress_streak})/" + why
         try:
             click_payload = click_client_sendinput(
                 repo,
@@ -876,7 +1155,8 @@ def drive_to_goal(
             "why": why,
             "clientSize": [width, height],
             "mode": "sendinput",
-            "centerOnlyY": cy == height // 2 or aim_mode in ("center", "w2s"),
+            "effectiveAimMode": step_aim,
+            "centerOnlyY": cy == height // 2 or step_aim in ("center", "w2s"),
         }
         step["goalBearingDeg"] = goal_bearing
         step["motionBearingDeg"] = motion_bearing
@@ -925,15 +1205,37 @@ def drive_to_goal(
             wrong_way_streak = 0
         if step["progress"] < 0.20 and moved < 0.30:
             no_progress_streak += 1
+            step["stuckDetected"] = True
         else:
             no_progress_streak = 0
         steps.append(step)
         prev = nxt
         if step["distAfter"] <= arrival_radius:
-            arrived = True
-            break
-        if no_progress_streak >= 5:
-            warnings.append(f"{step_prefix}no-progress-streak-stop")
+            dwell = confirm_arrival_dwell(
+                repo=repo,
+                t=t,
+                run_dir=run_dir / f"{step_prefix}dwell-after-{i}",
+                pos=prev,
+                goal=goal,
+                arrival_radius=arrival_radius,
+                dwell_ms=dwell_ms,
+                poll_ms=poll_ms,
+                pose_source=pose_source,
+                root_rva=root_rva,
+                module_base=module_base,
+            )
+            step["dwell"] = dwell
+            if dwell.get("ok"):
+                arrived = True
+                if dwell.get("final"):
+                    prev = dwell["final"]
+                break
+            warnings.append(f"{step_prefix}dwell-failed-after-step-{i}")
+            if dwell.get("final"):
+                prev = dwell["final"]
+        if no_progress_streak >= stuck_streak_limit:
+            warnings.append(f"{step_prefix}stuck-streak-stop")
+            blockers.append("stuck-no-progress")
             break
 
     final_dist = planar(prev, goal)
@@ -957,6 +1259,8 @@ def drive_to_goal(
         "finalDistToGoal": final_dist,
         "bestDistToGoal": best_dist,
         "steps": steps,
+        "reaimEvents": reaim_events,
+        "dwellMs": dwell_ms,
         "warnings": warnings,
         "blockers": blockers,
         "aimMode": aim_mode,
@@ -976,23 +1280,88 @@ def parse_waypoint_offsets(spec: str) -> list[tuple[float, float]]:
     return out
 
 
-def load_waypoints_json(path: Path) -> list[dict[str, Any]]:
+def load_waypoints_json(path: Path) -> dict[str, Any]:
+    """Load absolute or relative route JSON.
+
+    Schema (preferred)::
+
+        {
+          "schemaVersion": 1,
+          "kind": "riftreader-c2m-route",
+          "name": "smoke-rel-L",
+          "coordinateMode": "relative" | "absolute",
+          "defaultArrivalRadius": 2.5,
+          "waypoints": [
+            {"id": "a", "dx": 0, "dz": 5},          # relative
+            {"id": "b", "x": 7460.0, "y": 865.0, "z": 3122.0}  # absolute
+          ]
+        }
+
+    Legacy: bare list of absolute {x,y,z} or {waypoints:[...]}.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
-    wps = data.get("waypoints") or data
-    if not isinstance(wps, list):
-        raise ValueError("waypoints json must be a list or {waypoints:[...]}")
-    out = []
+    if isinstance(data, list):
+        meta = {
+            "schemaVersion": 0,
+            "kind": "legacy-list",
+            "name": path.stem,
+            "coordinateMode": "absolute",
+            "defaultArrivalRadius": None,
+            "raw": data,
+        }
+        wps = data
+    elif isinstance(data, dict):
+        meta = {
+            "schemaVersion": data.get("schemaVersion", 1),
+            "kind": data.get("kind") or "riftreader-c2m-route",
+            "name": data.get("name") or path.stem,
+            "coordinateMode": str(data.get("coordinateMode") or data.get("mode") or "absolute").lower(),
+            "defaultArrivalRadius": data.get("defaultArrivalRadius"),
+            "notes": data.get("notes"),
+            "zoneHint": data.get("zoneHint"),
+        }
+        wps = data.get("waypoints") or data.get("points")
+        if not isinstance(wps, list):
+            raise ValueError("waypoints json must include a waypoints list")
+    else:
+        raise ValueError("waypoints json must be object or list")
+
+    if meta["coordinateMode"] not in ("absolute", "relative"):
+        raise ValueError("coordinateMode must be absolute or relative")
+
+    out: list[dict[str, Any]] = []
     for i, w in enumerate(wps):
-        out.append(
-            {
-                "id": w.get("id") or f"wp-{i+1:03d}",
-                "x": float(w["x"]),
-                "y": float(w.get("y", 0.0)),
-                "z": float(w["z"]),
-                "arrivalRadius": float(w["arrivalRadius"]) if w.get("arrivalRadius") is not None else None,
-            }
-        )
-    return out
+        if not isinstance(w, dict):
+            raise ValueError(f"waypoint[{i}] must be object")
+        item: dict[str, Any] = {
+            "id": w.get("id") or f"wp-{i+1:03d}",
+            "arrivalRadius": float(w["arrivalRadius"]) if w.get("arrivalRadius") is not None else None,
+        }
+        if meta["coordinateMode"] == "relative":
+            if "dx" not in w or "dz" not in w:
+                # allow absolute fields in a relative file only if both x and z present → treat as absolute point
+                if "x" in w and "z" in w:
+                    item["mode"] = "absolute"
+                    item["x"] = float(w["x"])
+                    item["y"] = float(w["y"]) if w.get("y") is not None else None
+                    item["z"] = float(w["z"])
+                else:
+                    raise ValueError(f"waypoint[{i}] relative mode needs dx,dz")
+            else:
+                item["mode"] = "relative"
+                item["dx"] = float(w["dx"])
+                item["dz"] = float(w["dz"])
+                item["dy"] = float(w["dy"]) if w.get("dy") is not None else 0.0
+        else:
+            if "x" not in w or "z" not in w:
+                raise ValueError(f"waypoint[{i}] absolute mode needs x,z")
+            item["mode"] = "absolute"
+            item["x"] = float(w["x"])
+            item["y"] = float(w["y"]) if w.get("y") is not None else None
+            item["z"] = float(w["z"])
+        out.append(item)
+    meta["waypoints"] = out
+    return meta
 
 
 def main() -> int:
@@ -1011,11 +1380,17 @@ def main() -> int:
         default="",
         help="Multi-leg relative offsets from start: 'dx,dz;dx,dz' e.g. '0,6;5,0'",
     )
-    ap.add_argument("--waypoints-json", type=Path, help="Absolute waypoint file {waypoints:[{id,x,y,z,arrivalRadius?}]}")
+    ap.add_argument(
+        "--waypoints-json",
+        type=Path,
+        help="Route file: absolute or relative waypoints (see scripts/routes/*.json)",
+    )
     ap.add_argument("--arrival-radius", type=float, default=3.0)
     ap.add_argument("--max-steps", type=int, default=8, help="Max clicks per waypoint leg")
     ap.add_argument("--step-wait-ms", type=int, default=1800)
     ap.add_argument("--poll-ms", type=int, default=200)
+    ap.add_argument("--dwell-ms", type=int, default=600, help="Must remain in arrival radius this long (0=off)")
+    ap.add_argument("--stuck-streak-limit", type=int, default=6, help="Stop leg after this many no-progress steps")
     ap.add_argument(
         "--click-mode",
         choices=["sendinput"],
@@ -1035,6 +1410,18 @@ def main() -> int:
         help="Pose for arrival: static-chain (fast), rrapicoord, or auto",
     )
     ap.add_argument("--root-rva", default=None, help="Override static root RVA (default: current-truth / 0x32E07C0)")
+    ap.add_argument(
+        "--use-current-truth",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail closed if live PID/HWND/root disagree with current-truth (default: true)",
+    )
+    ap.add_argument(
+        "--allow-target-drift",
+        action="store_true",
+        help="With --use-current-truth, allow PID/HWND mismatch (recovery only)",
+    )
+    ap.add_argument("--process-start-tolerance-seconds", type=float, default=2.0)
     ap.add_argument("--focus-delay-ms", type=int, default=500)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -1092,6 +1479,32 @@ def main() -> int:
     summary["moduleBase"] = hex(module_base) if module_base else None
     summary["aimMode"] = args.aim_mode
     summary["poseSource"] = args.pose_source
+    summary["dwellMs"] = args.dwell_ms
+    summary["stuckStreakLimit"] = args.stuck_streak_limit
+
+    # Truth fail-closed bind (default on)
+    bind = bind_target_fail_closed(
+        repo=repo,
+        live=t,
+        module_base=module_base,
+        root_rva=root_rva,
+        use_current_truth=bool(args.use_current_truth),
+        allow_target_drift=bool(args.allow_target_drift),
+        process_start_tolerance_seconds=float(args.process_start_tolerance_seconds),
+    )
+    summary["truthBind"] = bind
+    if bind.get("status") == "blocked":
+        summary["blockers"].extend(bind.get("blockers") or ["truth-bind-blocked"])
+        summary["blockers"] = list(dict.fromkeys(summary["blockers"]))
+        summary["verdict"] = "truth-bind-failed"
+        write_json(run_dir / "summary.json", summary)
+        if args.json:
+            print(json.dumps(summary, indent=2, default=str))
+        else:
+            print(f"blocked: truth-bind {bind.get('blockers')}")
+        return 2
+    if bind.get("warnings"):
+        summary["warnings"].extend(bind["warnings"])
 
     # Warm static chain / RRAPICOORD before timed start
     t_warm = time.time()
@@ -1133,17 +1546,44 @@ def main() -> int:
 
     # Build ordered goals
     goals: list[dict[str, Any]] = []
+    route_meta: dict[str, Any] | None = None
     if args.waypoints_json:
-        for w in load_waypoints_json(args.waypoints_json.resolve()):
-            goals.append(
-                {
-                    "id": w["id"],
-                    "x": w["x"],
-                    "y": w["y"] if w.get("y") is not None else pos["y"],
-                    "z": w["z"],
-                    "arrivalRadius": w.get("arrivalRadius") or args.arrival_radius,
-                }
-            )
+        route_meta = load_waypoints_json(args.waypoints_json.resolve())
+        summary["route"] = {
+            "path": str(args.waypoints_json.resolve()),
+            "name": route_meta.get("name"),
+            "coordinateMode": route_meta.get("coordinateMode"),
+            "schemaVersion": route_meta.get("schemaVersion"),
+            "notes": route_meta.get("notes"),
+        }
+        default_r = route_meta.get("defaultArrivalRadius")
+        origin = pos  # relative offsets from route start pose
+        for w in route_meta["waypoints"]:
+            radius = w.get("arrivalRadius")
+            if radius is None:
+                radius = default_r if default_r is not None else args.arrival_radius
+            if w.get("mode") == "relative":
+                goals.append(
+                    {
+                        "id": w["id"],
+                        "x": origin["x"] + float(w["dx"]),
+                        "y": origin["y"] + float(w.get("dy") or 0.0),
+                        "z": origin["z"] + float(w["dz"]),
+                        "arrivalRadius": float(radius),
+                        "sourceMode": "relative",
+                    }
+                )
+            else:
+                goals.append(
+                    {
+                        "id": w["id"],
+                        "x": float(w["x"]),
+                        "y": float(w["y"]) if w.get("y") is not None else origin["y"],
+                        "z": float(w["z"]),
+                        "arrivalRadius": float(radius),
+                        "sourceMode": "absolute",
+                    }
+                )
     elif args.waypoint_offsets.strip():
         for i, (dx, dz) in enumerate(parse_waypoint_offsets(args.waypoint_offsets)):
             goals.append(
@@ -1153,6 +1593,7 @@ def main() -> int:
                     "y": pos["y"],
                     "z": pos["z"] + dz,
                     "arrivalRadius": args.arrival_radius,
+                    "sourceMode": "relative-cli",
                 }
             )
     elif args.goal_x is not None and args.goal_z is not None:
@@ -1163,6 +1604,7 @@ def main() -> int:
                 "y": float(args.goal_y if args.goal_y is not None else pos["y"]),
                 "z": float(args.goal_z),
                 "arrivalRadius": args.arrival_radius,
+                "sourceMode": "absolute-cli",
             }
         )
     else:
@@ -1173,6 +1615,7 @@ def main() -> int:
                 "y": pos["y"],
                 "z": pos["z"] + args.offset_z,
                 "arrivalRadius": args.arrival_radius,
+                "sourceMode": "relative-cli",
             }
         )
 
@@ -1203,6 +1646,8 @@ def main() -> int:
             pose_source=args.pose_source,
             root_rva=root_rva,
             module_base=module_base,
+            dwell_ms=args.dwell_ms,
+            stuck_streak_limit=args.stuck_streak_limit,
         )
         leg["id"] = g["id"]
         leg["arrivalRadius"] = radius

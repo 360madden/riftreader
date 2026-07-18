@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "smoke-rel-L",
+  "coordinateMode": "relative",
+  "defaultArrivalRadius": 2.5,
+  "zoneHint": "any open ground — portable relative offsets",
+  "notes": "L-shape smoke: +5m world Z then +3m world X from route-start pose. Safe for post-login confidence.",
+  "waypoints": [
+    { "id": "north-5m", "dx": 0.0, "dz": 5.0 },
+    { "id": "east-3m", "dx": 3.0, "dz": 0.0 }
+  ]
+}
