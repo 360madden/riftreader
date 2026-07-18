@@ -2,7 +2,7 @@
 
 Start here if artifacts, notes, or workflow state drift or get corrupted.
 
-Last reviewed: May 13, 2026 16:57 EDT / May 13, 2026 20:57 UTC.
+Last reviewed: 2026-07-18.
 
 > **⚠️ NEW — Structured workflows:** Most common tasks now have dedicated
 > workflow docs with decision trees and step-by-step instructions.
@@ -12,11 +12,24 @@ Last reviewed: May 13, 2026 16:57 EDT / May 13, 2026 20:57 UTC.
 > This file remains as the historical recovery reference and for
 > specialized reverse-engineering workflows not yet migrated.
 
+## Current live authority (2026-07-18)
+
+| Doc | Role |
+|---|---|
+| [`current-truth.md`](current-truth.md) / [`current-truth.json`](current-truth.json) | **Live** promoted static root `0x32E07C0` |
+| [`progress-2026-07-18-post-patch-root-and-c2m.md`](progress-2026-07-18-post-patch-root-and-c2m.md) | **Durable milestone notes** (gates, tools, decisions, next) |
+| [`post-patch-static-root-candidate-2026-07-18.md`](post-patch-static-root-candidate-2026-07-18.md) | Discovery narrative for the reseed |
+| [`c2m-destination-discovery-status-2026-07-18.md`](c2m-destination-discovery-status-2026-07-18.md) | Engine C2M dest scan (still open; not required for MVP) |
+
+Promoted chain: **`[rift_x64+0x32E07C0]+0x320/+0x324/+0x328`**.  
+Pre-patch roots `0x32EBC80` / `0x32EBDC0` are **invalid** on this binary.
+
 ## Current repo focus
 
-As of May 13, 2026, the repo focus is **RIFT MMO navigation**. The recent
-coordinate-family, x64dbg, and static pointer-chain artifacts are preserved as
-supporting evidence, but they are not the active product direction.
+As of 2026-07-18, the repo focus is **RIFT MMO navigation** with a **promoted
+post-patch static coordinate resolver** and working **in-game C2M multi-waypoint**
+runner (SendInput + W2S/static pose). Historical coordinate-family, x64dbg, and
+pre-patch static chain artifacts remain supporting evidence only.
 
 Use reverse-engineering workflows only when they unblock navigation proof
 requirements: fresh coordinate source, actor-facing/yaw truth, turn-backend

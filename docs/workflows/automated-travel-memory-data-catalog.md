@@ -16,17 +16,18 @@ apps, click-to-move, or any consumer that needs a full pose + projection bundle.
 4. `docs/workflows/owner-layout-reference.md`
 5. Dated handoffs under `docs/handoffs/` and `docs/handoff-*.md`
 
-**Status (as of 2026-07-18):**
+**Status (as of 2026-07-18 evening):**
 
 | Layer | Status |
 |---|---|
-| Pre-patch July layout (root `0x32EBDC0`, owner coords/camera/heading) | **Historical recovery baseline** — validated for nav6/nav7/nav8 / overlay work in that epoch |
-| Current installed binary | **Post-patch static root blocked** — `[moduleBase+0x32EBDC0] = null` |
-| Live automated travel from this catalog | **Blocked** until a current-epoch root/resolver is re-proven |
+| **Current promoted root** | **`0x32E07C0`** — restart + three-pose + API-now; see `current-truth.md` |
+| Pre-patch July layout (`0x32EBDC0`) | **Historical** — null on this binary; do not use |
+| May–June formal root (`0x32EBC80`) | **Historical** — dead on this binary |
+| Live automated travel (MVP) | **Unblocked** for static pose + in-game C2M multi-WP (SendInput + W2S) |
+| Milestone notes | `docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md` |
 
-Do **not** treat offsets below as live navigation truth while
-`docs/recovery/current-truth.md` reports `root-pointer-null`. After root recovery,
-re-validate every **P0** field with API-now vs memory-now before movement.
+Still re-bind PID/HWND/module base every session. Re-validate P0 fields after
+restarts or patches before long unattended routes.
 
 ---
 
@@ -110,7 +111,7 @@ without re-proof.
 |---|---|---|---|
 | May–June 2026 formal promotion | `[rift_x64+0x32EBC80]` | `+0x320/+0x324/+0x328` coords; `+0x30C/+0x310/+0x314` facing target | Promoted for that epoch; **stale after later binary drift** |
 | July 2026 nav session | `[rift_x64+0x32EBDC0]` | Same owner layout family + camera child `+0x330` | Practically validated for nav6–nav8; **null root post-2026-07-14 patch** |
-| Current installed (2026-07-18) | same July RVA read → `0x0` | N/A | **Blocked** |
+| **Current promoted (2026-07-18)** | **`[rift_x64+0x32E07C0]`** | `+0x320/+0x324/+0x328` coords; `+0x330` camera; heading `[[cam]+0x158]` | **Live promoted** — restart + three-pose + API-now |
 
 ```text
 # Conceptual chain (when root non-null)
@@ -433,7 +434,7 @@ Emit one JSON frame matching §9.2 for Godot / overlay / nav controller.
 
 | Gap | Why it matters | Suggested discovery path |
 |---|---|---|
-| Post-patch static root | All July chains null | Offline Ghidra caller/xref on installed exe |
+| Post-patch static root | **Resolved 2026-07-18** as `0x32E07C0` | Keep for next patch: API match → module ptr scan / Ghidra |
 | Direct pitch scalar | Camera look / flight | Camera child neighborhood + look stimulus |
 | True view/projection matrix | Higher-quality W2S | Scan near FOV/clip; compare to constructed basis |
 | Movement state flags (walk/run/swim/fall/mount) | Mode-aware control | Displacement + ability/API correlation |
@@ -488,25 +489,24 @@ and capture summaries under `scripts/captures/`. Handoff prose alone is not prom
 
 ---
 
-## 16. Post-patch recovery note (do not skip)
+## 16. Post-patch recovery note (2026-07-18)
 
-As of **2026-07-18**:
+**Resolved for this binary:** root **`0x32E07C0`** promoted after restart survival,
+three-pose displacement, and API-now match. Details:
+`docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md`.
 
-- Installed `rift_x64.exe` SHA differs from the July pre-patch baseline.
-- Static root read at `0x32EBDC0` returns **null**.
-- Navigation, overlay live tracking, and click-to-move that depend on this catalog
-  are **blocked-safe** until a new root (or hybrid reacquire) is proven.
+| Do not use | Why |
+|---|---|
+| `0x32EBC80` | Pre-May/June epoch; dead on this exe |
+| `0x32EBDC0` | July interim; **null** on current process |
 
-Safe offline next action (from decision packet / current-truth):
+After the **next** patch: follow
+`optimized-post-update-recovery-workflow.md` (session seed → static promote).
+Offline Ghidra remains useful if module scan fails:
 
 ```powershell
-.\scripts\riftreader-ghidra-static-evidence.cmd --plan --json
-# then, when ready for offline analysis:
 .\scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path 'C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe' --json
 ```
-
-After a candidate root exists: no-input exact-target readback → API-now vs chain-now
-→ only then request movement/stimulus approval.
 
 ---
 

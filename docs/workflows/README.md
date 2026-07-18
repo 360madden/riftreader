@@ -44,8 +44,11 @@ What do you need?
 ├─ I need the full memory/data checklist for auto-travel, navmesh, FOV, Godot overlay
 │   → automated-travel-memory-data-catalog.md
 │
-└─ Game updated / root null — trimmed recovery playbook for next patch
-    → optimized-post-update-recovery-workflow.md
+├─ Game updated / root null — trimmed recovery playbook for next patch
+│   → optimized-post-update-recovery-workflow.md
+│
+└─ What did we finish on 2026-07-18? (root promote + C2M multi-WP)
+    → ../recovery/progress-2026-07-18-post-patch-root-and-c2m.md
 ```
 
 ## Document index
@@ -53,6 +56,8 @@ What do you need?
 | Document | What it covers | When to use |
 |---|---|---|
 | [session-startup.md](session-startup.md) | Target resolution, module base check, resolver health, freshness gates | **Every session** — first thing after logging in |
+| [../recovery/progress-2026-07-18-post-patch-root-and-c2m.md](../recovery/progress-2026-07-18-post-patch-root-and-c2m.md) | Durable milestone: root `0x32E07C0`, gates, C2M, decisions, next | **Resume after 2026-07-18** / handoff |
+| [../recovery/current-truth.md](../recovery/current-truth.md) | Live promoted chain + binding rules | Every live session |
 | [optimized-post-update-recovery-workflow.md](optimized-post-update-recovery-workflow.md) | Trimmed lane-split recovery (session seed vs static promote) | **Next client update** / root-null / PID drift |
 | [pointer-chain-reacquisition.md](pointer-chain-reacquisition.md) | AOB signature scan, pointer family scan, neighborhood inspector, re-validation | Game update breaks chains |
 | [coordinate-validation.md](coordinate-validation.md) | Tier 1-5 coordinate readback and validation | Need coordinates or resolver health check |

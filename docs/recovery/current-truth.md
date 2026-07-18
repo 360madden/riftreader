@@ -64,6 +64,9 @@ Previous truth JSON (pre-promote):
 - Full actor/stat graph is **not** promoted; coordinates (+ heading candidate) only.
 - CE / x64dbg remain separately gated.
 
-### Candidate detail doc
+### Durable progress / handoff
 
-`docs/recovery/post-patch-static-root-candidate-2026-07-18.md` (now superseded as candidate; retained as discovery narrative)
+| Doc | Role |
+|---|---|
+| [`progress-2026-07-18-post-patch-root-and-c2m.md`](progress-2026-07-18-post-patch-root-and-c2m.md) | Full milestone notes (gates, tools, decisions, next) |
+| [`post-patch-static-root-candidate-2026-07-18.md`](post-patch-static-root-candidate-2026-07-18.md) | Discovery narrative (promoted; keep for history) |

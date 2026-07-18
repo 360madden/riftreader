@@ -1,7 +1,10 @@
 # Owner Layout Reference
 
 **What this covers:** The canonical memory layout of the player owner object
-dereferenced from `[rift_x64+0x32EBC80]`.
+dereferenced from the **promoted static root**.
+
+**Live root (2026-07-18+):** `[rift_x64+0x32E07C0]`  
+**Historical (pre-patch):** `[rift_x64+0x32EBC80]` / July interim `0x32EBDC0` — **do not use** on current binary.
 
 **When to use:** Understanding what fields are available, discovering new fields,
 or validating after a game update.
@@ -10,21 +13,22 @@ or validating after a game update.
 world-to-screen, navmesh, Godot overlay pose frames, and post-patch status), see
 [automated-travel-memory-data-catalog.md](automated-travel-memory-data-catalog.md).
 Always check `docs/recovery/current-truth.md` before treating offsets as live.
+Milestone notes: `docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md`.
 
-**Status:** Promoted coordinates and facing/yaw for the May–June promotion epoch.
-`owner+0x304` and adjacent support fields are candidate-only. The latest
-2026-06-01 semantics review classified `owner+0x304` as a yaw-adjacent scalar,
-not an active turn-rate resolver. Post-2026-07-14 patch: static root may be null
-— see current-truth.
+**Status:** Coordinates at `owner+0x320/+0x324/+0x328` are **promoted** via root
+`0x32E07C0` (restart + three-pose + API-now, 2026-07-18). Camera child at
+`owner+0x330`; heading at `[[owner+0x330]+0x158]`. `owner+0x304` remains a
+yaw-adjacent scalar candidate, not a formal turn-rate resolver.
 
 ---
 
 ## Owner object at a glance
 
 ```
-Owner object: [[rift_x64+0x32EBC80]]
+Owner object: [[rift_x64+0x32E07C0]]   // promoted 2026-07-18
 Size: at least 0x380+ bytes (observed window 0x2C0-0x35F)
 Classification: Player position/rotation controller object
+Camera child: [owner+0x330]
 ```
 
 ## Known field layout
