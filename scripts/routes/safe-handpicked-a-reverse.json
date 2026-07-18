@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "safe-handpicked-a-reverse",
+  "coordinateMode": "absolute",
+  "defaultArrivalRadius": 3.0,
+  "zoneHint": "hand-picked clear ground \u2014 session absolute",
+  "notes": "Known-good hand-picked absolute route (~56m, 5 WPs). Prefer reverse file if standing at last mark. Not portable across zones; re-record after zone change. C2M proof: all-waypoints-arrived reverse run 20260718-180907. Reverse order for start-at-end.",
+  "recordedAtUtc": "2026-07-18T18:08:54.790374+00:00",
+  "waypoints": [
+    {
+      "id": "wp-01",
+      "x": 7143.05419921875,
+      "y": 871.77001953125,
+      "z": 3068.593505859375,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-02",
+      "x": 7151.4638671875,
+      "y": 871.780517578125,
+      "z": 3054.59765625,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-03",
+      "x": 7160.666015625,
+      "y": 871.780517578125,
+      "z": 3045.62255859375,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-04",
+      "x": 7177.5986328125,
+      "y": 871.780517578125,
+      "z": 3042.504638671875,
+      "arrivalRadius": 3.0
+    },
+    {
+      "id": "wp-05",
+      "x": 7187.12158203125,
+      "y": 871.780517578125,
+      "z": 3042.129638671875,
+      "arrivalRadius": 3.0
+    }
+  ],
+  "promotedAsKnownGood": true
+}

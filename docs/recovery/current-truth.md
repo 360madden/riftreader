@@ -1,13 +1,13 @@
 # Current RIFT live truth — post-patch static root **PROMOTED**
 
-Updated UTC: `2026-07-18T17:11:22Z`
+Updated UTC: `2026-07-18T18:13:14.809794+00:00`
 
 ## **✅ CURRENT — root `0x32E07C0`**
 
 | Field | Value |
 |---|---|
-| PID / HWND | `21436` / `0x710A94` |
-| Process start UTC | `2026-07-18T16:58:36.9977119Z` |
+| PID / HWND | `32636` / `0x620dd8` |
+| Process start UTC | `2026-07-18T18:11:46.6194619Z` |
 | Module base | `0x7FF696620000` |
 | **Root RVA** | **`0x32E07C0`** |
 | Chain | **`[rift_x64+0x32E07C0]+0x320/+0x324/+0x328`** |
