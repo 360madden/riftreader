@@ -6,6 +6,12 @@ navigation routes using the promoted static resolver and C# SendInput.
 **When to use:** Any live navigation — waypoint following, route execution,
 movement smoke tests.
 
+**C2M click-to-move path (2026-07-18+):** in-game C2M + `scripts/c2m_run_to_goal.py`
+uses **`current-truth` fail-closed** and static root **`0x32E07C0`** (restart-survivable
+RVA). Contract:  
+[`docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md`](../recovery/c2m-truth-bind-and-static-chain-restart-survival.md).  
+Routes: `scripts/routes/README.md`.
+
 ---
 
 ## Architecture
