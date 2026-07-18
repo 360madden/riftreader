@@ -1613,20 +1613,25 @@ def load_waypoints_json(path: Path) -> dict[str, Any]:
             "arrivalRadius": float(w["arrivalRadius"]) if w.get("arrivalRadius") is not None else None,
         }
         if meta["coordinateMode"] == "relative":
-            if "dx" not in w or "dz" not in w:
-                # allow absolute fields in a relative file only if both x and z present → treat as absolute point
-                if "x" in w and "z" in w:
-                    item["mode"] = "absolute"
-                    item["x"] = float(w["x"])
-                    item["y"] = float(w["y"]) if w.get("y") is not None else None
-                    item["z"] = float(w["z"])
-                else:
-                    raise ValueError(f"waypoint[{i}] relative mode needs dx,dz")
-            else:
+            if w.get("forward") is not None or w.get("right") is not None:
+                item["mode"] = "relative"
+                item["forward"] = float(w.get("forward") or 0.0)
+                item["right"] = float(w.get("right") or 0.0)
+            elif "dx" in w and "dz" in w:
                 item["mode"] = "relative"
                 item["dx"] = float(w["dx"])
                 item["dz"] = float(w["dz"])
                 item["dy"] = float(w["dy"]) if w.get("dy") is not None else 0.0
+            elif "x" in w and "z" in w:
+                # allow absolute fields in a relative file only if both x and z present
+                item["mode"] = "absolute"
+                item["x"] = float(w["x"])
+                item["y"] = float(w["y"]) if w.get("y") is not None else None
+                item["z"] = float(w["z"])
+            else:
+                raise ValueError(
+                    f"waypoint[{i}] relative mode needs forward/right, or dx/dz, or absolute x/z"
+                )
         else:
             if "x" not in w or "z" not in w:
                 raise ValueError(f"waypoint[{i}] absolute mode needs x,z")
@@ -1859,7 +1864,7 @@ def main() -> int:
                 radius = default_r if default_r is not None else args.arrival_radius
             if w.get("mode") == "relative":
                 # Prefer forward/right if present; else dx/dz in chosen frame
-                if w.get("forward") is not None or w.get("right") is not None:
+                if "forward" in w or "right" in w:
                     pt = offset_along_heading(
                         origin,
                         heading0,

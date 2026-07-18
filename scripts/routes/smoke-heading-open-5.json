@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "smoke-heading-open-5",
+  "coordinateMode": "relative",
+  "relativeFrame": "heading",
+  "defaultArrivalRadius": 3.0,
+  "notes": "5-leg heading-frame path \u2014 face open ground before run",
+  "waypoints": [
+    {
+      "id": "f1",
+      "forward": 6,
+      "right": 0
+    },
+    {
+      "id": "r1",
+      "forward": 6,
+      "right": 3
+    },
+    {
+      "id": "f2",
+      "forward": 10,
+      "right": 3
+    },
+    {
+      "id": "l1",
+      "forward": 10,
+      "right": 0
+    },
+    {
+      "id": "f3",
+      "forward": 14,
+      "right": 0
+    }
+  ]
+}
