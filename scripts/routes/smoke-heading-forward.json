@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "riftreader-c2m-route",
+  "name": "smoke-heading-forward",
+  "coordinateMode": "relative",
+  "relativeFrame": "heading",
+  "defaultArrivalRadius": 3.0,
+  "zoneHint": "Face open ground before run — path is along facing, not world axes",
+  "notes": "Avoids fixed world +X/+Z squares that walk into rocks/trees. dx=right, dz=forward relative to heading at route start. L-shape: 6m forward, then 3m right, then 4m forward.",
+  "waypoints": [
+    { "id": "fwd-6", "dx": 0.0, "dz": 6.0 },
+    { "id": "right-3", "dx": 3.0, "dz": 6.0 },
+    { "id": "fwd-10", "dx": 3.0, "dz": 10.0 }
+  ]
+}

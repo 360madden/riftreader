@@ -22,8 +22,11 @@ JSON routes for `scripts/c2m_run_to_goal.py --waypoints-json <path>`.
 
 | `coordinateMode` | Waypoint fields | Meaning |
 |---|---|---|
-| `relative` | `dx`, `dz` (optional `dy`) | Offset from **route start pose** (first sample) |
-| `absolute` | `x`, `y?`, `z` | World coordinates (session/zone specific) |
+| `relative` | `dx`, `dz` (optional `dy`) | Offset from **route start pose**. With `relativeFrame: "heading"` (default CLI), **dx=right, dz=forward** along facing — prefer this so you face open ground instead of world-axis into rocks/trees. |
+| `relative` | `forward`, `right` | Explicit heading-frame meters (optional) |
+| `absolute` | `x`, `y?`, `z` | World coordinates (session/zone specific; can hit props if path is blind) |
+
+**Obstacle note:** C2M has no navmesh. If stuck, the runner aims a **lateral detour** (side of path) then resumes. Still face open ground before absolute/world-axis routes.
 
 Optional per-waypoint `arrivalRadius` overrides `defaultArrivalRadius` / CLI `--arrival-radius`.
 

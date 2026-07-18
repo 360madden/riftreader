@@ -749,6 +749,61 @@ def norm_angle(d: float) -> float:
     return d
 
 
+def heading_to_forward_right(heading_deg: float) -> tuple[tuple[float, float], tuple[float, float]]:
+    """World XZ forward/right unit vectors for heading degrees (0=+Z, +90=+X)."""
+    rad = math.radians(heading_deg)
+    # matching bearing_deg / atan2(dx,dz): forward = (sin, cos) in (x,z)
+    fx, fz = math.sin(rad), math.cos(rad)
+    # right = rotate forward +90° in XZ
+    rx, rz = fz, -fx
+    return (fx, fz), (rx, rz)
+
+
+def offset_along_heading(
+    origin: dict[str, float],
+    heading_deg: float,
+    *,
+    forward_m: float = 0.0,
+    right_m: float = 0.0,
+) -> dict[str, float]:
+    (fx, fz), (rx, rz) = heading_to_forward_right(heading_deg)
+    return {
+        "x": float(origin["x"]) + fx * forward_m + rx * right_m,
+        "y": float(origin.get("y") or 0.0),
+        "z": float(origin["z"]) + fz * forward_m + rz * right_m,
+    }
+
+
+def lateral_detour_point(
+    pos: dict[str, float],
+    goal: dict[str, float],
+    *,
+    side: int,
+    meters: float,
+) -> dict[str, float]:
+    """Point beside the path toward goal (side +1 right / -1 left of travel).
+
+    Used when stuck against props (rocks/trees): click detour then resume goal.
+    """
+    dx = float(goal["x"]) - float(pos["x"])
+    dz = float(goal["z"]) - float(pos["z"])
+    length = math.hypot(dx, dz)
+    if length < 0.2:
+        # no path direction — use world +X as right
+        rx, rz = 1.0, 0.0
+        fx, fz = 0.0, 1.0
+    else:
+        fx, fz = dx / length, dz / length
+        rx, rz = fz, -fx  # right of path
+    # slightly forward of current + lateral so C2M walks past, not into the obstacle face
+    along = min(4.0, max(1.5, length * 0.35))
+    return {
+        "x": float(pos["x"]) + fx * along + rx * (side * meters),
+        "y": float(pos.get("y") or goal.get("y") or 0.0),
+        "z": float(pos["z"]) + fz * along + rz * (side * meters),
+    }
+
+
 def _run_sendinput_wrapper(repo: Path, args: list[str], timeout: int = 60) -> dict[str, Any]:
     wrapper = repo / "scripts" / "send-rift-key-csharp.ps1"
     if not wrapper.exists():
@@ -964,6 +1019,7 @@ def choose_click(
     aim_mode: str = "center",
     goal: dict[str, float] | None = None,
     cam: dict[str, float] | None = None,
+    aim_world: dict[str, float] | None = None,
 ) -> tuple[int, int, str]:
     """Pick client click for in-game C2M.
 
@@ -971,28 +1027,32 @@ def choose_click(
       center    — true client center Y; lateral bias only (safe; avoids toolbar)
       w2s       — project world goal; fall back to center if behind/off-screen
       heuristic — mid-client Y band (never toolbar ~0.82)
+
+    aim_world: optional alternate world point (obstacle detour) instead of goal.
     """
     inset = 8
     cx0, cy0 = width // 2, height // 2
+    target = aim_world or goal
 
     def clamp_xy(x: int, y: int) -> tuple[int, int]:
         return max(inset, min(width - inset - 1, x)), max(inset, min(height - inset - 1, y))
 
     # --- W2S path ---
-    if aim_mode == "w2s" and goal is not None and cam is not None:
-        gy = float(goal.get("y", cam.get("player_y", 0.0)))
-        proj = project_w2s(float(goal["x"]), gy, float(goal["z"]), cam, width, height)
+    if aim_mode == "w2s" and target is not None and cam is not None:
+        gy = float(target.get("y", cam.get("player_y", 0.0)))
+        proj = project_w2s(float(target["x"]), gy, float(target["z"]), cam, width, height)
         if proj is not None:
             sx, sy = proj
             # Keep in playable band: never bottom 18% (toolbar risk) or top 8%
             y_lo, y_hi = int(height * 0.08), int(height * 0.72)
             x_lo, x_hi = inset, width - inset - 1
+            tag = "detour" if aim_world is not None else "goal"
             if x_lo <= sx <= x_hi and y_lo <= sy <= y_hi:
                 x, y = clamp_xy(int(round(sx)), int(round(sy)))
-                return x, y, f"w2s/on-screen/dist={dist_to_goal:.1f}"
+                return x, y, f"w2s/{tag}/on-screen/dist={dist_to_goal:.1f}"
             # clamp into safe band rather than toolbar
             x, y = clamp_xy(int(round(sx)), int(max(y_lo, min(y_hi, sy))))
-            return x, y, f"w2s/clamped/dist={dist_to_goal:.1f}"
+            return x, y, f"w2s/{tag}/clamped/dist={dist_to_goal:.1f}"
         # fall through to center if behind camera
 
     # Lateral bias from bearing error
@@ -1181,6 +1241,9 @@ def drive_to_goal(
     force_center_steps = 0
     # First click may need full focus delay; later clicks keep RIFT focused (--no-refocus)
     clicks_sent = 0
+    # Obstacle bypass: when stuck, aim C2M at a lateral detour instead of into rock/tree
+    detour_side = 1  # +1 right of path, -1 left
+    detour_meters = 3.5
 
     for i in range(max_steps):
         rect = wintypes.RECT()
@@ -1226,29 +1289,44 @@ def drive_to_goal(
                 prev = dwell["final"]
             # fall through — re-aim if we left radius
 
-        # --- stuck re-aim policy before click ---
+        # --- stuck re-aim / obstacle detour before click ---
         step_aim = aim_mode
         turn_hard = False
+        aim_world: dict[str, float] | None = None
         if force_center_steps > 0:
             step_aim = "center"
             force_center_steps -= 1
             step["forcedCenterReaim"] = True
         if no_progress_streak >= 1:
+            # Likely rock/tree/collision: click a lateral detour, alternate sides
+            detour_side = -detour_side
+            aim_world = lateral_detour_point(
+                prev, goal, side=detour_side, meters=detour_meters + 0.8 * (no_progress_streak - 1)
+            )
             invert_lateral = not invert_lateral
             step["stuckReaimFlip"] = invert_lateral
+            step["obstacleDetour"] = {
+                "side": detour_side,
+                "meters": detour_meters + 0.8 * (no_progress_streak - 1),
+                "point": aim_world,
+            }
             reaim_events += 1
+            step_aim = "w2s" if aim_mode == "w2s" else step_aim
         if no_progress_streak >= 2:
-            step_aim = "center"
             turn_hard = True
-            force_center_steps = max(force_center_steps, 1)
-            step["stuckReaimCenter"] = True
+            # widen detour
+            if aim_world is None:
+                aim_world = lateral_detour_point(prev, goal, side=detour_side, meters=5.0)
+            step["stuckReaimWidenDetour"] = True
         if no_progress_streak >= 3:
-            # refresh W2S cam + hard center-safe lateral sweep next
             step_aim = "w2s" if aim_mode == "w2s" else "center"
             turn_hard = True
             step["stuckReaimRefreshW2s"] = True
 
         goal_bearing = bearing_deg(prev, goal)
+        # When detouring, turn/click toward detour bearing
+        aim_bearing_goal = aim_world if aim_world is not None else goal
+        goal_bearing = bearing_deg(prev, aim_bearing_goal)
         # Prefer heading error for aim bias when available; fall back to motion bearing
         heading_now = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva)
         if heading_now is not None:
@@ -1302,6 +1380,7 @@ def drive_to_goal(
             aim_mode=step_aim if cam or step_aim != "w2s" else "center",
             goal=goal,
             cam=cam,
+            aim_world=aim_world,
         )
         if no_progress_streak >= 1:
             why = f"stuck-reaim(streak={no_progress_streak})/" + why
@@ -1574,7 +1653,15 @@ def main() -> int:
         "--waypoint-offsets",
         type=str,
         default="",
-        help="Multi-leg relative offsets from start: 'dx,dz;dx,dz' e.g. '0,6;5,0'",
+        help="Multi-leg relative offsets from start: 'dx,dz;dx,dz' e.g. '0,6;5,0' "
+        "(world XZ unless --relative-frame heading)",
+    )
+    ap.add_argument(
+        "--relative-frame",
+        choices=["world", "heading"],
+        default="heading",
+        help="For relative routes/offsets: world=X/Z axes, heading=forward/right from cam+0x158 "
+        "(prefer heading so paths go where you face — clearer ground)",
     )
     ap.add_argument(
         "--waypoints-json",
@@ -1762,19 +1849,48 @@ def main() -> int:
         }
         default_r = route_meta.get("defaultArrivalRadius")
         origin = pos  # relative offsets from route start pose
+        rel_frame = str(route_meta.get("relativeFrame") or args.relative_frame or "heading").lower()
+        heading0 = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva) or 0.0
+        summary["route"]["relativeFrame"] = rel_frame
+        summary["route"]["headingDegAtStart"] = heading0
         for w in route_meta["waypoints"]:
             radius = w.get("arrivalRadius")
             if radius is None:
                 radius = default_r if default_r is not None else args.arrival_radius
             if w.get("mode") == "relative":
-                goals.append(
-                    {
-                        "id": w["id"],
+                # Prefer forward/right if present; else dx/dz in chosen frame
+                if w.get("forward") is not None or w.get("right") is not None:
+                    pt = offset_along_heading(
+                        origin,
+                        heading0,
+                        forward_m=float(w.get("forward") or 0.0),
+                        right_m=float(w.get("right") or 0.0),
+                    )
+                    smode = "relative-heading-fwd-right"
+                elif rel_frame == "heading":
+                    # dx=right, dz=forward in heading frame (matches open-ground facing)
+                    pt = offset_along_heading(
+                        origin,
+                        heading0,
+                        forward_m=float(w["dz"]),
+                        right_m=float(w["dx"]),
+                    )
+                    smode = "relative-heading"
+                else:
+                    pt = {
                         "x": origin["x"] + float(w["dx"]),
                         "y": origin["y"] + float(w.get("dy") or 0.0),
                         "z": origin["z"] + float(w["dz"]),
+                    }
+                    smode = "relative-world"
+                goals.append(
+                    {
+                        "id": w["id"],
+                        "x": pt["x"],
+                        "y": pt.get("y", origin["y"]),
+                        "z": pt["z"],
                         "arrivalRadius": float(radius),
-                        "sourceMode": "relative",
+                        "sourceMode": smode,
                     }
                 )
             else:
@@ -1789,15 +1905,22 @@ def main() -> int:
                     }
                 )
     elif args.waypoint_offsets.strip():
+        heading0 = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva) or 0.0
         for i, (dx, dz) in enumerate(parse_waypoint_offsets(args.waypoint_offsets)):
+            if args.relative_frame == "heading":
+                pt = offset_along_heading(pos, heading0, forward_m=dz, right_m=dx)
+                smode = "relative-cli-heading"
+            else:
+                pt = {"x": pos["x"] + dx, "y": pos["y"], "z": pos["z"] + dz}
+                smode = "relative-cli-world"
             goals.append(
                 {
                     "id": f"rel-{i+1:02d}",
-                    "x": pos["x"] + dx,
-                    "y": pos["y"],
-                    "z": pos["z"] + dz,
+                    "x": pt["x"],
+                    "y": pt.get("y", pos["y"]),
+                    "z": pt["z"],
                     "arrivalRadius": args.arrival_radius,
-                    "sourceMode": "relative-cli",
+                    "sourceMode": smode,
                 }
             )
     elif args.goal_x is not None and args.goal_z is not None:
@@ -1812,14 +1935,29 @@ def main() -> int:
             }
         )
     else:
+        # Default single leg: forward along facing (clearer than world +Z into props)
+        heading0 = read_heading_deg(t["pid"], module_base=module_base, root_rva=root_rva) or 0.0
+        if args.relative_frame == "heading" and (args.offset_x != 0.0 or args.offset_z != 0.0):
+            pt = offset_along_heading(pos, heading0, forward_m=args.offset_z, right_m=args.offset_x)
+            smode = "relative-cli-heading-default"
+        elif args.relative_frame == "heading":
+            pt = offset_along_heading(pos, heading0, forward_m=8.0, right_m=0.0)
+            smode = "relative-cli-heading-forward8"
+        else:
+            pt = {
+                "x": pos["x"] + args.offset_x,
+                "y": pos["y"],
+                "z": pos["z"] + (args.offset_z if args.offset_z != 0 else 8.0),
+            }
+            smode = "relative-cli-world-default"
         goals.append(
             {
                 "id": "offset",
-                "x": pos["x"] + args.offset_x,
-                "y": pos["y"],
-                "z": pos["z"] + args.offset_z,
+                "x": pt["x"],
+                "y": pt.get("y", pos["y"]),
+                "z": pt["z"],
                 "arrivalRadius": args.arrival_radius,
-                "sourceMode": "relative-cli",
+                "sourceMode": smode,
             }
         )
 
