@@ -58,6 +58,24 @@ prove current PID/HWND, capture fresh API/runtime truth, scan grouped current-PI
 families, rank by displacement tracking, promote only same-PID multi-pose stable
 readbacks, then rerun `ProofOnly` before any movement.
 
+## Automated travel data catalog
+
+For the durable checklist of memory fields and consumer data needed for
+automated travel (coordinates, facing/yaw/pitch, camera/FOV, click-to-move,
+navmesh apps, Godot overlay markers/waypoints), see:
+
+- [`docs/workflows/automated-travel-memory-data-catalog.md`](../workflows/automated-travel-memory-data-catalog.md)
+
+That catalog is **not** a live truth pointer. Use
+[`current-truth.md`](current-truth.md) for the current epoch blocker/status.
+
+## Optimized post-update recovery (trimmed)
+
+For the lane-split playbook to use on the **next client update** (session seed
+vs static promote, what to skip, minimal commands), see:
+
+- [`docs/workflows/optimized-post-update-recovery-workflow.md`](../workflows/optimized-post-update-recovery-workflow.md)
+
 ## Coordinate resolution strategy
 
 The pure static pointer chain (module RVA → owner → fixed offset) has not been

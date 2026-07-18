@@ -6,10 +6,16 @@ dereferenced from `[rift_x64+0x32EBC80]`.
 **When to use:** Understanding what fields are available, discovering new fields,
 or validating after a game update.
 
-**Status:** Promoted coordinates and facing/yaw. `owner+0x304` and adjacent
-support fields are candidate-only. The latest 2026-06-01 semantics review
-classified `owner+0x304` as a yaw-adjacent scalar, not an active turn-rate
-resolver.
+**Related:** For the full automated-travel inventory (coords, heading, camera/FOV,
+world-to-screen, navmesh, Godot overlay pose frames, and post-patch status), see
+[automated-travel-memory-data-catalog.md](automated-travel-memory-data-catalog.md).
+Always check `docs/recovery/current-truth.md` before treating offsets as live.
+
+**Status:** Promoted coordinates and facing/yaw for the May–June promotion epoch.
+`owner+0x304` and adjacent support fields are candidate-only. The latest
+2026-06-01 semantics review classified `owner+0x304` as a yaw-adjacent scalar,
+not an active turn-rate resolver. Post-2026-07-14 patch: static root may be null
+— see current-truth.
 
 ---
 

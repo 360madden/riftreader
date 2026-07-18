@@ -15,11 +15,22 @@ namespace RiftReader.SendInput;
 internal static class Program
 {
     private const int SwRestore = 9;
+    private const int SwShow = 5;
     private const int InputKeyboard = 1;
+    private const int InputMouse = 0;
     private const uint KeyEventFExtendedKey = 0x0001;
     private const uint KeyEventFKeyUp = 0x0002;
     private const uint KeyEventFScanCode = 0x0008;
     private const uint MapVkToVsc = 0;
+    private const uint MouseEventFMove = 0x0001;
+    private const uint MouseEventFLeftDown = 0x0002;
+    private const uint MouseEventFLeftUp = 0x0004;
+    private const uint MouseEventFAbsolute = 0x8000;
+    private const uint MouseEventFVirtualDesk = 0x4000;
+    private const int SmCxVirtualScreen = 78;
+    private const int SmCyVirtualScreen = 79;
+    private const int SmXvVirtualScreen = 76;
+    private const int SmYvVirtualScreen = 77;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -71,7 +82,6 @@ internal static class Program
             }
 
             var target = TargetResolver.Resolve(options);
-            var key = ResolveKeyBinding(options.Key);
             var focus = FocusTarget(target.WindowHandle, target.ProcessId, options.FocusDelayMilliseconds);
             if (!focus.TargetProcessForeground)
             {
@@ -79,54 +89,111 @@ internal static class Program
                     $"Target process is not foreground after focus attempt. Foreground PID={focus.ForegroundProcessId}; target PID={target.ProcessId}.");
             }
 
-            var sendResult = SendKey(key, options);
-
-            if (!options.NoRefocus && focus.PreviousForegroundWindow != nint.Zero &&
-                focus.PreviousForegroundWindow != target.WindowHandle)
+            object result;
+            if (options.IsMouseClick)
             {
-                _ = Native.SetForegroundWindow(focus.PreviousForegroundWindow);
-            }
-
-            var result = new
-            {
-                schemaVersion = 1,
-                tool = "RiftReader.SendInput",
-                status = "sent",
-                ok = true,
-                target = new
+                var mouseResult = SendMouseLeftClick(target.WindowHandle, options);
+                if (!options.NoRefocus && focus.PreviousForegroundWindow != nint.Zero &&
+                    focus.PreviousForegroundWindow != target.WindowHandle)
                 {
-                    processName = target.ProcessName,
-                    processId = target.ProcessId,
-                    windowHandle = FormatWindowHandle(target.WindowHandle),
-                    title = target.WindowTitle
-                },
-                key = new
-                {
-                    requested = options.Key,
-                    virtualKey = key.VirtualKey,
-                    virtualKeyHex = $"0x{key.VirtualKey:X2}",
-                    scanCode = sendResult.ScanCode,
-                    scanCodeHex = sendResult.ScanCode.HasValue ? $"0x{sendResult.ScanCode.Value:X}" : null,
-                    shiftState = key.ShiftState
-                },
-                input = new
-                {
-                    mode = options.InputMode.ToString(),
-                    holdMilliseconds = options.HoldMilliseconds,
-                    alt = options.Alt,
-                    shift = options.Shift,
-                    ctrl = options.Ctrl,
-                    sentInputEvents = sendResult.SentInputEvents
-                },
-                focus,
-                safety = new
-                {
-                    automaticEscUsed = false,
-                    proofAnchorRequired = false,
-                    movementVerificationPerformed = false,
-                    cheatEngineUsed = false
+                    _ = Native.SetForegroundWindow(focus.PreviousForegroundWindow);
                 }
-            };
+
+                result = new
+                {
+                    schemaVersion = 1,
+                    tool = "RiftReader.SendInput",
+                    status = "sent",
+                    ok = true,
+                    target = new
+                    {
+                        processName = target.ProcessName,
+                        processId = target.ProcessId,
+                        windowHandle = FormatWindowHandle(target.WindowHandle),
+                        title = target.WindowTitle
+                    },
+                    mouse = new
+                    {
+                        clientX = options.ClientX,
+                        clientY = options.ClientY,
+                        screenX = mouseResult.ScreenX,
+                        screenY = mouseResult.ScreenY,
+                        holdMilliseconds = options.HoldMilliseconds,
+                        sentInputEvents = mouseResult.SentInputEvents,
+                        backend = "SendInput-absolute-mouse"
+                    },
+                    input = new
+                    {
+                        mode = "MouseLeftClick",
+                        holdMilliseconds = options.HoldMilliseconds,
+                        sentInputEvents = mouseResult.SentInputEvents
+                    },
+                    focus,
+                    safety = new
+                    {
+                        automaticEscUsed = false,
+                        proofAnchorRequired = false,
+                        movementVerificationPerformed = false,
+                        cheatEngineUsed = false,
+                        postMessageMouseUsed = false,
+                        requiresForeground = true
+                    }
+                };
+            }
+            else
+            {
+                var key = ResolveKeyBinding(options.Key);
+                var sendResult = SendKey(key, options);
+
+                if (!options.NoRefocus && focus.PreviousForegroundWindow != nint.Zero &&
+                    focus.PreviousForegroundWindow != target.WindowHandle)
+                {
+                    _ = Native.SetForegroundWindow(focus.PreviousForegroundWindow);
+                }
+
+                result = new
+                {
+                    schemaVersion = 1,
+                    tool = "RiftReader.SendInput",
+                    status = "sent",
+                    ok = true,
+                    target = new
+                    {
+                        processName = target.ProcessName,
+                        processId = target.ProcessId,
+                        windowHandle = FormatWindowHandle(target.WindowHandle),
+                        title = target.WindowTitle
+                    },
+                    key = new
+                    {
+                        requested = options.Key,
+                        virtualKey = key.VirtualKey,
+                        virtualKeyHex = $"0x{key.VirtualKey:X2}",
+                        scanCode = sendResult.ScanCode,
+                        scanCodeHex = sendResult.ScanCode.HasValue ? $"0x{sendResult.ScanCode.Value:X}" : null,
+                        shiftState = key.ShiftState
+                    },
+                    input = new
+                    {
+                        mode = options.InputMode.ToString(),
+                        holdMilliseconds = options.HoldMilliseconds,
+                        alt = options.Alt,
+                        shift = options.Shift,
+                        ctrl = options.Ctrl,
+                        sentInputEvents = sendResult.SentInputEvents
+                    },
+                    focus,
+                    safety = new
+                    {
+                        automaticEscUsed = false,
+                        proofAnchorRequired = false,
+                        movementVerificationPerformed = false,
+                        cheatEngineUsed = false,
+                        postMessageMouseUsed = false,
+                        requiresForeground = true
+                    }
+                };
+            }
 
             WriteResult(options, result);
             return 0;
@@ -299,7 +366,11 @@ internal static class Program
 
     private static void SendInputChecked(Native.Input input)
     {
-        var inputs = new[] { input };
+        SendInputChecked(new[] { input });
+    }
+
+    private static void SendInputChecked(Native.Input[] inputs)
+    {
         var inputSize = Marshal.SizeOf<Native.Input>();
         var sent = Native.SendInput((uint)inputs.Length, inputs, inputSize);
         if (sent == inputs.Length)
@@ -310,6 +381,121 @@ internal static class Program
         var error = Marshal.GetLastWin32Error();
         var message = new Win32Exception(error).Message;
         throw new InvalidOperationException($"SendInput sent {sent} of {inputs.Length} events. LastWin32Error={error} ({message}).");
+    }
+
+    private static MouseClickResult SendMouseLeftClick(nint windowHandle, Options options)
+    {
+        if (options.ClientX is null || options.ClientY is null)
+        {
+            throw new ArgumentException("Mouse click requires --client-x and --client-y.");
+        }
+
+        // Clicks must stay in the client area only (never non-client chrome: title bar, edges, close).
+        if (!Native.GetClientRect(windowHandle, out var clientRect))
+        {
+            var error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"GetClientRect failed. LastWin32Error={error} ({new Win32Exception(error).Message}).");
+        }
+
+        var clientWidth = clientRect.Right - clientRect.Left;
+        var clientHeight = clientRect.Bottom - clientRect.Top;
+        if (clientWidth < 32 || clientHeight < 32)
+        {
+            throw new InvalidOperationException($"Client area too small for safe click: {clientWidth}x{clientHeight}.");
+        }
+
+        // Inset margin so we never land on borders even with 1px rounding.
+        const int margin = 8;
+        var x = options.ClientX.Value;
+        var y = options.ClientY.Value;
+        if (x < margin || y < margin || x >= clientWidth - margin || y >= clientHeight - margin)
+        {
+            throw new InvalidOperationException(
+                $"Client click ({x},{y}) is outside safe inset inside client {clientWidth}x{clientHeight} (margin={margin}). " +
+                "Use client-center for C2M tests; never click near edges/chrome.");
+        }
+
+        var clientPoint = new Native.Point(x, y);
+        if (!Native.ClientToScreen(windowHandle, ref clientPoint))
+        {
+            var error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"ClientToScreen failed. LastWin32Error={error} ({new Win32Exception(error).Message}).");
+        }
+
+        var screenX = clientPoint.X;
+        var screenY = clientPoint.Y;
+        var virtualLeft = Native.GetSystemMetrics(SmXvVirtualScreen);
+        var virtualTop = Native.GetSystemMetrics(SmYvVirtualScreen);
+        var virtualWidth = Math.Max(1, Native.GetSystemMetrics(SmCxVirtualScreen));
+        var virtualHeight = Math.Max(1, Native.GetSystemMetrics(SmCyVirtualScreen));
+
+        // Map screen pixels to SendInput absolute range 0..65535 over the virtual desktop.
+        var absX = (int)Math.Round(((screenX - virtualLeft) * 65535.0) / Math.Max(1, virtualWidth - 1));
+        var absY = (int)Math.Round(((screenY - virtualTop) * 65535.0) / Math.Max(1, virtualHeight - 1));
+        absX = Math.Clamp(absX, 0, 65535);
+        absY = Math.Clamp(absY, 0, 65535);
+
+        var move = new Native.Input
+        {
+            Type = InputMouse,
+            U = new Native.InputUnion
+            {
+                Mi = new Native.MouseInput
+                {
+                    Dx = absX,
+                    Dy = absY,
+                    MouseData = 0,
+                    Flags = MouseEventFMove | MouseEventFAbsolute | MouseEventFVirtualDesk,
+                    Time = 0,
+                    ExtraInfo = nint.Zero
+                }
+            }
+        };
+        var down = new Native.Input
+        {
+            Type = InputMouse,
+            U = new Native.InputUnion
+            {
+                Mi = new Native.MouseInput
+                {
+                    Dx = absX,
+                    Dy = absY,
+                    MouseData = 0,
+                    Flags = MouseEventFLeftDown | MouseEventFAbsolute | MouseEventFVirtualDesk,
+                    Time = 0,
+                    ExtraInfo = nint.Zero
+                }
+            }
+        };
+        var up = new Native.Input
+        {
+            Type = InputMouse,
+            U = new Native.InputUnion
+            {
+                Mi = new Native.MouseInput
+                {
+                    Dx = absX,
+                    Dy = absY,
+                    MouseData = 0,
+                    Flags = MouseEventFLeftUp | MouseEventFAbsolute | MouseEventFVirtualDesk,
+                    Time = 0,
+                    ExtraInfo = nint.Zero
+                }
+            }
+        };
+
+        SendInputChecked(new[] { move });
+        Thread.Sleep(20);
+        SendInputChecked(new[] { down });
+        Thread.Sleep(Math.Max(1, options.HoldMilliseconds));
+        SendInputChecked(new[] { up });
+
+        return new MouseClickResult(
+            SentInputEvents: 3,
+            ScreenX: screenX,
+            ScreenY: screenY,
+            AbsoluteX: absX,
+            AbsoluteY: absY);
     }
 
     private static KeyBinding ResolveKeyBinding(string keyText)
@@ -356,6 +542,11 @@ internal static class Program
             throw new InvalidOperationException($"Window {FormatWindowHandle(windowHandle)} belongs to PID {ownerProcessId}, not PID {targetProcessId}.");
         }
 
+        // Never SW_RESTORE on a normal/maximized window — that un-maximizes and can look like a
+        // "resize" or land clicks on chrome. Only restore when minimized.
+        var wasIconic = Native.IsIconic(windowHandle);
+        var wasZoomed = Native.IsZoomed(windowHandle);
+
         var currentThreadId = Native.GetCurrentThreadId();
         var attachedForeground = false;
         var attachedTarget = false;
@@ -372,8 +563,16 @@ internal static class Program
                 attachedTarget = Native.AttachThreadInput(currentThreadId, targetThreadId, true);
             }
 
-            _ = Native.ShowWindow(windowHandle, SwRestore);
-            _ = Native.BringWindowToTop(windowHandle);
+            if (wasIconic)
+            {
+                _ = Native.ShowWindow(windowHandle, SwRestore);
+            }
+            else if (!Native.IsWindowVisible(windowHandle))
+            {
+                _ = Native.ShowWindow(windowHandle, SwShow);
+            }
+
+            // Activate without changing maximize/normal geometry.
             _ = Native.SetForegroundWindow(windowHandle);
             Thread.Sleep(Math.Max(0, focusDelayMilliseconds));
         }
@@ -399,7 +598,10 @@ internal static class Program
             ForegroundAfterWindow: foregroundAfter,
             ForegroundProcessId: (int)foregroundAfterProcessId,
             ExactHwndForeground: foregroundAfter == windowHandle,
-            TargetProcessForeground: foregroundAfterProcessId == targetProcessId);
+            TargetProcessForeground: foregroundAfterProcessId == targetProcessId,
+            WasIconic: wasIconic,
+            WasZoomed: wasZoomed,
+            UsedShowRestore: wasIconic);
     }
 
     private static void WriteResult(Options options, object result)
@@ -415,7 +617,14 @@ internal static class Program
         var root = document.RootElement;
         Console.WriteLine("[RiftReader.SendInput] SUCCESS");
         Console.WriteLine($"Target : {root.GetProperty("target").GetProperty("processName").GetString()} [{root.GetProperty("target").GetProperty("processId").GetInt32()}] {root.GetProperty("target").GetProperty("windowHandle").GetString()}");
-        Console.WriteLine($"Key    : {root.GetProperty("key").GetProperty("requested").GetString()} ({root.GetProperty("key").GetProperty("virtualKeyHex").GetString()})");
+        if (root.TryGetProperty("key", out var keyEl))
+        {
+            Console.WriteLine($"Key    : {keyEl.GetProperty("requested").GetString()} ({keyEl.GetProperty("virtualKeyHex").GetString()})");
+        }
+        else if (root.TryGetProperty("mouse", out var mouseEl))
+        {
+            Console.WriteLine($"Mouse  : client=({mouseEl.GetProperty("clientX").GetInt32()},{mouseEl.GetProperty("clientY").GetInt32()}) screen=({mouseEl.GetProperty("screenX").GetInt32()},{mouseEl.GetProperty("screenY").GetInt32()})");
+        }
         Console.WriteLine($"Mode   : {root.GetProperty("input").GetProperty("mode").GetString()}");
     }
 
@@ -428,12 +637,17 @@ internal static class Program
     {
         Console.WriteLine("RiftReader.SendInput");
         Console.WriteLine("Usage:");
+        Console.WriteLine("  # Keyboard (ScanCode preferred for movement keys)");
         Console.WriteLine("  dotnet run --project tools/RiftReader.SendInput/RiftReader.SendInput.csproj -- --key w --pid 1234 --hwnd 0x123456 --input-mode ScanCode --json");
+        Console.WriteLine("  # Mouse left-click at client coords (requires foreground focus; NOT PostMessage)");
+        Console.WriteLine("  dotnet run --project tools/RiftReader.SendInput/RiftReader.SendInput.csproj -- --client-x 400 --client-y 300 --pid 1234 --hwnd 0x123456 --hold-ms 40 --json");
     }
 
     private sealed record KeyBinding(string Requested, int VirtualKey, int ShiftState);
 
     private sealed record SendKeyResult(int SentInputEvents, ushort? ScanCode);
+
+    private sealed record MouseClickResult(int SentInputEvents, int ScreenX, int ScreenY, int AbsoluteX, int AbsoluteY);
 }
 
 internal sealed record FocusResult(
@@ -443,7 +657,10 @@ internal sealed record FocusResult(
     [property: JsonIgnore] nint ForegroundAfterWindow,
     int ForegroundProcessId,
     bool ExactHwndForeground,
-    bool TargetProcessForeground)
+    bool TargetProcessForeground,
+    bool WasIconic = false,
+    bool WasZoomed = false,
+    bool UsedShowRestore = false)
 {
     public string PreviousForegroundWindowHex => Format(PreviousForegroundWindow);
 
@@ -475,6 +692,12 @@ internal sealed class Options
     public string? TitleContains { get; private init; }
 
     public int FocusDelayMilliseconds { get; private init; } = 500;
+
+    public int? ClientX { get; private init; }
+
+    public int? ClientY { get; private init; }
+
+    public bool IsMouseClick => ClientX is not null && ClientY is not null;
 
     public bool Alt { get; private init; }
 
@@ -523,20 +746,36 @@ internal sealed class Options
             return new Options { ShowHelp = true };
         }
 
-        if (!values.TryGetValue("key", out var key) || string.IsNullOrWhiteSpace(key))
+        var hasKey = values.TryGetValue("key", out var key) && !string.IsNullOrWhiteSpace(key);
+        var hasClientX = values.TryGetValue("client-x", out var clientXText);
+        var hasClientY = values.TryGetValue("client-y", out var clientYText);
+        if (hasClientX != hasClientY)
         {
-            throw new ArgumentException("--key is required.");
+            throw new ArgumentException("Mouse click requires both --client-x and --client-y.");
+        }
+
+        var isMouse = hasClientX && hasClientY;
+        if (!hasKey && !isMouse)
+        {
+            throw new ArgumentException("Either --key (keyboard) or --client-x/--client-y (mouse click) is required.");
+        }
+
+        if (hasKey && isMouse)
+        {
+            throw new ArgumentException("Provide either --key or --client-x/--client-y, not both.");
         }
 
         return new Options
         {
-            Key = key,
-            HoldMilliseconds = GetInt(values, "hold-ms", 250),
+            Key = hasKey ? key! : string.Empty,
+            HoldMilliseconds = GetInt(values, "hold-ms", isMouse ? 40 : 250),
             ProcessName = GetString(values, "process-name", "rift_x64"),
             TargetProcessId = values.TryGetValue("pid", out var pidText) ? int.Parse(pidText, CultureInfo.InvariantCulture) : null,
             TargetWindowHandle = values.TryGetValue("hwnd", out var hwnd) ? hwnd : null,
             TitleContains = values.TryGetValue("title-contains", out var titleContains) ? titleContains : null,
             FocusDelayMilliseconds = GetInt(values, "focus-delay-ms", 500),
+            ClientX = isMouse ? int.Parse(clientXText!, CultureInfo.InvariantCulture) : null,
+            ClientY = isMouse ? int.Parse(clientYText!, CultureInfo.InvariantCulture) : null,
             Alt = flags.Contains("alt"),
             Shift = flags.Contains("shift"),
             Ctrl = flags.Contains("ctrl"),
@@ -796,6 +1035,51 @@ internal static class Native
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern int GetWindowTextLength(nint windowHandle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Point
+    {
+        public int X;
+        public int Y;
+
+        public Point(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ClientToScreen(nint windowHandle, ref Point point);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetClientRect(nint windowHandle, out Rect rect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetSystemMetrics(int index);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsIconic(nint windowHandle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsZoomed(nint windowHandle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(nint windowHandle);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern int GetWindowText(nint windowHandle, StringBuilder text, int maxCount);

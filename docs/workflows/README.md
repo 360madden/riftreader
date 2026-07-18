@@ -38,8 +38,14 @@ What do you need?
 ├─ I need to validate a new pointer chain
 │   → pointer-chain-validation.md
 │
-└─ I need to do live navigation / route execution
-    → navigation-route.md
+├─ I need to do live navigation / route execution
+│   → navigation-route.md
+│
+├─ I need the full memory/data checklist for auto-travel, navmesh, FOV, Godot overlay
+│   → automated-travel-memory-data-catalog.md
+│
+└─ Game updated / root null — trimmed recovery playbook for next patch
+    → optimized-post-update-recovery-workflow.md
 ```
 
 ## Document index
@@ -47,10 +53,12 @@ What do you need?
 | Document | What it covers | When to use |
 |---|---|---|
 | [session-startup.md](session-startup.md) | Target resolution, module base check, resolver health, freshness gates | **Every session** — first thing after logging in |
+| [optimized-post-update-recovery-workflow.md](optimized-post-update-recovery-workflow.md) | Trimmed lane-split recovery (session seed vs static promote) | **Next client update** / root-null / PID drift |
 | [pointer-chain-reacquisition.md](pointer-chain-reacquisition.md) | AOB signature scan, pointer family scan, neighborhood inspector, re-validation | Game update breaks chains |
 | [coordinate-validation.md](coordinate-validation.md) | Tier 1-5 coordinate readback and validation | Need coordinates or resolver health check |
 | [aob-signature-capture.md](aob-signature-capture.md) | Capturing, storing, and validating AOB signatures | Want faster reacquisition after updates |
 | [owner-layout-reference.md](owner-layout-reference.md) | Canonical owner object offsets, layout, behavioral notes | Understanding what fields exist |
+| [automated-travel-memory-data-catalog.md](automated-travel-memory-data-catalog.md) | Full pose/camera/FOV/W2S/navmesh/Godot data inventory for automated travel | Building overlays, click-to-move, navmesh apps, travel bots |
 | [combat-bot-roadmap.md](combat-bot-roadmap.md) | Full Phase 0-6 plan for automated combat | Planning combat bot development |
 | [pointer-chain-validation.md](pointer-chain-validation.md) | Promotion gates, displacement validation, reboot survival | Validating a new candidate chain |
 | [navigation-route.md](navigation-route.md) | Route planning, turn-aware routing, route execution | Live navigation / waypoint following |
