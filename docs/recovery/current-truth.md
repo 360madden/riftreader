@@ -1,33 +1,94 @@
-# Current RIFT live truth — PLAYER COORDINATE CHAIN CONFIRMED
+# Current RIFT live truth — POST-PATCH STATIC ROOT BLOCKED
 
-Updated UTC: `2026-07-12T04:15:00Z`
+Updated UTC: `2026-07-18T05:05:46Z`
 
-# **✅ RESULT — CONFIRMED COORDINATE + HEADING CHAIN — PROMOTED FOR NAVIGATION**
+## **⚠️ BLOCKER — PRE-PATCH ROOT IS NULL IN THE CURRENT BINARY**
 
-## Durable chain (restart-surviving)
+The installed RIFT executable changed after the 2026-07-14 baseline. A fresh
+exact-target, no-input readback on 2026-07-18 resolved the current process and
+module base successfully, but `rift_x64+0x32EBDC0` contained a null owner
+pointer. The July coordinate and heading chain is therefore a **pre-patch
+recovery baseline**, not current live navigation truth.
 
+| Current target field | Value |
+|---|---|
+| PID / HWND | `4256` / `0x1ED0C56` |
+| Process start UTC | `2026-07-18T05:00:28.788Z` |
+| Module base | `0x7FF78ECD0000` |
+| Installed exe SHA256 | `7A3AAE5383E392210B169ACDE0FC00A9EA262A100DED65041E851C26F4884DD7` |
+| Installed exe size | `59,969,472` bytes |
+| Pre-patch exe SHA256 | `7D2595BE8D9543ACFF7808B12796C967FB690C7825FD7DD6846AC2194E551D40` |
+| Pre-patch exe size | `60,024,256` bytes |
+| Root readback | `[moduleBase+0x32EBDC0] = 0x0` |
+| Verdict | `root-pointer-null` |
+
+Current consequences:
+
+- Do not run navigation from the July static resolver.
+- Do not publish `owner+0x320/+0x324/+0x328` or
+  `[[owner+0x330]+0x158]` as current post-patch values.
+- Do not promote a replacement root from pre-patch artifacts.
+- Continue with offline caller/xref analysis before repeating live RVA sweeps.
+- Movement, displacement proof, debugger/CE work, and promotion remain
+  separately approval-gated.
+
+Safe next action:
+
+```powershell
+.\scripts\riftreader-ghidra-static-evidence.cmd --run --binary-path 'C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe' --json
 ```
+
+## Last validated pre-patch chain (historical recovery baseline)
+
+```text
 Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
   → Pointer to heap object
     → +0x320: X coordinate (float)
     → +0x324: Y coordinate (float)
     → +0x328: Z coordinate (float)
-    → +0x300: Heading (cumulative rotation counter, mod 360 = degrees)
+    → +0x300: Cumulative rotation counter (legacy heading proxy; not direct heading)
     → +0x304: Speed / turn rate (float)
+    → +0x330: Camera-state child pointer
+        → +0x158: Direct heading (float, radians)
 ```
 
-## Verification across restarts
+## Pre-patch heading-source reconciliation (2026-07-12)
 
-| Session | PID | Module base | X | Y | Z | Heading | Evidence |
+The coordinate owner and coordinate offsets were the promoted position source
+for the July 12 pre-patch epoch. Facing discovery superseded the earlier
+interpretation of `owner+0x300` as the canonical heading:
+
+| Source | Pre-patch classification | Historical use |
+|---|---|---|
+| `owner+0x300` | Cumulative rotation counter | Historical/diagnostic turn-change evidence only; do not publish it as direct facing |
+| `[[owner+0x330]+0x158]` | Direct heading float in radians | Navigation-facing source used by `nav6`, `nav8`, and `FreshState`; provisional pending formal promotion gates |
+| `[[owner+0x330]+0x2c/+0x34]` | Camera direction vector | Independent cross-check via `atan2(dx, dz)` |
+
+The direct `+0x158` value matched the camera direction with a 0° offset, returned
+to its baseline after a round-trip turn, drove the recorded `nav6`/`nav7`/`nav8`
+tests, and was reported to survive a RIFT restart. The latest handoff labels it
+promoted for navigation. That handoff does not link a standalone, gate-by-gate
+promotion report, so this document records `+0x158` as **practically validated
+but provisionally classified**, not as formally promoted current truth.
+
+Formal promotion still requires a durable timestamped proof artifact with exact
+PID/HWND/process-start binding, fresh truth-versus-`+0x158` agreement,
+three-pose directional evidence, restart/relog survival, and artifact-freshness
+checks. Handoff prose and commit messages do not replace those gates.
+
+## Pre-patch verification across restarts
+
+| Session | PID | Module base | X | Y | Z | `+0x300` support reading | Evidence |
 |---|---|---|---|---|---|---|---|
 | Session 1 | 20080 | 0x7FF728B80000 | 6964.14 | 841.08 | 3331.19 | — | API match (delta <2) |
 | Session 2 | 552 | 0x7FF728B80000 | 6974.50 | 840.31 | 3324.52 | 192.75° | Movement + heading tests |
 | Session 3 | 16008 | 0x7FF728B80000 | 6974.50 | 840.31 | 3324.52 | 22.94° | Restart survival confirmed |
 | Session 4 | 36332 | 0x7FF728B80000 | 7003.19 | 841.92 | 3302.60 | 100.46° | Displacement validation passed |
 
-**All four sessions: same binary, same ASLR base, same coordinate chain, same player position.**
+**All four sessions used the same pre-patch binary, ASLR base, coordinate root,
+and owner layout.**
 
-## Movement validation
+## Historical movement validation
 
 | Test | Input | Result |
 |---|---|---|
@@ -37,7 +98,7 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 | Forward (W key 500ms) | WindowMessage via post-rift-key.ps1 | dist=3.21 units |
 | Left turn (A key 500ms) | WindowMessage via post-rift-key.ps1 | Heading delta=22° |
 
-## Displacement validation (2026-07-12)
+## Historical displacement validation (2026-07-12)
 
 | Test | Before | After | Delta | Status |
 |---|---|---|---|---|
@@ -46,7 +107,7 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 
 **Chain coordinates respond correctly to both movement and turning.**
 
-## API data source (RiftReaderApiProbe v0.3.0)
+## Last validated API coverage (RiftReaderApiProbe v0.3.0)
 
 | Global | Fields | Status |
 |---|---|---|
@@ -58,11 +119,11 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 | Stats | armor, dexterity, endurance, crit, dodge, hit, resistances | ✅ Working |
 | Live | backward-compat RRAPICOORD1 string | ✅ Working |
 
-## Field map at player object
+## Pre-patch field map at player object
 
 | Offset | Type | Meaning | Restart-stable? |
 |---|---|---|---|
-| +0x300 | float (counter) | Heading: cumulative rotation, mod 360 = degrees | ✅ |
+| +0x300 | float (counter) | Cumulative rotation counter; legacy heading proxy, not direct heading | ✅ |
 | +0x304 | float | Speed or turn rate (2.14 → -1.22 during turns) | ✅ |
 | +0x308 | float | Unknown (near zero) | — |
 | +0x30C | float | Previous X or movement start (zeros after idle) | — |
@@ -72,8 +133,21 @@ Static global: rift_x64+0x32EBDC0  (RVA 0x32EBDC0, .data section)
 | +0x320 | float | **Current X** | ✅ |
 | +0x324 | float | **Current Y** | ✅ |
 | +0x328 | float | **Current Z** | ✅ |
+| +0x330 | pointer | Camera-state child containing direct heading and direction vector | Reported across restart |
+
+### Camera-state child map (`owner+0x330`)
+
+| Offset | Type | Meaning | Evidence |
+|---|---|---|---|
+| +0x2C | float | Camera direction X | Matches direct heading via `atan2` |
+| +0x34 | float | Camera direction Z | Matches direct heading via `atan2` |
+| +0x158 | float | **Direct heading in radians** | 0° camera-direction offset; navigation-tested; restart survival reported |
 
 ## Resolver script
+
+These commands remain diagnostic entry points. In the current post-patch epoch,
+they must fail closed on the null `0x32EBDC0` root and must not publish stale
+coordinates.
 
 ```powershell
 # One-shot
@@ -90,25 +164,34 @@ Output matches `watch_rift.py` JSON schema: `position.x/y/z`, `navigation.yawDeg
 
 ## Dead chain (historical)
 
-The previous root `rift_x64+0x32EBC80` is **dead** — zero references in current binary. The old promoted chain `[[0x32EBC80]+0x320]` does not work. Do not use it.
+The previous root `rift_x64+0x32EBC80` was **dead** in the July pre-patch
+binary. The old promoted chain `[[0x32EBC80]+0x320]` does not work. Do not use
+it.
 
 ## Status
 
-- **Restart survival:** CONFIRMED across 4 sessions (PIDs 20080, 552, 16008, 36332)
-- **Movement validation:** CONFIRMED (forward + turning, WindowMessage input)
-- **Heading formula:** CONFIRMED (`+0x300 % 360`)
-- **Displacement validation:** CONFIRMED (API vs Chain agreement)
+- **Current post-patch resolver:** ❌ **BLOCKED** — `rift_x64+0x32EBDC0` is null on exact PID `4256`
+- **Current route/navigation authority:** ❌ **NONE** — replacement static root not recovered
+- **Pre-patch restart survival:** CONFIRMED across 4 sessions (PIDs 20080, 552, 16008, 36332)
+- **Pre-patch movement validation:** CONFIRMED (forward + turning, WindowMessage input)
+- **Pre-patch direct heading formula:** `degrees([[owner+0x330]+0x158])`
+- **Legacy counter:** `owner+0x300` remains diagnostic/support evidence, not canonical direct heading
+- **Pre-patch displacement validation:** CONFIRMED (API vs chain agreement)
 - **Discovery evidence:** `docs/recovery/player-coordinate-chain-discovery-20260711.md`
 - **Anti-RE analysis:** `docs/anti-re/analysis/live-session-20260711.md`
-- **Promoted:** ✅ **YES** — ready for navigation use
+- **Coordinate promotion:** historical/pre-patch only — `owner+0x320/+0x324/+0x328`
+- **Heading classification:** historical/pre-patch and formally provisional
 
 ---
 
-# Historical context
+## Historical context
 
 ## Previous promoted chain (DEAD — do not use)
 
-The old chain `[[rift_x64+0x32EBC80]+0x320]` was promoted on 2026-05-27 and validated across PIDs 34176, 25668, 41808, and 12664. It is now dead — the `0x32EBC80` global has zero references in the current binary. The old chain is preserved in `docs/recovery/historical/` for audit only.
+The old chain `[[rift_x64+0x32EBC80]+0x320]` was promoted on 2026-05-27 and
+validated across PIDs 34176, 25668, 41808, and 12664. By July, the `0x32EBC80`
+global had zero references in that pre-patch binary. The old chain is preserved
+in `docs/recovery/historical/` for audit only.
 
 ## Historical promotion gate results (PID 34176, 2026-05-27)
 
@@ -131,16 +214,24 @@ The old chain `[[rift_x64+0x32EBC80]+0x320]` was promoted on 2026-05-27 and vali
 | Facing offsets stable | Passed |
 | API-now validation | Max delta 0.00248046875 |
 
-## Required operating rule
+## Required post-patch operating rule
 
-Use the new `[[0x32EBDC0]+0x320]` chain as the current coordinate source. Keep live workflows fail-closed:
+Do not use `[[0x32EBDC0]+0x320]` as the current coordinate source while the root
+pointer is null. Keep recovery fail-closed:
 
-1. Find PID via `Get-Process rift_x64`
-2. Find module base (fast-path known bases, then MZ scan)
-3. Read `moduleBase + 0x32EBDC0` → heap object pointer
-4. Read `object+0x320/+0x324/+0x328` for X/Y/Z
-5. Read `object+0x300` mod 360 for heading
-6. Before navigation, perform fresh same-target readback and reject stale values
+1. Bind the exact PID, HWND, module base, and process start.
+2. Confirm the installed executable identity against the pre-patch baseline.
+3. Use offline caller/xref evidence to locate replacement root candidates.
+4. Read candidate owners without input and reject null or implausible layouts.
+5. Capture fresh API coordinates and compare with candidate coordinate fields.
+6. Revalidate the camera child and direct heading only after position agrees.
+7. Require restart/relog survival and formal proof gates before promotion.
+8. Require separate approval before movement, displacement proof, or live input.
+
+`docs/recovery/current-truth.json` still describes an older candidate/support
+state and is not authoritative for the reconciled heading classification. A
+broader structured-truth migration should update it only after the formal
+promotion gates above are satisfied.
 
 ## Canonical artifacts
 
@@ -151,4 +242,11 @@ Use the new `[[0x32EBDC0]+0x320]` chain as the current coordinate source. Keep l
 | AOB database | `artifacts/anti-re/coordinate-aob-database.json` |
 | Global reference map | `artifacts/anti-re/data-global-reference-map.md` |
 | Resolver script | `scripts/resolve-player-coords.py` |
+| Pre-update shutdown handoff | `handoffs/current/PRE_UPDATE_SERVER_SHUTDOWN_HANDOFF_2026-07-14.md` |
+| Pre-update executable baseline | `handoffs/current/pre-update-baseline/20260714T075857Z-preupdate-capture-v001/executable-identity.json` |
+| Pre-update root signature | `signatures/rift_x64/root_preupdate-final-coord-root.json` |
+| Facing discovery handoff | `docs/handoff-2026-07-12-facing.md` |
+| Navigation/heading handoff | `docs/handoffs/2026-07-12-navigation-heading-complete-handoff.md` |
+| Camera-vector facing cross-check | `scripts/read-player-facing.py` |
+| Navigation heading consumers | `scripts/nav6.py`, `scripts/nav8.py`, `scripts/fresh_state.py` |
 | Historical promotion report | `docs/recovery/static-owner-coordinate-chain-promoted-2026-05-27.md` |
