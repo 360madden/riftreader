@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "riftreader-current-truth",
-  "updatedAtUtc": "2026-07-18T18:15:39.846184+00:00",
-  "status": "current_pid_32636_static_root_0x32E07C0_target_rebind",
+  "updatedAtUtc": "2026-07-18T18:13:14.809794+00:00",
+  "status": "current_pid_32636_static_root_0x32E07C0_post_restart_bind",
   "target": {
     "processName": "rift_x64",
     "processId": 32636,
@@ -13,9 +13,9 @@
     "moduleFileName": "C:\\Program Files (x86)\\Glyph\\Games\\RIFT\\Live\\rift_x64.exe",
     "live": true,
     "inWorld": true,
-    "status": "current-pid-32636-target-rebind",
-    "lastVerifiedUtc": "2026-07-18T18:15:39.846184+00:00",
-    "verificationSource": "Operator-requested truth target rebind from live process."
+    "status": "current-pid-32636-post-restart-bind",
+    "lastVerifiedUtc": "2026-07-18T18:13:14.809794+00:00",
+    "verificationSource": "Post-restart target bind; root 0x32E07C0 retained."
   },
   "liveReferenceSurface": {
     "authoritative": true,
@@ -24,16 +24,16 @@
     "view": "Current target PID 21436 / HWND 0x710a94 uses restart-survived root 0x32E07C0; three-pose API-now vs chain-now passed; center LMB C2M displaced player.",
     "savedVariablesUse": "none",
     "currentCoordinateFromStaticChainCandidate": {
-      "x": 7189.236328125,
-      "y": 871.7839965820312,
-      "z": 3042.949462890625,
-      "recordedAtUtc": "2026-07-18T18:15:39.846184+00:00"
+      "x": 7189.314453125,
+      "y": 871.7841186523438,
+      "z": 3043.272216796875,
+      "recordedAtUtc": "2026-07-18T18:13:14.809794+00:00"
     },
     "currentCoordinateFromPromotedStaticResolver": {
-      "x": 7189.236328125,
-      "y": 871.7839965820312,
-      "z": 3042.949462890625,
-      "recordedAtUtc": "2026-07-18T18:15:39.846184+00:00"
+      "x": 7189.314453125,
+      "y": 871.7841186523438,
+      "z": 3043.272216796875,
+      "recordedAtUtc": "2026-07-18T18:13:14.809794+00:00"
     },
     "apiNowStatus": "passed-current-pid-21436-api-now-vs-chain-now",
     "apiNowBlockers": [],
@@ -99,14 +99,13 @@
       "Post-patch root 0x32E07C0 reseeded 2026-07-18; restart survival PID 26916\u219221436; three-pose + API-now passed; center SendInput LMB displaced ~2.14m planar.",
       "Heading candidate [[owner+0x330]+0x158] revalidated; W2S uses cam\u2192look-at forward (not +0x2C).",
       "Historical truth backup: docs/recovery/historical/current-truth-before-0x32E07C0-promote-20260718-171122.json",
-      "Target rebind 2026-07-18T18:13:14.809794+00:00: PID 32636 HWND 0x620dd8; root 0x32E07C0. Backup current-truth-before-restart-bind-20260718-181314.json",
-      "Target rebind 2026-07-18T18:15:39.846184+00:00: PID 32636 HWND 0x620dd8 start 2026-07-18T18:11:46.6194619Z; was PID 32636 HWND 0x620dd8; root 0x32E07C0; backup current-truth-before-rebind-20260718-181539.json"
+      "Target rebind 2026-07-18T18:13:14.809794+00:00: PID 32636 HWND 0x620dd8; root 0x32E07C0. Backup current-truth-before-restart-bind-20260718-181314.json"
     ]
   },
   "movementGate": {
     "allowed": true,
     "status": "allowed-with-current-pid-exact-target-fresh-static-readback",
-    "reason": "Root 0x32E07C0; target rebound to PID 32636 / HWND 0x620dd8.",
+    "reason": "Root 0x32E07C0; rebound to PID 32636 after restart.",
     "proofArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-root-three-pose-21436-20260718-170754\\summary.json",
     "restartSurvivalArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\owner-root-restart-survival-currentpid-21436-20260718-170030\\summary.json",
     "latestCurrentReadbackArtifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\static-root-three-pose-21436-20260718-170754\\summary.json",
@@ -120,11 +119,11 @@
     "rootRva": "0x32E07C0",
     "rootAddress": "0x7ff6999007c0",
     "currentOwnerAddress": "0x179bb4106a0",
-    "currentCoordinateAddress": "0x179bb4109c0",
+    "currentCoordinateAddress": "0x1d00c8b09d0",
     "coordinate": {
-      "x": 7189.236328125,
-      "y": 871.7839965820312,
-      "z": 3042.949462890625
+      "x": 7189.314453125,
+      "y": 871.7841186523438,
+      "z": 3043.272216796875
     },
     "reacquiredAfterReboot": true,
     "promotionEligible": true,
@@ -150,9 +149,9 @@
       "ownerAddress": "0x179bb4106a0",
       "coordinateAddress": "0x1d00c8b09d0",
       "coordinate": {
-        "x": 7189.236328125,
-        "y": 871.7839965820312,
-        "z": 3042.949462890625
+        "x": 7189.314453125,
+        "y": 871.7841186523438,
+        "z": 3043.272216796875
       },
       "historicalShapeMatch": "owner+0x320/+0x324/+0x328",
       "restartRelogSurvived": true,
@@ -197,8 +196,8 @@
   "cameraAndHeading": {
     "cameraChildOffset": "0x330",
     "headingOffsetOnCamera": "0x158",
-    "headingRad": -1.4877721071243286,
-    "headingDeg": -85.24306261550943,
+    "headingRad": -1.600260853767395,
+    "headingDeg": -91.68819304087354,
     "w2s": {
       "forwardSource": "cam_to_player_lookat",
       "fovOffset": "0x38",
@@ -216,7 +215,7 @@
     ],
     "artifact": "C:\\RIFT MODDING\\RiftReader\\scripts\\captures\\sendinput-lmb-test-20260718-170938\\summary.json"
   },
-  "historicalBackup": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-before-rebind-20260718-181539.json",
+  "historicalBackup": "C:\\RIFT MODDING\\RiftReader\\docs\\recovery\\historical\\current-truth-before-restart-bind-20260718-181314.json",
   "safety": {
     "noCheatEngine": true,
     "x64dbgAttach": false,

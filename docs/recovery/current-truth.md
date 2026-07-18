@@ -1,6 +1,6 @@
 # Current RIFT live truth — post-patch static root **PROMOTED**
 
-Updated UTC: `2026-07-18T18:13:14.809794+00:00`
+Updated UTC: `2026-07-18T18:15:39.846184+00:00`
 
 ## **✅ CURRENT — root `0x32E07C0`**
 
