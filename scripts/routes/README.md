@@ -40,8 +40,21 @@ python scripts\c2m_run_to_goal.py --execute --stimulus-approved `
   --json
 ```
 
-Truth bind is **on by default** (`--use-current-truth`). After a RIFT restart,
-update `docs/recovery/current-truth.json` (or pass `--allow-target-drift` only for recovery).
+Truth bind is **on by default** (`--use-current-truth`). C2M **uses current-truth**
+for PID/HWND/process-start/root RVA and fail-closes on mismatch.
+
+After a RIFT restart: **rebind truth target** (not the root RVA on this binary —
+root `0x32E07C0` is restart-survivable). See
+`docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md`.
+
+Recovery-only: `--allow-target-drift` (does not update truth).
+
+### Known-good sample
+
+| File | Notes |
+|---|---|
+| `safe-handpicked-a.json` | Operator-walked absolute path (~56 m) |
+| `safe-handpicked-a-reverse.json` | Same path reverse (start at last mark) |
 
 ## Samples
 

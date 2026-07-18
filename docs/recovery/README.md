@@ -16,13 +16,16 @@ Last reviewed: 2026-07-18.
 
 | Doc | Role |
 |---|---|
-| [`current-truth.md`](current-truth.md) / [`current-truth.json`](current-truth.json) | **Live** promoted static root `0x32E07C0` |
-| [`progress-2026-07-18-post-patch-root-and-c2m.md`](progress-2026-07-18-post-patch-root-and-c2m.md) | **Durable milestone notes** (gates, tools, decisions, next) |
+| [`current-truth.md`](current-truth.md) / [`current-truth.json`](current-truth.json) | **Live** target + promoted static root `0x32E07C0` |
+| [`c2m-truth-bind-and-static-chain-restart-survival.md`](c2m-truth-bind-and-static-chain-restart-survival.md) | **C2M ↔ truth contract** + **restart-survivable chain** (library entry) |
+| [`progress-2026-07-18-post-patch-root-and-c2m.md`](progress-2026-07-18-post-patch-root-and-c2m.md) | Full milestone notes (gates, tools, decisions, next) |
 | [`post-patch-static-root-candidate-2026-07-18.md`](post-patch-static-root-candidate-2026-07-18.md) | Discovery narrative for the reseed |
 | [`c2m-destination-discovery-status-2026-07-18.md`](c2m-destination-discovery-status-2026-07-18.md) | Engine C2M dest scan (still open; not required for MVP) |
 
 Promoted chain: **`[rift_x64+0x32E07C0]+0x320/+0x324/+0x328`**.  
 Pre-patch roots `0x32EBC80` / `0x32EBDC0` are **invalid** on this binary.
+
+**C2M:** uses `current-truth` fail-closed by default. **Restart:** root RVA survives; rebind PID/HWND/start after relaunch.
 
 ## Current repo focus
 

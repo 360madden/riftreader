@@ -47,8 +47,11 @@ What do you need?
 ├─ Game updated / root null — trimmed recovery playbook for next patch
 │   → optimized-post-update-recovery-workflow.md
 │
-└─ What did we finish on 2026-07-18? (root promote + C2M multi-WP)
-    → ../recovery/progress-2026-07-18-post-patch-root-and-c2m.md
+├─ What did we finish on 2026-07-18? (root promote + C2M multi-WP)
+│   → ../recovery/progress-2026-07-18-post-patch-root-and-c2m.md
+│
+└─ Does C2M use current-truth? Does the static chain survive restart?
+    → ../recovery/c2m-truth-bind-and-static-chain-restart-survival.md
 ```
 
 ## Document index
@@ -56,6 +59,7 @@ What do you need?
 | Document | What it covers | When to use |
 |---|---|---|
 | [session-startup.md](session-startup.md) | Target resolution, module base check, resolver health, freshness gates | **Every session** — first thing after logging in |
+| [../recovery/c2m-truth-bind-and-static-chain-restart-survival.md](../recovery/c2m-truth-bind-and-static-chain-restart-survival.md) | C2M ↔ truth fail-closed bind; restart-survivable root `0x32E07C0` | **C2M / restart / “is truth for travel?”** |
 | [../recovery/progress-2026-07-18-post-patch-root-and-c2m.md](../recovery/progress-2026-07-18-post-patch-root-and-c2m.md) | Durable milestone: root `0x32E07C0`, gates, C2M, decisions, next | **Resume after 2026-07-18** / handoff |
 | [../recovery/current-truth.md](../recovery/current-truth.md) | Live promoted chain + binding rules | Every live session |
 | [optimized-post-update-recovery-workflow.md](optimized-post-update-recovery-workflow.md) | Trimmed lane-split recovery (session seed vs static promote) | **Next client update** / root-null / PID drift |

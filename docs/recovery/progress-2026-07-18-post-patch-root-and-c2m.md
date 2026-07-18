@@ -16,6 +16,7 @@
 | Doc | Role |
 |---|---|
 | [`current-truth.md`](current-truth.md) | Live operator truth pointer |
+| [`c2m-truth-bind-and-static-chain-restart-survival.md`](c2m-truth-bind-and-static-chain-restart-survival.md) | **C2M ↔ truth + restart survival (library entry)** |
 | [`post-patch-static-root-candidate-2026-07-18.md`](post-patch-static-root-candidate-2026-07-18.md) | Discovery narrative (promoted) |
 | [`../workflows/optimized-post-update-recovery-workflow.md`](../workflows/optimized-post-update-recovery-workflow.md) | Next-patch playbook |
 | [`../workflows/automated-travel-memory-data-catalog.md`](../workflows/automated-travel-memory-data-catalog.md) | Travel field inventory |

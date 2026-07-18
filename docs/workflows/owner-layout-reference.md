@@ -13,12 +13,14 @@ or validating after a game update.
 world-to-screen, navmesh, Godot overlay pose frames, and post-patch status), see
 [automated-travel-memory-data-catalog.md](automated-travel-memory-data-catalog.md).
 Always check `docs/recovery/current-truth.md` before treating offsets as live.
-Milestone notes: `docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md`.
+Milestone notes: `docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md`.  
+C2M / restart contract: `docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md`.
 
 **Status:** Coordinates at `owner+0x320/+0x324/+0x328` are **promoted** via root
-`0x32E07C0` (restart + three-pose + API-now, 2026-07-18). Camera child at
-`owner+0x330`; heading at `[[owner+0x330]+0x158]`. `owner+0x304` remains a
-yaw-adjacent scalar candidate, not a formal turn-rate resolver.
+`0x32E07C0` (restart-survivable RVA; three-pose + API-now; multi-restart C2M proof,
+2026-07-18). Camera child at `owner+0x330`; heading at `[[owner+0x330]+0x158]`.
+Heap owner is session-local. `owner+0x304` remains a yaw-adjacent scalar candidate,
+not a formal turn-rate resolver. C2M consumes this chain through `current-truth`.
 
 ---
 

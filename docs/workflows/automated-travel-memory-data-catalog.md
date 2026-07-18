@@ -20,14 +20,16 @@ apps, click-to-move, or any consumer that needs a full pose + projection bundle.
 
 | Layer | Status |
 |---|---|
-| **Current promoted root** | **`0x32E07C0`** — restart + three-pose + API-now; see `current-truth.md` |
+| **Current promoted root** | **`0x32E07C0`** — restart-survivable on this binary; see `current-truth.md` |
+| **C2M ↔ truth** | **Yes** — `c2m_run_to_goal` defaults to `--use-current-truth` (fail closed) |
 | Pre-patch July layout (`0x32EBDC0`) | **Historical** — null on this binary; do not use |
 | May–June formal root (`0x32EBC80`) | **Historical** — dead on this binary |
 | Live automated travel (MVP) | **Unblocked** for static pose + in-game C2M multi-WP (SendInput + W2S) |
 | Milestone notes | `docs/recovery/progress-2026-07-18-post-patch-root-and-c2m.md` |
+| **C2M / restart contract (library)** | `docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md` |
 
-Still re-bind PID/HWND/module base every session. Re-validate P0 fields after
-restarts or patches before long unattended routes.
+Still re-bind PID/HWND/process-start every session (truth target rebind). Root RVA
+survives restart; heap owner does not. Re-validate P0 fields after patches.
 
 ---
 
@@ -111,7 +113,7 @@ without re-proof.
 |---|---|---|---|
 | May–June 2026 formal promotion | `[rift_x64+0x32EBC80]` | `+0x320/+0x324/+0x328` coords; `+0x30C/+0x310/+0x314` facing target | Promoted for that epoch; **stale after later binary drift** |
 | July 2026 nav session | `[rift_x64+0x32EBDC0]` | Same owner layout family + camera child `+0x330` | Practically validated for nav6–nav8; **null root post-2026-07-14 patch** |
-| **Current promoted (2026-07-18)** | **`[rift_x64+0x32E07C0]`** | `+0x320/+0x324/+0x328` coords; `+0x330` camera; heading `[[cam]+0x158]` | **Live promoted** — restart + three-pose + API-now |
+| **Current promoted (2026-07-18)** | **`[rift_x64+0x32E07C0]`** | `+0x320/+0x324/+0x328` coords; `+0x330` camera; heading `[[cam]+0x158]` | **Live promoted + restart-survivable** (RVA); C2M uses via `current-truth` — see `docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md` |
 
 ```text
 # Conceptual chain (when root non-null)
