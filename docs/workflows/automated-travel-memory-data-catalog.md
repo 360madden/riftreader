@@ -43,8 +43,13 @@ survives restart; heap owner does not. Re-validate P0 fields after patches.
 | Overlay markers on map | Player pose + waypoints + scale/pan transform | Zone bounds, path polyline |
 | World overlay / Godot 3D markers | Player pose + camera + FOV + clip + HWND client size | View matrix, aspect, DPI |
 | Click-to-move / click ground | World→screen projection + HWND + client rect | Cursor depth, click backend proof |
-| Obstacle recovery | Pose history + heading | Collision / stuck flags |
+| Obstacle recovery | Pose history + heading | Terrain/prop stuck flags (not NPCs) |
 | Freshness / fail-closed | PID, HWND, process start, module base, timestamps | API-now coordinate cross-check |
+
+**Navigation collision policy (locked):** pathing / navmesh **do not** treat
+**friendly, neutral, or hostile NPCs** as collision or blocked cells. Avoid rocks,
+trees, geometry, and unwalkable terrain only. Unit lists may still be used later
+for combat or target selection — **not** for walkability.
 
 ---
 

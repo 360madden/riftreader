@@ -136,7 +136,20 @@ If bind reports `pid-mismatch` / `hwnd-mismatch` / `process-start-mismatch`: **d
 
 ---
 
-## 6. C2M consumer contract (summary)
+## 6. Navigation collision policy (locked)
+
+| Collide for pathing? | Class |
+|---|---|
+| **No** | Friendly NPCs |
+| **No** | Neutral NPCs |
+| **No** | Hostile NPCs |
+| **Yes (terrain/props)** | Rocks, trees, walls, cliffs, unwalkable ground |
+
+Navmesh / C2M routes model **geometry walkability only**. Stuck detours and blocked
+edges are for **terrain/prop** failure, not unit avoidance. Entity lists are out of
+scope for navigation collision (combat/targeting is a separate consumer).
+
+## 7. C2M consumer contract (summary)
 
 | Flag / surface | Contract |
 |---|---|
@@ -150,7 +163,7 @@ If bind reports `pid-mismatch` / `hwnd-mismatch` / `process-start-mismatch`: **d
 
 ---
 
-## 7. Next patch note
+## 8. Next patch note
 
 If a future client build nulls `0x32E07C0`, **do not** assume this doc’s RVA. Follow  
 [`../workflows/optimized-post-update-recovery-workflow.md`](../workflows/optimized-post-update-recovery-workflow.md)  

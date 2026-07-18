@@ -28,6 +28,8 @@ JSON routes for `scripts/c2m_run_to_goal.py --waypoints-json <path>`.
 
 **Obstacle note:** C2M has no navmesh. If stuck, the runner aims a **lateral detour** (side of path) then resumes. Still face open ground before absolute/world-axis routes.
 
+**NPC collision:** navigation **ignores** friendly / neutral / hostile NPCs as blockers. Detours and future navmesh are for **terrain/props only**, not unit avoidance.
+
 Optional per-waypoint `arrivalRadius` overrides `defaultArrivalRadius` / CLI `--arrival-radius`.
 
 ## Run

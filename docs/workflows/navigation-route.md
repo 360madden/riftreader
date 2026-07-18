@@ -12,6 +12,10 @@ RVA). Contract:
 [`docs/recovery/c2m-truth-bind-and-static-chain-restart-survival.md`](../recovery/c2m-truth-bind-and-static-chain-restart-survival.md).  
 Routes: `scripts/routes/README.md`.
 
+**Collision for navigation:** **do not** path-avoid friendly / neutral / hostile
+**NPCs**. Only terrain and static props (rocks, trees, walls) matter for walkability
+and stuck recovery.
+
 ---
 
 ## Architecture
